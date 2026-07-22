@@ -1,0 +1,13 @@
+{
+  "schema_version": "blind_review_manifest.v0.2",
+  "eval_set_id": "public-synthetic-visual-contrast-v1",
+  "mode": "synthetic_visual_contrast_validation",
+  "sample_catalog": "samples/evaluation/v0.6-visual-contrast-set.json",
+  "history_fixture": "samples/evaluation/v0.6-recent-history-fixture.json",
+  "reviewers": [
+    {"id": "product_owner", "label": "产品负责人"},
+    {"id": "operator", "label": "运营评审者"}
+  ],
+  "formal_conclusion_allowed": false,
+  "note": "公开版仅使用项目自建的合成样本验证评审流程，不包含企业历史文章或模型认证报告。"
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": "editorial_visual_contrast_set.v0.1",
+  "proposed_scope": "D73-D77",
+  "purpose": "只评价结构组件、艺术方向和阅读节奏的可见差异，不承担 OCR 鲁棒性验证。",
+  "sample_count": 4,
+  "minimum_publishable_contrast_samples": 3,
+  "contrast_gate": {
+    "palette_must_differ": true,
+    "primary_color_distance_minimum": 35,
+    "component_or_layout_difference_minimum": 1,
+    "both_plans_must_compile": true,
+    "content_must_remain_fact_locked": true
+  },
+  "samples": [
+    {
+      "id": "visual-01",
+      "path": "samples/evaluation/visual-contrast/01-volunteer-decision.md",
+      "gold_article_type": "data_policy",
+      "role": "structured_visual_contrast",
+      "visual_scoring": true
+    },
+    {
+      "id": "visual-02",
+      "path": "samples/evaluation/visual-contrast/02-goal-backcasting.md",
+      "gold_article_type": "tutorial_steps",
+      "role": "structured_visual_contrast",
+      "visual_scoring": true
+    },
+    {
+      "id": "visual-03",
+      "path": "samples/evaluation/visual-contrast/03-ai-workflow.md",
+      "gold_article_type": "viewpoint_trend",
+      "role": "structured_visual_contrast",
+      "visual_scoring": true
+    },
+    {
+      "id": "visual-04",
+      "path": "samples/evaluation/visual-contrast/04-growth-camp.md",
+      "gold_article_type": "lively_growth",
+      "role": "structured_visual_contrast",
+      "visual_scoring": true
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechat-visual-director.local/contracts/blind-review-v0.1.schema.json",
+  "title": "Blind Review V0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewer_id", "assignment_token", "scores", "preferred_candidate", "preference_reason"],
+  "properties": {
+    "reviewer_id": {"enum": ["product_owner", "operator"]},
+    "assignment_token": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "scores": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "article_understanding",
+        "component_planning",
+        "image_planning",
+        "style_direction",
+        "history_freshness",
+        "direct_adoption"
+      ],
+      "properties": {
+        "article_understanding": {"$ref": "#/$defs/dimensionRating"},
+        "component_planning": {"$ref": "#/$defs/dimensionRating"},
+        "image_planning": {"$ref": "#/$defs/dimensionRating"},
+        "style_direction": {"$ref": "#/$defs/dimensionRating"},
+        "history_freshness": {"$ref": "#/$defs/dimensionRating"},
+        "direct_adoption": {"$ref": "#/$defs/dimensionRating"}
+      }
+    },
+    "preferred_candidate": {"enum": ["left", "right", "tie"]},
+    "preference_reason": {"type": "string", "minLength": 2, "maxLength": 300}
+  },
+  "$defs": {
+    "dimensionRating": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "right", "reason"],
+      "properties": {
+        "left": {"type": "integer", "minimum": 1, "maximum": 5},
+        "right": {"type": "integer", "minimum": 1, "maximum": 5},
+        "reason": {"type": "string", "minLength": 2, "maxLength": 240}
+      }
+    }
+  }
+}

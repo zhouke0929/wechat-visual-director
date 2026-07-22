@@ -1,0 +1,4 @@
+interface:
+  display_name: "公众号视觉主编"
+  short_description: "将公众号 Markdown 初稿转换为可人工确认的双方案视觉工作台"
+  default_prompt: "Use $wechat-visual-director to turn this WeChat article request into a structured Markdown draft and open the visual review workbench."

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wechat-visual-director.local/contracts/editorial-brief-v0.1.schema.json",
+  "title": "EditorialBrief v0.1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "article",
+    "sections",
+    "image_intents",
+    "art_direction",
+    "facts_locked"
+  ],
+  "properties": {
+    "schema_version": { "const": "editorial_brief.v0.1" },
+    "article": { "$ref": "#/$defs/article" },
+    "sections": {
+      "type": "array",
+      "maxItems": 8,
+      "items": { "$ref": "#/$defs/section" }
+    },
+    "image_intents": {
+      "type": "array",
+      "maxItems": 3,
+      "items": { "$ref": "#/$defs/image_intent" }
+    },
+    "art_direction": { "$ref": "#/$defs/art_direction" },
+    "facts_locked": { "const": true }
+  },
+  "$defs": {
+    "block_id": {
+      "type": "string",
+      "pattern": "^block-[0-9]{3}$"
+    },
+    "article": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["article_type", "audience", "reader_task", "narrative"],
+      "properties": {
+        "article_type": {
+          "enum": ["data_policy", "tutorial_steps", "viewpoint_trend", "lively_growth"]
+        },
+        "audience": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+        },
+        "reader_task": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "narrative": { "type": "string", "minLength": 1, "maxLength": 160 }
+      }
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_block_ids", "semantic_role", "visual_priority", "component_intent", "reasoning"],
+      "properties": {
+        "source_block_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/block_id" }
+        },
+        "semantic_role": {
+          "enum": [
+            "reader_question",
+            "key_evidence",
+            "action_step",
+            "comparison",
+            "concept",
+            "logic_sequence",
+            "plain_narrative"
+          ]
+        },
+        "visual_priority": { "enum": ["low", "medium", "high"] },
+        "component_intent": {
+          "enum": [
+            "plain",
+            "question_hook",
+            "numbered_insight",
+            "evidence_callout",
+            "before_after_timeline",
+            "logic_path",
+            "concept_explainer"
+          ]
+        },
+        "reasoning": { "type": "string", "minLength": 1, "maxLength": 240 }
+      }
+    },
+    "image_intent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "anchor_block_id",
+        "source_block_ids",
+        "purpose",
+        "necessity",
+        "aspect_ratio",
+        "visual_metaphor",
+        "forbidden_elements"
+      ],
+      "properties": {
+        "anchor_block_id": { "$ref": "#/$defs/block_id" },
+        "source_block_ids": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/block_id" }
+        },
+        "purpose": { "enum": ["atmosphere", "structured_infographic"] },
+        "necessity": { "enum": ["optional", "recommended"] },
+        "aspect_ratio": { "enum": ["4:3", "16:9"] },
+        "visual_metaphor": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "forbidden_elements": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "text_in_model_image",
+              "qr_code",
+              "logo",
+              "official_seal",
+              "fabricated_data",
+              "brand_cta"
+            ]
+          },
+          "allOf": [
+            { "contains": { "const": "text_in_model_image" } },
+            { "contains": { "const": "qr_code" } },
+            { "contains": { "const": "logo" } }
+          ]
+        }
+      }
+    },
+    "art_direction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tone", "palette_roles", "style_family", "avoid_recent_patterns"],
+      "properties": {
+        "tone": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": { "type": "string", "minLength": 1, "maxLength": 30 }
+        },
+        "palette_roles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["deep_navy", "muted_teal", "warm_ivory", "coral_accent", "sunlit_yellow", "soft_sky"]
+          }
+        },
+        "style_family": {
+          "enum": ["editorial_paper_cut", "soft_flat_illustration", "clean_3d_geometry"]
+        },
+        "avoid_recent_patterns": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "type": "string", "minLength": 1, "maxLength": 160 }
+        }
+      }
+    }
+  },
+  "$comment": "Runtime validation additionally requires every block reference to exist in the current article, the image anchor to be included in source_block_ids, no duplicate image anchors, and no more than three non-plain component intents."
+}

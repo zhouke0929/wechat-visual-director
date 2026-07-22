@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "brand_profile_version": "example_0.1",
+  "status": "example",
+  "account_name": "示例公众号",
+  "brand_name_cn": "示例公众号",
+  "brand_name_en": "Example Account",
+  "brand_descriptor": "请在使用前替换为自己的品牌配置",
+  "editorial_kicker": "WECHAT · CONTENT BRIEF",
+  "standard_kicker": "公众号 · 阅读指南",
+  "primary_colors": [],
+  "accent_colors": [],
+  "tone_keywords": [
+    "清晰",
+    "可信",
+    "克制",
+    "有行动指引"
+  ],
+  "fixed_footer": {
+    "enabled": false,
+    "component": null,
+    "text": "",
+    "asset_path": null,
+    "alt_text": "",
+    "placement": "after_sources",
+    "allow_ai_regeneration": false,
+    "excluded_from_freshness_score": true
+  },
+  "forbidden_patterns": [
+    "整篇重复同一种标题组件",
+    "无信息目的的装饰插画",
+    "模型生成或修改二维码、Logo、品牌名称"
+  ],
+  "image_restrictions": [
+    "不得生成虚构校徽或官方文件",
+    "数据图不得修改原始数字",
+    "用户上传的品牌资产不得进入生图流程"
+  ]
+}

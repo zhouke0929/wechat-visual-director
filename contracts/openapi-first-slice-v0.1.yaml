@@ -1,0 +1,1233 @@
+openapi: 3.1.0
+info:
+  title: 公众号视觉主编 Agent 第一轮 MVP API
+  version: 0.1.0
+  description: >-
+    第一条垂直链路接口：Markdown 导入、任务与进度、双方案预览与选择、
+    历史窗口设置和 CTA 品牌资产版本管理。
+servers:
+  - url: /api/v1
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+tags:
+  - name: ArticleTasks
+  - name: Plans
+  - name: Images
+  - name: Settings
+  - name: BrandAssets
+
+paths:
+  /article-tasks:
+    get:
+      tags: [ArticleTasks]
+      operationId: listArticleTasks
+      summary: 查询任务列表
+      parameters:
+        - $ref: '#/components/parameters/AccountIdQuery'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TaskStatus'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 任务列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskListResponse'
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [ArticleTasks]
+      operationId: createArticleTask
+      summary: 上传 Markdown 并创建任务
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [account_id, markdown_file]
+              properties:
+                account_id:
+                  type: string
+                  example: default
+                markdown_file:
+                  type: string
+                  format: binary
+                derived_from_task_id:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: 任务创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTaskResponse'
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/FileTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /article-tasks/{task_id}:
+    get:
+      tags: [ArticleTasks]
+      operationId: getArticleTask
+      summary: 查询任务详情与生成进度
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 任务详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskDetailResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /article-tasks/{task_id}/plan-generation:
+    post:
+      tags: [ArticleTasks]
+      operationId: startOrRetryPlanGeneration
+      summary: 首次启动或重试方案生成
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanGenerationRequest'
+      responses:
+        '202':
+          description: 已进入生成队列
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanGenerationAccepted'
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+        '429': {$ref: '#/components/responses/RateLimited'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+
+  /article-tasks/{task_id}/plans:
+    get:
+      tags: [Plans]
+      operationId: listVisualPlans
+      summary: 查询两套视觉方案
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: 两套视觉方案
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanListResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /article-tasks/{task_id}/plans/{plan_id}/image-slots:
+    get:
+      tags: [Images]
+      operationId: listImageSlots
+      summary: 查询已选方案的图片槽与候选状态
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PlanId'
+      responses:
+        '200':
+          description: 图片槽确认列表
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageSlotListResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/generate:
+    post:
+      tags: [Images]
+      operationId: generateImageCandidate
+      summary: 使用当前 Provider 生成一个图片候选
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: '#/components/parameters/ImageSlotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/GenerateImageRequest'}
+      responses:
+        '200':
+          description: 候选生成成功，但尚未自动采用
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageMutationResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/candidates/{candidate_id}/accept:
+    post:
+      tags: [Images]
+      operationId: acceptImageCandidate
+      summary: 人工采用指定候选
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: '#/components/parameters/ImageSlotId'
+        - $ref: '#/components/parameters/CandidateId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ImageDecisionRequest'}
+      responses:
+        '200':
+          description: 已采用，完整预览动态插入该图片
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageMutationResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/skip:
+    post:
+      tags: [Images]
+      operationId: skipImageSlot
+      summary: 本篇跳过非必要图片槽
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: '#/components/parameters/ImageSlotId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ImageDecisionRequest'}
+      responses:
+        '200':
+          description: 已跳过，不阻断文章后续流程
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageMutationResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+
+  /article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/replace:
+    post:
+      tags: [Images]
+      operationId: replaceImageSlot
+      summary: 上传人工图片并自动采用
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/PlanId'
+        - $ref: '#/components/parameters/ImageSlotId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expected_image_revision, image_file]
+              properties:
+                expected_image_revision: {type: integer, minimum: 1}
+                image_file: {type: string, format: binary}
+      responses:
+        '200':
+          description: 人工图片已保存并采用
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ImageMutationResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/FileTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /image-candidates/{candidate_id}/content:
+    get:
+      tags: [Images]
+      operationId: getImageCandidateContent
+      summary: 获取内部保存的图片候选文件
+      parameters:
+        - $ref: '#/components/parameters/CandidateId'
+      responses:
+        '200':
+          description: PNG、JPEG 或 WEBP 图片文件
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /article-tasks/{task_id}/selection:
+    put:
+      tags: [Plans]
+      operationId: selectVisualPlan
+      summary: 保存或切换选中方案
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SelectPlanRequest'
+      responses:
+        '200':
+          description: 选择已保存
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SelectionResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /render-artifacts/{artifact_id}/content:
+    get:
+      tags: [Plans]
+      operationId: getRenderArtifactContent
+      summary: 获取受保护的预览 HTML
+      parameters:
+        - name: artifact_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 经过白名单渲染的预览 HTML
+          headers:
+            Content-Security-Policy:
+              schema: {type: string}
+          content:
+            text/html:
+              schema:
+                type: string
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /accounts/{account_id}/settings:
+    get:
+      tags: [Settings]
+      operationId: getAccountSettings
+      summary: 查询账号设置
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+      responses:
+        '200':
+          description: 账号设置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSettings'
+        '404': {$ref: '#/components/responses/NotFound'}
+    patch:
+      tags: [Settings]
+      operationId: updateAccountSettings
+      summary: 修改历史窗口
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAccountSettingsRequest'
+      responses:
+        '200':
+          description: 设置已更新，只影响新任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateAccountSettingsResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /accounts/{account_id}/brand-assets:
+    get:
+      tags: [BrandAssets]
+      operationId: listBrandAssets
+      summary: 查询品牌资产版本
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - name: type
+          in: query
+          required: true
+          schema:
+            const: fixed_footer_cta
+      responses:
+        '200':
+          description: CTA 资产版本
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandAssetListResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+    post:
+      tags: [BrandAssets]
+      operationId: uploadBrandAsset
+      summary: 上传 CTA 候选资产
+      parameters:
+        - $ref: '#/components/parameters/AccountIdPath'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [asset_type, file]
+              properties:
+                asset_type:
+                  const: fixed_footer_cta
+                file:
+                  type: string
+                  format: binary
+                version_note:
+                  type: string
+                  maxLength: 200
+      responses:
+        '201':
+          description: 候选资产已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BrandAssetUploadResponse'
+        '409': {$ref: '#/components/responses/Conflict'}
+        '413': {$ref: '#/components/responses/FileTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMediaType'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /brand-assets/{asset_id}/activate:
+    post:
+      tags: [BrandAssets]
+      operationId: activateBrandAsset
+      summary: 扫码确认并启用 CTA 版本
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateBrandAssetRequest'
+      responses:
+        '200':
+          description: 新 CTA 已启用，只影响新任务
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivateBrandAssetResponse'
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '422': {$ref: '#/components/responses/ValidationError'}
+
+  /brand-assets/{asset_id}/content:
+    get:
+      tags: [BrandAssets]
+      operationId: getBrandAssetContent
+      summary: 获取受保护的 CTA 图片内容
+      parameters:
+        - name: asset_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: 依据真实图片格式返回 JPEG、PNG 或 WebP
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+            image/png:
+              schema: {type: string, format: binary}
+            image/webp:
+              schema: {type: string, format: binary}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: visual_director_session
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TaskId:
+      name: task_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    PlanId:
+      name: plan_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ImageSlotId:
+      name: image_slot_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: '^image-slot-[0-9]{3}$'
+    CandidateId:
+      name: candidate_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AccountIdPath:
+      name: account_id
+      in: path
+      required: true
+      schema:
+        type: string
+    AccountIdQuery:
+      name: account_id
+      in: query
+      required: true
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 128
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: false
+      description: 使用 Cookie 会话发起状态修改时必填；Bearer 客户端不需要。
+      schema:
+        type: string
+        minLength: 16
+
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [created, analyzing, plans_ready, plan_selected, failed]
+
+    ProgressStatus:
+      type: string
+      enum: [pending, running, succeeded, failed]
+
+    ArticleType:
+      type: [string, 'null']
+      enum: [data_policy, viewpoint_trend, tutorial_steps, lively_growth, null]
+
+    TaskSummary:
+      type: object
+      required:
+        - id
+        - account_id
+        - title
+        - status
+        - history_window
+        - brand_profile_version
+        - fixed_footer_asset_version
+        - version
+        - created_at
+        - updated_at
+      properties:
+        id: {type: string, format: uuid}
+        account_id: {type: string}
+        title: {type: string}
+        article_type: {$ref: '#/components/schemas/ArticleType'}
+        status: {$ref: '#/components/schemas/TaskStatus'}
+        history_window: {type: integer, minimum: 1, maximum: 20}
+        brand_profile_version: {type: string}
+        fixed_footer_asset_version: {type: string}
+        selected_plan_id:
+          type: [string, 'null']
+          format: uuid
+        derived_from_task_id:
+          type: [string, 'null']
+          format: uuid
+        version: {type: integer, minimum: 1}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+
+    TaskListResponse:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/TaskSummary'}
+        next_cursor:
+          type: [string, 'null']
+
+    InputWarning:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string}
+        message: {type: string}
+
+    InputSummary:
+      type: object
+      required:
+        - title_source
+        - section_count
+        - image_reference_count
+        - warnings
+      properties:
+        title_source:
+          type: string
+          enum: [frontmatter, first_h1]
+        section_count: {type: integer, minimum: 0}
+        image_reference_count: {type: integer, minimum: 0}
+        warnings:
+          type: array
+          items: {$ref: '#/components/schemas/InputWarning'}
+
+    CreateTaskResponse:
+      type: object
+      required: [task, input_summary]
+      properties:
+        task: {$ref: '#/components/schemas/TaskSummary'}
+        input_summary: {$ref: '#/components/schemas/InputSummary'}
+
+    ProgressStep:
+      type: object
+      required: [key, label, status]
+      properties:
+        key:
+          type: string
+          enum:
+            - parse_input
+            - content_director
+            - load_context
+            - visual_planner
+            - validate_plans
+            - render_plan_previews
+        label: {type: string}
+        status: {$ref: '#/components/schemas/ProgressStatus'}
+        started_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+        message: {type: [string, 'null']}
+
+    AvailableAction:
+      type: string
+      enum:
+        - start_plan_generation
+        - retry_plan_generation
+        - create_revision_task
+        - view_plans
+        - select_plan
+        - change_selection
+
+    TaskDetailResponse:
+      type: object
+      required: [task, progress, input_summary, available_actions, last_error]
+      properties:
+        task: {$ref: '#/components/schemas/TaskSummary'}
+        progress:
+          type: array
+          items: {$ref: '#/components/schemas/ProgressStep'}
+        input_summary: {$ref: '#/components/schemas/InputSummary'}
+        available_actions:
+          type: array
+          items: {$ref: '#/components/schemas/AvailableAction'}
+        last_error:
+          oneOf:
+            - {$ref: '#/components/schemas/ErrorDetail'}
+            - {type: 'null'}
+
+    PlanGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, expected_task_version]
+      properties:
+        mode:
+          type: string
+          enum: [start, retry]
+        expected_task_version:
+          type: integer
+          minimum: 1
+        planner:
+          type: string
+          enum: [rule, intelligent]
+          default: rule
+
+    PlanGenerationAccepted:
+      type: object
+      required: [task_id, status, poll_after_ms, version]
+      properties:
+        task_id: {type: string, format: uuid}
+        status:
+          type: string
+          const: analyzing
+        poll_after_ms:
+          type: integer
+          minimum: 500
+          example: 2000
+        version: {type: integer, minimum: 1}
+
+    RecommendationType:
+      type: string
+      enum: [recommended, alternative]
+
+    StyleMode:
+      type: string
+      enum:
+        - data_decision
+        - editorial_insight
+        - lively_science
+        - ink_navy_editorial
+        - warm_coral_editorial
+        - sage_sunlit_editorial
+        - light_reading
+        - editorial_contrast
+
+    ComponentUsage:
+      type: object
+      additionalProperties:
+        type: integer
+        minimum: 0
+
+    ImageVisualIntent:
+      type: object
+      additionalProperties: false
+      required: [subject, composition, style_family, palette_role, negative_space]
+      properties:
+        subject: {type: string, minLength: 1, maxLength: 160}
+        composition:
+          type: string
+          enum: [branching, layered, wide_scene, centered]
+        style_family:
+          type: string
+          enum: [editorial_paper_cut, soft_flat_illustration, clean_3d_geometry]
+        palette_role: {type: string, const: plan_palette}
+        negative_space:
+          type: string
+          enum: [none, lower_right, lower_third]
+
+    ImageFactBindings:
+      type: object
+      additionalProperties: false
+      required: [item_refs, facts_locked]
+      properties:
+        title_ref: {type: [string, 'null']}
+        item_refs:
+          type: array
+          maxItems: 4
+          items: {type: string}
+        facts_locked: {type: boolean, const: true}
+
+    ImageHistoryEvidence:
+      type: object
+      additionalProperties: false
+      required: [recent_use_count, avoided_style_family, penalty_applied]
+      properties:
+        recent_use_count: {type: integer, minimum: 0}
+        avoided_style_family: {type: [string, 'null']}
+        penalty_applied: {type: boolean}
+
+    ImageSlotPlan:
+      type: object
+      required:
+        - image_slot_id
+        - anchor_block_id
+        - source_block_ids
+        - placement
+        - purpose
+        - required
+        - reason
+        - aspect_ratio
+        - visual_intent
+        - fact_bindings
+        - history_evidence
+      properties:
+        image_slot_id: {type: string, pattern: '^image-slot-[0-9]{3}$'}
+        anchor_block_id: {type: string, pattern: '^block-[0-9]{3}$'}
+        source_block_ids:
+          type: array
+          minItems: 1
+          items: {type: string, pattern: '^block-[0-9]{3}$'}
+        placement: {type: string, const: after_anchor}
+        purpose:
+          type: string
+          enum: [atmosphere, structured_infographic]
+        required: {type: boolean, const: false}
+        reason: {type: string, minLength: 1, maxLength: 240}
+        aspect_ratio:
+          type: string
+          enum: ['4:3', '16:9']
+        visual_intent: {$ref: '#/components/schemas/ImageVisualIntent'}
+        fact_bindings: {$ref: '#/components/schemas/ImageFactBindings'}
+        history_evidence: {$ref: '#/components/schemas/ImageHistoryEvidence'}
+
+    ImageMachineChecks:
+      type: object
+      required: [file_valid, ratio_valid, qr_risk, text_risk, logo_risk, person_risk]
+      properties:
+        file_valid: {type: boolean}
+        ratio_valid: {type: boolean}
+        qr_risk: {type: string}
+        text_risk: {type: string}
+        logo_risk: {type: string}
+        person_risk: {type: string}
+
+    ImageCandidate:
+      type: object
+      required:
+        - id
+        - image_slot_id
+        - candidate_index
+        - provider
+        - model
+        - provider_prompt
+        - status
+        - content_url
+        - width
+        - height
+        - latency_ms
+        - human_decision
+        - machine_checks
+      properties:
+        id: {type: string, format: uuid}
+        image_slot_id: {type: string}
+        candidate_index: {type: integer, minimum: 1}
+        provider:
+          type: string
+          enum: [mock, agnes, manual_upload]
+        model: {type: string}
+        provider_prompt: {type: string}
+        status: {type: string, const: generated}
+        content_url: {type: string}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        latency_ms: {type: integer, minimum: 0}
+        human_decision:
+          type: string
+          enum: [pending, accepted, rejected]
+        machine_checks: {$ref: '#/components/schemas/ImageMachineChecks'}
+
+    ImageProviderFailure:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+
+    ImageSlotState:
+      type: object
+      required: [image_slot_id, status, image_revision, selected_candidate_id, decision, last_error, candidates]
+      properties:
+        image_slot_id: {type: string}
+        status:
+          type: string
+          enum: [planned, generated, accepted, replaced, skipped, failed]
+        image_revision: {type: integer, minimum: 1}
+        selected_candidate_id:
+          type: [string, 'null']
+          format: uuid
+        decision:
+          type: string
+          enum: [pending, accepted, replaced, skipped]
+        last_error:
+          oneOf:
+            - {$ref: '#/components/schemas/ImageProviderFailure'}
+            - {type: 'null'}
+        candidates:
+          type: array
+          items: {$ref: '#/components/schemas/ImageCandidate'}
+
+    ImageSlotReview:
+      allOf:
+        - $ref: '#/components/schemas/ImageSlotPlan'
+        - type: object
+          required: [state]
+          properties:
+            state: {$ref: '#/components/schemas/ImageSlotState'}
+
+    ImageSlotListResponse:
+      type: object
+      required: [task_id, plan_id, provider_mode, items]
+      properties:
+        task_id: {type: string, format: uuid}
+        plan_id: {type: string, format: uuid}
+        provider_mode:
+          type: string
+          enum: [mock, agnes]
+        items:
+          type: array
+          maxItems: 3
+          items: {$ref: '#/components/schemas/ImageSlotReview'}
+
+    GenerateImageRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, expected_image_revision]
+      properties:
+        mode:
+          type: string
+          enum: [start, regenerate]
+        expected_image_revision: {type: integer, minimum: 1}
+
+    ImageDecisionRequest:
+      type: object
+      additionalProperties: false
+      required: [expected_image_revision]
+      properties:
+        expected_image_revision: {type: integer, minimum: 1}
+
+    ImageMutationResponse:
+      type: object
+      required: [image_slot]
+      properties:
+        image_slot: {$ref: '#/components/schemas/ImageSlotState'}
+        provider_mode:
+          type: string
+          enum: [mock, agnes]
+
+    VisualPlanSummary:
+      type: object
+      required:
+        - id
+        - plan_index
+        - plan_name
+        - recommendation
+        - style_mode
+        - summary
+        - difference_from_recent
+        - structural_differences
+        - component_usage
+        - preview_artifact_id
+        - preview_url
+      properties:
+        id: {type: string, format: uuid}
+        plan_index: {type: integer, minimum: 1, maximum: 2}
+        plan_name: {type: string}
+        recommendation: {$ref: '#/components/schemas/RecommendationType'}
+        style_mode: {$ref: '#/components/schemas/StyleMode'}
+        summary: {type: string}
+        difference_from_recent:
+          type: array
+          items: {type: string}
+        structural_differences:
+          type: array
+          minItems: 2
+          items: {type: string}
+        component_usage: {$ref: '#/components/schemas/ComponentUsage'}
+        preview_artifact_id: {type: string, format: uuid}
+        preview_url: {type: string}
+        image_slots:
+          type: array
+          maxItems: 3
+          items: {$ref: '#/components/schemas/ImageSlotPlan'}
+
+    PlanComparison:
+      type: object
+      required: [structural_difference_count, shared_structure, summary]
+      properties:
+        structural_difference_count: {type: integer, minimum: 0}
+        shared_structure: {type: boolean}
+        summary: {type: string}
+
+    PlanListResponse:
+      type: object
+      required: [task_id, selected_plan_id, plans, comparison]
+      properties:
+        task_id: {type: string, format: uuid}
+        selected_plan_id:
+          type: [string, 'null']
+          format: uuid
+        plans:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: '#/components/schemas/VisualPlanSummary'}
+        comparison: {$ref: '#/components/schemas/PlanComparison'}
+
+    SelectPlanRequest:
+      type: object
+      additionalProperties: false
+      required: [plan_id, expected_task_version]
+      properties:
+        plan_id: {type: string, format: uuid}
+        expected_task_version: {type: integer, minimum: 1}
+
+    SelectionResponse:
+      type: object
+      required:
+        - task_id
+        - selected_plan_id
+        - status
+        - selection_change_count
+        - version
+        - updated_at
+      properties:
+        task_id: {type: string, format: uuid}
+        selected_plan_id: {type: string, format: uuid}
+        status:
+          type: string
+          const: plan_selected
+        selection_change_count: {type: integer, minimum: 0}
+        version: {type: integer, minimum: 1}
+        updated_at: {type: string, format: date-time}
+
+    HistoryWindowRange:
+      type: object
+      required: [minimum, maximum]
+      properties:
+        minimum: {type: integer, const: 1}
+        maximum: {type: integer, const: 20}
+
+    AccountSettings:
+      type: object
+      required:
+        - account_id
+        - history_window
+        - history_window_range
+        - active_brand_profile_version
+        - version
+        - updated_at
+      properties:
+        account_id: {type: string}
+        history_window: {type: integer, minimum: 1, maximum: 20}
+        history_window_range: {$ref: '#/components/schemas/HistoryWindowRange'}
+        active_brand_profile_version: {type: string}
+        version: {type: integer, minimum: 1}
+        updated_at: {type: string, format: date-time}
+
+    UpdateAccountSettingsRequest:
+      type: object
+      additionalProperties: false
+      required: [history_window, expected_version]
+      properties:
+        history_window: {type: integer, minimum: 1, maximum: 20}
+        expected_version: {type: integer, minimum: 1}
+
+    UpdateAccountSettingsResponse:
+      allOf:
+        - $ref: '#/components/schemas/AccountSettings'
+        - type: object
+          required: [effective_scope, message]
+          properties:
+            effective_scope:
+              type: string
+              const: new_tasks_only
+            message: {type: string}
+
+    BrandAssetStatus:
+      type: string
+      enum: [candidate, active, inactive, rejected]
+
+    BrandAsset:
+      type: object
+      required:
+        - id
+        - type
+        - version_name
+        - status
+        - format
+        - width
+        - height
+        - sha256
+        - preview_url
+        - created_at
+      properties:
+        id: {type: string, format: uuid}
+        type:
+          type: string
+          const: fixed_footer_cta
+        version_name: {type: string}
+        status: {$ref: '#/components/schemas/BrandAssetStatus'}
+        format:
+          type: string
+          enum: [JPEG, PNG, WEBP]
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        sha256: {type: string, minLength: 64, maxLength: 64}
+        preview_url: {type: string}
+        qr_scan_confirmed_at: {type: [string, 'null'], format: date-time}
+        created_at: {type: string, format: date-time}
+
+    BrandAssetListResponse:
+      type: object
+      required: [items, active_asset_id]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/BrandAsset'}
+        active_asset_id:
+          type: [string, 'null']
+          format: uuid
+
+    BrandAssetUploadResponse:
+      type: object
+      required: [asset, qr_scan_required]
+      properties:
+        asset: {$ref: '#/components/schemas/BrandAsset'}
+        qr_scan_required:
+          type: boolean
+          const: true
+
+    ActivateBrandAssetRequest:
+      type: object
+      additionalProperties: false
+      required: [qr_scan_confirmed, expected_account_settings_version]
+      properties:
+        qr_scan_confirmed: {type: boolean}
+        expected_account_settings_version: {type: integer, minimum: 1}
+
+    ActivateBrandAssetResponse:
+      type: object
+      required:
+        - asset_id
+        - status
+        - brand_profile_version
+        - effective_scope
+        - previous_active_asset_id
+        - message
+      properties:
+        asset_id: {type: string, format: uuid}
+        status:
+          type: string
+          const: active
+        brand_profile_version: {type: string}
+        effective_scope:
+          type: string
+          const: new_tasks_only
+        previous_active_asset_id:
+          type: [string, 'null']
+          format: uuid
+        message: {type: string}
+
+    FieldError:
+      type: object
+      required: [field, code, message]
+      properties:
+        field: {type: string}
+        code: {type: string}
+        message: {type: string}
+
+    ErrorDetail:
+      type: object
+      required: [code, message, retryable, request_id, field_errors]
+      properties:
+        code: {type: string}
+        message: {type: string}
+        retryable: {type: boolean}
+        stage: {type: [string, 'null']}
+        task_id:
+          type: [string, 'null']
+          format: uuid
+        field_errors:
+          type: array
+          items: {$ref: '#/components/schemas/FieldError'}
+        request_id: {type: string}
+        details:
+          type: [object, 'null']
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error: {$ref: '#/components/schemas/ErrorDetail'}
+
+  responses:
+    Unauthorized:
+      description: 需要登录
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Forbidden:
+      description: 无权访问该账号或资源
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Conflict:
+      description: 状态、版本或幂等冲突
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    FileTooLarge:
+      description: 文件超过大小限制
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    UnsupportedMediaType:
+      description: 文件格式不支持
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    ValidationError:
+      description: 字段或业务规则校验失败
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    RateLimited:
+      description: 请求过于频繁
+      headers:
+        Retry-After:
+          schema: {type: integer}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}
+    Unavailable:
+      description: 服务暂时不可用
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ErrorResponse'}

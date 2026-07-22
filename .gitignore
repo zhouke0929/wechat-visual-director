@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+apps/api/data/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment and local secrets
+.env
+.env.local
+*.local
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary files
+*.tmp
+*.log
+tmp/
+local-private/
+artifacts/
+prototype/
+
+# Company/internal evaluation material is kept locally but excluded from the public repository.
+samples/pilot/
+samples/source-pdfs/
+samples/evaluation/raw-ocr/
+samples/evaluation/01-breakout-data-policy.md
+samples/evaluation/02-recent-ai-school.md
+samples/evaluation/03-recent-learning-through-play.md
+samples/evaluation/04-legacy-generic-template.md
+samples/evaluation/manifest.json
+samples/evaluation/v0.6-dev-set.json
+samples/evaluation/v0.6-blind-dev-manifest.json
+samples/evaluation/v0.6-blind-visual-manifest.json
+
+# Historical internal reports remain in the working copy; only V1 public docs are released.
+docs/*
+!docs/V1.0-Agent调用与CLI契约.md
+!docs/V1.0-Skill封装与本地验收记录.md
+!docs/V1.0规范化文章输入协议.md
+!docs/V1.0开源Skill产品定位与发行决策.md
+!docs/组件视觉质量基线-V1.0.md
+
+# One-off internal probes, migrations, compatibility packaging and browser evidence generators.
+# The public Alpha ships the stable root launchers plus product tests instead.
+apps/api/scripts/
+apps/web/scripts/
+tools/

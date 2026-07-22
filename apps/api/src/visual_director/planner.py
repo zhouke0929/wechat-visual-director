@@ -1,0 +1,570 @@
+from __future__ import annotations
+
+import re
+import copy
+from collections import Counter
+from typing import Any
+
+from .component_catalog import (
+    COMPONENT_CATALOG,
+    COMPONENT_LIBRARY_VERSION,
+    PLAN_SCHEMA_VERSION,
+    RENDERER_VERSION,
+    automatic_variants,
+)
+from .parser import ContentBlock, ParsedArticle
+from .plan_schema import validate_plan_for_article
+from .editorial_brief import is_concept_pair
+
+
+STYLE_LABELS = {
+    "data_decision": "数据决策",
+    "editorial_insight": "编辑洞察",
+    "lively_science": "活力科普",
+}
+
+STYLE_PALETTES = {
+    "data_decision": {
+        "primary": "#0B7169",
+        "secondary": "#F2C94C",
+        "accent": "#EE6B4D",
+        "sky": "#54B5DF",
+        "pale": "#EAF7F4",
+        "secondary_pale": "#FFF7D6",
+        "accent_pale": "#FFF0E9",
+        "sky_pale": "#EAF6FC",
+        "surface": "#FFFEFA",
+        "ink": "#20312E",
+    },
+    "editorial_insight": {
+        "primary": "#315E68",
+        "secondary": "#F0BB4F",
+        "accent": "#E76F51",
+        "sky": "#72B7D6",
+        "pale": "#EDF4F5",
+        "secondary_pale": "#FFF6DA",
+        "accent_pale": "#FFF0EA",
+        "sky_pale": "#EDF7FB",
+        "surface": "#FFFEFA",
+        "ink": "#253033",
+    },
+    "lively_science": {
+        "primary": "#117C73",
+        "secondary": "#F4C84A",
+        "accent": "#F06A4B",
+        "sky": "#58B9E4",
+        "pale": "#E9F7F3",
+        "secondary_pale": "#FFF7D5",
+        "accent_pale": "#FFF0E9",
+        "sky_pale": "#EAF7FD",
+        "surface": "#FFFEFA",
+        "ink": "#20312E",
+    },
+}
+
+
+def _base_usage(parsed: ParsedArticle) -> Counter[str]:
+    usage: Counter[str] = Counter()
+    usage["section_heading"] = sum(1 for block in parsed.blocks if block.type == "heading" and block.level != 1)
+    usage["quote"] = sum(1 for block in parsed.blocks if block.type == "quote")
+    usage["data_table"] = sum(1 for block in parsed.blocks if block.type == "table")
+    usage["steps"] = sum(1 for block in parsed.blocks if block.type in {"ordered_list", "unordered_list"})
+    usage["source"] = sum(1 for block in parsed.blocks if block.type == "source")
+    return usage
+
+
+def _list_refs(block: ContentBlock) -> list[str]:
+    return [f"{block.id}:item:{index}" for index in range(len(block.content))]
+
+
+def _candidate(
+    component_type: str,
+    consume: list[ContentBlock],
+    bindings: dict[str, str | list[str]],
+    reason: str,
+    recent_counts: tuple[Counter[str], Counter[tuple[str, str]]],
+) -> dict[str, Any]:
+    definition = COMPONENT_CATALOG[component_type]
+    component_counts, variant_counts = recent_counts
+    variants = automatic_variants(component_type)
+    selected_variant = min(
+        variants,
+        key=lambda value: (variant_counts[(component_type, value)], variants.index(value)),
+    )
+    default_variant = variants[0]
+    avoided_variant = default_variant if selected_variant != default_variant else None
+    return {
+        "anchor_block_id": consume[0].id,
+        "consume_block_ids": [block.id for block in consume],
+        "semantic_role": component_type,
+        "component_type": component_type,
+        "variant": selected_variant,
+        "fallback_variant": definition["fallback_variant"],
+        "emphasis": "primary" if component_type in {"question_hook", "logic_path", "before_after_timeline"} else "secondary",
+        "content_bindings": bindings,
+        "selection_reason": reason,
+        "history_evidence": {
+            "recent_use_count": variant_counts[(component_type, selected_variant)],
+            "component_use_count": component_counts[component_type],
+            "selected_variant": selected_variant,
+            "avoided_variant": avoided_variant,
+            "penalty_applied": avoided_variant is not None,
+        },
+        "facts_locked": True,
+    }
+
+
+def _recent_counts(
+    recent_summaries: list[dict[str, Any]],
+) -> tuple[Counter[str], Counter[tuple[str, str]]]:
+    component_counts: Counter[str] = Counter()
+    variant_counts: Counter[tuple[str, str]] = Counter()
+    for summary in recent_summaries:
+        for component in summary.get("components", []):
+            component_type = component.get("component_type") if isinstance(component, dict) else str(component)
+            if component_type:
+                component_counts[component_type] += 1
+                if isinstance(component, dict) and component.get("variant"):
+                    variant_counts[(component_type, str(component["variant"]))] += 1
+    return component_counts, variant_counts
+
+
+def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    blocks = parsed.blocks
+    recent_counts = _recent_counts(recent_summaries)
+
+    for index, block in enumerate(blocks):
+        previous = blocks[index - 1] if index > 0 else None
+        following = blocks[index + 1] if index + 1 < len(blocks) else None
+
+        if block.type == "heading" and (block.level or 0) >= 3:
+            heading = str(block.content)
+            if re.search(r"[？?]|为什么|是什么|有什么|如何|是否", heading):
+                candidates.append(
+                    _candidate("question_hook", [block], {"title": block.id}, "章节标题明确提出读者核心问题。", recent_counts)
+                )
+                if following and following.type == "paragraph":
+                    candidates.append(
+                        _candidate(
+                            "faq_card",
+                            [block, following],
+                            {"question": block.id, "answer": following.id},
+                            "问句子标题与紧随答案构成可独立阅读的问答单元。",
+                            recent_counts,
+                        )
+                    )
+            if following and following.type == "paragraph" and re.search(r"案例|故事|实践|实录|样本", heading):
+                candidates.append(
+                    _candidate(
+                        "case_card",
+                        [block, following],
+                        {"title": block.id, "body": following.id},
+                        "案例子标题与紧随正文构成原文锁定的故事单元。",
+                        recent_counts,
+                    )
+                )
+            if (
+                following
+                and following.type == "paragraph"
+                and is_concept_pair(heading, str(following.content))
+            ):
+                candidates.append(
+                    _candidate(
+                        "concept_explainer",
+                        [block, following],
+                        {"title": block.id, "definition": following.id},
+                        "标题与紧随正文构成明确的概念及解释。",
+                        recent_counts,
+                    )
+                )
+            if following and following.type in {"ordered_list", "unordered_list"} and len(following.content) >= 2 and re.search(
+                r"前后|对比|不同|变化|改革|传统|新旧|之前|之后", heading
+            ):
+                candidates.append(
+                    _candidate(
+                        "before_after_timeline",
+                        [block, following],
+                        {"before": f"{following.id}:item:0", "after": f"{following.id}:item:1"},
+                        "章节包含明确的前后或旧新对照。",
+                        recent_counts,
+                    )
+                )
+
+        if block.type == "quote":
+            candidates.append(
+                _candidate("evidence_callout", [block], {"evidence": block.id}, "原文包含可回溯的引语或来源说明。", recent_counts)
+            )
+
+        if block.type in {"paragraph", "quote"} and re.search(r"注意|风险|警惕|避免|不要|不可|谨防", str(block.content)):
+            candidates.append(
+                _candidate("warning_note", [block], {"body": block.id}, "原文明示风险或注意事项。", recent_counts)
+            )
+
+        if block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 5:
+            heading_context = str(previous.content) if previous and previous.type == "heading" else ""
+            if re.search(r"清单|检查|准备|核对", heading_context):
+                candidates.append(
+                    _candidate("action_checklist", [block], {"items": _list_refs(block)}, "列表由清单或核对语义标题引导。", recent_counts)
+                )
+            if re.search(r"对比|区别|差异|优缺点|两种", heading_context) and len(block.content) >= 2:
+                refs = _list_refs(block)
+                candidates.append(
+                    _candidate("comparison_card", [block], {"left": refs[0], "right": refs[1]}, "列表由明确对比语义标题引导。", recent_counts)
+                )
+            if re.search(r"小结|总结|结论|要点|回顾", heading_context):
+                candidates.append(
+                    _candidate("section_summary", [block], {"items": _list_refs(block)}, "列表用于阶段收束而非新增论述。", recent_counts)
+                )
+            candidates.append(
+                _candidate("numbered_insight", [block], {"items": _list_refs(block)}, "原文存在 2–5 个并列观点。", recent_counts)
+            )
+            if block.type == "ordered_list" and 3 <= len(block.content) <= 5:
+                consume = [block]
+                bindings: dict[str, str | list[str]] = {"items": _list_refs(block)}
+                if previous and previous.type == "heading" and (previous.level or 0) >= 3:
+                    consume = [previous, block]
+                candidates.append(
+                    _candidate("logic_path", consume, bindings, "原文存在 3–5 个有序步骤。", recent_counts)
+                )
+
+    return candidates
+
+
+def _select_candidates(candidates: list[dict[str, Any]], priorities: tuple[str, ...], limit: int) -> list[dict[str, Any]]:
+    priority = {component_type: index for index, component_type in enumerate(priorities)}
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            priority.get(item["component_type"], len(priority)),
+            item["anchor_block_id"],
+        ),
+    )
+    selected: list[dict[str, Any]] = []
+    consumed: set[str] = set()
+    consumed_numbers: set[int] = set()
+    type_counts: Counter[str] = Counter()
+    family_counts: Counter[str] = Counter()
+    semantic_family = {
+        "question_hook": "question",
+        "faq_card": "question",
+        "before_after_timeline": "comparison",
+        "comparison_card": "comparison",
+    }
+    for item in ordered:
+        if type_counts[item["component_type"]] >= 2:
+            continue
+        family = semantic_family.get(item["component_type"], item["component_type"])
+        if family_counts[family] >= 2:
+            continue
+        if consumed.intersection(item["consume_block_ids"]):
+            continue
+        numbers = {int(block_id.rsplit("-", 1)[-1]) for block_id in item["consume_block_ids"]}
+        if any(abs(number - existing) <= 1 for number in numbers for existing in consumed_numbers):
+            continue
+        selected.append(copy.deepcopy(item))
+        consumed.update(item["consume_block_ids"])
+        consumed_numbers.update(numbers)
+        type_counts[item["component_type"]] += 1
+        family_counts[family] += 1
+        if len(selected) >= limit:
+            break
+    selected.sort(key=lambda item: item["anchor_block_id"])
+    for index, item in enumerate(selected, 1):
+        item["slot_id"] = f"slot-{index:03d}"
+    return selected
+
+
+def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    blocks = parsed.blocks
+    for index, block in enumerate(blocks):
+        previous = blocks[index - 1] if index > 0 else None
+        if block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4:
+            source = [block]
+            title_ref: str | None = None
+            subject = "并列关系或步骤路径"
+            if previous and previous.type == "heading" and previous.level != 1:
+                source = [previous, block]
+                title_ref = previous.id
+                subject = str(previous.content)
+            candidates.append(
+                {
+                    "anchor_block_id": block.id,
+                    "source_block_ids": [item.id for item in source],
+                    "purpose": "structured_infographic",
+                    "required": False,
+                    "reason": "将 2–4 个原文节点转为轻量结构图，文字和顺序继续由原文事实锁定。",
+                    "aspect_ratio": "4:3",
+                    "subject": subject,
+                    "fact_bindings": {
+                        "title_ref": title_ref,
+                        "item_refs": _list_refs(block),
+                        "facts_locked": True,
+                    },
+                }
+            )
+
+        if block.type == "heading" and block.level != 1:
+            following = blocks[index + 1] if index + 1 < len(blocks) else None
+            if following and following.type in {"paragraph", "ordered_list", "unordered_list"}:
+                candidates.append(
+                    {
+                        "anchor_block_id": following.id,
+                        "source_block_ids": [block.id, following.id],
+                        "purpose": "atmosphere",
+                        "required": False,
+                        "reason": "为章节建立语义氛围和阅读停顿，不承载新的事实。",
+                        "aspect_ratio": "16:9",
+                        "subject": str(block.content),
+                        "fact_bindings": {
+                            "title_ref": None,
+                            "item_refs": [],
+                            "facts_locked": True,
+                        },
+                    }
+                )
+
+        # OCR/imported articles often arrive as a handful of long paragraphs
+        # without H2 headings or Markdown lists. They still need visual pauses,
+        # but a paragraph must never be promoted to a fact-bearing infographic.
+        # Treat only substantial, non-tail paragraphs as atmosphere candidates;
+        # selection below keeps adjacent candidates apart.
+        if block.type == "paragraph" and index < len(blocks) - 2:
+            paragraph = re.sub(r"\s+", " ", str(block.content)).strip()
+            if len(paragraph) >= 120:
+                candidates.append(
+                    {
+                        "anchor_block_id": block.id,
+                        "source_block_ids": [block.id],
+                        "purpose": "atmosphere",
+                        "required": False,
+                        "reason": "为长篇叙事建立视觉停顿；图片只表达章节氛围，不新增或改写事实。",
+                        "aspect_ratio": "16:9",
+                        "subject": paragraph,
+                        "fact_bindings": {
+                            "title_ref": None,
+                            "item_refs": [],
+                            "facts_locked": True,
+                        },
+                    }
+                )
+    return candidates
+
+
+def _select_image_slots(
+    candidates: list[dict[str, Any]],
+    *,
+    preferred_purpose: str,
+    limit: int,
+    style_family: str,
+    composition: str,
+    negative_space: str,
+) -> list[dict[str, Any]]:
+    ordered = sorted(
+        candidates,
+        key=lambda item: (item["purpose"] != preferred_purpose, item["anchor_block_id"]),
+    )
+    selected: list[dict[str, Any]] = []
+    anchors: set[str] = set()
+    selected_block_numbers: set[int] = set()
+    for candidate in ordered:
+        if candidate["anchor_block_id"] in anchors:
+            continue
+        block_number = int(candidate["anchor_block_id"].rsplit("-", 1)[-1])
+        if any(abs(block_number - existing) <= 1 for existing in selected_block_numbers):
+            continue
+        selected.append(
+            {
+                "image_slot_id": f"image-slot-{len(selected) + 1:03d}",
+                "anchor_block_id": candidate["anchor_block_id"],
+                "source_block_ids": candidate["source_block_ids"],
+                "placement": "after_anchor",
+                "purpose": candidate["purpose"],
+                "required": False,
+                "reason": candidate["reason"],
+                "aspect_ratio": candidate["aspect_ratio"],
+                "visual_intent": {
+                    "subject": candidate["subject"][:160],
+                    "composition": composition if candidate["purpose"] == preferred_purpose else "wide_scene",
+                    "style_family": style_family,
+                    "palette_role": "plan_palette",
+                    "negative_space": negative_space,
+                },
+                "fact_bindings": candidate["fact_bindings"],
+                "history_evidence": {
+                    "recent_use_count": 0,
+                    "avoided_style_family": None,
+                    "penalty_applied": False,
+                },
+            }
+        )
+        anchors.add(candidate["anchor_block_id"])
+        selected_block_numbers.add(block_number)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
+def _plan(
+    *,
+    index: int,
+    style: str,
+    recommendation: str,
+    parsed: ParsedArticle,
+    history_window: int,
+    slots: list[dict[str, Any]],
+    image_slots: list[dict[str, Any]],
+    configuration: dict[str, Any],
+    recent_summaries: list[dict[str, Any]],
+) -> dict[str, Any]:
+    usage = _base_usage(parsed)
+    for slot in slots:
+        usage[slot["component_type"]] += 1
+    recent_message = (
+        f"已读取最近 {min(len(recent_summaries), history_window)} 篇确认记录，并优先选择近期使用更少的具体变体。"
+        if recent_summaries
+        else f"当前没有可用的确认记录；保留最近 {history_window} 篇历史窗口配置。"
+    )
+    rich = index == 1
+    payload: dict[str, Any] = {
+        "schema_version": PLAN_SCHEMA_VERSION,
+        "revision": 1,
+        "undo_stack": [],
+        "task_id": None,
+        "article_type": None,
+        "component_library_version": COMPONENT_LIBRARY_VERSION,
+        "renderer_version": RENDERER_VERSION,
+        "history_window": history_window,
+        "plan_index": index,
+        "plan_name": f"{STYLE_LABELS[style]} · {'语义导航' if rich else '留白长读'}",
+        "recommendation": recommendation,
+        "style_mode": style,
+        "summary": "用语义组件建立明确视线入口，并保留正文缓冲。" if rich else "减少强组件数量，用更连续的阅读节奏组织长文。",
+        "difference_from_recent": [recent_message, "同一语义组件可以继续使用；固定 CTA 不参与新鲜度计算。"],
+        "structural_differences": [
+            "逐段组件插槽与内容块绑定",
+            "强组件密度和出现位置不同",
+            "列表在逻辑路径与编号观点之间按语义选择",
+        ],
+        "component_usage": dict(usage),
+        "configuration": configuration,
+        "slots": slots,
+        "image_slots": image_slots,
+        "quality_constraints": {
+            "max_strong_components_in_a_row": 1,
+            "max_strong_components_per_article": 3 if rich else 2,
+            "avoid_recent_component_sequence": True,
+            "facts_locked": True,
+        },
+    }
+    return payload
+
+
+def generate_plans(
+    parsed: ParsedArticle,
+    article_type: str,
+    history_window: int,
+    recent_summaries: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    recent = recent_summaries or []
+    if article_type == "data_policy":
+        styles = ("data_decision", "editorial_insight")
+    elif article_type == "tutorial_steps":
+        styles = ("lively_science", "editorial_insight")
+    elif article_type == "lively_growth":
+        styles = ("lively_science", "data_decision")
+    else:
+        styles = ("editorial_insight", "lively_science")
+
+    candidates = _build_candidates(parsed, recent)
+    image_candidates = _image_candidates(parsed)
+    first_palette = STYLE_PALETTES[styles[0]]
+    second_palette = STYLE_PALETTES[styles[1]]
+    strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
+    first_slots = _select_candidates(
+        candidates,
+        ("faq_card", "case_card", "action_checklist", "warning_note", "comparison_card", "section_summary", "question_hook", "logic_path", "before_after_timeline", "evidence_callout", "concept_explainer", "numbered_insight"),
+        strong_limit,
+    )
+    second_slots = _select_candidates(
+        candidates,
+        ("section_summary", "comparison_card", "warning_note", "action_checklist", "case_card", "faq_card", "concept_explainer", "numbered_insight", "evidence_callout", "before_after_timeline", "question_hook", "logic_path"),
+        max(2, strong_limit - 1),
+    )
+    first_image_slots = _select_image_slots(
+        image_candidates,
+        preferred_purpose="structured_infographic",
+        limit=2,
+        style_family="editorial_paper_cut",
+        composition="branching",
+        negative_space="lower_right",
+    )
+    second_image_slots = _select_image_slots(
+        image_candidates,
+        preferred_purpose="atmosphere",
+        limit=1,
+        style_family="soft_flat_illustration",
+        composition="wide_scene",
+        negative_space="lower_third",
+    )
+    plans = [
+        _plan(
+            index=1,
+            style=styles[0],
+            recommendation="recommended",
+            parsed=parsed,
+            history_window=history_window,
+            slots=first_slots,
+            image_slots=first_image_slots,
+            recent_summaries=recent,
+            configuration={
+                "heading_variant": "numbered_marker",
+                "key_point_variant": "warm_note",
+                "quote_variant": "side_quote",
+                "list_variant": "vertical_numbered",
+                "table_variant": "compact_grid",
+                "accent": first_palette["primary"],
+                "palette": first_palette,
+            },
+        ),
+        _plan(
+            index=2,
+            style=styles[1],
+            recommendation="alternative",
+            parsed=parsed,
+            history_window=history_window,
+            slots=second_slots,
+            image_slots=second_image_slots,
+            recent_summaries=recent,
+            configuration={
+                "heading_variant": "editorial_left_rule",
+                "key_point_variant": "concise_rule",
+                "quote_variant": "centered_sentence",
+                "list_variant": "compact_checklist",
+                "table_variant": "highlighted_column",
+                "accent": second_palette["primary"],
+                "palette": second_palette,
+            },
+        ),
+    ]
+    for plan in plans:
+        plan["article_type"] = article_type
+        plan["quality_constraints"]["max_strong_components_per_article"] = (
+            strong_limit if plan["plan_index"] == 1 else max(2, strong_limit - 1)
+        )
+        validate_plan_for_article(plan, parsed)
+    return plans
+
+
+def structural_difference_count(plans: list[dict[str, Any]]) -> int:
+    if len(plans) != 2:
+        return 0
+    keys = ("heading_variant", "key_point_variant", "quote_variant", "list_variant", "table_variant")
+    left, right = plans[0]["configuration"], plans[1]["configuration"]
+    config_differences = sum(left[key] != right[key] for key in keys)
+    left_slots = {(slot["anchor_block_id"], slot["component_type"]) for slot in plans[0].get("slots", [])}
+    right_slots = {(slot["anchor_block_id"], slot["component_type"]) for slot in plans[1].get("slots", [])}
+    left_images = {(slot["anchor_block_id"], slot["purpose"]) for slot in plans[0].get("image_slots", [])}
+    right_images = {(slot["anchor_block_id"], slot["purpose"]) for slot in plans[1].get("image_slots", [])}
+    return config_differences + len(left_slots.symmetric_difference(right_slots)) + len(left_images.symmetric_difference(right_images))

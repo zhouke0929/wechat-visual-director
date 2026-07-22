@@ -1,0 +1,42 @@
+{
+  "schema_version": "recent_component_history_fixture.v0.1",
+  "description": "用于测试模型是否能解释并避开最近五篇重复的组件变体；不包含历史文章正文。",
+  "summaries": [
+    {
+      "style_mode": "data_decision",
+      "components": [
+        {"component_type": "question_hook", "variant": "light_bubble"},
+        {"component_type": "numbered_insight", "variant": "gradient_guide_label"},
+        {"component_type": "evidence_callout", "variant": "orbit_outline"}
+      ]
+    },
+    {
+      "style_mode": "data_decision",
+      "components": [
+        {"component_type": "question_hook", "variant": "light_bubble"},
+        {"component_type": "numbered_insight", "variant": "gradient_guide_label"}
+      ]
+    },
+    {
+      "style_mode": "editorial_insight",
+      "components": [
+        {"component_type": "evidence_callout", "variant": "orbit_outline"},
+        {"component_type": "concept_explainer", "variant": "node_note_card"}
+      ]
+    },
+    {
+      "style_mode": "data_decision",
+      "components": [
+        {"component_type": "question_hook", "variant": "light_bubble"},
+        {"component_type": "numbered_insight", "variant": "gradient_guide_label"}
+      ]
+    },
+    {
+      "style_mode": "editorial_insight",
+      "components": [
+        {"component_type": "evidence_callout", "variant": "orbit_outline"},
+        {"component_type": "concept_explainer", "variant": "node_note_card"}
+      ]
+    }
+  ]
+}

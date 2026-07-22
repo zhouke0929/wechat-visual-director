@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "account_id": "default",
+  "account_name": "示例公众号",
+  "settings_version": "example_settings_0.1",
+  "history_window": 5,
+  "history_window_allowed_range": {
+    "minimum": 1,
+    "maximum": 20
+  },
+  "active_brand_profile_version": "example_0.1",
+  "configuration_policy": {
+    "snapshot_on_task_creation": true,
+    "changes_apply_to_existing_tasks": false,
+    "retain_previous_versions": true
+  }
+}

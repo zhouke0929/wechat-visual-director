@@ -1,0 +1,56 @@
+{
+  "schema_version": "editorial_planner_eval_set.v0.1",
+  "sample_count": 7,
+  "license_scope": "project-authored-synthetic-only",
+  "samples": [
+    {
+      "id": "dev-01",
+      "path": "samples/evaluation/visual-contrast/01-volunteer-decision.md",
+      "gold_article_type": "data_policy",
+      "role": "structured_data_policy",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-02",
+      "path": "samples/evaluation/visual-contrast/03-ai-workflow.md",
+      "gold_article_type": "viewpoint_trend",
+      "role": "structured_viewpoint",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-03",
+      "path": "samples/evaluation/structured/02-recent-ai-school.component-fixture.md",
+      "gold_article_type": "viewpoint_trend",
+      "role": "component_fixture",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-04",
+      "path": "samples/evaluation/06-weak-structure-boundary.md",
+      "gold_article_type": "data_policy",
+      "role": "weak_structure_boundary",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-05",
+      "path": "samples/evaluation/05-tutorial-steps.md",
+      "gold_article_type": "tutorial_steps",
+      "role": "structured_tutorial",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-06",
+      "path": "samples/evaluation/visual-contrast/04-growth-camp.md",
+      "gold_article_type": "lively_growth",
+      "role": "structured_growth",
+      "visual_scoring": true
+    },
+    {
+      "id": "dev-07",
+      "path": "samples/evaluation/visual-contrast/02-goal-backcasting.md",
+      "gold_article_type": "tutorial_steps",
+      "role": "heading_boundary",
+      "visual_scoring": true
+    }
+  ]
+}
