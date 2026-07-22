@@ -79,10 +79,10 @@ powershell -ExecutionPolicy Bypass -File ".\scripts\visual-director.ps1" stop --
 openclaw skills install <absolute-repository-path> --as wechat-visual-director
 ```
 
-GitHub 仓库建立后：
+从 GitHub 安装：
 
 ```text
-openclaw skills install git:<owner>/wechat-visual-director@main
+openclaw skills install git:zhouke0929/wechat-visual-director@main
 ```
 
 Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scripts/install.ps1` 安装核心程序依赖。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。
