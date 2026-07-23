@@ -5,7 +5,54 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from visual_director.main import create_app
+from visual_director.delivery import WenyanPublishResult
 from visual_director.text_planner import MockTextPlannerProvider
+
+
+class _SuccessfulWenyanPublisher:
+    def __init__(self) -> None:
+        self.publish_count = 0
+
+    def status(self) -> dict:
+        return {
+            "schema_version": "publisher_status.v0.1",
+            "provider": "wenyan",
+            "installed": True,
+            "version": "2.0.11",
+            "minimum_version": "2.0.1",
+            "recommended_version": "2.0.11",
+            "credentials_configured": True,
+            "credential_source": "local_env_file",
+            "ip_whitelist": "operator_confirmation_required",
+            "ready": True,
+            "warnings": [],
+            "install_command": "npm install -g @wenyan-md/cli@2.0.11",
+        }
+
+    def publish(self, files: dict[str, bytes]) -> WenyanPublishResult:
+        self.publish_count += 1
+        assert "article.md" in files
+        assert b"asset://" not in files["article.md"]
+        assert b"<h1" not in files["article.md"]
+        assert b"padding:0 24px 34px" not in files["article.md"]
+        return WenyanPublishResult(status="succeeded", media_id="REAL_MEDIA_001", error=None)
+
+
+class _FailThenSucceedWenyanPublisher(_SuccessfulWenyanPublisher):
+    def publish(self, files: dict[str, bytes]) -> WenyanPublishResult:
+        self.publish_count += 1
+        assert "article.md" in files
+        if self.publish_count == 1:
+            return WenyanPublishResult(
+                status="failed",
+                media_id=None,
+                error={
+                    "code": "invalid_ip_whitelist",
+                    "message": "当前出口 IP 未加入公众号白名单",
+                    "retryable": True,
+                },
+            )
+        return WenyanPublishResult(status="succeeded", media_id="REAL_MEDIA_RETRY_001", error=None)
 
 
 def _png_bytes(width: int = 960, height: int = 540, color: tuple[int, int, int] = (30, 124, 112)) -> bytes:
@@ -169,7 +216,8 @@ article_type: tutorial_steps
         assert len(plans) == 2
         preview = client.get(plans[0]["preview_url"])
         assert preview.status_code == 200
-        assert "width:390px" in preview.text
+        assert "width:100%" in preview.text
+        assert "width:390px" not in preview.text
 
         first = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plans[0]["id"]}/select',
@@ -463,6 +511,8 @@ def test_publication_freeze_is_immutable_idempotent_and_locks_editing(tmp_path: 
 
         preview = client.get(revision["preview_url"])
         assert preview.status_code == 200
+        assert "三步完成志愿核对" in preview.text
+        assert len(preview.content) > 1000
         assert "asset://" not in preview.text
         assert "/api/v1/brand-assets/current/content" not in preview.text
         assert app.state.repository.get_task(task["id"])["source_hash"] == source_before
@@ -1061,3 +1111,93 @@ def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: 
         assert reused.status_code == 200
         assert reused.json()["candidate"]["source_type"] == "accepted_body_image"
         assert client.get(body_candidate["content_url"]).content == original_bytes
+
+
+def test_wenyan_draft_uses_frozen_revision_and_replays_without_duplicate(tmp_path: Path) -> None:
+    publisher = _SuccessfulWenyanPublisher()
+    app = create_app(str(tmp_path / "wenyan-draft.db"), wenyan_publisher=publisher)
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task, "freeze-for-wenyan")
+        revision = frozen["revision"]
+        frozen_task = frozen["task"]
+        payload = {
+            "expected_task_version": frozen_task["version"],
+            "draft_slot": revision["suggested_draft_slot"],
+        }
+        created = client.post(
+            f'/api/v1/publication-revisions/{revision["id"]}/wenyan-draft',
+            headers={"Idempotency-Key": "wenyan-real-1", "X-Operator-Id": "operator"},
+            json=payload,
+        )
+        assert created.status_code == 200, created.text
+        result = created.json()
+        assert result["operation"]["provider"] == "wenyan"
+        assert result["operation"]["is_mock"] is False
+        assert result["operation"]["status"] == "succeeded"
+        assert result["operation"]["media_id"] == "REAL_MEDIA_001"
+        assert result["task"]["status"] == "wechat_draft_created"
+
+        replay = client.post(
+            f'/api/v1/publication-revisions/{revision["id"]}/wenyan-draft',
+            headers={"Idempotency-Key": "wenyan-real-1", "X-Operator-Id": "operator"},
+            json=payload,
+        )
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["idempotency_replayed"] is True
+        assert replay.json()["operation"]["id"] == result["operation"]["id"]
+        assert publisher.publish_count == 1
+
+        bundle = client.get(f'/api/v1/publication-revisions/{revision["id"]}/bundle')
+        assert bundle.status_code == 200
+        assert bundle.headers["content-type"] == "application/zip"
+
+
+def test_failed_wenyan_draft_can_retry_once_without_creating_a_new_operation(tmp_path: Path) -> None:
+    publisher = _FailThenSucceedWenyanPublisher()
+    app = create_app(str(tmp_path / "wenyan-draft-retry.db"), wenyan_publisher=publisher)
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task, "freeze-for-wenyan-retry")
+        revision = frozen["revision"]
+        failed = client.post(
+            f'/api/v1/publication-revisions/{revision["id"]}/wenyan-draft',
+            headers={"Idempotency-Key": "wenyan-fail-1", "X-Operator-Id": "operator"},
+            json={
+                "expected_task_version": frozen["task"]["version"],
+                "draft_slot": revision["suggested_draft_slot"],
+            },
+        )
+        assert failed.status_code == 200, failed.text
+        failed_result = failed.json()
+        assert failed_result["operation"]["status"] == "failed"
+        assert failed_result["task"]["status"] == "wechat_draft_failed"
+
+        retried = client.post(
+            f'/api/v1/draft-operations/{failed_result["operation"]["id"]}/wenyan-retry',
+            headers={"Idempotency-Key": "wenyan-retry-1", "X-Operator-Id": "operator"},
+            json={
+                "expected_task_version": failed_result["task"]["version"],
+                "expected_operation_version": failed_result["operation"]["version"],
+            },
+        )
+        assert retried.status_code == 200, retried.text
+        retry_result = retried.json()
+        assert retry_result["idempotency_replayed"] is False
+        assert retry_result["operation"]["id"] == failed_result["operation"]["id"]
+        assert retry_result["operation"]["status"] == "succeeded"
+        assert retry_result["operation"]["media_id"] == "REAL_MEDIA_RETRY_001"
+        assert retry_result["task"]["status"] == "wechat_draft_created"
+        assert publisher.publish_count == 2
+
+        replay = client.post(
+            f'/api/v1/draft-operations/{failed_result["operation"]["id"]}/wenyan-retry',
+            headers={"Idempotency-Key": "wenyan-retry-1", "X-Operator-Id": "operator"},
+            json={
+                "expected_task_version": failed_result["task"]["version"],
+                "expected_operation_version": failed_result["operation"]["version"],
+            },
+        )
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["idempotency_replayed"] is True
+        assert publisher.publish_count == 2

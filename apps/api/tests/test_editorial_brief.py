@@ -328,7 +328,9 @@ def test_mock_planner_compiles_all_seven_dev_samples(sample: dict) -> None:
     plan = compile_editorial_brief(request.parsed, result.brief, 5, [])
     assert len(plan["slots"]) <= 6
     assert len(plan["image_slots"]) <= 3
-    assert "width:390px" in render_preview(request.parsed, plan)
+    document = render_preview(request.parsed, plan)
+    assert "width:100%" in document
+    assert "width:390px" not in document
 
 
 @pytest.mark.parametrize("sample", _visual_contrast_samples(), ids=lambda item: item["id"])
@@ -344,7 +346,9 @@ def test_mock_planner_compiles_visual_contrast_samples(sample: dict) -> None:
         "sage_sunlit_editorial",
     }
     assert plan["configuration"]["palette"]["primary"].startswith("#")
-    assert "width:390px" in render_preview(request.parsed, plan)
+    document = render_preview(request.parsed, plan)
+    assert "width:100%" in document
+    assert "width:390px" not in document
 
 
 def test_provider_error_falls_back_to_rule_brief() -> None:

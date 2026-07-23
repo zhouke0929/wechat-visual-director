@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from PIL import Image, ImageOps, UnidentifiedImageError
 
@@ -64,6 +64,13 @@ from .publication import (
     replace_asset_urls,
     sha256_text,
     structure_hash,
+)
+from .settings import load_runtime_settings
+from .delivery import (
+    WenyanPublisher,
+    build_clipboard_payload,
+    build_delivery_files,
+    build_delivery_zip,
 )
 from .repository import NotFoundError, PublicationLockedError, Repository, VersionConflictError
 
@@ -147,6 +154,11 @@ class CreateMockDraftRequest(BaseModel):
     simulation_mode: str = Field(default="success", pattern="^(success|fail_once|unknown)$")
 
 
+class CreateWenyanDraftRequest(BaseModel):
+    expected_task_version: int = Field(ge=1)
+    draft_slot: str = Field(pattern=r"^(primary|draft-[2-9][0-9]*)$")
+
+
 class RetryMockDraftRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
     expected_operation_version: int = Field(ge=1)
@@ -197,7 +209,7 @@ def _public_task(task: dict[str, Any]) -> dict[str, Any]:
             "last_error",
             "selection_change_count",
         }
-    } | {"publication_mode": "mock"}
+    } | {"publication_mode": "local"}
 
 
 def _crop_cover(content: bytes) -> bytes:
@@ -236,7 +248,7 @@ def _public_publication_revision(revision: dict[str, Any], *, suggested_draft_sl
             "brand_asset_count": roles.count("brand_cta"),
         },
         "preview_url": f'/api/v1/publication-revisions/{revision["id"]}/content',
-        "is_mock": True,
+        "is_mock": False,
         "suggested_draft_slot": suggested_draft_slot,
     }
 
@@ -271,17 +283,21 @@ def create_app(
     image_provider: ImageProvider | None = None,
     text_planner_provider: TextPlannerProvider | None = None,
     blind_review_manifest_path: str | None = None,
+    wenyan_publisher: WenyanPublisher | None = None,
 ) -> FastAPI:
     root = Path(__file__).resolve().parents[4]
+    runtime_settings, runtime_env_path = load_runtime_settings(root)
     db_path = database_path or os.environ.get("VISUAL_DIRECTOR_DB", str(root / "apps" / "api" / "data" / "visual-director.db"))
     repository = Repository(db_path)
     app = FastAPI(title="公众号视觉主编 API", version="0.1.0")
     app.state.repository = repository
-    app.state.image_provider = image_provider or create_image_provider_from_env()
-    app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env()
+    app.state.image_provider = image_provider or create_image_provider_from_env(runtime_settings)
+    app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env(runtime_settings)
+    app.state.runtime_env_path = runtime_env_path
     app.state.root = root
     app.state.brand_profile = load_brand_profile(root)
     app.state.brand_asset_path = brand_asset_path(root, app.state.brand_profile)
+    app.state.wenyan_publisher = wenyan_publisher or WenyanPublisher(root)
     blind_manifest = Path(
         blind_review_manifest_path
         or os.environ.get(
@@ -640,7 +656,7 @@ def create_app(
             {
                 "task_id": task_id,
                 "ready": not blockers,
-                "publication_mode": "mock",
+                "publication_mode": "local",
                 "suggested_draft_slot": repository.suggested_draft_slot(task_id),
                 "blockers": blockers,
                 "checks": checks,
@@ -652,7 +668,7 @@ def create_app(
     def health() -> dict[str, Any]:
         return {
             "status": "ok",
-            "planner": "deterministic_baseline",
+            "planner": "editorial_brief",
             "image_provider": app.state.image_provider.provider,
             "image_provider_configured": app.state.image_provider.configured,
             "image_prompt_version": IMAGE_PROMPT_VERSION,
@@ -665,7 +681,7 @@ def create_app(
             "preflight_schema_version": PREFLIGHT_SCHEMA_VERSION,
             "preflight_ruleset_version": PREFLIGHT_RULESET_VERSION,
             "publication_schema_version": PUBLICATION_SCHEMA_VERSION,
-            "publication_mode": "mock",
+            "publication_mode": "local",
         }
 
     @app.get("/api/v1/article-tasks")
@@ -881,6 +897,10 @@ def create_app(
             "mock_draft_created": ["view_mock_draft", "continue_editing"],
             "mock_draft_failed": ["retry_mock_draft", "continue_editing"],
             "mock_draft_unknown": ["resolve_mock_unknown"],
+            "wechat_draft_syncing": ["view_draft_operation"],
+            "wechat_draft_created": ["view_wechat_draft", "continue_editing"],
+            "wechat_draft_failed": ["view_draft_error", "continue_editing"],
+            "wechat_draft_unknown": ["verify_wechat_backend"],
             "failed": ["retry_plan_generation"],
         }[task["status"]]
         return {
@@ -1050,6 +1070,36 @@ def create_app(
             },
         )
 
+    @app.get("/api/v1/publishers/wenyan/status")
+    def wenyan_publisher_status() -> dict[str, Any]:
+        return app.state.wenyan_publisher.status()
+
+    @app.get("/api/v1/publication-revisions/{revision_id}/clipboard")
+    def publication_clipboard_payload(revision_id: str, request: Request) -> dict[str, Any]:
+        revision = repository.get_publication_revision(revision_id)
+        assets = repository.list_publication_assets(revision_id)
+        base_url = str(request.base_url).rstrip("/")
+        return build_clipboard_payload(
+            revision,
+            assets,
+            lambda asset_id: f"{base_url}/api/v1/publication-assets/{asset_id}/content",
+        )
+
+    @app.get("/api/v1/publication-revisions/{revision_id}/bundle")
+    def download_publication_bundle(revision_id: str) -> Response:
+        revision = repository.get_publication_revision(revision_id)
+        assets = repository.list_publication_assets(revision_id)
+        files = build_delivery_files(revision, assets, repository.get_publication_asset)
+        archive = build_delivery_zip(files)
+        return Response(
+            content=archive,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="wechat-visual-director-{revision_id}.zip"',
+                "Cache-Control": "private, no-store",
+            },
+        )
+
     @app.get("/api/v1/publication-assets/{asset_id}/content")
     def publication_asset_content(asset_id: str) -> FileResponse:
         path, content_type = repository.get_publication_asset(asset_id)
@@ -1095,6 +1145,67 @@ def create_app(
         )
         return {"operation": operation, "task": _public_task(task)}
 
+    @app.post("/api/v1/publication-revisions/{revision_id}/wenyan-draft")
+    def create_wenyan_draft_operation(
+        revision_id: str,
+        payload: CreateWenyanDraftRequest,
+        idempotency_key: str = Header(..., alias="Idempotency-Key"),
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
+    ) -> Any:
+        if operator_id not in {"operator", "product_owner"}:
+            return _error(422, "invalid_operator", "请选择有效的操作身份")
+        publisher_status = app.state.wenyan_publisher.status()
+        if not publisher_status["ready"]:
+            return _error(
+                409,
+                "wenyan_not_ready",
+                "Wenyan 发布器尚未完成本机配置",
+                retryable=True,
+                details={"publisher": publisher_status},
+            )
+        request_hash = hash_json(
+            {"revision_id": revision_id, **payload.model_dump(mode="json"), "operator_id": operator_id}
+        )
+        operation, started_task, replayed = repository.begin_wenyan_draft_operation(
+            revision_id=revision_id,
+            draft_slot=payload.draft_slot,
+            expected_task_version=payload.expected_task_version,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            confirmed_by=operator_id,
+        )
+        if replayed:
+            return {"operation": operation, "task": _public_task(started_task), "idempotency_replayed": True}
+
+        revision = repository.get_publication_revision(revision_id)
+        try:
+            files = build_delivery_files(
+                revision,
+                repository.list_publication_assets(revision_id),
+                repository.get_publication_asset,
+            )
+            result = app.state.wenyan_publisher.publish(files)
+        except (OSError, ValueError) as error:
+            result_status = "failed"
+            result_media_id = None
+            result_error = {
+                "code": "delivery_bundle_invalid",
+                "message": str(error),
+                "retryable": True,
+            }
+        else:
+            result_status = result.status
+            result_media_id = result.media_id
+            result_error = result.error
+        operation, finished_task = repository.finish_wenyan_draft_operation(
+            operation_id=operation["id"],
+            expected_task_version=started_task["version"],
+            status=result_status,
+            media_id=result_media_id,
+            error=result_error,
+        )
+        return {"operation": operation, "task": _public_task(finished_task), "idempotency_replayed": False}
+
     @app.get("/api/v1/draft-operations/{operation_id}")
     def get_draft_operation(operation_id: str) -> dict[str, Any]:
         return {"operation": repository.get_draft_operation(operation_id)}
@@ -1103,6 +1214,67 @@ def create_app(
     def get_task_draft_operations(task_id: str) -> dict[str, Any]:
         repository.get_task(task_id)
         return {"items": repository.list_draft_operations(task_id)}
+
+    @app.post("/api/v1/draft-operations/{operation_id}/wenyan-retry")
+    def retry_wenyan_draft_operation(
+        operation_id: str,
+        payload: RetryMockDraftRequest,
+        idempotency_key: str = Header(..., alias="Idempotency-Key"),
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
+    ) -> Any:
+        if operator_id not in {"operator", "product_owner"}:
+            return _error(422, "invalid_operator", "请选择有效的操作身份")
+        publisher_status = app.state.wenyan_publisher.status()
+        if not publisher_status["ready"]:
+            return _error(
+                409,
+                "wenyan_not_ready",
+                "Wenyan 发布器尚未完成本机配置",
+                retryable=True,
+                details={"publisher": publisher_status},
+            )
+        request_hash = hash_json(
+            {"operation_id": operation_id, **payload.model_dump(mode="json"), "operator_id": operator_id}
+        )
+        operation, started_task, replayed = repository.retry_wenyan_draft_operation(
+            operation_id=operation_id,
+            expected_task_version=payload.expected_task_version,
+            expected_operation_version=payload.expected_operation_version,
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+            operator_id=operator_id,
+        )
+        if replayed:
+            return {"operation": operation, "task": _public_task(started_task), "idempotency_replayed": True}
+
+        revision = repository.get_publication_revision(operation["revision_id"])
+        try:
+            files = build_delivery_files(
+                revision,
+                repository.list_publication_assets(revision["id"]),
+                repository.get_publication_asset,
+            )
+            result = app.state.wenyan_publisher.publish(files)
+        except (OSError, ValueError) as error:
+            result_status = "failed"
+            result_media_id = None
+            result_error = {
+                "code": "delivery_bundle_invalid",
+                "message": str(error),
+                "retryable": True,
+            }
+        else:
+            result_status = result.status
+            result_media_id = result.media_id
+            result_error = result.error
+        operation, finished_task = repository.finish_wenyan_draft_operation(
+            operation_id=operation["id"],
+            expected_task_version=started_task["version"],
+            status=result_status,
+            media_id=result_media_id,
+            error=result_error,
+        )
+        return {"operation": operation, "task": _public_task(finished_task), "idempotency_replayed": False}
 
     @app.post("/api/v1/draft-operations/{operation_id}/retry")
     def retry_mock_draft_operation(

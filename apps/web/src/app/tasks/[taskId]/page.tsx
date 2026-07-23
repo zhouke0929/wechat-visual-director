@@ -14,21 +14,24 @@ import {
   acknowledgePreflightFinding,
   acceptImageCandidate,
   continueEditingPublication,
-  createMockDraft,
+  createWenyanDraft,
   freezePublication,
   generatePlans,
   generateCoverCandidate,
   generateImageCandidate,
   getDraftOperations,
+  getClipboardPayload,
   getCoverWorkspace,
   getImageSlots,
   getPlans,
   getPublicationReadiness,
   getPublicationRevisions,
   getTask,
+  getWenyanPublisherStatus,
+  retryWenyanDraft,
+  publicationBundleUrl,
   replacePreflightAsset,
   replaceImageSlot,
-  retryMockDraft,
   reuseCoverCandidate,
   savePublicationDraft,
   selectPlan,
@@ -53,6 +56,7 @@ import type {
   PublicationRevision,
   TaskDetail,
   VisualPlan,
+  WenyanPublisherStatus,
 } from "@/lib/types";
 
 const styleLabels: Record<string, string> = {
@@ -101,12 +105,14 @@ export default function TaskReviewPage() {
   const [publicationReadiness, setPublicationReadiness] = useState<PublicationReadiness | null>(null);
   const [publicationRevisions, setPublicationRevisions] = useState<PublicationRevision[]>([]);
   const [draftOperations, setDraftOperations] = useState<DraftOperation[]>([]);
+  const [wenyanPublisher, setWenyanPublisher] = useState<WenyanPublisherStatus | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     const nextDetail = await getTask(taskId);
     setDetail(nextDetail);
+    setWenyanPublisher(await getWenyanPublisherStatus());
     if (["plans_ready", "plan_selected"].includes(nextDetail.task.status)) {
       const nextPlans = await getPlans(taskId);
       setPlanList(nextPlans);
@@ -419,21 +425,91 @@ export default function TaskReviewPage() {
     await savePublicationDraft(taskId, metadata);
   }
 
-  async function handleSaveAndSync(metadata: PublicationMetadata) {
+  async function handleFreezePublication(metadata: PublicationMetadata) {
     if (!detail) return;
-    setPublicationBusy("sync");
+    setPublicationBusy("freeze");
     setError("");
     setNotice("");
     try {
       await savePublicationDraft(taskId, metadata);
-      const frozen = await freezePublication(detail.task, metadata);
-      await createMockDraft(frozen.task, frozen.revision);
+      await freezePublication(detail.task, metadata);
       await load();
-      setNotice("本地冻结版本已保存，并生成了明确标记的 Mock 草稿记录；未调用微信接口。");
+      setNotice("最终视觉版本已冻结。现在可以发布到微信、复制正文或下载交付包。");
       window.requestAnimationFrame(() => document.getElementById("publication-console")?.scrollIntoView({ block: "start" }));
     } catch (reason) {
       await load().catch(() => undefined);
       setError(reason instanceof Error ? reason.message : "保存本地冻结版本失败");
+    } finally {
+      setPublicationBusy("");
+    }
+  }
+
+  async function handlePublishToWechat(revision: PublicationRevision) {
+    if (!detail) return;
+    setPublicationBusy("publish");
+    setError("");
+    setNotice("");
+    try {
+      const result = await createWenyanDraft(detail.task, revision);
+      await load();
+      if (result.operation.status === "succeeded") {
+        setNotice("微信公众号草稿已创建，请到后台完成最终审核和发布。");
+      } else if (result.operation.status === "unknown") {
+        setError("发布结果未知，请先到公众号草稿箱核对，不要重复点击。");
+      } else {
+        setError(result.operation.last_error?.message ?? "微信公众号草稿创建失败");
+      }
+    } catch (reason) {
+      await load().catch(() => undefined);
+      setError(reason instanceof Error ? reason.message : "微信公众号草稿创建失败");
+    } finally {
+      setPublicationBusy("");
+    }
+  }
+
+  async function handleCopyPublication(revision: PublicationRevision) {
+    setPublicationBusy("copy");
+    setError("");
+    setNotice("");
+    try {
+      const payload = await getClipboardPayload(revision.id);
+      if (navigator.clipboard.write && typeof ClipboardItem !== "undefined") {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            "text/html": new Blob([payload.html], { type: "text/html" }),
+            "text/plain": new Blob([payload.text], { type: "text/plain" }),
+          }),
+        ]);
+        setNotice("富文本正文已复制。粘贴到公众号后请保存、重新打开并检查图片和手机预览。");
+      } else {
+        await navigator.clipboard.writeText(payload.text);
+        setNotice("当前浏览器只支持复制纯文本，图片和样式需要在公众号后台补充。");
+      }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "复制正文失败");
+    } finally {
+      setPublicationBusy("");
+    }
+  }
+
+  async function handleRetryWenyanDraft(operation: DraftOperation) {
+    if (!detail) return;
+    setPublicationBusy("retry");
+    setError("");
+    setNotice("");
+    try {
+      const result = await retryWenyanDraft(detail.task, operation);
+      await load();
+      if (result.operation.status === "succeeded") {
+        setNotice("微信公众号草稿已创建，请到后台完成最终审核和发布。");
+      } else if (result.operation.status === "unknown") {
+        setError("重试结果未知，请先到公众号草稿箱核对，不要再次重试。");
+      } else {
+        setError(result.operation.last_error?.message ?? "微信公众号草稿重试失败");
+      }
+    } catch (reason) {
+      await load().catch(() => undefined);
+      setError(reason instanceof Error ? reason.message : "微信公众号草稿重试失败");
     } finally {
       setPublicationBusy("");
     }
@@ -450,22 +526,6 @@ export default function TaskReviewPage() {
       setNotice("旧冻结版本已保留并失效；现在可以继续修改工作稿。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复编辑失败");
-    } finally {
-      setPublicationBusy("");
-    }
-  }
-
-  async function handleRetryMockDraft(operation: DraftOperation) {
-    if (!detail) return;
-    setPublicationBusy("retry");
-    setError("");
-    setNotice("");
-    try {
-      await retryMockDraft(detail.task, operation);
-      await load();
-      setNotice("同一模拟草稿操作重试成功，没有创建第二条操作记录。");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "重试模拟草稿失败");
     } finally {
       setPublicationBusy("");
     }
@@ -605,14 +665,18 @@ export default function TaskReviewPage() {
             <div id="publication-console">
               <PublicationPanel
                 busy={publicationBusy}
+                bundleUrl={null}
                 operation={activeDraftOperation}
+                publisher={wenyanPublisher}
                 readiness={publicationReadiness}
                 revision={activeRevision}
                 task={detail.task}
                 onAutosave={handlePublicationAutosave}
                 onContinueEditing={() => Promise.resolve()}
+                onCopy={() => Promise.resolve()}
+                onFreeze={handleFreezePublication}
+                onPublish={() => Promise.resolve()}
                 onRetry={() => Promise.resolve()}
-                onSaveAndSync={handleSaveAndSync}
               />
             </div>
           ) : null}
@@ -785,14 +849,18 @@ export default function TaskReviewPage() {
         <div id="publication-console">
           <PublicationPanel
             busy={publicationBusy}
+            bundleUrl={publicationBundleUrl(activeRevision.id)}
             operation={activeDraftOperation}
+            publisher={wenyanPublisher}
             readiness={publicationReadiness}
             revision={activeRevision}
             task={detail.task}
             onAutosave={handlePublicationAutosave}
             onContinueEditing={() => activeRevision ? handleContinueEditing(activeRevision) : Promise.resolve()}
-            onRetry={() => activeDraftOperation ? handleRetryMockDraft(activeDraftOperation) : Promise.resolve()}
-            onSaveAndSync={handleSaveAndSync}
+            onCopy={() => handleCopyPublication(activeRevision)}
+            onFreeze={handleFreezePublication}
+            onPublish={() => handlePublishToWechat(activeRevision)}
+            onRetry={() => activeDraftOperation ? handleRetryWenyanDraft(activeDraftOperation) : Promise.resolve()}
           />
         </div>
       ) : null}

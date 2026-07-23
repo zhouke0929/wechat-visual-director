@@ -43,6 +43,31 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
     assert payload["warnings"] == ["image_generation_mock_only"]
 
 
+def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys) -> None:
+    def fake_probe(url: str, **_kwargs):
+        if url.endswith("/health"):
+            return {
+                "status": "ok",
+                "image_provider": "mock",
+                "image_provider_configured": True,
+                "text_planner_provider": "mock_text_planner",
+                "text_planner_model": "deterministic_editorial_brief",
+                "text_planner_configured": True,
+            }
+        return {"ready": False}
+
+    monkeypatch.setattr(cli, "_probe_json", fake_probe)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
+
+    assert cli.run(["doctor", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["capabilities"]["ai_text_planning"] is False
+    assert payload["capabilities"]["rule_text_planning"] is True
+    assert payload["planners"]["text"]["provider"] == "mock_text_planner"
+    assert "text_planning_rule_fallback" in payload["warnings"]
+
+
 def test_create_task_returns_agent_safe_result(tmp_path: Path, monkeypatch, capsys) -> None:
     article = tmp_path / "article.md"
     article.write_text(

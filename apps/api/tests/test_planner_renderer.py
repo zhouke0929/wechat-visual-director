@@ -93,6 +93,12 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
     assert first == second
     assert "<table" not in first
     assert "IMAGE PLAN" in first
+    root_tag = first.split("<main", 1)[1].split(">", 1)[0]
+    assert "background-color" not in root_tag
+    assert "box-shadow" not in root_tag
+    assert "padding:0 0 34px" in root_tag
+    assert 'data-content-role="article-metadata-preview"' in first
+    assert first.index('data-content-role="article-metadata-preview"') < first.index("<main")
 
 
 def test_source_placeholder_images_do_not_leak_into_preview() -> None:

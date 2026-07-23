@@ -9,6 +9,10 @@ const labels: Record<TaskStatus, string> = {
   mock_draft_created: "模拟草稿已创建",
   mock_draft_failed: "模拟创建失败",
   mock_draft_unknown: "模拟结果未知",
+  wechat_draft_syncing: "正在写入草稿箱",
+  wechat_draft_created: "微信草稿已创建",
+  wechat_draft_failed: "微信草稿创建失败",
+  wechat_draft_unknown: "微信草稿待核对",
   failed: "需要处理",
 };
 

@@ -2061,6 +2061,290 @@ class Repository:
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task_id)
 
+    def begin_wenyan_draft_operation(
+        self,
+        *,
+        revision_id: str,
+        draft_slot: str,
+        expected_task_version: int,
+        idempotency_key: str,
+        request_hash: str,
+        confirmed_by: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        replay = self._idempotent_resource(
+            scope="create_wenyan_draft",
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if replay:
+            operation = self.get_draft_operation(replay[1])
+            return operation, self.get_task(operation["task_id"]), True
+
+        revision = self.get_publication_revision(revision_id)
+        task_id = revision["task_id"]
+        task = self.get_task(task_id)
+        if task["version"] != expected_task_version:
+            raise VersionConflictError("任务已被更新，请刷新后重试")
+        if task.get("active_publication_revision_id") != revision_id or revision["lifecycle_status"] != "active":
+            raise VersionConflictError("冻结版本不是当前有效版本")
+        if self.has_blocking_draft_operation(task_id):
+            raise VersionConflictError("存在进行中或结果未知的草稿操作")
+        if draft_slot != self.suggested_draft_slot(task_id):
+            raise VersionConflictError(f"当前草稿槽应为 {self.suggested_draft_slot(task_id)}")
+
+        existing = self.connection.execute(
+            """SELECT op.id FROM draft_operations AS op
+            JOIN draft_slots AS slot ON slot.id = op.draft_slot_id
+            WHERE op.revision_id = ? AND slot.slot_key = ?""",
+            (revision_id, draft_slot),
+        ).fetchone()
+        if existing:
+            operation = self.get_draft_operation(str(existing["id"]))
+            now = utc_now()
+            with self.lock:
+                self._record_idempotency_locked(
+                    scope="create_wenyan_draft",
+                    idempotency_key=idempotency_key,
+                    request_hash=request_hash,
+                    resource_type="draft_operation",
+                    resource_id=operation["id"],
+                    response=None,
+                    now=now,
+                )
+                self.connection.commit()
+            return operation, task, True
+
+        now = utc_now()
+        operation_id = str(uuid.uuid4())
+        slot_row = self.connection.execute(
+            "SELECT id, successful_media_id FROM draft_slots WHERE task_id = ? AND slot_key = ?",
+            (task_id, draft_slot),
+        ).fetchone()
+        if slot_row and slot_row["successful_media_id"]:
+            raise VersionConflictError("草稿槽已被成功草稿占用")
+        slot_id = str(slot_row["id"]) if slot_row else str(uuid.uuid4())
+        confirmation = {
+            "revision_id": revision_id,
+            "normalized_hash": revision["normalized_hash"],
+            "preflight_report_hash": revision["preflight_report_hash"],
+            "frozen_html_hash": revision["frozen_html_hash"],
+            "asset_manifest_hash": revision["asset_manifest_hash"],
+            "confirmed_by": confirmed_by,
+            "confirmed_at": now,
+        }
+        with self.lock:
+            if slot_row is None:
+                self.connection.execute(
+                    "INSERT INTO draft_slots (id, task_id, slot_key, successful_media_id, created_at) VALUES (?, ?, ?, NULL, ?)",
+                    (slot_id, task_id, draft_slot, now),
+                )
+            self.connection.execute(
+                """INSERT INTO draft_operations
+                (id, task_id, revision_id, draft_slot_id, provider, idempotency_key, status,
+                 version, simulation_mode, media_id, confirmation_json, last_error_json,
+                 resolution_json, confirmed_by, confirmed_at, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 'wenyan', ?, 'running', 1, 'real', NULL, ?, NULL, NULL, ?, ?, ?, ?)""",
+                (
+                    operation_id,
+                    task_id,
+                    revision_id,
+                    slot_id,
+                    idempotency_key,
+                    json.dumps(confirmation, ensure_ascii=False),
+                    confirmed_by,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+            for step_key, sequence_no, status in (
+                ("validate_frozen_artifact", 1, "succeeded"),
+                ("map_assets", 2, "succeeded"),
+                ("create_draft", 3, "running"),
+            ):
+                self.connection.execute(
+                    """INSERT INTO draft_operation_steps
+                    (id, operation_id, step_key, sequence_no, status, version, attempt_count,
+                     input_hash, output_json, last_error_json, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, 1, 1, ?, ?, NULL, ?, ?)""",
+                    (
+                        str(uuid.uuid4()),
+                        operation_id,
+                        step_key,
+                        sequence_no,
+                        status,
+                        revision["frozen_html_hash"],
+                        json.dumps({"provider": "wenyan"}, ensure_ascii=False) if status == "succeeded" else None,
+                        now,
+                        now,
+                    ),
+                )
+            updated = self.connection.execute(
+                """UPDATE tasks SET status = 'wechat_draft_syncing', version = version + 1, updated_at = ?
+                WHERE id = ? AND version = ? AND active_publication_revision_id = ?""",
+                (now, task_id, expected_task_version, revision_id),
+            )
+            if updated.rowcount != 1:
+                self.connection.rollback()
+                raise VersionConflictError("任务已被更新，请刷新后重试")
+            self._record_event_locked(
+                task_id,
+                "wenyan_draft_started",
+                {"operation_id": operation_id, "revision_id": revision_id, "draft_slot": draft_slot},
+                now,
+            )
+            self._record_idempotency_locked(
+                scope="create_wenyan_draft",
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                resource_type="draft_operation",
+                resource_id=operation_id,
+                response=None,
+                now=now,
+            )
+            self.connection.commit()
+        return self.get_draft_operation(operation_id), self.get_task(task_id), False
+
+    def finish_wenyan_draft_operation(
+        self,
+        *,
+        operation_id: str,
+        expected_task_version: int,
+        status: str,
+        media_id: str | None,
+        error: dict[str, Any] | None,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        if status not in {"succeeded", "failed", "unknown"}:
+            raise ValueError("不支持的 Wenyan 草稿结果")
+        operation = self.get_draft_operation(operation_id)
+        if operation["provider"] != "wenyan" or operation["status"] != "running":
+            raise VersionConflictError("草稿操作当前不能完成")
+        task = self.get_task(operation["task_id"])
+        if task["version"] != expected_task_version:
+            raise VersionConflictError("任务已被更新，请刷新后核对草稿状态")
+        revision = self.get_publication_revision(operation["revision_id"])
+        now = utc_now()
+        task_status = {
+            "succeeded": "wechat_draft_created",
+            "failed": "wechat_draft_failed",
+            "unknown": "wechat_draft_unknown",
+        }[status]
+        with self.lock:
+            self.connection.execute(
+                """UPDATE draft_operations SET status = ?, media_id = ?, last_error_json = ?,
+                version = version + 1, updated_at = ? WHERE id = ? AND status = 'running'""",
+                (
+                    status,
+                    media_id,
+                    json.dumps(error, ensure_ascii=False) if error else None,
+                    now,
+                    operation_id,
+                ),
+            )
+            self.connection.execute(
+                """UPDATE draft_operation_steps SET status = ?, output_json = ?, last_error_json = ?,
+                version = version + 1, updated_at = ?
+                WHERE operation_id = ? AND step_key = 'create_draft'""",
+                (
+                    status,
+                    json.dumps({"provider": "wenyan", "media_id": media_id}, ensure_ascii=False) if media_id else None,
+                    json.dumps(error, ensure_ascii=False) if error else None,
+                    now,
+                    operation_id,
+                ),
+            )
+            if media_id:
+                self.connection.execute(
+                    """UPDATE draft_slots SET successful_media_id = ?
+                    WHERE id = (SELECT draft_slot_id FROM draft_operations WHERE id = ?)""",
+                    (media_id, operation_id),
+                )
+            updated = self.connection.execute(
+                "UPDATE tasks SET status = ?, version = version + 1, updated_at = ? WHERE id = ? AND version = ?",
+                (task_status, now, task["id"], expected_task_version),
+            )
+            if updated.rowcount != 1:
+                self.connection.rollback()
+                raise VersionConflictError("任务已被更新，请刷新后核对草稿状态")
+            self._record_event_locked(
+                task["id"],
+                f"wenyan_draft_{status}",
+                {"operation_id": operation_id, "revision_id": revision["id"], "media_id": media_id, "error": error},
+                now,
+            )
+            if status == "succeeded":
+                self._record_publication_history_locked(task=task, revision=revision, now=now)
+            self.connection.commit()
+        return self.get_draft_operation(operation_id), self.get_task(task["id"])
+
+    def retry_wenyan_draft_operation(
+        self,
+        *,
+        operation_id: str,
+        expected_task_version: int,
+        expected_operation_version: int,
+        idempotency_key: str,
+        request_hash: str,
+        operator_id: str,
+    ) -> tuple[dict[str, Any], dict[str, Any], bool]:
+        replay = self._idempotent_resource(
+            scope="retry_wenyan_draft",
+            idempotency_key=idempotency_key,
+            request_hash=request_hash,
+        )
+        if replay:
+            operation = self.get_draft_operation(replay[1])
+            return operation, self.get_task(operation["task_id"]), True
+        operation = self.get_draft_operation(operation_id)
+        task = self.get_task(operation["task_id"])
+        if operation["provider"] != "wenyan" or operation["status"] != "failed":
+            raise VersionConflictError("只有明确失败的 Wenyan 草稿操作可以重试")
+        if task["version"] != expected_task_version or operation["version"] != expected_operation_version:
+            raise VersionConflictError("草稿操作已更新，请刷新后重试")
+        if task.get("active_publication_revision_id") != operation["revision_id"]:
+            raise VersionConflictError("草稿操作绑定的冻结版本已失效")
+        now = utc_now()
+        with self.lock:
+            updated_op = self.connection.execute(
+                """UPDATE draft_operations SET status = 'running', version = version + 1,
+                last_error_json = NULL, updated_at = ? WHERE id = ? AND version = ? AND status = 'failed'""",
+                (now, operation_id, expected_operation_version),
+            )
+            if updated_op.rowcount != 1:
+                self.connection.rollback()
+                raise VersionConflictError("草稿操作已更新，请刷新后重试")
+            self.connection.execute(
+                """UPDATE draft_operation_steps SET status = 'running', version = version + 1,
+                attempt_count = attempt_count + 1, output_json = NULL, last_error_json = NULL, updated_at = ?
+                WHERE operation_id = ? AND step_key = 'create_draft'""",
+                (now, operation_id),
+            )
+            updated_task = self.connection.execute(
+                """UPDATE tasks SET status = 'wechat_draft_syncing', version = version + 1, updated_at = ?
+                WHERE id = ? AND version = ?""",
+                (now, task["id"], expected_task_version),
+            )
+            if updated_task.rowcount != 1:
+                self.connection.rollback()
+                raise VersionConflictError("任务已被更新，请刷新后重试")
+            self._record_event_locked(
+                task["id"],
+                "wenyan_draft_retry_started",
+                {"operation_id": operation_id, "operator_id": operator_id},
+                now,
+            )
+            self._record_idempotency_locked(
+                scope="retry_wenyan_draft",
+                idempotency_key=idempotency_key,
+                request_hash=request_hash,
+                resource_type="draft_operation",
+                resource_id=operation_id,
+                response=None,
+                now=now,
+            )
+            self.connection.commit()
+        return self.get_draft_operation(operation_id), self.get_task(task["id"]), False
+
     def retry_mock_draft_operation(
         self,
         *,

@@ -7,6 +7,10 @@ export type TaskStatus =
   | "mock_draft_created"
   | "mock_draft_failed"
   | "mock_draft_unknown"
+  | "wechat_draft_syncing"
+  | "wechat_draft_created"
+  | "wechat_draft_failed"
+  | "wechat_draft_unknown"
   | "failed";
 
 export type Task = {
@@ -20,7 +24,7 @@ export type Task = {
   fixed_footer_asset_version: string;
   selected_plan_id: string | null;
   active_publication_revision_id: string | null;
-  publication_mode: "mock";
+  publication_mode: "local" | "mock";
   publication_draft_metadata: PublicationMetadata;
   version: number;
   created_at: string;
@@ -306,7 +310,7 @@ export type PublicationBlocker = {
 export type PublicationReadiness = {
   task_id: string;
   ready: boolean;
-  publication_mode: "mock";
+  publication_mode: "local" | "mock";
   suggested_draft_slot: string;
   blockers: PublicationBlocker[];
   checks: Record<string, "pass" | "pending" | "blocking">;
@@ -335,7 +339,7 @@ export type PublicationRevision = {
   frozen_by: string;
   frozen_at: string;
   preview_url: string;
-  is_mock: true;
+  is_mock: boolean;
   suggested_draft_slot: string;
 };
 
@@ -355,16 +359,40 @@ export type DraftOperation = {
   task_id: string;
   revision_id: string;
   draft_slot: string;
-  provider: "mock";
+  provider: "mock" | "wenyan";
   status: "pending" | "running" | "succeeded" | "failed" | "unknown" | "superseded";
   version: number;
-  simulation_mode: "success" | "fail_once" | "unknown";
+  simulation_mode: "success" | "fail_once" | "unknown" | "real";
   media_id: string | null;
-  is_mock: true;
+  is_mock: boolean;
   confirmed_by: string;
   confirmed_at: string;
   last_error: { code: string; message: string; retryable: boolean } | null;
   steps: DraftOperationStep[];
+};
+
+export type WenyanPublisherStatus = {
+  schema_version: "publisher_status.v0.1";
+  provider: "wenyan";
+  installed: boolean;
+  version: string | null;
+  minimum_version: string;
+  recommended_version: string;
+  credentials_configured: boolean;
+  credential_source: "process_environment" | "local_env_file" | "missing";
+  ip_whitelist: "operator_confirmation_required";
+  ready: boolean;
+  warnings: string[];
+  install_command: string;
+};
+
+export type ClipboardPayload = {
+  schema_version: "clipboard_payload.v0.1";
+  title: string;
+  html: string;
+  text: string;
+  cover_url: string | null;
+  warnings: string[];
 };
 
 export type BlindReviewDimension = {

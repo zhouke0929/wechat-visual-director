@@ -1,6 +1,7 @@
 import type {
   BlindReviewSet,
   BlindReviewSubmission,
+  ClipboardPayload,
   CoverWorkspace,
   DraftOperation,
   ImageSlotList,
@@ -10,6 +11,7 @@ import type {
   PublicationRevision,
   Task,
   TaskDetail,
+  WenyanPublisherStatus,
 } from "./types";
 
 export const API_BASE =
@@ -391,6 +393,41 @@ export async function createMockDraft(
   return parseResponse(response);
 }
 
+export async function getWenyanPublisherStatus(): Promise<WenyanPublisherStatus> {
+  const response = await fetch(`${API_BASE}/publishers/wenyan/status`, { cache: "no-store" });
+  return parseResponse<WenyanPublisherStatus>(response);
+}
+
+export async function createWenyanDraft(
+  task: Task,
+  revision: PublicationRevision,
+): Promise<{ operation: DraftOperation; task: Task; idempotency_replayed: boolean }> {
+  const response = await fetch(`${API_BASE}/publication-revisions/${revision.id}/wenyan-draft`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": crypto.randomUUID(),
+      "X-Operator-Id": "operator",
+    },
+    body: JSON.stringify({
+      expected_task_version: task.version,
+      draft_slot: revision.suggested_draft_slot,
+    }),
+  });
+  return parseResponse(response);
+}
+
+export async function getClipboardPayload(revisionId: string): Promise<ClipboardPayload> {
+  const response = await fetch(`${API_BASE}/publication-revisions/${revisionId}/clipboard`, {
+    cache: "no-store",
+  });
+  return parseResponse<ClipboardPayload>(response);
+}
+
+export function publicationBundleUrl(revisionId: string): string {
+  return `${API_BASE}/publication-revisions/${revisionId}/bundle`;
+}
+
 export async function getDraftOperations(taskId: string): Promise<DraftOperation[]> {
   const response = await fetch(`${API_BASE}/article-tasks/${taskId}/draft-operations`, {
     cache: "no-store",
@@ -404,6 +441,25 @@ export async function retryMockDraft(
   operation: DraftOperation,
 ): Promise<{ operation: DraftOperation; task: Task }> {
   const response = await fetch(`${API_BASE}/draft-operations/${operation.id}/retry`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": crypto.randomUUID(),
+      "X-Operator-Id": "operator",
+    },
+    body: JSON.stringify({
+      expected_task_version: task.version,
+      expected_operation_version: operation.version,
+    }),
+  });
+  return parseResponse(response);
+}
+
+export async function retryWenyanDraft(
+  task: Task,
+  operation: DraftOperation,
+): Promise<{ operation: DraftOperation; task: Task; idempotency_replayed: boolean }> {
+  const response = await fetch(`${API_BASE}/draft-operations/${operation.id}/wenyan-retry`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

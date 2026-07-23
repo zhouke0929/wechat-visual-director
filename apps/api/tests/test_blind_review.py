@@ -46,7 +46,8 @@ def test_blind_review_hides_sources_randomizes_and_locks_submission(tmp_path: Pa
         for candidate in sample["candidates"]:
             preview = client.get(candidate["preview_url"])
             assert preview.status_code == 200
-            assert "width:390px" in preview.text
+            assert "width:100%" in preview.text
+            assert "width:390px" not in preview.text
 
         submission = complete_submission("product_owner", sample["assignment_token"])
         submitted = client.post(

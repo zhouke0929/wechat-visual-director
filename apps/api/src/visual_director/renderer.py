@@ -248,7 +248,7 @@ def render_preview(
         or ("WECHAT · CONTENT BRIEF" if editorial else "公众号 · 阅读指南")
     )
     hero = (
-        f'<header style="padding:34px 0 22px;border-bottom:1px solid {accent};">'
+        f'<header data-content-role="article-metadata-preview" style="padding:34px 0 22px;border-bottom:1px solid {accent};">'
         f'<p style="margin:0 0 13px;color:{accent};font:700 11px/1.2 Arial;letter-spacing:.16em;">{kicker}</p>'
         f'<h1 style="margin:0;color:#111C1A;font-family:Georgia,\'Noto Serif SC\',serif;font-size:{32 if editorial else 30}px;line-height:1.35;font-weight:750;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
         f'<p style="margin:15px 0 0;color:#687370;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · 组件库 {html.escape(validated["component_library_version"])}</p>'
@@ -275,9 +275,9 @@ def render_preview(
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<style>html{scroll-behavior:smooth}.component-anchor:target,.image-slot-anchor:target,.source-image-anchor:target{outline:2px solid #8FD6CE;outline-offset:7px;border-radius:10px}</style>'
         f'<title>{html.escape(parsed.title)}</title></head>'
-        '<body style="margin:0;background-color:#F0EEE7;font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
-        '<main style="box-sizing:border-box;width:390px;max-width:100%;margin:0 auto;padding:0 24px 34px;background-color:#FFFEFA;box-shadow:0 12px 40px rgba(27,41,38,.10);">'
-        f'{hero}{"".join(body)}{cta}</main></body></html>'
+        '<body style="box-sizing:border-box;margin:0;padding:0 24px;background-color:#FFFFFF;font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
+        f'{hero}<main style="box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:0 0 34px;">'
+        f'{"".join(body)}{cta}</main></body></html>'
     )
     lowered = document.lower()
     if "<script" in lowered or re.search(r"\son[a-z]+\s*=", lowered):

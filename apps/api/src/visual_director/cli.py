@@ -479,6 +479,13 @@ def _stop_services() -> tuple[dict[str, Any], int]:
 def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     api_health = _probe_json(urljoin(f"{_api_origin(api_base)}/", "health"))
     web_ready = _probe_web(web_base)
+    wenyan_status = (
+        # Wenyan's first version probe can take several seconds on Windows,
+        # especially when the executable is a global npm .cmd shim.
+        _probe_json(f"{api_base.rstrip('/')}/publishers/wenyan/status", timeout=10)
+        if api_health is not None
+        else None
+    )
     warnings: list[str] = []
     if api_health is None:
         warnings.append("core_api_not_running")
@@ -487,8 +494,14 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     if _pnpm_command() is None:
         warnings.append("pnpm_not_found")
     image_provider = str((api_health or {}).get("image_provider") or "none")
+    text_planner_provider = str((api_health or {}).get("text_planner_provider") or "none")
+    text_planner_configured = bool((api_health or {}).get("text_planner_configured", False))
     if image_provider == "mock":
         warnings.append("image_generation_mock_only")
+    if text_planner_provider == "mock_text_planner":
+        warnings.append("text_planning_rule_fallback")
+    elif text_planner_provider not in {"none", ""} and not text_planner_configured:
+        warnings.append("text_planning_not_configured")
     ok = api_health is not None and web_ready
     payload = {
         "ok": ok,
@@ -501,10 +514,22 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
                 and image_provider not in {"none", "mock"}
             ),
             "mock_image_candidates": image_provider == "mock",
-            "wechat_draft": False,
-            "rich_copy": False,
-            "bundle_export": False,
+            "ai_text_planning": bool(
+                text_planner_configured and text_planner_provider != "mock_text_planner"
+            ),
+            "rule_text_planning": text_planner_provider == "mock_text_planner",
+            "wechat_draft": bool((wenyan_status or {}).get("ready", False)),
+            "rich_copy": api_health is not None,
+            "bundle_export": api_health is not None,
         },
+        "planners": {
+            "text": {
+                "provider": text_planner_provider,
+                "model": (api_health or {}).get("text_planner_model"),
+                "configured": text_planner_configured,
+            }
+        },
+        "publishers": {"wenyan": wenyan_status},
         "warnings": warnings,
         "api_base": api_base,
         "web_base": web_base,

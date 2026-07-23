@@ -516,15 +516,20 @@ class QwenTextPlannerProvider:
         )
 
 
-def create_text_planner_provider_from_env() -> TextPlannerProvider:
-    mode = os.environ.get("VISUAL_DIRECTOR_TEXT_PROVIDER", "mock").strip().lower()
+def create_text_planner_provider_from_env(
+    environ: dict[str, str] | None = None,
+) -> TextPlannerProvider:
+    values = environ if environ is not None else os.environ
+    mode = values.get("VISUAL_DIRECTOR_TEXT_PROVIDER", "mock").strip().lower()
     if mode in {"qwen_flash", "qwen_max"}:
         model = "qwen3.6-flash" if mode == "qwen_flash" else "qwen3.7-max"
         return QwenTextPlannerProvider(
-            api_key=os.environ.get("DASHSCOPE_API_KEY", ""),
-            model=os.environ.get("QWEN_TEXT_MODEL", model),
-            endpoint=os.environ.get("QWEN_API_ENDPOINT", DEFAULT_QWEN_ENDPOINT),
+            api_key=values.get("DASHSCOPE_API_KEY", ""),
+            model=values.get("QWEN_TEXT_MODEL", model),
+            endpoint=values.get("QWEN_API_ENDPOINT", DEFAULT_QWEN_ENDPOINT),
         )
+    if mode != "mock":
+        raise ValueError("VISUAL_DIRECTOR_TEXT_PROVIDER 只允许 mock、qwen_flash 或 qwen_max")
     return MockTextPlannerProvider()
 
 
