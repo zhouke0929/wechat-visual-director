@@ -412,3 +412,99 @@ def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Pa
         assert len(payload["experimental_plans"]) == 2
         assert len({plan["structure_fingerprint"] for plan in payload["experimental_plans"]}) == 1
         assert payload["baseline_plan"]["recommendation"] == "recommended"
+
+
+def test_host_agent_context_and_brief_use_no_second_provider_call(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-agent.db"))
+    markdown = """---
+title: 三步完成志愿核对
+article_type: tutorial_steps
+---
+# 三步完成志愿核对
+
+## 核对路径
+
+1. 保存官方成绩
+2. 核对准确位次
+3. 记录专业限制
+
+> 志愿表需要逐项验证。
+"""
+    parsed = parse_markdown(markdown)
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="tutorial_steps",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    host_brief = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("host.md", markdown.encode("utf-8"), "text/markdown")},
+        ).json()["task"]
+        context_response = client.get(
+            f'/api/v1/article-tasks/{created["id"]}/editorial-brief/context'
+        )
+        assert context_response.status_code == 200
+        context_payload = context_response.json()
+        assert context_payload["expected_task_version"] == created["version"]
+        assert context_payload["context"]["schema_version"] == "host_agent_planner_context.v0.1"
+        assert context_payload["context"]["planner_input"]["article"]["blocks"]
+        assert context_payload["context"]["execution_hint"]["same_agent_supported"] is True
+
+        generated = client.post(
+            f'/api/v1/article-tasks/{created["id"]}/generate-plans',
+            json={
+                "mode": "start",
+                "planner": "host_agent",
+                "expected_task_version": created["version"],
+                "editorial_brief": host_brief,
+                "host_model": "configured-by-host",
+            },
+        )
+        assert generated.status_code == 202
+        metadata = generated.json()["planner_metadata"]
+        assert metadata["provider"] == "host_agent"
+        assert metadata["model"] == "configured-by-host"
+        assert metadata["planner_call_count"] == 0
+        assert metadata["fallback_used"] is False
+        plans = client.get(f'/api/v1/article-tasks/{created["id"]}/plans').json()["plans"]
+        assert len(plans) == 2
+        assert all(plan["planner_metadata"]["provider"] == "host_agent" for plan in plans)
+
+
+def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-agent-fallback.db"))
+    markdown = """# 三步完成志愿核对
+
+## 核对路径
+
+1. 保存官方成绩
+2. 核对准确位次
+3. 记录专业限制
+"""
+    with TestClient(app) as client:
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("fallback.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "tutorial_steps"},
+        ).json()["task"]
+        generated = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={
+                "mode": "start",
+                "planner": "host_agent",
+                "expected_task_version": task["version"],
+                "editorial_brief": {"unexpected": True},
+            },
+        )
+        assert generated.status_code == 202
+        metadata = generated.json()["planner_metadata"]
+        assert metadata["provider"] == "host_agent"
+        assert metadata["fallback_used"] is True
+        assert metadata["provider_error_code"] == "host_brief_invalid"
+        assert "ValidationError" in metadata["fallback_reason"]
+        assert len(client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]) == 2

@@ -168,6 +168,86 @@ def test_default_task_key_is_stable_until_source_changes(tmp_path: Path) -> None
     assert first != changed
 
 
+def test_task_context_returns_host_agent_contract(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_request_json",
+        lambda method, url, **_kwargs: {
+            "task_id": "task-host",
+            "expected_task_version": 2,
+            "context": {
+                "schema_version": "host_agent_planner_context.v0.1",
+                "planner_input": {"article": {"blocks": []}},
+                "json_schema": {"type": "object"},
+            },
+        },
+    )
+
+    exit_code = cli.run(["task", "context", "task-host", "--json"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["expected_task_version"] == 2
+    assert payload["next_action"] == "write_editorial_brief"
+    assert payload["context"]["schema_version"] == "host_agent_planner_context.v0.1"
+
+
+def test_task_plan_submits_host_brief_and_reports_normalization(
+    tmp_path: Path,
+    monkeypatch,
+    capsys,
+) -> None:
+    brief_path = tmp_path / "editorial-brief.json"
+    brief_path.write_text(json.dumps({"schema_version": "editorial_brief.v0.1"}), encoding="utf-8")
+    monkeypatch.setattr(
+        cli,
+        "_ensure_services",
+        lambda *_args, **_kwargs: {"api_health": {}, "web_ready": True, "started": {}},
+    )
+
+    def fake_request(method: str, url: str, **kwargs) -> dict:
+        if method == "POST" and url.endswith("/article-tasks/task-host/generate-plans"):
+            request = json.loads(kwargs["body"])
+            assert request["planner"] == "host_agent"
+            assert request["editorial_brief"]["schema_version"] == "editorial_brief.v0.1"
+            assert request["host_model"] == "opencode-host"
+            return {
+                "planner_metadata": {
+                    "provider": "host_agent",
+                    "model": "opencode-host",
+                    "fallback_used": False,
+                    "normalization_count": 2,
+                    "normalization_adjustments": [{"code": "safe_adjustment"}],
+                }
+            }
+        if method == "GET" and url.endswith("/article-tasks/task-host"):
+            return {"task": {"id": "task-host", "status": "plans_ready", "version": 4}}
+        raise AssertionError((method, url))
+
+    monkeypatch.setattr(cli, "_request_json", fake_request)
+    exit_code = cli.run(
+        [
+            "task",
+            "plan",
+            "task-host",
+            "--brief",
+            str(brief_path),
+            "--expected-task-version",
+            "2",
+            "--host-model",
+            "opencode-host",
+            "--json",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert payload["planner_provider"] == "host_agent"
+    assert payload["fallback_used"] is False
+    assert payload["normalization_count"] == 2
+    assert payload["next_action"] == "human_review"
+
+
 def test_stop_refuses_pid_when_process_identity_does_not_match(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("VISUAL_DIRECTOR_HOME", str(tmp_path))
     (tmp_path / "logs").mkdir(parents=True)

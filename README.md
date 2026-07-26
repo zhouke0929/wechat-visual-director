@@ -1,6 +1,6 @@
 # WeChat Visual Director
 
-`wechat-visual-director` 是一个本地优先、可由 Agent 调用的微信公众号视觉排版工作台。宿主 Agent 先把主题和资料整理为结构化 Markdown；可选的核心文本模型进一步理解全文并输出受控 EditorialBrief，确定性编译器再生成两套可比较的视觉方案。运营在浏览器中确认组件、插图和封面，模型不会自由生成整段 HTML/CSS。
+`wechat-visual-director` 是一个本地优先、可由 Agent 调用的微信公众号视觉排版工作台。宿主 Agent 先把主题和资料整理为结构化 Markdown，再复用自己已经配置的模型生成受控 EditorialBrief；本地核心负责严格校验和确定性编译，生成两套可比较的视觉方案。运营在浏览器中确认组件、插图和封面，模型不会自由生成整段 HTML/CSS。
 
 当前版本是 **Alpha**，目标是验证“Markdown → 视觉方案 → 人工确认 → 可选草稿交付”的本地闭环，并作为开源 Skill 发布。它不是 SaaS，也不会自动群发文章。
 
@@ -17,6 +17,7 @@
 - 实验性复制公众号富文本、下载含 Markdown/HTML/图片的交付包；
 - 可选调用本机 Wenyan CLI，把冻结版本写入微信公众号草稿箱；
 - 通过 CLI 启动服务、创建任务、查询状态和打开工作台；
+- 复用 OpenClaw、OpenCode、Claude Code 等宿主的现有模型生成 EditorialBrief，无需重复配置文本模型 Key；
 - 通过根目录 `SKILL.md` 让 OpenClaw 等宿主 Agent 按统一协议调用。
 
 ## Alpha 能力边界
@@ -25,7 +26,8 @@
 |---|---|
 | Markdown 预检、双方案、组件与图片确认 | 已实现 |
 | 本地任务和确认结果保存 | 已实现 |
-| 文本语义规划 | 支持 Qwen BYOK；默认规则兜底，`doctor` 明确区分两种模式 |
+| 文本语义规划 | Skill 默认复用宿主 Agent；独立模式支持 Qwen BYOK 或规则兜底 |
+| 多模态视觉复核 | 可选路线；不支持看图时继续使用确定性结构和兼容性检查 |
 | 生图模型 | 支持 Agnes BYOK；默认 Mock 候选，也可上传或跳过 |
 | 真实微信公众号草稿创建 | 已实现可选 Wenyan 本地适配器，需本机凭据与 IP 白名单 |
 | 富文本一键复制 | 已实现实验入口，图片必须经过公众号保存/重开/手机预览验证 |
@@ -37,11 +39,11 @@
 ## 架构
 
 ```text
-宿主 Agent：主题/资料 → 规范 Markdown
+宿主 Agent：主题/资料 → 规范 Markdown + EditorialBrief
         ↓
 根 Skill + CLI 启动器
         ↓
-FastAPI：预检 → 可选 Qwen EditorialBrief / 规则兜底 → 确定性渲染
+FastAPI：预检 → Brief 校验/规范化 → 规则兜底 → 确定性渲染
         ↓
 Next.js：双方案评审、组件/图片/封面确认
         ↓
@@ -61,9 +63,15 @@ Next.js：双方案评审、组件/图片/封面确认
 
 真实品牌图、二维码、公司名称、密钥和内部文章不属于公开仓库。私有品牌可以在本机通过 `VISUAL_DIRECTOR_BRAND_PROFILE` 指向独立 JSON 配置；不要把该文件提交到 Git。
 
-## 可选：启用 AI 文本规划
+## 文本规划模式
 
-零配置安装默认使用确定性规则规划，可以验证完整流程但不调用外部文本模型。要启用完整 AI 视觉规划，在 Git 忽略的 `.env.local` 中由用户手动配置：
+作为 Skill 使用时，默认复用宿主 Agent 已经配置的模型：核心先返回只包含文章块、公开品牌规则和最近视觉摘要的安全上下文；宿主生成 `editorial-brief.json` 后，核心执行 Schema 校验、组件合法性检查和确定性编译。该模式不要求第二个文本模型 Key。
+
+`doctor.capabilities.host_agent_text_planning=true` 表示核心可以接收宿主 Brief。任务结果中的 `planner_provider=host_agent`、`fallback_used=false` 才表示本次确实采用了宿主语义规划；若 Brief 不合格，系统会明确标记 `fallback_used=true` 并使用规则方案。
+
+### 可选：独立核心 Qwen
+
+不通过宿主 Agent、直接上传 Markdown 时，零配置安装使用确定性规则规划。需要独立核心自行调用模型时，才在 Git 忽略的 `.env.local` 中由用户手动配置：
 
 ```dotenv
 VISUAL_DIRECTOR_TEXT_PROVIDER=qwen_max
@@ -71,7 +79,7 @@ DASHSCOPE_API_KEY=你的阿里云百炼Key
 QWEN_TEXT_MODEL=qwen3.7-max-2026-05-20
 ```
 
-重启服务后执行 `doctor --json`。只有 `capabilities.ai_text_planning=true` 且 `planners.text.provider=aliyun_qwen` 才表示核心正在使用真实文本模型。Key 不会提交到 Git，也不应发送给 Agent。
+重启服务后执行 `doctor --json`。只有 `capabilities.ai_text_planning=true` 且 `planners.text.provider=aliyun_qwen` 才表示独立核心正在使用真实文本模型。Key 不会提交到 Git，也不应发送给 Agent。
 
 ## 本地启动
 

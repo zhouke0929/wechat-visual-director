@@ -289,7 +289,7 @@ def normalize_editorial_brief_for_article(
                             "code": "excess_component_intent_lowered_to_plain",
                             "location": f"sections[{index}]",
                             "from": str(previous),
-                            "reason": "强组件超过每篇 3 个的质量上限",
+                            "reason": f"强组件超过当前文章长度对应的 {strong_limit} 个质量上限",
                         }
                     )
 

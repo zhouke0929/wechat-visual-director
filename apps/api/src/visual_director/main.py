@@ -39,10 +39,13 @@ from .brief_compiler import (
 )
 from .editorial_brief import EDITORIAL_BRIEF_NORMALIZER_VERSION, EDITORIAL_BRIEF_SCHEMA_VERSION
 from .text_planner import (
+    HOST_AGENT_PROMPT_VERSION,
     TEXT_PLANNER_PROMPT_VERSION,
     TextPlannerProvider,
     TextPlannerRequest,
     TextPlannerResult,
+    adopt_host_agent_editorial_brief,
+    build_host_agent_planner_context,
     build_rule_based_brief,
     create_text_planner_provider_from_env,
     generate_editorial_brief,
@@ -78,7 +81,9 @@ from .repository import NotFoundError, PublicationLockedError, Repository, Versi
 class GeneratePlansRequest(BaseModel):
     mode: str = Field(pattern="^(start|retry)$")
     expected_task_version: int = Field(ge=1)
-    planner: str = Field(default="rule", pattern="^(rule|intelligent)$")
+    planner: str = Field(default="rule", pattern="^(rule|intelligent|host_agent)$")
+    editorial_brief: dict[str, Any] | None = None
+    host_model: str = Field(default="host_managed", max_length=120)
 
 
 class SelectPlanRequest(BaseModel):
@@ -1430,7 +1435,7 @@ def create_app(
         parsed = parse_markdown(analyzing["normalized_markdown"], analyzing["title"])
         recent_summaries = repository.list_recent_component_summaries(analyzing["account_id"], analyzing["history_window"])
         planner_call_count = 0
-        if payload.planner == "intelligent":
+        if payload.planner in {"intelligent", "host_agent"}:
             brand_config = public_brand_profile(app.state.brand_profile)
             request = TextPlannerRequest(
                 parsed=parsed,
@@ -1439,8 +1444,17 @@ def create_app(
                 recent_summaries=recent_summaries,
                 brand_config=brand_config,
             )
-            result = generate_editorial_brief(app.state.text_planner_provider, request)
-            planner_call_count = 1
+            if payload.planner == "host_agent":
+                result = adopt_host_agent_editorial_brief(
+                    payload.editorial_brief,
+                    request,
+                    host_model=payload.host_model,
+                )
+                prompt_version = HOST_AGENT_PROMPT_VERSION
+            else:
+                result = generate_editorial_brief(app.state.text_planner_provider, request)
+                planner_call_count = 1
+                prompt_version = TEXT_PLANNER_PROMPT_VERSION
             try:
                 plans = compile_editorial_brief_variants(
                     parsed,
@@ -1473,10 +1487,10 @@ def create_app(
                     diagnostics=result.diagnostics,
                 )
             planner_metadata = {
-                "mode": "intelligent",
+                "mode": payload.planner,
                 "provider": result.provider,
                 "model": result.model,
-                "prompt_version": TEXT_PLANNER_PROMPT_VERSION,
+                "prompt_version": prompt_version,
                 "planner_call_count": planner_call_count,
                 "latency_ms": result.latency_ms,
                 "fallback_used": result.fallback_used,
@@ -1507,7 +1521,7 @@ def create_app(
         for plan in plans:
             plan["planner_metadata"] = planner_metadata
         documents = [render_preview(parsed, plan, brand_profile=app.state.brand_profile) for plan in plans]
-        if payload.planner == "intelligent":
+        if payload.planner in {"intelligent", "host_agent"}:
             fingerprints = {plan.get("structure_fingerprint") for plan in plans}
             if None in fingerprints or len(fingerprints) != 1:
                 raise RuntimeError("双视觉系统没有共享同一份智能结构")
@@ -1521,8 +1535,30 @@ def create_app(
             "status": "analyzing",
             "planner": payload.planner,
             "planner_call_count": planner_call_count,
+            "planner_metadata": planner_metadata,
             "poll_after_ms": 500,
             "version": analyzing["version"],
+        }
+
+    @app.get("/api/v1/article-tasks/{task_id}/editorial-brief/context")
+    def get_editorial_brief_context(task_id: str) -> dict[str, Any]:
+        task = repository.get_task(task_id)
+        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        recent_summaries = repository.list_recent_component_summaries(
+            task["account_id"],
+            task["history_window"],
+        )
+        request = TextPlannerRequest(
+            parsed=parsed,
+            article_type=task["article_type"],
+            history_window=task["history_window"],
+            recent_summaries=recent_summaries,
+            brand_config=public_brand_profile(app.state.brand_profile),
+        )
+        return {
+            "task_id": task_id,
+            "expected_task_version": task["version"],
+            "context": build_host_agent_planner_context(request),
         }
 
     @app.post("/api/v1/article-tasks/{task_id}/editorial-brief/generate")

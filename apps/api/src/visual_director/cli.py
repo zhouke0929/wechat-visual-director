@@ -514,6 +514,7 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
                 and image_provider not in {"none", "mock"}
             ),
             "mock_image_candidates": image_provider == "mock",
+            "host_agent_text_planning": api_health is not None,
             "ai_text_planning": bool(
                 text_planner_configured and text_planner_provider != "mock_text_planner"
             ),
@@ -675,6 +676,12 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
     opened = False
     if args.open:
         opened = bool(webbrowser.open(review_url, new=2))
+    if not planning_allowed:
+        next_action = "fix_source"
+    elif not auto_plan and str(final_task.get("status") or "") == "created":
+        next_action = "generate_editorial_brief"
+    else:
+        next_action = "human_review"
     return {
         "ok": True,
         "schema_version": "task_create_result.v0.2",
@@ -688,7 +695,101 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
         "planner": planner,
         "review_url": review_url,
         "opened": opened,
-        "next_action": "human_review" if planning_allowed else "fix_source",
+        "next_action": next_action,
+    }
+
+
+def _task_context(args: argparse.Namespace) -> dict[str, Any]:
+    payload = _request_json(
+        "GET",
+        f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/editorial-brief/context",
+        timeout=30,
+    )
+    context = payload.get("context")
+    if not isinstance(context, dict):
+        raise CliError("invalid_service_response", "规划上下文响应缺少 context", exit_code=3)
+    return {
+        "ok": True,
+        "schema_version": "task_planner_context_result.v0.1",
+        "task_id": payload.get("task_id", args.task_id),
+        "expected_task_version": payload.get("expected_task_version"),
+        "context": context,
+        "next_action": "write_editorial_brief",
+    }
+
+
+def _load_editorial_brief(path_value: str) -> tuple[Path, dict[str, Any]]:
+    path = Path(path_value).expanduser().resolve()
+    if not path.is_file():
+        raise CliError(
+            "brief_file_not_found",
+            "找不到 EditorialBrief JSON 文件",
+            exit_code=2,
+            details={"path": str(path)},
+        )
+    if path.stat().st_size > 256 * 1024:
+        raise CliError("brief_file_too_large", "EditorialBrief JSON 不能超过 256KB", exit_code=2)
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except UnicodeDecodeError as exc:
+        raise CliError("invalid_brief_encoding", "EditorialBrief 必须使用 UTF-8 编码", exit_code=2) from exc
+    except json.JSONDecodeError as exc:
+        raise CliError(
+            "invalid_brief_json",
+            "EditorialBrief 文件不是合法 JSON",
+            exit_code=2,
+            details={"line": exc.lineno, "column": exc.colno},
+        ) from exc
+    if not isinstance(raw, dict):
+        raise CliError("invalid_brief_json", "EditorialBrief 顶层必须是 JSON 对象", exit_code=2)
+    return path, raw
+
+
+def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.no_start:
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
+    _, brief = _load_editorial_brief(args.brief)
+    generation_body = json.dumps(
+        {
+            "mode": "start",
+            "expected_task_version": args.expected_task_version,
+            "planner": "host_agent",
+            "editorial_brief": brief,
+            "host_model": args.host_model,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    generation = _request_json(
+        "POST",
+        f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/generate-plans",
+        body=generation_body,
+        headers={"Content-Type": "application/json"},
+        timeout=args.plan_timeout,
+    )
+    detail = _wait_for_plans(args.api_base, args.task_id, timeout=args.plan_timeout)
+    task = detail.get("task") if isinstance(detail.get("task"), dict) else {}
+    metadata = (
+        generation.get("planner_metadata")
+        if isinstance(generation.get("planner_metadata"), dict)
+        else {}
+    )
+    review_url = f"{args.web_base.rstrip('/')}/tasks/{args.task_id}"
+    opened = bool(webbrowser.open(review_url, new=2)) if args.open else False
+    return {
+        "ok": True,
+        "schema_version": "task_plan_result.v0.1",
+        "task_id": args.task_id,
+        "status": task.get("status"),
+        "planner": "host_agent",
+        "planner_provider": metadata.get("provider"),
+        "planner_model": metadata.get("model"),
+        "fallback_used": bool(metadata.get("fallback_used", False)),
+        "fallback_reason": metadata.get("fallback_reason"),
+        "normalization_count": int(metadata.get("normalization_count") or 0),
+        "normalization_adjustments": metadata.get("normalization_adjustments") or [],
+        "review_url": review_url,
+        "opened": opened,
+        "next_action": "human_review",
     }
 
 
@@ -788,6 +889,23 @@ def build_parser() -> argparse.ArgumentParser:
     status.add_argument("task_id")
     status.add_argument("--json", action="store_true", dest="json_output")
 
+    context = task_subparsers.add_parser("context", help="读取宿主 Agent 的安全规划上下文")
+    _add_connection_args(context)
+    context.add_argument("task_id")
+    context.add_argument("--json", action="store_true", dest="json_output")
+
+    plan = task_subparsers.add_parser("plan", help="使用宿主 Agent 生成的 EditorialBrief 生成方案")
+    _add_connection_args(plan)
+    plan.add_argument("task_id")
+    plan.add_argument("--brief", required=True)
+    plan.add_argument("--expected-task-version", required=True, type=int)
+    plan.add_argument("--host-model", default="host_managed")
+    plan.add_argument("--plan-timeout", type=float, default=120)
+    plan.add_argument("--open", action="store_true")
+    plan.add_argument("--no-start", action="store_true")
+    plan.add_argument("--start-timeout", type=float, default=45)
+    plan.add_argument("--json", action="store_true", dest="json_output")
+
     open_task = task_subparsers.add_parser("open", help="打开已有任务")
     _add_connection_args(open_task)
     open_task.add_argument("task_id")
@@ -819,6 +937,10 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _create_task(args), 0
         elif args.command == "task" and args.task_command == "status":
             payload, exit_code = _task_status(args), 0
+        elif args.command == "task" and args.task_command == "context":
+            payload, exit_code = _task_context(args), 0
+        elif args.command == "task" and args.task_command == "plan":
+            payload, exit_code = _plan_task(args), 0
         elif args.command == "task" and args.task_command == "open":
             review_url = f"{args.web_base.rstrip('/')}/tasks/{args.task_id}"
             opened = bool(webbrowser.open(review_url, new=2))

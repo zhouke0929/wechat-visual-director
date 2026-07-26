@@ -1,4 +1,4 @@
 interface:
   display_name: "公众号视觉主编"
-  short_description: "用可选 AI 规划和确定性组件生成公众号视觉方案并安全交付草稿"
-  default_prompt: "Use $wechat-visual-director to structure this WeChat article, report whether AI or rule planning is active, open the local review workbench, and prepare a human-confirmed delivery."
+  short_description: "复用宿主模型生成视觉规划并用确定性组件安全交付公众号草稿"
+  default_prompt: "Use $wechat-visual-director to turn this WeChat article request into structured Markdown and a validated EditorialBrief with the host model, then open the local review workbench for human-confirmed delivery."
