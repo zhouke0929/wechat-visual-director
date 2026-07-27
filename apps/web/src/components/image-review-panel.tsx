@@ -8,6 +8,12 @@ const purposeLabels = {
   structured_infographic: "轻量结构信息图",
 } as const;
 
+const providerLabels = {
+  manual: ["MANUAL", "人工上传，不调用模型"],
+  mock: ["MOCK", "交互验证，不消耗额度"],
+  agnes: ["AGNES", "真实模型，图片需人工确认"],
+} as const;
+
 type Props = {
   plan: VisualPlan;
   review: ImageSlotList | null;
@@ -50,8 +56,8 @@ export function ImageReviewPanel({
           <p>只处理已选方案；生成成功后仍需逐张确认。</p>
         </div>
         <div className="provider-stamp">
-          <strong>{review.provider_mode === "mock" ? "MOCK" : "AGNES"}</strong>
-          <small>{review.provider_mode === "mock" ? "交互验证，不消耗额度" : "真实图片模型"}</small>
+          <strong>{providerLabels[review.provider_mode][0]}</strong>
+          <small>{providerLabels[review.provider_mode][1]}</small>
         </div>
       </header>
 
@@ -127,11 +133,13 @@ export function ImageReviewPanel({
                 <div className="image-slot-actions">
                   <button
                     className="image-generate-button"
-                    disabled={slotBusy || modelCandidates.length >= 3}
+                    disabled={review.provider_mode === "manual" || slotBusy || modelCandidates.length >= 3}
                     onClick={() => onGenerate(slot)}
                     type="button"
                   >
-                    {busy === `${slot.image_slot_id}:generate`
+                    {review.provider_mode === "manual"
+                      ? "人工模式：请上传图片"
+                      : busy === `${slot.image_slot_id}:generate`
                       ? review.provider_mode === "agnes" ? "Agnes 生成中…" : "生成中…"
                       : modelCandidates.length
                         ? `重生成候选 ${modelCandidates.length + 1}`

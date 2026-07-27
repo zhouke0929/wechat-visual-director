@@ -299,6 +299,21 @@ class MockImageProvider:
         )
 
 
+class ManualImageProvider:
+    provider = "manual"
+    model = "manual-upload"
+    configured = False
+
+    def generate(self, *, prompt: str, aspect_ratio: str, candidate_index: int) -> GeneratedImage:
+        del prompt, aspect_ratio, candidate_index
+        raise ImageProviderError(
+            "manual_upload_required",
+            "当前使用人工上传模式，请上传图片、沿用原图或跳过该图片槽。",
+            retryable=False,
+            http_status=422,
+        )
+
+
 class AgnesImageProvider:
     provider = "agnes"
 
@@ -576,10 +591,12 @@ class AgnesImageProvider:
 def create_image_provider_from_env(environ: dict[str, str] | None = None) -> ImageProvider:
     values = environ if environ is not None else os.environ
     mode = values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER", "mock").strip().lower()
+    if mode == "manual":
+        return ManualImageProvider()
     if mode == "mock":
         return MockImageProvider()
     if mode != "agnes":
-        raise ValueError("VISUAL_DIRECTOR_IMAGE_PROVIDER 只允许 mock 或 agnes")
+        raise ValueError("VISUAL_DIRECTOR_IMAGE_PROVIDER 只允许 manual、mock 或 agnes")
     try:
         timeout_seconds = int(values.get("AGNES_IMAGE_TIMEOUT_SECONDS", "180"))
         retry_delay_seconds = float(values.get("AGNES_IMAGE_RETRY_DELAY_SECONDS", "1"))

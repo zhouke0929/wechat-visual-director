@@ -28,7 +28,7 @@
 | 本地任务和确认结果保存 | 已实现 |
 | 文本语义规划 | Skill 默认复用宿主 Agent；独立模式支持 Qwen BYOK 或规则兜底 |
 | 多模态视觉复核 | 可选路线；不支持看图时继续使用确定性结构和兼容性检查 |
-| 生图模型 | 支持 Agnes BYOK；默认 Mock 候选，也可上传或跳过 |
+| 生图模型 | 支持 Agnes BYOK；工作台可切换人工上传、Mock 和 Agnes |
 | 真实微信公众号草稿创建 | 已实现可选 Wenyan 本地适配器，需本机凭据与 IP 白名单 |
 | 富文本一键复制 | 已实现实验入口，图片必须经过公众号保存/重开/手机预览验证 |
 | 本地交付包 | 已实现，包含 `article.md`、`article.html`、`assets/` 与清单 |
@@ -81,16 +81,22 @@ QWEN_TEXT_MODEL=qwen3.7-max-2026-05-20
 
 重启服务后执行 `doctor --json`。只有 `capabilities.ai_text_planning=true` 且 `planners.text.provider=aliyun_qwen` 才表示独立核心正在使用真实文本模型。Key 不会提交到 Git，也不应发送给 Agent。
 
-## 可选：真实图片生成
+## 可选：图片来源与真实生成
 
-图片提示词由视觉主编根据文章块、图片作用和品牌约束自动生成，不要求用户在每台电脑重复填写提示词。默认使用 `mock`，工作台仍可跳过图片、沿用原图或人工上传；若要启用当前实验性的 Agnes Provider，在安装器返回的 `config_file` 中手动填写：
+图片提示词由视觉主编根据文章块、图片作用和品牌约束自动生成，不要求用户填写提示词。打开本地工作台的 `/settings` 页面，可以在三种模式之间切换：
+
+- `manual`：只允许人工上传、沿用原图或跳过，不调用模型；
+- `mock`：生成本地确定性占位图，仅用于交互验收；
+- `agnes`：调用实验性的 Agnes Provider 生成真实候选。
+
+在设置页填写 Agnes API Key 后会保存到安装目录之外的本地私有配置文件并立即生效；页面和 API 只返回“是否已配置”，永远不会回显原值。若配置由进程环境变量托管，设置页会只读，避免覆盖运维配置。也可以继续在安装器返回的 `config_file` 中手动填写：
 
 ```dotenv
 VISUAL_DIRECTOR_IMAGE_PROVIDER=agnes
 AGNES_API_KEY=你的本机Key
 ```
 
-重启服务后执行 `doctor --json`。只有 `capabilities.image_generation=true` 且警告中没有 `image_generation_mock_only`，才表示真实生图已经启用。当前 Agnes 只作为链路验证 Provider，图片质量尚未通过生产基线；正式使用前应由运营逐张确认，或更换质量更高的 Provider。
+通过设置页保存时不需要重启；手动改文件或环境变量后需要重启服务并执行 `doctor --json`。只有 `capabilities.image_generation=true` 且警告中没有 `image_generation_mock_only`，才表示真实生图已经启用。设置页只验证本地配置，首次实际生成才会验证 Agnes 账号权限与额度。当前 Agnes 只作为链路验证 Provider，图片质量尚未通过生产基线；所有候选都必须由运营逐张确认，正式使用时可更换质量更高的 Provider。
 
 ## 本地启动
 
@@ -125,7 +131,7 @@ openclaw skills install <absolute-repository-path> --as wechat-visual-director
 从 GitHub 安装：
 
 ```text
-openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.5
+openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.6
 ```
 
 Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scripts/install.ps1`，并在后续调用安装结果中的稳定 `launcher`。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。

@@ -203,6 +203,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .review-page { min-height: 100vh; padding-bottom: 90px; }
 .review-topbar { position: sticky; top: 0; z-index: 20; }
 .back-link { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; font-weight: 700; }
+.review-settings-link { min-height: 34px; padding: 5px 10px; display: inline-flex; align-items: center; border: 1px solid rgba(15, 118, 110, .34); background: rgba(255, 254, 250, .72); color: var(--teal); font-size: 12px; font-weight: 750; white-space: nowrap; }
+.review-settings-link:hover { background: var(--teal-soft); }
 .review-title { flex: 1; min-width: 0; }
 .review-title p { margin: 0; color: var(--teal); font: 700 9px Arial; letter-spacing: 0.14em; }
 .review-title h1 { max-width: 760px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 20px; }
@@ -910,6 +912,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .review-title p { display: none; }
   .review-title h1 { font-size: 15px; }
   .review-topbar > .status-pill { display: none; }
+  .review-settings-link { font-size: 11px; }
   .progress-strip { padding: 12px 18px; display: flex; overflow-x: auto; }
   .progress-step { min-width: 150px; }
   .preflight-dossier { width: calc(100% - 20px); margin: 12px auto; }

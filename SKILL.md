@@ -19,7 +19,7 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 3. 只解析安装器 stdout 中的 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用该稳定入口，不再调用临时下载目录中的脚本。默认入口是 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1`；程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外，重复安装新版本不得清空它们。
 4. 使用 `{launcher}` 执行 `doctor --json`，确认 `installation.persistent=true`、`installation.version_match=true`，并记录 `installation.version`、`running_version`、`app_root` 和 `data_root`。若出现 `core_version_mismatch`，旧服务仍在占用端口，不得继续创建任务；先停止旧服务并重试。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
 5. 安装失败时只报告脚本给出的缺失依赖或修复动作；不要绕过版本检查，也不要自行下载不明二进制。
-6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求真实生图时，只告知安装结果中的 `config_file` 路径和所需字段，让用户在本机手动配置；不得要求其把 API Key 粘贴进对话。图片提示词由核心生成，不要求用户另行配置。
+6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{web_base}/settings`，在本地设置页选择 Provider 并填写 Key；若页面不可用，再告知安装结果中的 `config_file` 路径和所需字段。不得读取、代填或要求用户把 API Key 粘贴进对话。图片提示词由核心自动生成，不要求用户另行配置。
 
 ## 创建文章任务
 
@@ -65,6 +65,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 ## 人工确认与交付
 
 - 收到 `next_action=human_review` 后，把工作台链接交给用户并暂停；不得替用户选择方案或点击发布。
+- 图片设置位于本地工作台 `/settings`；人工上传、Mock 和 Agnes 可切换，Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
 - 工作台可以冻结最终版本、实验性复制富文本、下载交付包；本机配置 Wenyan 后还可以创建微信公众号草稿。
 - Wenyan 配置只允许来自本机进程环境或 Git 忽略的 `.env.local`。不要要求用户把 AppID、AppSecret 粘贴进对话。
 - 草稿结果为 `unknown` 时，先让用户去公众号后台核对；不得自动重试，以免产生重复草稿。

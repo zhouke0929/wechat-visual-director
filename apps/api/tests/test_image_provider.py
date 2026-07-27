@@ -224,8 +224,15 @@ def test_image_url_validation_allows_proxy_fake_dns_but_keeps_private_ranges_blo
         private_provider._validate_image_url("https://storage.example.com/output.png")
     assert private.value.code == "agnes_image_url_blocked"
 
-def test_provider_factory_defaults_to_mock_and_allows_unconfigured_agnes() -> None:
+def test_provider_factory_defaults_to_mock_and_allows_manual_or_unconfigured_agnes() -> None:
     assert create_image_provider_from_env({}).provider == "mock"
+    manual = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual"})
+    assert manual.provider == "manual"
+    assert manual.configured is False
+    with pytest.raises(ImageProviderError) as manual_error:
+        manual.generate(prompt="Abstract geometry", aspect_ratio="4:3", candidate_index=1)
+    assert manual_error.value.code == "manual_upload_required"
+
     provider = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "agnes"})
     assert provider.provider == "agnes"
     assert provider.configured is False

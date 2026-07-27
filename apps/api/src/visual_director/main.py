@@ -11,6 +11,7 @@ from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,8 @@ from .blind_review import BLIND_REVIEW_DIMENSIONS, BlindReviewDataset, load_blin
 from .parser import classify_article, parse_markdown
 from .preflight import PREFLIGHT_RULESET_VERSION, PREFLIGHT_SCHEMA_VERSION, run_preflight
 from .image_provider import (
+    DEFAULT_AGNES_ENDPOINT,
+    DEFAULT_AGNES_MODEL,
     IMAGE_PROMPT_VERSION,
     ImageProvider,
     ImageProviderError,
@@ -68,7 +71,7 @@ from .publication import (
     sha256_text,
     structure_hash,
 )
-from .settings import load_runtime_settings
+from .settings import load_runtime_settings, read_env_file, update_env_file
 from .delivery import (
     WenyanPublisher,
     build_clipboard_payload,
@@ -85,6 +88,12 @@ class GeneratePlansRequest(BaseModel):
     planner: str = Field(default="rule", pattern="^(rule|intelligent|host_agent)$")
     editorial_brief: dict[str, Any] | None = None
     host_model: str = Field(default="host_managed", max_length=120)
+
+
+class ImageProviderSettingsRequest(BaseModel):
+    mode: str = Field(pattern="^(manual|mock|agnes)$")
+    api_key: str | None = Field(default=None, max_length=512)
+    clear_api_key: bool = False
 
 
 class SelectPlanRequest(BaseModel):
@@ -284,6 +293,19 @@ def _error(
     )
 
 
+def _local_settings_request(request: Request, intent: str | None) -> bool:
+    client_host = request.client.host if request.client else ""
+    if client_host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        return False
+    if intent != "local-operator":
+        return False
+    origin = request.headers.get("origin")
+    if not origin:
+        return True
+    parsed = urlparse(origin)
+    return parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "::1", "localhost"}
+
+
 def create_app(
     database_path: str | None = None,
     image_provider: ImageProvider | None = None,
@@ -299,7 +321,13 @@ def create_app(
     app.state.repository = repository
     app.state.image_provider = image_provider or create_image_provider_from_env(runtime_settings)
     app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env(runtime_settings)
-    app.state.runtime_env_path = runtime_env_path
+    configured_env_path = os.environ.get("VISUAL_DIRECTOR_ENV_FILE")
+    app.state.runtime_env_path = runtime_env_path or (
+        Path(configured_env_path).expanduser().resolve()
+        if configured_env_path
+        else root / ".env.local"
+    )
+    app.state.runtime_settings = runtime_settings
     app.state.root = root
     app.state.brand_profile = load_brand_profile(root)
     app.state.brand_asset_path = brand_asset_path(root, app.state.brand_profile)
@@ -320,6 +348,7 @@ def create_app(
             "http://localhost:3100",
             "http://127.0.0.1:3100",
         ],
+        allow_origin_regex=r"^http://(?:localhost|127\.0\.0\.1):\d+$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -669,6 +698,137 @@ def create_app(
             },
             prepared if not blockers else None,
         )
+
+    def image_provider_settings_snapshot() -> dict[str, Any]:
+        env_path: Path = app.state.runtime_env_path
+        file_values = read_env_file(env_path)
+        process_keys = {
+            key
+            for key in (
+                "VISUAL_DIRECTOR_IMAGE_PROVIDER",
+                "AGNES_API_KEY",
+                "AGNES_IMAGE_ENDPOINT",
+                "AGNES_IMAGE_MODEL",
+                "AGNES_IMAGE_SIZE",
+            )
+            if key in os.environ
+        }
+        mode = str(
+            os.environ.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
+            or file_values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
+            or "mock"
+        ).strip().lower()
+        api_key_configured = bool(
+            str(os.environ.get("AGNES_API_KEY") or file_values.get("AGNES_API_KEY") or "").strip()
+        )
+        credential_source = (
+            "process_environment"
+            if str(os.environ.get("AGNES_API_KEY") or "").strip()
+            else "local_env_file"
+            if str(file_values.get("AGNES_API_KEY") or "").strip()
+            else "missing"
+        )
+        active_provider = app.state.image_provider
+        warnings: list[str] = []
+        if mode == "manual":
+            warnings.append("manual_upload_only")
+        elif mode == "mock":
+            warnings.append("mock_images_are_not_production_assets")
+        elif mode == "agnes" and not active_provider.configured:
+            warnings.append("agnes_api_key_missing")
+        return {
+            "schema_version": "image_provider_settings.v0.1",
+            "mode": mode,
+            "active_provider": active_provider.provider,
+            "active_model": active_provider.model,
+            "real_generation_available": (
+                active_provider.provider == "agnes" and active_provider.configured
+            ),
+            "api_key_configured": api_key_configured,
+            "credential_source": credential_source,
+            "managed_by_environment": bool(process_keys),
+            "managed_fields": sorted(process_keys),
+            "config_file": str(env_path),
+            "agnes": {
+                "endpoint": str(
+                    os.environ.get("AGNES_IMAGE_ENDPOINT")
+                    or file_values.get("AGNES_IMAGE_ENDPOINT")
+                    or DEFAULT_AGNES_ENDPOINT
+                ),
+                "model": str(
+                    os.environ.get("AGNES_IMAGE_MODEL")
+                    or file_values.get("AGNES_IMAGE_MODEL")
+                    or DEFAULT_AGNES_MODEL
+                ),
+                "size": str(
+                    os.environ.get("AGNES_IMAGE_SIZE")
+                    or file_values.get("AGNES_IMAGE_SIZE")
+                    or "1K"
+                ),
+                "production_approved": False,
+            },
+            "prompt_strategy": "visual_director_managed",
+            "external_connection_tested": False,
+            "restart_required": False,
+            "warnings": warnings,
+        }
+
+    @app.get("/api/v1/settings/image-provider")
+    def get_image_provider_settings() -> dict[str, Any]:
+        return {"settings": image_provider_settings_snapshot()}
+
+    @app.put("/api/v1/settings/image-provider")
+    def update_image_provider_settings(
+        payload: ImageProviderSettingsRequest,
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(
+                403,
+                "local_settings_required",
+                "生图配置只允许从本机工作台修改。",
+            )
+        current = image_provider_settings_snapshot()
+        if current["managed_by_environment"]:
+            return _error(
+                409,
+                "image_settings_environment_managed",
+                "当前生图配置由进程环境变量托管，请在启动环境中修改后重启。",
+                details={"managed_fields": current["managed_fields"]},
+            )
+        api_key = payload.api_key.strip() if payload.api_key is not None else None
+        if payload.clear_api_key and api_key:
+            return _error(
+                422,
+                "image_api_key_conflict",
+                "不能同时填写新 Key 和清除 Key。",
+            )
+
+        env_path: Path = app.state.runtime_env_path
+        file_values = read_env_file(env_path)
+        updates = {"VISUAL_DIRECTOR_IMAGE_PROVIDER": payload.mode}
+        if payload.clear_api_key:
+            updates["AGNES_API_KEY"] = ""
+        elif api_key is not None:
+            updates["AGNES_API_KEY"] = api_key
+        prospective_settings = {**file_values, **updates, **os.environ}
+        try:
+            provider = create_image_provider_from_env(prospective_settings)
+            update_env_file(env_path, updates)
+        except (OSError, ValueError) as error:
+            return _error(
+                422,
+                "image_settings_invalid",
+                str(error),
+            )
+        app.state.image_provider = provider
+        app.state.runtime_settings = prospective_settings
+        return {
+            "saved": True,
+            "validation_scope": "local_configuration",
+            "settings": image_provider_settings_snapshot(),
+        }
 
     @app.get("/health")
     def health() -> dict[str, Any]:

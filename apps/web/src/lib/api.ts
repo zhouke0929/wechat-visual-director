@@ -4,6 +4,8 @@ import type {
   ClipboardPayload,
   CoverWorkspace,
   DraftOperation,
+  ImageProviderMode,
+  ImageProviderSettings,
   ImageSlotList,
   PlanList,
   PublicationMetadata,
@@ -25,6 +27,12 @@ export function absoluteApiUrl(path: string): string {
   return `${API_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+export async function getApplicationVersion(): Promise<string> {
+  const response = await fetch(`${API_ORIGIN}/health`, { cache: "no-store" });
+  const payload = await parseResponse<{ application_version: string }>(response);
+  return payload.application_version;
+}
+
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
@@ -37,6 +45,29 @@ export async function listTasks(): Promise<Task[]> {
   const response = await fetch(`${API_BASE}/article-tasks`, { cache: "no-store" });
   const payload = await parseResponse<{ items: Task[] }>(response);
   return payload.items;
+}
+
+export async function getImageProviderSettings(): Promise<ImageProviderSettings> {
+  const response = await fetch(`${API_BASE}/settings/image-provider`, { cache: "no-store" });
+  const payload = await parseResponse<{ settings: ImageProviderSettings }>(response);
+  return payload.settings;
+}
+
+export async function saveImageProviderSettings(payload: {
+  mode: ImageProviderMode;
+  api_key?: string;
+  clear_api_key?: boolean;
+}): Promise<ImageProviderSettings> {
+  const response = await fetch(`${API_BASE}/settings/image-provider`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Settings-Intent": "local-operator",
+    },
+    body: JSON.stringify(payload),
+  });
+  const result = await parseResponse<{ settings: ImageProviderSettings }>(response);
+  return result.settings;
 }
 
 export async function createTask(file: File, articleType: string): Promise<Task> {

@@ -565,6 +565,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     text_planner_configured = bool((api_health or {}).get("text_planner_configured", False))
     if image_provider == "mock":
         warnings.append("image_generation_mock_only")
+    elif image_provider == "manual":
+        warnings.append("image_generation_manual_only")
     if text_planner_provider == "mock_text_planner":
         warnings.append("text_planning_rule_fallback")
     elif text_planner_provider not in {"none", ""} and not text_planner_configured:

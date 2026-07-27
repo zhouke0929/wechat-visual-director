@@ -594,6 +594,7 @@ export default function TaskReviewPage() {
           <p>VISUAL REVIEW / {taskId.slice(0, 8).toUpperCase()}</p>
           <h1>{detail.task.title}</h1>
         </div>
+        <Link className="review-settings-link" href="/settings">图片设置</Link>
         <StatusPill status={detail.task.status} />
       </header>
 

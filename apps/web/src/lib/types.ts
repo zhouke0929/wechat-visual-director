@@ -207,7 +207,7 @@ export type ImageSlotReview = ImageSlotPlan & {
 export type ImageSlotList = {
   task_id: string;
   plan_id: string;
-  provider_mode: "mock" | "agnes";
+  provider_mode: "manual" | "mock" | "agnes";
   items: ImageSlotReview[];
 };
 
@@ -236,7 +236,7 @@ export type CoverReuseSource = {
 export type CoverWorkspace = {
   task_id: string;
   plan_id: string;
-  provider_mode: "mock" | "agnes";
+  provider_mode: "manual" | "mock" | "agnes";
   cover_brief: {
     title: string;
     article_type: string;
@@ -384,6 +384,31 @@ export type WenyanPublisherStatus = {
   ready: boolean;
   warnings: string[];
   install_command: string;
+};
+
+export type ImageProviderMode = "manual" | "mock" | "agnes";
+
+export type ImageProviderSettings = {
+  schema_version: "image_provider_settings.v0.1";
+  mode: ImageProviderMode;
+  active_provider: ImageProviderMode;
+  active_model: string;
+  real_generation_available: boolean;
+  api_key_configured: boolean;
+  credential_source: "process_environment" | "local_env_file" | "missing";
+  managed_by_environment: boolean;
+  managed_fields: string[];
+  config_file: string;
+  agnes: {
+    endpoint: string;
+    model: string;
+    size: string;
+    production_approved: false;
+  };
+  prompt_strategy: "visual_director_managed";
+  external_connection_tested: false;
+  restart_required: false;
+  warnings: string[];
 };
 
 export type ClipboardPayload = {

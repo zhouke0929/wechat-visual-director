@@ -38,8 +38,18 @@ export function CoverReviewPanel({ busy, review, onGenerate, onReuse, onSelect, 
       </div>
 
       <div className="cover-actions-grid">
-        <button disabled={Boolean(busy)} onClick={onGenerate} type="button">
-          <span>01</span><strong>{busy === "generate" ? "生成中…" : "AI 总结全文生成封面"}</strong><small>{review.provider_mode === "agnes" ? "Agnes 流程试验" : "Mock 确定性候选"}</small>
+        <button disabled={review.provider_mode === "manual" || Boolean(busy)} onClick={onGenerate} type="button">
+          <span>01</span>
+          <strong>
+            {review.provider_mode === "manual"
+              ? "人工模式：请上传或复用封面"
+              : busy === "generate" ? "生成中…" : "AI 总结全文生成封面"}
+          </strong>
+          <small>
+            {review.provider_mode === "agnes"
+              ? "Agnes 流程试验"
+              : review.provider_mode === "mock" ? "Mock 确定性候选" : "不调用图片模型"}
+          </small>
         </button>
         <label className={busy ? "disabled" : ""}>
           <input

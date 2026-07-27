@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowIcon, UploadIcon } from "@/components/icons";
 import { StatusPill } from "@/components/status-pill";
-import { createTask, listTasks } from "@/lib/api";
+import { createTask, getApplicationVersion, listTasks } from "@/lib/api";
 import type { Task } from "@/lib/types";
 
 const articleTypes = [
@@ -32,12 +32,14 @@ export default function EditorialDeskPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [appVersion, setAppVersion] = useState("ALPHA");
 
   useEffect(() => {
     listTasks()
       .then(setTasks)
       .catch((reason: Error) => setError(reason.message))
       .finally(() => setLoading(false));
+    getApplicationVersion().then(setAppVersion).catch(() => undefined);
   }, []);
 
   async function chooseValidationSample() {
@@ -79,10 +81,8 @@ export default function EditorialDeskPage() {
           <span className="wordmark-en">WECHAT VISUAL DIRECTOR</span>
         </Link>
         <div className="topbar-actions">
-          <Link className="gallery-link" href="/blind-review">V0.6 匿名盲评</Link>
-          <Link className="gallery-link" href="/variant-review">第二批候选评审</Link>
-          <Link className="gallery-link" href="/component-gallery">组件画廊 V0.2</Link>
-          <span className="baseline-badge">预检 · 智能结构 · 双视觉 V0.8</span>
+          <Link className="gallery-link settings-link" href="/settings">本地设置</Link>
+          <span className="baseline-badge">LOCAL · {appVersion}</span>
         </div>
       </header>
 
