@@ -17,6 +17,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
+from .version import application_version
+
 
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
 DEFAULT_WEB_BASE = "http://127.0.0.1:3000"
@@ -70,6 +72,39 @@ def _runtime_home() -> Path:
 
 def _runtime_state_path() -> Path:
     return _runtime_home() / "runtime.json"
+
+
+def _installation_summary() -> dict[str, Any]:
+    project_root = _project_root()
+    install_root_value = os.environ.get("VISUAL_DIRECTOR_INSTALL_ROOT")
+    data_root_value = os.environ.get("VISUAL_DIRECTOR_DATA_ROOT")
+    database_value = os.environ.get("VISUAL_DIRECTOR_DB")
+    config_value = os.environ.get("VISUAL_DIRECTOR_ENV_FILE")
+    if data_root_value:
+        data_root = Path(data_root_value).expanduser().resolve()
+    elif database_value:
+        data_root = Path(database_value).expanduser().resolve().parent
+    else:
+        data_root = project_root / "apps" / "api" / "data"
+    config_file = (
+        Path(config_value).expanduser().resolve()
+        if config_value
+        else project_root / ".env.local"
+    )
+    return {
+        "version": application_version(),
+        "mode": "persistent" if install_root_value else "source",
+        "persistent": bool(install_root_value),
+        "install_root": (
+            str(Path(install_root_value).expanduser().resolve())
+            if install_root_value
+            else None
+        ),
+        "app_root": str(project_root),
+        "data_root": str(data_root),
+        "config_file": str(config_file),
+        "runtime_root": str(_runtime_home().resolve()),
+    }
 
 
 def _read_runtime_state() -> dict[str, Any]:
@@ -264,6 +299,23 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
     started: dict[str, int] = {}
     started_commands: dict[str, list[str]] = {}
     root = _project_root()
+
+    if (
+        api_health is not None
+        and os.environ.get("VISUAL_DIRECTOR_INSTALL_ROOT")
+        and str(api_health.get("application_version") or "") != application_version()
+    ):
+        raise CliError(
+            "core_version_mismatch",
+            "The running Visual Director API is not the installed version. Stop the old local service, then retry.",
+            exit_code=3,
+            retryable=True,
+            details={
+                "installed_version": application_version(),
+                "running_version": api_health.get("application_version"),
+                "api_base": api_base,
+            },
+        )
 
     if api_health is None:
         api_dir = root / "apps" / "api"
@@ -479,6 +531,19 @@ def _stop_services() -> tuple[dict[str, Any], int]:
 def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     api_health = _probe_json(urljoin(f"{_api_origin(api_base)}/", "health"))
     web_ready = _probe_web(web_base)
+    installation = _installation_summary()
+    running_version = (
+        str((api_health or {}).get("application_version") or "")
+        if api_health is not None
+        else None
+    )
+    version_match = (
+        running_version == installation["version"]
+        if api_health is not None and installation["persistent"]
+        else api_health is not None
+    )
+    installation["running_version"] = running_version
+    installation["version_match"] = version_match
     wenyan_status = (
         # Wenyan's first version probe can take several seconds on Windows,
         # especially when the executable is a global npm .cmd shim.
@@ -489,6 +554,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     warnings: list[str] = []
     if api_health is None:
         warnings.append("core_api_not_running")
+    elif installation["persistent"] and not version_match:
+        warnings.append("core_version_mismatch")
     if not web_ready:
         warnings.append("workbench_not_running")
     if _pnpm_command() is None:
@@ -502,12 +569,14 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("text_planning_rule_fallback")
     elif text_planner_provider not in {"none", ""} and not text_planner_configured:
         warnings.append("text_planning_not_configured")
-    ok = api_health is not None and web_ready
+    core_ready = api_health is not None and version_match
+    ok = core_ready and web_ready
     payload = {
         "ok": ok,
         "schema_version": "doctor_result.v0.1",
-        "core_ready": api_health is not None,
+        "core_ready": core_ready,
         "workbench_ready": web_ready,
+        "installation": installation,
         "capabilities": {
             "image_generation": bool(
                 (api_health or {}).get("image_provider_configured", False)

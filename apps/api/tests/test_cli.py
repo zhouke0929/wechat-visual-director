@@ -27,6 +27,7 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
         "_probe_json",
         lambda *_args, **_kwargs: {
             "status": "ok",
+            "application_version": "0.1.0-alpha.5",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -66,6 +67,107 @@ def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys
     assert payload["capabilities"]["rule_text_planning"] is True
     assert payload["planners"]["text"]["provider"] == "mock_text_planner"
     assert "text_planning_rule_fallback" in payload["warnings"]
+
+
+def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, capsys) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.5"
+    data_root = tmp_path / "data"
+    config_file = tmp_path / "config" / ".env.local"
+    runtime_root = tmp_path / "runtime"
+    project_root.mkdir(parents=True)
+    data_root.mkdir()
+    config_file.parent.mkdir()
+    runtime_root.mkdir()
+    (project_root / "VERSION").write_text("0.1.0-alpha.5\n", encoding="utf-8")
+    config_file.write_text("", encoding="utf-8")
+
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DB", str(data_root / "visual-director.db"))
+    monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(config_file))
+    monkeypatch.setenv("VISUAL_DIRECTOR_HOME", str(runtime_root))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.5",
+            "image_provider": "mock",
+            "image_provider_configured": True,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
+
+    assert cli.run(["doctor", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["installation"] == {
+        "version": "0.1.0-alpha.5",
+        "mode": "persistent",
+        "persistent": True,
+        "install_root": str(tmp_path.resolve()),
+        "app_root": str(project_root.resolve()),
+        "data_root": str(data_root.resolve()),
+        "config_file": str(config_file.resolve()),
+        "runtime_root": str(runtime_root.resolve()),
+        "running_version": "0.1.0-alpha.5",
+        "version_match": True,
+    }
+
+
+def test_doctor_rejects_stale_api_after_persistent_upgrade(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.5"
+    project_root.mkdir(parents=True)
+    (project_root / "VERSION").write_text("0.1.0-alpha.5\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.4",
+            "image_provider": "mock",
+            "image_provider_configured": True,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
+
+    assert cli.run(["doctor", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["core_ready"] is False
+    assert payload["installation"]["running_version"] == "0.1.0-alpha.4"
+    assert payload["installation"]["version_match"] is False
+    assert "core_version_mismatch" in payload["warnings"]
+
+
+def test_serve_refuses_to_reuse_stale_api_after_persistent_upgrade(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.5"
+    project_root.mkdir(parents=True)
+    (project_root / "VERSION").write_text("0.1.0-alpha.5\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.4",
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+
+    assert cli.run(["serve", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "core_version_mismatch"
+    assert payload["error"]["details"]["installed_version"] == "0.1.0-alpha.5"
+    assert payload["error"]["details"]["running_version"] == "0.1.0-alpha.4"
 
 
 def test_create_task_returns_agent_safe_result(tmp_path: Path, monkeypatch, capsys) -> None:

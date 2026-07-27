@@ -81,20 +81,37 @@ QWEN_TEXT_MODEL=qwen3.7-max-2026-05-20
 
 重启服务后执行 `doctor --json`。只有 `capabilities.ai_text_planning=true` 且 `planners.text.provider=aliyun_qwen` 才表示独立核心正在使用真实文本模型。Key 不会提交到 Git，也不应发送给 Agent。
 
+## 可选：真实图片生成
+
+图片提示词由视觉主编根据文章块、图片作用和品牌约束自动生成，不要求用户在每台电脑重复填写提示词。默认使用 `mock`，工作台仍可跳过图片、沿用原图或人工上传；若要启用当前实验性的 Agnes Provider，在安装器返回的 `config_file` 中手动填写：
+
+```dotenv
+VISUAL_DIRECTOR_IMAGE_PROVIDER=agnes
+AGNES_API_KEY=你的本机Key
+```
+
+重启服务后执行 `doctor --json`。只有 `capabilities.image_generation=true` 且警告中没有 `image_generation_mock_only`，才表示真实生图已经启用。当前 Agnes 只作为链路验证 Provider，图片质量尚未通过生产基线；正式使用前应由运营逐张确认，或更换质量更高的 Provider。
+
 ## 本地启动
 
 当前 Alpha 以 Windows PowerShell 为首要验证环境，需要 Python 3.11+、Node.js 和 pnpm（或 Corepack）。
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\scripts\install.ps1"
-powershell -ExecutionPolicy Bypass -File ".\scripts\visual-director.ps1" doctor --json
-powershell -ExecutionPolicy Bypass -File ".\scripts\visual-director.ps1" task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
+$existingLauncher = Join-Path $env:LOCALAPPDATA "wechat-visual-director\visual-director.ps1"
+if (Test-Path $existingLauncher) {
+  powershell -ExecutionPolicy Bypass -File $existingLauncher stop --json
+}
+$install = powershell -ExecutionPolicy Bypass -File ".\scripts\install.ps1" | ConvertFrom-Json
+powershell -ExecutionPolicy Bypass -File $install.launcher doctor --json
+powershell -ExecutionPolicy Bypass -File $install.launcher task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
 ```
+
+默认安装到 `%LOCALAPPDATA%\wechat-visual-director`。`versions/` 保存各程序版本，`data/`、`config/` 和 `runtime/` 分别保存任务与图片、私有配置和运行日志；从新 GitHub Tag 重复执行安装器会切换程序版本，但不会清空这些用户数据。安装器返回的稳定 `launcher` 不依赖最初的临时下载目录。升级后 `doctor` 应同时返回 `installation.persistent=true` 和 `installation.version_match=true`；若报告 `core_version_mismatch`，先停止仍占用端口的旧服务再重试。
 
 相同输入默认复用既有任务，避免 Agent 重试产生重复记录；确实需要新版本时增加 `--new-task`。停止由 CLI 启动的服务：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File ".\scripts\visual-director.ps1" stop --json
+powershell -ExecutionPolicy Bypass -File $install.launcher stop --json
 ```
 
 ## 作为 Skill 安装
@@ -108,10 +125,10 @@ openclaw skills install <absolute-repository-path> --as wechat-visual-director
 从 GitHub 安装：
 
 ```text
-openclaw skills install git:zhouke0929/wechat-visual-director@main
+openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.5
 ```
 
-Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scripts/install.ps1` 安装核心程序依赖。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。
+Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scripts/install.ps1`，并在后续调用安装结果中的稳定 `launcher`。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。
 
 ## 可选：发布到微信公众号草稿箱
 
@@ -119,10 +136,9 @@ Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scri
 
 ```powershell
 npm install -g @wenyan-md/cli@2.0.11
-Copy-Item .env.example .env.local
 ```
 
-然后由用户在 `.env.local` 中手动填写 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并把当前网络的公网出口 IP 加入公众号后台白名单。密钥不会通过前端提交，也不应发送给 Agent。
+然后由用户在安装结果返回的 `config_file` 中手动填写 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`，并把当前网络的公网出口 IP 加入公众号后台白名单。密钥不会通过前端提交，也不应发送给 Agent。
 
 发布适配器使用 Visual Director 已冻结的内联 HTML 和本地资产；Wenyan 只负责图片上传和草稿传输。当前 Wenyan 2.0.x 不传输工作台中的摘要与“正文显示封面”开关，发布后请在公众号后台复核这些字段。
 

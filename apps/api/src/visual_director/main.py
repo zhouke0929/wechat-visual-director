@@ -76,6 +76,7 @@ from .delivery import (
     build_delivery_zip,
 )
 from .repository import NotFoundError, PublicationLockedError, Repository, VersionConflictError
+from .version import application_version
 
 
 class GeneratePlansRequest(BaseModel):
@@ -673,6 +674,7 @@ def create_app(
     def health() -> dict[str, Any]:
         return {
             "status": "ok",
+            "application_version": application_version(),
             "planner": "editorial_brief",
             "image_provider": app.state.image_provider.provider,
             "image_provider_configured": app.state.image_provider.configured,

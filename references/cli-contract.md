@@ -1,30 +1,30 @@
 # CLI 调用契约
 
-入口脚本：`{baseDir}/scripts/visual-director.ps1`。
+首次从 `{baseDir}/scripts/install.ps1` 的 JSON 结果读取稳定 `launcher`；后续入口脚本统一记为 `{launcher}`。不要继续调用临时下载目录。
 
 ## 常用命令
 
 ```powershell
 # 环境和服务状态
-./scripts/visual-director.ps1 doctor --json
+& "{launcher}" doctor --json
 
 # 创建任务，自动规划并打开工作台
-./scripts/visual-director.ps1 task create --file C:\path\article.md --open --json
+& "{launcher}" task create --file C:\path\article.md --open --json
 
 # Skill 默认流程：创建任务后复用宿主 Agent 生成 Brief
-./scripts/visual-director.ps1 task create --file C:\path\article.md --no-plan --json
-./scripts/visual-director.ps1 task context <task-id> --json
-./scripts/visual-director.ps1 task plan <task-id> --brief C:\path\editorial-brief.json --expected-task-version <version> --host-model host_managed --open --json
+& "{launcher}" task create --file C:\path\article.md --no-plan --json
+& "{launcher}" task context <task-id> --json
+& "{launcher}" task plan <task-id> --brief C:\path\editorial-brief.json --expected-task-version <version> --host-model host_managed --open --json
 
 # 同一原稿显式另建任务
-./scripts/visual-director.ps1 task create --file C:\path\article.md --new-task --open --json
+& "{launcher}" task create --file C:\path\article.md --new-task --open --json
 
 # 查询和打开任务
-./scripts/visual-director.ps1 task status <task-id> --json
-./scripts/visual-director.ps1 task open <task-id> --json
+& "{launcher}" task status <task-id> --json
+& "{launcher}" task open <task-id> --json
 
 # 安全停止本 CLI 启动的服务
-./scripts/visual-director.ps1 stop --json
+& "{launcher}" stop --json
 ```
 
 ## 关键输出
@@ -44,6 +44,8 @@
 - `doctor.capabilities.wechat_draft=true`：本机 Wenyan 与公众号凭据已就绪，但仍需人工确认公网出口 IP 已加入白名单。
 - `doctor.capabilities.rich_copy=true`：工作台提供实验性富文本复制；粘贴后必须保存、重开并在手机端检查图片。
 - `doctor.capabilities.bundle_export=true`：冻结版本可以下载为本地交付包。
+- `doctor.installation.persistent=true`：当前使用固定安装目录；同时核对 `version`、`app_root` 和 `data_root`。
+- `doctor.installation.version_match=true`：当前 API 进程与已安装版本一致；`core_version_mismatch` 时不得继续创建任务，先停止旧服务并重新启动。
 
 退出码：`0` 成功；`2` 输入/配置错误；`3` 本地服务不可用；`4` Preflight 阻断；`5` 规划或 Provider 失败；`6` 安全停止拒绝；`10` 未知内部错误。
 

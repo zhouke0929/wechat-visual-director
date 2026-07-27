@@ -10,14 +10,16 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. 在 Windows PowerShell 中执行：
+2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，先用它执行 `stop --json`；确认没有 `refused` 后，再执行持久安装或无损升级：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 ```
 
-3. 执行 `doctor --json`。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
-4. 安装失败时只报告脚本给出的缺失依赖或修复动作；不要绕过版本检查，也不要自行下载不明二进制。
+3. 只解析安装器 stdout 中的 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用该稳定入口，不再调用临时下载目录中的脚本。默认入口是 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1`；程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外，重复安装新版本不得清空它们。
+4. 使用 `{launcher}` 执行 `doctor --json`，确认 `installation.persistent=true`、`installation.version_match=true`，并记录 `installation.version`、`running_version`、`app_root` 和 `data_root`。若出现 `core_version_mismatch`，旧服务仍在占用端口，不得继续创建任务；先停止旧服务并重试。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
+5. 安装失败时只报告脚本给出的缺失依赖或修复动作；不要绕过版本检查，也不要自行下载不明二进制。
+6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求真实生图时，只告知安装结果中的 `config_file` 路径和所需字段，让用户在本机手动配置；不得要求其把 API Key 粘贴进对话。图片提示词由核心生成，不要求用户另行配置。
 
 ## 创建文章任务
 
@@ -27,7 +29,7 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 4. 先只创建和预检任务：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" task create --file "<absolute-article-path>" --no-plan --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task create --file "<absolute-article-path>" --no-plan --json
 ```
 
 5. 只解析 stdout 中的 JSON：
@@ -38,7 +40,7 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1"
 6. 读取核心生成的块 ID、Schema 和历史避重上下文：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" task context <task-id> --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task context <task-id> --json
 ```
 
 7. 基于返回的 `context.planner_input`、`context.json_schema` 和 `context.output_rules` 生成一个 JSON 对象，并保存为 UTF-8 `editorial-brief.json`：
@@ -50,7 +52,7 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1"
 8. 把 Brief 交回确定性核心。已知当前宿主模型名称时传入真实名称；未知时保留 `host_managed`，不要猜测：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" task plan <task-id> --brief "<absolute-brief-path>" --expected-task-version <version-from-context> --host-model "host_managed" --open --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brief "<absolute-brief-path>" --expected-task-version <version-from-context> --host-model "host_managed" --open --json
 ```
 
 9. 解析规划结果：
@@ -73,19 +75,19 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1"
 查询状态：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" task status <task-id> --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task status <task-id> --json
 ```
 
 重新打开：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" task open <task-id> --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task open <task-id> --json
 ```
 
 服务异常时先执行 `doctor --json`；仅停止由本 CLI 启动且身份校验通过的进程：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/visual-director.ps1" stop --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" stop --json
 ```
 
 ## 安全门禁
