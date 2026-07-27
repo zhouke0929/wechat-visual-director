@@ -1650,33 +1650,31 @@ def create_app(
             },
         }
 
+    def plan_for_workbench(plan: dict[str, Any]) -> dict[str, Any]:
+        slots = []
+        for slot in plan.get("slots", []):
+            definition = COMPONENT_CATALOG[slot["component_type"]]
+            slots.append(
+                {
+                    **slot,
+                    "component_label": definition["label"],
+                    "variant_options": component_options(slot["component_type"]),
+                }
+            )
+        return {
+            key: value
+            for key, value in plan.items()
+            if key not in {"configuration", "slots"}
+        } | {
+            "slots": slots,
+            "preview_url": f'/api/v1/render-artifacts/{plan["preview_artifact_id"]}/content',
+        }
+
     @app.get("/api/v1/article-tasks/{task_id}/plans")
     def list_plans(task_id: str) -> dict[str, Any]:
         task = repository.get_task(task_id)
         plans = repository.list_plans(task_id)
-        summaries = []
-        for plan in plans:
-            slots = []
-            for slot in plan.get("slots", []):
-                definition = COMPONENT_CATALOG[slot["component_type"]]
-                slots.append(
-                    {
-                        **slot,
-                        "component_label": definition["label"],
-                        "variant_options": component_options(slot["component_type"]),
-                    }
-                )
-            summaries.append(
-                {
-                    key: value
-                    for key, value in plan.items()
-                    if key not in {"configuration", "slots"}
-                }
-                | {
-                    "slots": slots,
-                    "preview_url": f'/api/v1/render-artifacts/{plan["preview_artifact_id"]}/content',
-                }
-            )
+        summaries = [plan_for_workbench(plan) for plan in plans]
         structure_fingerprints = {
             plan.get("structure_fingerprint")
             for plan in plans
@@ -1752,6 +1750,7 @@ def create_app(
             "preview_url": f'/api/v1/render-artifacts/{saved["preview_artifact_id"]}/content',
             "preview_content_hash": saved["preview_content_hash"],
             "planner_called": False,
+            "plan": plan_for_workbench(saved),
         }
 
     @app.get("/api/v1/article-tasks/{task_id}/plans/{plan_id}/revisions")
@@ -1793,6 +1792,7 @@ def create_app(
             "can_undo": bool(saved.get("undo_stack")),
             "preview_url": f'/api/v1/render-artifacts/{saved["preview_artifact_id"]}/content',
             "preview_content_hash": saved["preview_content_hash"],
+            "plan": plan_for_workbench(saved),
         }
 
     @app.post("/api/v1/article-tasks/{task_id}/plans/{plan_id}/revisions/{revision}/restore")

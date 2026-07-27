@@ -815,6 +815,9 @@ article_type: tutorial_steps
         assert changed.json()["revision"] == 2
         assert changed.json()["planner_called"] is False
         assert changed.json()["preview_content_hash"] != original_hash
+        assert changed.json()["plan"]["revision"] == 2
+        assert changed.json()["plan"]["preview_url"] == changed.json()["preview_url"]
+        assert changed.json()["plan"]["slots"][0]["variant_options"]
         assert app.state.repository.get_task(created["id"])["source_hash"] == original_source_hash
 
         revisions = client.get(
@@ -830,6 +833,8 @@ article_type: tutorial_steps
         assert restored.json()["revision"] == 3
         assert restored.json()["preview_content_hash"] == original_hash
         assert restored.json()["can_undo"] is False
+        assert restored.json()["plan"]["revision"] == 3
+        assert restored.json()["plan"]["preview_url"] == restored.json()["preview_url"]
 
         repeated = client.post(
             f'/api/v1/article-tasks/{created["id"]}/plans/{plan["id"]}/undo',

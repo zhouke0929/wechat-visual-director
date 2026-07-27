@@ -11,6 +11,7 @@ import type {
   PublicationRevision,
   Task,
   TaskDetail,
+  VisualPlan,
   WenyanPublisherStatus,
 } from "./types";
 
@@ -139,7 +140,7 @@ export async function switchPlanSlot(
   slotId: string,
   variant: string,
   expectedPlanRevision: number,
-): Promise<void> {
+): Promise<{ plan: VisualPlan }> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/slots/${slotId}`,
     {
@@ -152,7 +153,7 @@ export async function switchPlanSlot(
       }),
     },
   );
-  await parseResponse(response);
+  return parseResponse<{ plan: VisualPlan }>(response);
 }
 
 export async function restorePlanRevision(
@@ -176,7 +177,7 @@ export async function undoPlanChange(
   taskId: string,
   planId: string,
   expectedPlanRevision: number,
-): Promise<void> {
+): Promise<{ plan: VisualPlan }> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/undo`,
     {
@@ -185,7 +186,7 @@ export async function undoPlanChange(
       body: JSON.stringify({ expected_plan_revision: expectedPlanRevision }),
     },
   );
-  await parseResponse(response);
+  return parseResponse<{ plan: VisualPlan }>(response);
 }
 
 export async function getImageSlots(taskId: string, planId: string): Promise<ImageSlotList> {

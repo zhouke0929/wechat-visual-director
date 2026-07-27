@@ -175,8 +175,11 @@ export default function TaskReviewPage() {
     setNotice("");
     try {
       setFocusSlotByPlan((current) => ({ ...current, [plan.id]: slot.slot_id }));
-      await switchPlanSlot(taskId, plan.id, slot.slot_id, variant, plan.revision);
-      await load();
+      const result = await switchPlanSlot(taskId, plan.id, slot.slot_id, variant, plan.revision);
+      setPlanList((current) => current ? {
+        ...current,
+        plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
+      } : current);
       const label = slot.variant_options.find((item) => item.value === variant)?.label ?? variant;
       setNotice(`「${slot.component_label}」已切换为${label}；预览已定位并标出变化位置。`);
     } catch (reason) {
@@ -192,8 +195,11 @@ export default function TaskReviewPage() {
     setError("");
     setNotice("");
     try {
-      await undoPlanChange(taskId, plan.id, plan.revision);
-      await load();
+      const result = await undoPlanChange(taskId, plan.id, plan.revision);
+      setPlanList((current) => current ? {
+        ...current,
+        plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
+      } : current);
       setNotice(`方案 ${String.fromCharCode(64 + plan.plan_index)} 已撤回上次局部换型；不会在两个修订间反复切换。`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复修订失败");
