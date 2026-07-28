@@ -10,14 +10,14 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，先用它执行 `stop --json`；确认没有 `refused` 后，再执行持久安装或无损升级：
+2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`，不要因为进入新对话而重复安装。只有稳定入口不存在，或用户明确要求从当前 Git 仓库升级时，才运行安装器；升级前先用旧入口执行 `stop --json` 并确认没有 `refused`。若稳定入口不存在且当前注册目录也没有 `scripts/install.ps1`，说明这里只是宿主发现入口，必须从用户明确提供的 Git 仓库或本地源码重新安装，不得猜测下载地址：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 ```
 
-3. 只解析安装器 stdout 中的 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用该稳定入口，不再调用临时下载目录中的脚本。默认入口是 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1`；程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外，重复安装新版本不得清空它们。
-4. 使用 `{launcher}` 执行 `doctor --json`，确认 `installation.persistent=true`、`installation.version_match=true`，并记录 `installation.version`、`running_version`、`app_root` 和 `data_root`。若出现 `core_version_mismatch`，旧服务仍在占用端口，不得继续创建任务；先停止旧服务并重试。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
+3. 只解析安装器 stdout 中的 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用该稳定入口，不再调用临时下载目录中的脚本。默认入口是 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1`；程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外，重复安装新版本不得清空它们。安装器还会把本 Skill 注册到用户级 Agent/OpenCode 发现目录，供新对话直接使用。
+4. 使用 `{launcher}` 执行 `doctor --json`，确认 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`，并记录 `installation.version`、`running_version`、`app_root` 和 `data_root`。若出现 `core_version_mismatch`，旧服务仍在占用端口，不得继续创建任务；先停止旧服务并重试。若出现 `host_skill_not_registered`，从当前 Git 安装源重新运行安装器后重启宿主对话。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
 5. 安装失败时只报告脚本给出的缺失依赖或修复动作；不要绕过版本检查，也不要自行下载不明二进制。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{web_base}/settings`，在本地设置页选择 Provider 并填写 Key；若页面不可用，再告知安装结果中的 `config_file` 路径和所需字段。不得读取、代填或要求用户把 API Key 粘贴进对话。图片提示词由核心自动生成，不要求用户另行配置。
 
@@ -25,7 +25,13 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 
 1. 读取用户主题、资料和明确约束。已有 Markdown 时保留其事实、数字、来源、观点与结论。
 2. 写作或整理前读取 [文章协议](references/article-protocol.md)。需要处理 CLI 状态或错误时再读取 [CLI 契约](references/cli-contract.md)。
-3. 将最终稿保存为 UTF-8 `.md` 临时文件。正文只能有一个 H1；H2 是主章节；H3 是章节内真实的小主题。按文章协议表达列表、引用、概念和对比关系；只对真正的重点短语使用 `**...**`，只在真实转场处使用 `---`，并把已有图片 alt 写成可直接发布的图注。不要为了触发组件制造结构，也不要用 HTML/CSS 指定视觉效果。
+3. 写完内容后执行一次事实锁定的语义整理，再保存为 UTF-8 `.md` 临时文件：
+   - 正文只能有一个 H1；H2 是主章节；H3 是章节内真实的小主题；
+   - 已经存在的并列因素、政策影响、原因或行动项使用 Markdown 列表，不要继续写成“第一、第二、第三”的连续段落；
+   - 已经存在的先后步骤使用有序列表；真实二维数据才使用表格；明确概念使用 H3 与紧随定义段；
+   - 导语只负责提出事件、读者问题和阅读价值，不完整复述第一章；
+   - 只对真正的重点短语使用 `**...**`，只在真实转场处使用 `---`，并把已有图片 alt 写成可直接发布的图注；
+   - 这是对已有语义的结构化表达，不得为了触发组件补造概念、因果、比较、结论、数字或行动建议，也不得用 HTML/CSS 指定视觉效果。
 4. 先只创建和预检任务：
 
 ```powershell
@@ -33,7 +39,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task create --file "<absol
 ```
 
 5. 只解析 stdout 中的 JSON：
-   - `next_action=fix_source`：只修复明确 finding，再用同一幂等语义重试；不得补造事实。
+   - `next_action=fix_source`：读取返回的 `findings`，只修复其中明确的问题，再用同一幂等语义重试；`source_structure_too_flat` 只允许把原稿已有的并列、顺序、概念或二维数据改写为对应 Markdown 结构，不得补造事实。
    - `next_action=generate_editorial_brief`：继续下面的宿主规划步骤。
    - `next_action=human_review`：既有任务已可评审，直接打开 `review_url` 并停止自主操作。
    - `idempotency_replayed=true`：说明复用了同一输入的既有任务，不要再创建副本。

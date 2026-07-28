@@ -842,7 +842,11 @@ export default function TaskReviewPage() {
                         <div>
                           <span>COMPONENT DECISIONS</span>
                           <h3>局部组件 · 修订 R{String(activePlan.revision).padStart(2, "0")}</h3>
-                          <small>左侧切换，右侧文章内部自动定位</small>
+                          <small>
+                            {activePlan.component_diagnostics
+                              ? `原稿识别 ${activePlan.component_diagnostics.eligible_component_types.length} 类候选，采用 ${activePlan.component_diagnostics.selected_component_count} 个组件`
+                              : "左侧切换，右侧文章内部自动定位"}
+                          </small>
                         </div>
                         {(activePlan.undo_stack ?? []).length ? (
                           <button
@@ -885,7 +889,11 @@ export default function TaskReviewPage() {
                             );
                           })}
                         </div>
-                      ) : <p className="component-empty">当前文章没有满足语义条件的强组件，保留普通正文。</p>}
+                      ) : (
+                        <p className="component-empty">
+                          当前原稿没有可安全绑定的 H3、列表、引文或真实表格，已保留普通正文；请回到源 Markdown 整理已有语义，不要为了组件补造内容。
+                        </p>
+                      )}
                     </section>
                   ) : !activePlanSelected ? (
                     <div className="image-locked-panel">

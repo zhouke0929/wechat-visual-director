@@ -167,6 +167,22 @@ export type VisualPlan = {
     normalization_adjustments?: Array<Record<string, string>>;
     provider_error_code?: string | null;
   };
+  component_diagnostics?: {
+    source_block_count: number;
+    source_block_types: Record<string, number>;
+    eligible_candidate_count: number;
+    eligible_component_types: string[];
+    eligible_component_type_counts: Record<string, number>;
+    candidate_anchors: Array<{
+      component_type: string;
+      anchor_block_id: string;
+      consume_block_ids: string[];
+    }>;
+    requested_component_count?: number | null;
+    selected_component_count: number;
+    selected_component_types: string[];
+    compiler_adjustments: Array<Record<string, string>>;
+  };
   summary: string;
   difference_from_recent: string[];
   structural_differences: string[];

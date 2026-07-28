@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -105,6 +106,44 @@ def _installation_summary() -> dict[str, Any]:
         "data_root": str(data_root),
         "config_file": str(config_file),
         "runtime_root": str(_runtime_home().resolve()),
+    }
+
+
+def _host_skill_registration_summary() -> dict[str, Any]:
+    explicit_home = os.environ.get("VISUAL_DIRECTOR_HOST_HOME")
+    user_home = (
+        Path(explicit_home).expanduser().resolve()
+        if explicit_home
+        else Path.home().resolve()
+    )
+    generic_root = user_home / ".agents" / "skills" / "wechat-visual-director"
+    opencode_root = user_home / ".config" / "opencode" / "skills" / "wechat-visual-director"
+    opencode_command = user_home / ".config" / "opencode" / "commands" / "wechat-visual-director.md"
+
+    def registered(root: Path) -> bool:
+        skill_file = root / "SKILL.md"
+        if not skill_file.is_file():
+            return False
+        try:
+            header = skill_file.read_text(encoding="utf-8")[:2048]
+        except OSError:
+            return False
+        return bool(re.search(r"(?m)^name:\s*wechat-visual-director\s*$", header))
+
+    generic_registered = registered(generic_root)
+    opencode_registered = registered(opencode_root)
+    return {
+        "registered": generic_registered or opencode_registered,
+        "generic": {
+            "registered": generic_registered,
+            "root": str(generic_root),
+        },
+        "opencode": {
+            "registered": opencode_registered,
+            "root": str(opencode_root),
+            "slash_command_registered": opencode_command.is_file(),
+            "command": str(opencode_command),
+        },
     }
 
 
@@ -562,6 +601,7 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     )
     installation["running_version"] = running_version
     installation["version_match"] = version_match
+    host_skill = _host_skill_registration_summary()
     wenyan_status = (
         # Wenyan's first version probe can take several seconds on Windows,
         # especially when the executable is a global npm .cmd shim.
@@ -578,6 +618,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             warnings.append("core_contract_mismatch")
     if not web_ready:
         warnings.append("workbench_not_running")
+    if installation["persistent"] and not host_skill["registered"]:
+        warnings.append("host_skill_not_registered")
     if _pnpm_command() is None:
         warnings.append("pnpm_not_found")
     image_provider = str((api_health or {}).get("image_provider") or "none")
@@ -606,6 +648,7 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             ),
             "mock_image_candidates": image_provider == "mock",
             "host_agent_text_planning": api_health is not None,
+            "host_skill_registered": bool(host_skill["registered"]),
             "ai_text_planning": bool(
                 text_planner_configured and text_planner_provider != "mock_text_planner"
             ),
@@ -621,6 +664,7 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
                 "configured": text_planner_configured,
             }
         },
+        "host_integrations": {"skill": host_skill},
         "publishers": {"wenyan": wenyan_status},
         "warnings": warnings,
         "api_base": api_base,
@@ -781,6 +825,19 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
         "preflight_status": preflight.get("status"),
         "planning_allowed": planning_allowed,
         "draft_creation_allowed": bool(preflight.get("draft_creation_allowed", False)),
+        "findings": [
+            {
+                "code": finding.get("code"),
+                "message": finding.get("message"),
+                "resolution_policy": finding.get("resolution_policy"),
+                "planning_blocking": bool(finding.get("planning_blocking", False)),
+                "draft_blocking": bool(finding.get("draft_blocking", False)),
+                "block_id": finding.get("block_id"),
+                "details": finding.get("details"),
+            }
+            for finding in preflight.get("findings", [])
+            if isinstance(finding, dict) and not finding.get("resolved_at")
+        ],
         "idempotency_replayed": bool(payload.get("idempotency_replayed", False)),
         "plans_generated": plans_generated,
         "planner": planner,

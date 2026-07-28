@@ -1,0 +1,54 @@
+{
+  "schema_version": "host_skill_regression.v0.1",
+  "case_id": "alpha10-private-college-stock-game",
+  "status": "regression_passed_alpha10",
+  "source": "user_provided_real_workflow",
+  "facts_verified": false,
+  "prompt": "7月14日，广西贵港市西江教育园区438亩教育用地及地上建筑一拍流拍，起拍价1.36亿元；二拍降至1.09亿元，8月3日开拍，截至7月23日仍0人报名。这宗资产背后的主角，正是筹设多年却从未招过一人的贵港工贸职业学院。\n据了解，2019年12月，广西壮族自治区政府批复筹设该校，规划在校生9000人；因资金链断裂，项目未招一生即全面停工。\n帮我根据这个事件，写一篇2026年的教育升学相关的分析推文，有逻辑，层层递进。\n先阐述这个事件，再从这一事件从侧面折射出民办高校或已进入存量博弈阶段，再结合十五五规划进行进一步分析，在引用数据的部分标清数据来源",
+  "observed_failure": {
+    "summary": "文章包含足够的事件、数据、并列政策影响和读者判断，但宿主生成稿将大部分关系写成连续段落，导致确定性规划只能使用章节标题、引文、行内强调和图片，语义组件覆盖不足。",
+    "secondary_observation": "导语已经完整讲述事件，第一章又重复同一事实，内容结构存在重复。",
+    "suspected_stage": "host_markdown_authoring",
+    "must_not_fix_by": [
+      "让渲染器从普通段落补造列表",
+      "为了达到组件数量伪造表格或结论",
+      "修改原文数字、来源、H1 或 H2"
+    ]
+  },
+  "acceptance": {
+    "minimum_grounded_structure_roles": 3,
+    "expected_roles_any_of": [
+      "event_evidence",
+      "industry_data_or_comparison",
+      "policy_impacts",
+      "reader_decision_or_action"
+    ],
+    "require_sources_preserved": true,
+    "require_fresh_conversation": true,
+    "require_wechat_draft_compatibility": true,
+    "require_no_component_stacking": true,
+    "require_no_intro_first_section_duplication": true
+  },
+  "latest_run": {
+    "run_date": "2026-07-28",
+    "fresh_agent_context": true,
+    "preflight_status": "REVIEW",
+    "planning_allowed": true,
+    "blocking_finding": null,
+    "non_planning_finding": "missing_cover",
+    "h2_count": 6,
+    "h3_count": 3,
+    "list_block_count": 4,
+    "table_count": 1,
+    "quote_count_before_source_normalization": 6,
+    "eligible_candidate_count": 9,
+    "eligible_component_types": [
+      "concept_explainer",
+      "logic_path",
+      "numbered_insight",
+      "warning_note"
+    ],
+    "source_attributions_kept_subordinate": true,
+    "wechat_publication_not_executed": true
+  }
+}

@@ -231,6 +231,30 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
     return candidates
 
 
+def component_opportunity_diagnostics(
+    parsed: ParsedArticle,
+    recent_summaries: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    candidates = _build_candidates(parsed, recent_summaries or [])
+    type_counts = Counter(item["component_type"] for item in candidates)
+    block_type_counts = Counter(block.type for block in parsed.blocks)
+    return {
+        "source_block_count": len(parsed.blocks),
+        "source_block_types": dict(sorted(block_type_counts.items())),
+        "eligible_candidate_count": len(candidates),
+        "eligible_component_types": sorted(type_counts),
+        "eligible_component_type_counts": dict(sorted(type_counts.items())),
+        "candidate_anchors": [
+            {
+                "component_type": item["component_type"],
+                "anchor_block_id": item["anchor_block_id"],
+                "consume_block_ids": item["consume_block_ids"],
+            }
+            for item in candidates
+        ],
+    }
+
+
 def _select_candidates(candidates: list[dict[str, Any]], priorities: tuple[str, ...], limit: int) -> list[dict[str, Any]]:
     priority = {component_type: index for index, component_type in enumerate(priorities)}
     ordered = sorted(
@@ -478,6 +502,7 @@ def generate_plans(
         styles = ("editorial_insight", "lively_science")
 
     candidates = _build_candidates(parsed, recent)
+    opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
     image_candidates = _image_candidates(parsed)
     first_palette = STYLE_PALETTES[styles[0]]
     second_palette = STYLE_PALETTES[styles[1]]
@@ -551,6 +576,15 @@ def generate_plans(
     ]
     for plan in plans:
         plan["article_type"] = article_type
+        plan["component_diagnostics"] = {
+            **opportunity_diagnostics,
+            "requested_component_count": None,
+            "selected_component_count": len(plan["slots"]),
+            "selected_component_types": [
+                slot["component_type"] for slot in plan["slots"]
+            ],
+            "compiler_adjustments": [],
+        }
         plan["quality_constraints"]["max_strong_components_per_article"] = (
             strong_limit if plan["plan_index"] == 1 else max(2, strong_limit - 1)
         )

@@ -20,11 +20,11 @@ from .editorial_brief import (
     validate_editorial_brief_for_article,
 )
 from .parser import ParsedArticle
-from .planner import generate_plans
+from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.4-no-variant-invention"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.1"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.5-component-opportunities"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.2-component-opportunities"
 DEFAULT_QWEN_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 QWEN_MODEL_PRICES_CNY_PER_MILLION = {
     "qwen3.6-flash": (1.2, 7.2),
@@ -42,6 +42,8 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "不得新增、改写或推断文章事实、数字与来源。",
     "不得输出 HTML、CSS、图片正文文字、凭据或模型密钥。",
     "H1/H2 是不可变的文章标题与主章节结构，任何组件都不得消费或替换它们。",
+    "优先从 component_opportunities 提供的真实候选中选择不同语义角色；候选不足时保持 plain，不得补造结构。",
+    "中长分析稿若存在至少 3 种可绑定语义，应在不相邻、不重复消费内容的前提下使用 3–4 个不同角色，而不是只使用标题、引文或图片。",
     "非 plain 组件预算随文章长度变化：短文最多 3 个、中长文最多 4 个、长文最多 5–6 个。",
     "视觉新鲜感不能破坏品牌一致性和正文可读性。",
     "question_hook 只能引用 H3–H6 子标题；numbered_insight 必须引用含 2–5 项的列表。",
@@ -113,6 +115,10 @@ def build_text_planner_payload(request: "TextPlannerRequest") -> dict[str, Any]:
                 for block in request.parsed.blocks
             ],
         },
+        "component_opportunities": component_opportunity_diagnostics(
+            request.parsed,
+            request.recent_summaries,
+        ),
         "brand": safe_brand,
         "recent_history": safe_history,
         "output_contract": "editorial_brief.v0.1",

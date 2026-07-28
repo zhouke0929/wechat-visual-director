@@ -42,7 +42,7 @@ IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]*\)")
 IMAGE_LINE_RE = re.compile(r'^!\[([^\]]*)]\(([^)]+)\)\s*$')
 HORIZONTAL_RULE_RE = re.compile(r"^(?:-{3,}|\*{3,}|_{3,})$")
 SOURCE_PREFIX_RE = re.compile(
-    r"^(?:[📊📚🔗]\s*)?(?:\*\*)?(?:(?:数据|资料|规则)\s*)?来源\s*[:：]",
+    r"^(?:[📊📚🔗]\s*)?(?:\*\*)?(?:(?:数据|资料|规则|政策|核验|信息)\s*)?来源\s*[:：]",
     flags=re.IGNORECASE,
 )
 

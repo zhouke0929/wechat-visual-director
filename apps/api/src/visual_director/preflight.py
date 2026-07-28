@@ -6,13 +6,14 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from .parser import MarkdownInputError, ParsedArticle, parse_markdown
+from .planner import component_opportunity_diagnostics
 
 
 PreflightStatus = Literal["PASS", "REVIEW", "BLOCK"]
 ResolutionPolicy = Literal["ACKNOWLEDGE", "EDIT_SOURCE", "REPLACE_ASSET", "HARD_BLOCK"]
 
 PREFLIGHT_SCHEMA_VERSION = "preflight_report.v0.1"
-PREFLIGHT_RULESET_VERSION = "preflight_rules.v0.1"
+PREFLIGHT_RULESET_VERSION = "preflight_rules.v0.2-semantic-structure"
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 IMAGE_LINE_RE = re.compile(r"^!\[([^\]]*)]\(([^)]+)\)\s*$")
@@ -245,6 +246,68 @@ def _asset_findings(parsed: ParsedArticle) -> list[PreflightFinding]:
     return findings
 
 
+def _semantic_structure_finding(
+    parsed: ParsedArticle,
+    requested_article_type: str | None,
+) -> PreflightFinding | None:
+    schema_version = str(parsed.frontmatter.get("schema_version", "")).strip()
+    article_type = (
+        (requested_article_type or "").strip()
+        or str(parsed.frontmatter.get("article_type", "")).strip()
+    )
+    if schema_version != "wechat_article.v1" or article_type not in {
+        "data_policy",
+        "viewpoint_trend",
+        "tutorial_steps",
+    }:
+        return None
+
+    paragraphs = [block for block in parsed.blocks if block.type == "paragraph"]
+    body_characters = sum(len(re.sub(r"\s+", "", str(block.content))) for block in paragraphs)
+    h3_count = sum(
+        1
+        for block in parsed.blocks
+        if block.type == "heading" and (block.level or 0) >= 3
+    )
+    list_count = sum(
+        1
+        for block in parsed.blocks
+        if block.type in {"ordered_list", "unordered_list"}
+    )
+    table_count = sum(1 for block in parsed.blocks if block.type == "table")
+    semantic_structure_count = h3_count + list_count + table_count
+    opportunities = component_opportunity_diagnostics(parsed)
+    eligible_component_types = opportunities["eligible_component_types"]
+    grounded_role_count = len(eligible_component_types) + (1 if table_count else 0)
+
+    if len(paragraphs) < 8 or body_characters < 900 or grounded_role_count >= 2:
+        return None
+    return PreflightFinding(
+        code="source_structure_too_flat",
+        message=(
+            "长篇分析稿主要由连续段落组成，已有的并列因素、政策影响、顺序或真实二维数据"
+            "需要先整理为 H3、列表或表格，再进入组件规划"
+        ),
+        resolution_policy="EDIT_SOURCE",
+        planning_blocking=True,
+        draft_blocking=False,
+        details={
+            "article_type": article_type,
+            "paragraph_count": len(paragraphs),
+            "body_characters": body_characters,
+            "h3_count": h3_count,
+            "list_count": list_count,
+            "table_count": table_count,
+            "semantic_structure_count": semantic_structure_count,
+            "eligible_component_types": eligible_component_types,
+            "grounded_role_count": grounded_role_count,
+            "repair_boundary": (
+                "只重排原稿已经存在的关系；不得补造概念、比较、结论、数字、来源或行动建议"
+            ),
+        },
+    )
+
+
 def _quality_dimensions(findings: list[PreflightFinding]) -> dict[str, str]:
     dimensions = {
         "transport_security": "pass",
@@ -262,6 +325,7 @@ def _quality_dimensions(findings: list[PreflightFinding]) -> dict[str, str]:
         "heading_level_jump": "title_hierarchy",
         "empty_body": "content_blocks",
         "no_sections": "semantic_risk",
+        "source_structure_too_flat": "semantic_risk",
         "article_type_conflict": "semantic_risk",
         "missing_cover": "publication_readiness",
         "placeholder_cover": "publication_readiness",
@@ -355,6 +419,9 @@ def run_preflight(
                     draft_blocking=False,
                 )
             )
+        structure_finding = _semantic_structure_finding(parsed, requested_article_type)
+        if structure_finding is not None:
+            findings.append(structure_finding)
         findings.extend(_asset_findings(parsed))
 
         frontmatter_type = str(parsed.frontmatter.get("article_type", "")).strip()

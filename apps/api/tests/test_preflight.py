@@ -83,3 +83,87 @@ def test_sensitive_credentials_are_hard_blocked_without_echoing_secret() -> None
     assert result.report.draft_creation_allowed is False
     assert "sensitive_credentials" in serialized
     assert secret not in serialized
+
+
+def test_long_canonical_analysis_requires_grounded_semantic_structure() -> None:
+    paragraphs = "\n\n".join(
+        [
+            (
+                f"第{index}段继续分析民办高校的招生、成本和政策环境。"
+                "这里保留用户已经提供的事实与判断，但仍然全部写成连续正文，"
+                "没有把真实存在的并列关系整理成列表或表格。"
+                "文章继续讨论招生人口变化、学校经营成本、专业差异化和政策约束，"
+                "但这些关系仍然被埋在普通段落中。"
+            )
+            for index in range(1, 11)
+        ]
+    )
+    result = run_preflight(
+        f"""---
+schema_version: wechat_article.v1
+title: 民办高校进入存量博弈阶段
+article_type: viewpoint_trend
+---
+# 民办高校进入存量博弈阶段
+
+## 事件
+
+{paragraphs}
+""",
+        requested_article_type="viewpoint_trend",
+    )
+
+    finding = next(
+        item
+        for item in result.report.findings
+        if item.code == "source_structure_too_flat"
+    )
+    assert result.report.planning_allowed is False
+    assert finding.resolution_policy == "EDIT_SOURCE"
+    assert finding.planning_blocking is True
+    assert finding.details is not None
+    assert finding.details["paragraph_count"] == 10
+    assert finding.details["semantic_structure_count"] == 0
+
+
+def test_long_analysis_with_two_grounded_structures_can_be_planned() -> None:
+    paragraphs = "\n\n".join(
+        [
+            (
+                f"第{index}段继续分析民办高校的招生、成本和政策环境，"
+                "并保留已有事实、数字和来源。"
+            )
+            for index in range(1, 9)
+        ]
+    )
+    result = run_preflight(
+        f"""---
+schema_version: wechat_article.v1
+title: 民办高校进入存量博弈阶段
+article_type: viewpoint_trend
+---
+# 民办高校进入存量博弈阶段
+
+## 事件
+
+{paragraphs}
+
+### 三项政策信号
+
+- 招生从规模扩张转向质量约束
+- 资源继续向人口大省和中西部倾斜
+- 民办学校需要形成差异化定位
+
+### 家长需要核对
+
+- 学校办学资质
+- 往年招生稳定性
+- 专业与就业匹配度
+""",
+        requested_article_type="viewpoint_trend",
+    )
+
+    assert "source_structure_too_flat" not in {
+        finding.code for finding in result.report.findings
+    }
+    assert result.report.planning_allowed is True

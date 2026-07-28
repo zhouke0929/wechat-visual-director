@@ -6,6 +6,7 @@ from PIL import Image
 
 from visual_director.main import create_app
 from visual_director.delivery import WenyanPublishResult
+from visual_director.image_provider import MockImageProvider
 from visual_director.text_planner import MockTextPlannerProvider
 
 
@@ -897,7 +898,7 @@ def test_confirmed_variant_history_chooses_fresher_variant_without_removing_comp
 
 
 def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "images.db"))
+    app = create_app(str(tmp_path / "images.db"), image_provider=MockImageProvider())
     with TestClient(app) as client:
         markdown = """# 三步配图测试
 
@@ -1031,7 +1032,7 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
 
 
 def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "cover-planner.db"))
+    app = create_app(str(tmp_path / "cover-planner.db"), image_provider=MockImageProvider())
     with TestClient(app) as client:
         markdown = """# 三步完成志愿核对
 
@@ -1087,7 +1088,7 @@ def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Pa
 
 
 def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "cover-reuse.db"))
+    app = create_app(str(tmp_path / "cover-reuse.db"), image_provider=MockImageProvider())
     with TestClient(app) as client:
         markdown = """# 长文封面复用
 

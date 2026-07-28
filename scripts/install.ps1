@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$InstallRoot = "",
+    [string]$HostHome = "",
     [switch]$SkipDependencies
 )
 
@@ -84,7 +85,8 @@ function Copy-ApplicationSource(
         if ($Item.PSIsContainer) {
             if (
                 ($ExcludedDirectoryPaths -contains $NormalizedRelativePath) -or
-                ($ExcludedDirectoryNames -contains $Item.Name)
+                ($ExcludedDirectoryNames -contains $Item.Name) -or
+                $Item.Name.StartsWith(".pytest-tmp", [StringComparison]::OrdinalIgnoreCase)
             ) {
                 continue
             }
@@ -103,6 +105,83 @@ function Copy-ApplicationSource(
             continue
         }
         Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $CurrentDestination $Item.Name) -Force
+    }
+}
+
+function Copy-SkillRegistration(
+    [string]$ApplicationRoot,
+    [string]$DestinationRoot
+) {
+    $SkillFile = Join-Path $ApplicationRoot "SKILL.md"
+    $ReferencesRoot = Join-Path $ApplicationRoot "references"
+    $AgentsRoot = Join-Path $ApplicationRoot "agents"
+    if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) {
+        Write-Failure "skill_file_missing" "SKILL.md was not found in the installed application." @{
+            application_root = $ApplicationRoot
+        }
+    }
+    New-Item -ItemType Directory -Force -Path $DestinationRoot | Out-Null
+    Copy-Item -LiteralPath $SkillFile -Destination (Join-Path $DestinationRoot "SKILL.md") -Force
+    if (Test-Path -LiteralPath $ReferencesRoot -PathType Container) {
+        $TargetReferences = Join-Path $DestinationRoot "references"
+        New-Item -ItemType Directory -Force -Path $TargetReferences | Out-Null
+        foreach ($Item in Get-ChildItem -Force -LiteralPath $ReferencesRoot) {
+            Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $TargetReferences $Item.Name) -Recurse -Force
+        }
+    }
+    if (Test-Path -LiteralPath $AgentsRoot -PathType Container) {
+        $TargetAgents = Join-Path $DestinationRoot "agents"
+        New-Item -ItemType Directory -Force -Path $TargetAgents | Out-Null
+        foreach ($Item in Get-ChildItem -Force -LiteralPath $AgentsRoot) {
+            Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $TargetAgents $Item.Name) -Recurse -Force
+        }
+    }
+}
+
+function Register-HostSkill(
+    [string]$ApplicationRoot,
+    [string]$UserHomeOverride = ""
+) {
+    $UserHome = $UserHomeOverride
+    if ([string]::IsNullOrWhiteSpace($UserHome)) {
+        $UserHome = [Environment]::GetFolderPath("UserProfile")
+    }
+    if ([string]::IsNullOrWhiteSpace($UserHome)) {
+        $UserHome = $HOME
+    }
+    if ([string]::IsNullOrWhiteSpace($UserHome)) {
+        Write-Failure "user_home_missing" "A user home directory is required to register the Agent Skill."
+    }
+    $UserHome = [IO.Path]::GetFullPath($UserHome)
+    $GenericSkillRoot = Join-Path $UserHome ".agents\skills\wechat-visual-director"
+    $OpenCodeSkillRoot = Join-Path $UserHome ".config\opencode\skills\wechat-visual-director"
+    $OpenCodeCommandRoot = Join-Path $UserHome ".config\opencode\commands"
+    $OpenCodeCommand = Join-Path $OpenCodeCommandRoot "wechat-visual-director.md"
+
+    try {
+        Copy-SkillRegistration -ApplicationRoot $ApplicationRoot -DestinationRoot $GenericSkillRoot
+        Copy-SkillRegistration -ApplicationRoot $ApplicationRoot -DestinationRoot $OpenCodeSkillRoot
+        New-Item -ItemType Directory -Force -Path $OpenCodeCommandRoot | Out-Null
+        @'
+---
+description: 创建、排版或继续处理微信公众号视觉主编任务
+---
+
+加载并使用 `wechat-visual-director` Skill 处理下面的请求。严格遵守 Skill 的人工确认与密钥安全门禁。
+
+$ARGUMENTS
+'@ | Set-Content -Encoding UTF8 -LiteralPath $OpenCodeCommand
+    } catch {
+        Write-Failure "host_skill_registration_failed" "The application was installed, but the host Agent Skill could not be registered." @{
+            generic_skill_root = $GenericSkillRoot
+            opencode_skill_root = $OpenCodeSkillRoot
+            reason = $_.Exception.Message
+        }
+    }
+    return [ordered]@{
+        generic_skill_root = $GenericSkillRoot
+        opencode_skill_root = $OpenCodeSkillRoot
+        opencode_command = $OpenCodeCommand
     }
 }
 
@@ -255,6 +334,7 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
 }
 
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force
+$HostRegistration = Register-HostSkill -ApplicationRoot $VersionRoot -UserHomeOverride $HostHome
 $InstalledAt = [DateTimeOffset]::UtcNow.ToString("o")
 $Manifest = [ordered]@{
     schema_version = "persistent_install.v0.1"
@@ -266,6 +346,7 @@ $Manifest = [ordered]@{
     config_file = $ConfigFile
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
+    host_registration = $HostRegistration
     installed_at = $InstalledAt
 }
 $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $ManifestPath
@@ -282,7 +363,8 @@ $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $M
     config_file = $ConfigFile
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
-    skill_root = $VersionRoot
+    skill_root = $HostRegistration.generic_skill_root
+    host_registration = $HostRegistration
     dependencies_installed = -not $SkipDependencies
     migrated = @{
         database = $MigratedDatabase

@@ -390,6 +390,8 @@ def test_provider_payload_excludes_secrets_and_full_history() -> None:
     assert "private/path.jpg" not in serialized
     assert "hidden" not in serialized
     assert len(payload["recent_history"]) == 1
+    assert payload["component_opportunities"]["eligible_candidate_count"] >= 1
+    assert payload["component_opportunities"]["eligible_component_types"]
 
 
 def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Path) -> None:
@@ -409,6 +411,9 @@ def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Pa
         assert payload["brief"]["schema_version"] == "editorial_brief.v0.1"
         assert payload["planner_run"]["provider"] == "mock_text_planner"
         assert payload["experimental_plan"]["plan_name"] == "智能规划 · Editorial Brief"
+        diagnostics = payload["experimental_plan"]["component_diagnostics"]
+        assert diagnostics["eligible_candidate_count"] >= diagnostics["selected_component_count"]
+        assert diagnostics["selected_component_types"]
         assert len(payload["experimental_plans"]) == 2
         assert len({plan["structure_fingerprint"] for plan in payload["experimental_plans"]}) == 1
         assert payload["baseline_plan"]["recommendation"] == "recommended"

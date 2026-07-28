@@ -30,7 +30,7 @@
 ## 关键输出
 
 - `status=plans_ready`：双方案已经生成，可以评审。
-- `next_action=fix_source`：修复明确的 Markdown 问题。
+- `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题；`source_structure_too_flat` 只允许整理原稿已有关系。
 - `next_action=generate_editorial_brief`：读取 `task context`，由当前宿主 Agent 或可选子智能体生成 Brief。
 - `next_action=human_review`：把 `review_url` 交给用户，暂停 Agent 自主操作。
 - `planner_provider=host_agent`：本次使用了宿主提交的 Brief，核心没有再次调用文本模型。
@@ -40,6 +40,7 @@
 - `opened=false`：浏览器自动打开失败，但任务仍成功；直接提供 `review_url`。
 - `doctor.capabilities.ai_text_planning=true`：核心已配置真实文本规划模型。
 - `doctor.capabilities.host_agent_text_planning=true`：核心支持接收宿主 Agent Brief，不代表当前任务已成功采用。
+- `doctor.capabilities.host_skill_registered=true`：用户级 Skill 已注册；同时可从 `doctor.host_integrations.skill` 检查通用目录、OpenCode 目录与斜杠命令。
 - `doctor.capabilities.rule_text_planning=true`：当前使用确定性规则兜底；可以排版，但不得宣称调用了 AI 文本规划。
 - `doctor.capabilities.wechat_draft=true`：本机 Wenyan 与公众号凭据已就绪，但仍需人工确认公网出口 IP 已加入白名单。
 - `doctor.capabilities.rich_copy=true`：工作台提供实验性富文本复制；粘贴后必须保存、重开并在手机端检查图片。

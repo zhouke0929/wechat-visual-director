@@ -79,6 +79,8 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
 """
     )
     plans = generate_plans(article, "viewpoint_trend", 5)
+    assert plans[0]["component_diagnostics"]["eligible_candidate_count"] >= len(plans[0]["slots"])
+    assert plans[0]["component_diagnostics"]["selected_component_count"] == len(plans[0]["slots"])
     component_types = {
         slot["component_type"]
         for plan in plans

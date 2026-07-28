@@ -15,7 +15,7 @@ from .editorial_brief import (
 )
 from .parser import ContentBlock, ParsedArticle
 from .plan_schema import validate_plan_for_article
-from .planner import generate_plans
+from .planner import component_opportunity_diagnostics, generate_plans
 
 
 class EditorialBriefCompileError(ValueError):
@@ -379,6 +379,7 @@ def compile_editorial_brief(
     baseline = generate_plans(parsed, contract.article.article_type, history_window, recent)[0]
     palette_profile, art_configuration = _art_direction_profile(contract)
     slots, compiler_adjustments = _compile_slots(contract, parsed, recent)
+    opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
     compiled = {
         **baseline,
         "plan_name": "智能规划 · Editorial Brief",
@@ -397,6 +398,19 @@ def compile_editorial_brief(
             "palette_profile": palette_profile,
             "style_family": contract.art_direction.style_family,
             "avoid_recent_patterns": contract.art_direction.avoid_recent_patterns,
+            "compiler_adjustments": compiler_adjustments,
+        },
+        "component_diagnostics": {
+            **opportunity_diagnostics,
+            "requested_component_count": sum(
+                1
+                for section in contract.sections
+                if section.component_intent != "plain"
+            ),
+            "selected_component_count": len(slots),
+            "selected_component_types": [
+                slot["component_type"] for slot in slots
+            ],
             "compiler_adjustments": compiler_adjustments,
         },
     }

@@ -121,7 +121,7 @@ powershell -ExecutionPolicy Bypass -File $install.launcher doctor --json
 powershell -ExecutionPolicy Bypass -File $install.launcher task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
 ```
 
-默认安装到 `%LOCALAPPDATA%\wechat-visual-director`。`versions/` 保存各程序版本，`data/`、`config/` 和 `runtime/` 分别保存任务与图片、私有配置和运行日志；从新 GitHub Tag 重复执行安装器会切换程序版本，但不会清空这些用户数据。安装器返回的稳定 `launcher` 不依赖最初的临时下载目录。升级后 `doctor` 应同时返回 `installation.persistent=true` 和 `installation.version_match=true`；若报告 `core_version_mismatch`，先停止仍占用端口的旧服务再重试。
+默认安装到 `%LOCALAPPDATA%\wechat-visual-director`。`versions/` 保存各程序版本，`data/`、`config/` 和 `runtime/` 分别保存任务与图片、私有配置和运行日志；从新 GitHub Tag 重复执行安装器会切换程序版本，但不会清空这些用户数据。安装器返回的稳定 `launcher` 不依赖最初的临时下载目录，并会同步注册通用用户级 Skill、OpenCode Skill 与 `/wechat-visual-director` 命令。升级后 `doctor` 应同时返回 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`；若报告 `core_version_mismatch`，先停止仍占用端口的旧服务再重试；若报告 `host_skill_not_registered`，重新运行当前版本安装器并重启宿主对话。
 
 相同输入默认复用既有任务，避免 Agent 重试产生重复记录；确实需要新版本时增加 `--new-task`。停止由 CLI 启动的服务：
 
@@ -140,10 +140,10 @@ openclaw skills install <absolute-repository-path> --as wechat-visual-director
 从 GitHub 安装：
 
 ```text
-openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.9
+openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.10
 ```
 
-Git 安装只会让宿主发现 Skill；首次使用仍需由 Agent 执行 `scripts/install.ps1`，并在后续调用安装结果中的稳定 `launcher`。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。
+首次使用仍需由 Agent 执行 `scripts/install.ps1`，并在后续调用安装结果中的稳定 `launcher`。Alpha.10 安装器会把最小 Skill 入口同时注册到 `~/.agents/skills/wechat-visual-director` 和 `~/.config/opencode/skills/wechat-visual-director`，并为 OpenCode 注册 `/wechat-visual-director` 命令，因此新对话不再依赖最初克隆仓库的上下文。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。
 
 ## 可选：发布到微信公众号草稿箱
 
