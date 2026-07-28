@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 
-COMPONENT_LIBRARY_VERSION = "wechat_components.v0.6.0"
-RENDERER_VERSION = "preview_renderer.v0.9.2-four-systems"
+COMPONENT_LIBRARY_VERSION = "wechat_components.v0.9.0"
+RENDERER_VERSION = "preview_renderer.v0.12.0-rhythm-contract"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 
@@ -21,6 +21,56 @@ VISUAL_SYSTEM_MARKERS = {
     "editorial_contrast": "C",
     "structured_grid": "D",
 }
+
+VISUAL_SYSTEM_CATALOG: dict[str, dict[str, Any]] = {
+    "light_reading": {
+        "label": "轻盈阅读",
+        "english": "AIRY READING",
+        "description": "用开放式标题、叶片线条、漂浮批注和少量柔色块组织教育科普长文。",
+        "ideal_for": ["通用科普", "教育解读", "长文阅读"],
+        "personality": ["清透", "亲和", "低压迫感"],
+        "palette": ["#117C73", "#58B9E4", "#F4C84A", "#FFFEFA"],
+        "status": "theme_kit_v1_review",
+    },
+    "warm_humanist": {
+        "label": "温暖人文",
+        "english": "WARM HUMANIST",
+        "description": "用纸张感、暖珊瑚色和手作细节增强成长故事与人物内容的叙事温度。",
+        "ideal_for": ["成长故事", "生涯规划", "人物内容"],
+        "personality": ["温暖", "叙事", "有人情味"],
+        "palette": ["#8E4B3B", "#D66B4D", "#D7A83E", "#FFFCF7"],
+        "status": "theme_kit_v1_review",
+    },
+    "editorial_contrast": {
+        "label": "编辑对比",
+        "english": "EDITORIAL CONTRAST",
+        "description": "用杂志式大字号、锐利分隔和克制对比建立观点文章的编辑秩序。",
+        "ideal_for": ["观点评论", "趋势观察", "人物访谈"],
+        "personality": ["鲜明", "编辑感", "有判断力"],
+        "palette": ["#243B53", "#B85C47", "#D6A84B", "#FFFDF8"],
+        "status": "theme_kit_v1_review",
+    },
+    "structured_grid": {
+        "label": "理性网格",
+        "english": "STRUCTURED GRID",
+        "description": "用栏目索引、数据轨道、坐标轴和非对称表格组织政策、流程与专业信息。",
+        "ideal_for": ["数据政策", "步骤教程", "专业介绍"],
+        "personality": ["理性", "清晰", "高信息密度"],
+        "palette": ["#526A43", "#779B91", "#D7A83F", "#FFFDF8"],
+        "status": "theme_kit_v1_review",
+    },
+}
+
+CORE_THEME_COMPONENTS = (
+    "numbered_insight",
+    "concept_explainer",
+    "evidence_callout",
+    "action_checklist",
+    "before_after_timeline",
+    "warning_note",
+    "comparison_card",
+    "section_summary",
+)
 
 
 COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
@@ -55,15 +105,17 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "fallback_variant": "plain_numbered_list",
         "fallback_label": "朴素编号列表",
         "system_variants": {
-            "light_reading": {"value": "gradient_guide_label", "label": "轻盈·清亮观点列"},
-            "warm_humanist": {"value": "scrapbook_index", "label": "人文·手帐索引"},
-            "editorial_contrast": {"value": "magazine_index", "label": "编辑·杂志索引"},
-            "structured_grid": {"value": "coordinate_index", "label": "网格·坐标观点表"},
+            "light_reading": {"value": "leaf_index_ribbon", "label": "轻盈·叶片索引带"},
+            "warm_humanist": {"value": "scrapbook_index", "label": "人文·页边故事索引"},
+            "editorial_contrast": {"value": "magazine_index", "label": "编辑·头条索引"},
+            "structured_grid": {"value": "data_spine", "label": "网格·数据脊柱"},
         },
         "required_bindings": {"items": "many"},
         "status": "wechat_verified",
         "variant_statuses": {
             "gradient_guide_label": "wechat_verified",
+            "leaf_index_ribbon": "wechat_candidate",
+            "data_spine": "wechat_candidate",
             "magazine_index": "wechat_verified",
             "scrapbook_index": "wechat_candidate",
             "coordinate_index": "wechat_candidate",
@@ -79,15 +131,17 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "fallback_variant": "plain_evidence_note",
         "fallback_label": "朴素证据注释",
         "system_variants": {
-            "light_reading": {"value": "orbit_outline", "label": "轻盈·轨道描边"},
-            "warm_humanist": {"value": "annotated_note", "label": "人文·批注便笺"},
-            "editorial_contrast": {"value": "editorial_margin_quote", "label": "编辑·边注引文"},
-            "structured_grid": {"value": "evidence_register", "label": "网格·证据登记"},
+            "light_reading": {"value": "floating_quote_note", "label": "轻盈·漂浮批注"},
+            "warm_humanist": {"value": "annotated_note", "label": "人文·明信片引文"},
+            "editorial_contrast": {"value": "editorial_margin_quote", "label": "编辑·跨栏引文"},
+            "structured_grid": {"value": "evidence_margin", "label": "网格·证据边注"},
         },
         "required_bindings": {"evidence": "one"},
         "status": "wechat_verified",
         "variant_statuses": {
             "orbit_outline": "wechat_verified",
+            "floating_quote_note": "wechat_candidate",
+            "evidence_margin": "wechat_candidate",
             "editorial_margin_quote": "wechat_verified",
             "annotated_note": "wechat_candidate",
             "evidence_register": "wechat_candidate",
@@ -100,6 +154,22 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "primary_label": "双节点时间线",
         "fallback_variant": "stacked_before_after",
         "fallback_label": "朴素上下对照",
+        "system_variants": {
+            "light_reading": {"value": "paired_current", "label": "轻盈·双流转折"},
+            "warm_humanist": {"value": "stitched_before_after", "label": "人文·翻页转折"},
+            "editorial_contrast": {"value": "editorial_before_after", "label": "编辑·断栏对照"},
+            "structured_grid": {"value": "shift_axis", "label": "网格·变化坐标轴"},
+        },
+        "variant_statuses": {
+            "airy_before_after": "wechat_candidate",
+            "paired_current": "wechat_candidate",
+            "shift_axis": "wechat_candidate",
+            "stitched_before_after": "wechat_candidate",
+            "editorial_before_after": "wechat_candidate",
+            "change_register": "wechat_candidate",
+            "dual_node_timeline": "wechat_verified",
+            "stacked_before_after": "wechat_verified",
+        },
         "required_bindings": {"before": "one", "after": "one"},
         "status": "wechat_verified",
     },
@@ -133,6 +203,22 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "primary_label": "节点说明卡",
         "fallback_variant": "plain_definition",
         "fallback_label": "朴素定义",
+        "system_variants": {
+            "light_reading": {"value": "open_definition_note", "label": "轻盈·开放定义"},
+            "warm_humanist": {"value": "note_definition", "label": "人文·折页定义"},
+            "editorial_contrast": {"value": "editorial_definition", "label": "编辑·术语切片"},
+            "structured_grid": {"value": "coordinate_definition", "label": "网格·坐标定义"},
+        },
+        "variant_statuses": {
+            "airy_definition": "wechat_candidate",
+            "open_definition_note": "wechat_candidate",
+            "coordinate_definition": "wechat_candidate",
+            "note_definition": "wechat_candidate",
+            "editorial_definition": "wechat_candidate",
+            "definition_register": "wechat_candidate",
+            "node_note_card": "wechat_verified",
+            "plain_definition": "wechat_verified",
+        },
         "required_bindings": {"title": "one", "definition": "one"},
         "status": "wechat_verified",
     },
@@ -151,6 +237,22 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "primary_label": "警示胶带",
         "fallback_variant": "plain_warning",
         "fallback_label": "朴素提示",
+        "system_variants": {
+            "light_reading": {"value": "corner_flag", "label": "轻盈·折角提醒"},
+            "warm_humanist": {"value": "taped_caution", "label": "人文·书签提醒"},
+            "editorial_contrast": {"value": "margin_caution", "label": "编辑·红线警示"},
+            "structured_grid": {"value": "risk_flag", "label": "网格·风险旗标"},
+        },
+        "variant_statuses": {
+            "soft_caution": "wechat_candidate",
+            "corner_flag": "wechat_candidate",
+            "risk_flag": "wechat_candidate",
+            "taped_caution": "wechat_candidate",
+            "margin_caution": "wechat_candidate",
+            "risk_register": "wechat_candidate",
+            "risk_tape": "wechat_candidate",
+            "plain_warning": "wechat_verified",
+        },
         "required_bindings": {"body": "one"},
         "status": "wechat_candidate",
     },
@@ -161,13 +263,17 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "fallback_variant": "plain_checklist",
         "fallback_label": "朴素清单",
         "system_variants": {
-            "light_reading": {"value": "soft_tick_list", "label": "轻盈·柔光勾选"},
-            "warm_humanist": {"value": "field_checklist", "label": "人文·现场核对单"},
-            "editorial_contrast": {"value": "proofing_checklist", "label": "编辑·校样清单"},
-            "structured_grid": {"value": "audit_matrix", "label": "网格·审计矩阵"},
+            "light_reading": {"value": "leaf_check_path", "label": "轻盈·叶脉清单"},
+            "warm_humanist": {"value": "field_checklist", "label": "人文·缝线行动页"},
+            "editorial_contrast": {"value": "proofing_checklist", "label": "编辑·校样标记"},
+            "structured_grid": {"value": "audit_track", "label": "网格·审计轨道"},
         },
         "required_bindings": {"items": "many"},
         "status": "wechat_candidate",
+        "variant_statuses": {
+            "leaf_check_path": "wechat_candidate",
+            "audit_track": "wechat_candidate",
+        },
     },
     "faq_card": {
         "label": "问答卡片",
@@ -190,6 +296,22 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "primary_label": "双栏对照",
         "fallback_variant": "plain_comparison",
         "fallback_label": "朴素对照",
+        "system_variants": {
+            "light_reading": {"value": "orbit_comparison", "label": "轻盈·环流对照"},
+            "warm_humanist": {"value": "postcard_split", "label": "人文·相册对页"},
+            "editorial_contrast": {"value": "editorial_split", "label": "编辑·对开版面"},
+            "structured_grid": {"value": "split_ledger", "label": "网格·错位账页"},
+        },
+        "variant_statuses": {
+            "soft_split": "wechat_candidate",
+            "orbit_comparison": "wechat_candidate",
+            "split_ledger": "wechat_candidate",
+            "postcard_split": "wechat_candidate",
+            "editorial_split": "wechat_candidate",
+            "comparison_register": "wechat_candidate",
+            "split_comparison": "wechat_candidate",
+            "plain_comparison": "wechat_verified",
+        },
         "required_bindings": {"left": "one", "right": "one"},
         "status": "wechat_candidate",
     },
@@ -199,6 +321,22 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "primary_label": "章节收束卡",
         "fallback_variant": "plain_summary",
         "fallback_label": "朴素小结",
+        "system_variants": {
+            "light_reading": {"value": "mint_closing_field", "label": "轻盈·薄荷收束场"},
+            "warm_humanist": {"value": "letter_takeaway", "label": "人文·落款收束"},
+            "editorial_contrast": {"value": "editorial_takeaway", "label": "编辑·末版摘要"},
+            "structured_grid": {"value": "executive_strip", "label": "网格·执行摘要条"},
+        },
+        "variant_statuses": {
+            "airy_takeaway": "wechat_candidate",
+            "mint_closing_field": "wechat_candidate",
+            "executive_strip": "wechat_candidate",
+            "letter_takeaway": "wechat_candidate",
+            "editorial_takeaway": "wechat_candidate",
+            "summary_register": "wechat_candidate",
+            "chapter_takeaway": "wechat_candidate",
+            "plain_summary": "wechat_verified",
+        },
         "required_bindings": {"items": "many"},
         "status": "wechat_candidate",
     },

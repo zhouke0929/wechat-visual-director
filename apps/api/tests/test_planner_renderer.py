@@ -3,13 +3,19 @@ from pathlib import Path
 
 import pytest
 
-from visual_director.component_catalog import COMPONENT_CATALOG, component_options
-from visual_director.brief_compiler import visual_system_variant
+from visual_director.component_catalog import (
+    COMPONENT_CATALOG,
+    CORE_THEME_COMPONENTS,
+    VISUAL_SYSTEM_ORDER,
+    component_options,
+)
+from visual_director.brief_compiler import visual_system_configuration, visual_system_variant
 from visual_director.components import render_component
 from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans, structural_difference_count
 from visual_director.plan_schema import validate_plan_for_article
 from visual_director.renderer import render_preview
+from visual_director.theme_gallery import build_theme_gallery
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -82,7 +88,7 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
     assert len(plans[0]["slots"]) <= 4
     assert len(plans[1]["slots"]) <= 3
     assert all(plan["schema_version"] == "visual_plan.v0.5" for plan in plans)
-    assert all(plan["component_library_version"] == "wechat_components.v0.6.0" for plan in plans)
+    assert all(plan["component_library_version"] == "wechat_components.v0.9.0" for plan in plans)
     assert all(0 <= len(plan["image_slots"]) <= 3 for plan in plans)
     assert plans[0]["image_slots"]
     assert all(slot["required"] is False for plan in plans for slot in plan["image_slots"])
@@ -148,8 +154,8 @@ title: Frontmatter 主标题
     assert 'data-heading-level="2" data-auto-numbered="true"' in document
     assert 'data-heading-level="3" data-auto-numbered="false"' in document
     assert 'data-heading-level="4" data-auto-numbered="false"' in document
-    assert document.count('class="heading-number"') == 1
-    assert ">02</span>" in document
+    assert 'class="heading-number"' not in document
+    assert "SECTION 02" in document
 
 
 def test_short_scene_setter_is_not_a_conclusion_and_sources_stay_subordinate() -> None:
@@ -249,9 +255,10 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
         }[component_type]
         rendered.append(render_component({"component_type": component_type, "variant": candidate_variant, "content_bindings": bindings}, article))
     assert all("<table" not in document.lower() for document in rendered)
-    assert any("EDITOR'S NOTE" in document for document in rendered)
-    assert any("BACKCASTING" in document for document in rendered)
-    assert any("POINTS" in document for document in rendered)
+    assert all("EDITOR'S NOTE" not in document for document in rendered)
+    assert all("BACKCASTING" not in document for document in rendered)
+    assert all("从终点出发" not in document for document in rendered)
+    assert all("核对信息，再做决定" not in document for document in rendered)
 
 
 def test_first_batch_components_have_four_distinct_system_morphologies() -> None:
@@ -540,6 +547,156 @@ def test_long_article_uses_semantic_components_with_plain_text_buffers() -> None
     for left, right in zip(occupied, occupied[1:], strict=False):
         assert min(right) - max(left) >= 2
     document = render_preview(article, primary)
-    assert "CASE FILE" in document
-    assert "ACTION CHECKLIST" in document
+    assert "家长先保存官方截图" in document
+    assert "保存官方成绩截图" in document
+    assert "CASE FILE" not in document
+    assert "ACTION CHECKLIST" not in document
     assert "<table" not in document.lower()
+
+
+def test_four_themes_cover_all_eight_core_components_without_cross_theme_fallbacks() -> None:
+    for component_type in CORE_THEME_COMPONENTS:
+        definition = COMPONENT_CATALOG[component_type]
+        system_variants = definition.get("system_variants", {})
+        assert tuple(system_variants) == VISUAL_SYSTEM_ORDER
+        variants = [
+            visual_system_variant(component_type, visual_system)
+            for visual_system in VISUAL_SYSTEM_ORDER
+        ]
+        assert len(set(variants)) == 4
+        assert definition["fallback_variant"] not in variants
+
+
+def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    assert {theme["status"] for theme in themes.values()} == {"theme_kit_v1_review"}
+    for theme_id in VISUAL_SYSTEM_ORDER:
+        theme = themes[theme_id]
+        assert len(theme["rhythm_primitives"]) == 6
+        assert {item["role"] for item in theme["rhythm_primitives"]} == {
+            "section_heading",
+            "subheading",
+            "inline_emphasis",
+            "image_caption",
+            "divider",
+            "closing_cta",
+        }
+        assert all(
+            item["production_status"] == "production"
+            and item["production_trigger"]
+            for item in theme["rhythm_primitives"]
+        )
+        assert len({component["variant"] for component in theme["components"]}) == 8
+    for theme_id in ("light_reading", "structured_grid"):
+        theme = themes[theme_id]
+        assert all(component["variant"] not in {
+            "gradient_guide_label",
+            "orbit_outline",
+            "airy_before_after",
+            "airy_definition",
+            "soft_caution",
+            "soft_tick_list",
+            "soft_split",
+            "airy_takeaway",
+            "coordinate_index",
+            "evidence_register",
+            "change_register",
+            "definition_register",
+            "risk_register",
+            "audit_matrix",
+            "comparison_register",
+            "summary_register",
+        } for component in theme["components"])
+
+
+def test_renderer_does_not_inject_decorative_semantic_slogans() -> None:
+    source = (ROOT / "apps" / "api" / "src" / "visual_director" / "components.py").read_text(
+        encoding="utf-8"
+    )
+    banned_copy = {
+        "从终点出发",
+        "倒推今天的行动",
+        "让行动自然发生",
+        "核对信息，再做决定",
+        "先核对依据，再确认顺序",
+        "READY WHEN YOU ARE",
+        "KEY POINTS",
+        "CHAPTER TAKEAWAY",
+        "EVIDENCE REGISTER",
+    }
+    assert all(copy not in source for copy in banned_copy)
+
+
+def test_theme_kits_do_not_inject_unbound_decorative_numbers() -> None:
+    source = "\n".join(
+        (
+            (ROOT / "apps" / "api" / "src" / "visual_director" / filename).read_text(
+                encoding="utf-8"
+            )
+            for filename in ("components.py", "renderer.py", "theme_gallery.py")
+        )
+    )
+    banned_markers = {
+        "BASE 01",
+        "SHIFT 02",
+        ">00<",
+        ">03<",
+        "LEAD<br>00",
+        "FEATURE<br>00",
+        "SECTION 01",
+        "图 01",
+        "FIG.01",
+        "00 / NEXT",
+        "NEXT ACTION / 01",
+    }
+    assert all(marker not in source for marker in banned_markers)
+
+
+def test_all_theme_rhythm_primitives_are_wired_to_production_markdown() -> None:
+    article = parse_markdown(
+        """# 主题节奏正式链路
+
+真正需要记住的是**核对官方信息**，而不是机械套模板。
+
+---
+
+## 进入下一阶段
+
+![志愿核对流程示意](local-flow.png)
+
+- 保存**官方截图**
+- 记录准确位次
+"""
+    )
+    base = copy.deepcopy(generate_plans(article, "tutorial_steps", 5)[0])
+    base["slots"] = []
+    base["image_slots"] = []
+    brand_profile = {
+        "standard_kicker": "公众号 · 阅读指南",
+        "editorial_kicker": "EDITORIAL",
+        "fixed_footer": {
+            "enabled": True,
+            "text": "固定品牌行动入口",
+            "alt_text": "品牌固定页尾",
+            "asset_path": "assets/brand/footer.jpg",
+        },
+    }
+    expected_frames = {
+        "light_reading": "airy_organic",
+        "warm_humanist": "warm_storybook",
+        "editorial_contrast": "editorial_masthead",
+        "structured_grid": "structured_ledger",
+    }
+    rendered: dict[str, str] = {}
+    for visual_system in VISUAL_SYSTEM_ORDER:
+        plan = copy.deepcopy(base)
+        plan["configuration"] = visual_system_configuration(visual_system)
+        document = render_preview(article, plan, brand_profile=brand_profile)
+        frame = expected_frames[visual_system]
+        assert 'data-content-role="inline-emphasis"' in document
+        assert 'data-content-role="thematic-break"' in document
+        assert f'data-image-frame="{frame}"' in document
+        assert 'data-image-caption="志愿核对流程示意"' in document
+        assert 'data-content-role="brand-cta"' in document
+        rendered[visual_system] = document
+    assert len(set(rendered.values())) == len(VISUAL_SYSTEM_ORDER)

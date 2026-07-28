@@ -143,8 +143,10 @@ class Repository:
               prompt_sha256 TEXT NOT NULL,
               status TEXT NOT NULL,
               output_filename TEXT NOT NULL,
+              raw_output_filename TEXT,
               content_type TEXT NOT NULL,
               output_sha256 TEXT NOT NULL,
+              raw_output_sha256 TEXT,
               width INTEGER NOT NULL,
               height INTEGER NOT NULL,
               latency_ms INTEGER NOT NULL,
@@ -330,6 +332,13 @@ class Repository:
         }
         if "last_error_json" not in image_state_columns:
             self.connection.execute("ALTER TABLE image_slot_states ADD COLUMN last_error_json TEXT")
+        image_candidate_columns = {
+            row["name"] for row in self.connection.execute("PRAGMA table_info(image_candidates)").fetchall()
+        }
+        if "raw_output_filename" not in image_candidate_columns:
+            self.connection.execute("ALTER TABLE image_candidates ADD COLUMN raw_output_filename TEXT")
+        if "raw_output_sha256" not in image_candidate_columns:
+            self.connection.execute("ALTER TABLE image_candidates ADD COLUMN raw_output_sha256 TEXT")
         task_columns = {row["name"] for row in self.connection.execute("PRAGMA table_info(tasks)").fetchall()}
         if "normalized_markdown" not in task_columns:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN normalized_markdown TEXT")
@@ -784,7 +793,7 @@ class Repository:
             ).fetchall()
             self.connection.execute("DELETE FROM cover_candidates WHERE task_id = ?", (task_id,))
             old_assets = self.connection.execute(
-                "SELECT output_filename FROM image_candidates WHERE task_id = ?",
+                "SELECT output_filename, raw_output_filename FROM image_candidates WHERE task_id = ?",
                 (task_id,),
             ).fetchall()
             self.connection.execute("DELETE FROM image_candidates WHERE task_id = ?", (task_id,))
@@ -792,6 +801,9 @@ class Repository:
             for row in old_assets:
                 filename = Path(str(row["output_filename"])).name
                 (self.image_asset_dir / filename).unlink(missing_ok=True)
+                if row["raw_output_filename"]:
+                    raw_filename = Path(str(row["raw_output_filename"])).name
+                    (self.image_asset_dir / raw_filename).unlink(missing_ok=True)
             for row in old_cover_assets:
                 filename = Path(str(row["output_filename"])).name
                 (self.image_asset_dir / filename).unlink(missing_ok=True)
@@ -1221,6 +1233,7 @@ class Repository:
             "status": row["status"],
             "content_type": row["content_type"],
             "output_sha256": row["output_sha256"],
+            "raw_output_sha256": row["raw_output_sha256"],
             "width": row["width"],
             "height": row["height"],
             "latency_ms": row["latency_ms"],
@@ -1229,6 +1242,11 @@ class Repository:
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "content_url": f'/api/v1/image-candidates/{row["id"]}/content',
+            "raw_content_url": (
+                f'/api/v1/image-candidates/{row["id"]}/raw-content'
+                if row["raw_output_filename"]
+                else None
+            ),
         }
 
     def list_image_candidates(self, task_id: str, plan_id: str, image_slot_id: str) -> list[dict[str, Any]]:
@@ -1273,6 +1291,15 @@ class Repository:
             raise NotFoundError("图片槽状态不存在")
         return self._image_state_from_row(row)
 
+    def get_image_candidate(self, candidate_id: str) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM image_candidates WHERE id = ?",
+            (candidate_id,),
+        ).fetchone()
+        if row is None:
+            raise NotFoundError("图片候选不存在")
+        return self._candidate_from_row(row)
+
     def add_image_candidate(
         self,
         *,
@@ -1290,6 +1317,7 @@ class Repository:
         height: int,
         latency_ms: int,
         machine_checks: dict[str, Any],
+        raw_content: bytes | None = None,
         auto_select: bool = False,
     ) -> dict[str, Any]:
         state = self.get_image_slot_state(task_id, plan_id, image_slot_id)
@@ -1303,6 +1331,10 @@ class Repository:
         filename = f"{candidate_id}{extension}"
         target = self.image_asset_dir / filename
         target.write_bytes(content)
+        raw_bytes = raw_content if raw_content is not None else content
+        raw_filename = f"raw-{candidate_id}{extension}"
+        raw_target = self.image_asset_dir / raw_filename
+        raw_target.write_bytes(raw_bytes)
         now = utc_now()
         candidate_index = len(existing) + 1
         human_decision = "accepted" if auto_select else "pending"
@@ -1312,8 +1344,12 @@ class Repository:
         try:
             with self.lock:
                 self.connection.execute(
-                    """INSERT INTO image_candidates VALUES
-                    (?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    """INSERT INTO image_candidates
+                    (id, task_id, plan_id, image_slot_id, candidate_index, provider, model,
+                     provider_prompt, prompt_sha256, status, output_filename, raw_output_filename,
+                     content_type, output_sha256, raw_output_sha256, width, height, latency_ms,
+                     machine_checks_json, human_decision, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'generated', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         candidate_id,
                         task_id,
@@ -1325,8 +1361,10 @@ class Repository:
                         provider_prompt,
                         hashlib.sha256(provider_prompt.encode("utf-8")).hexdigest(),
                         filename,
+                        raw_filename,
                         content_type,
                         hashlib.sha256(content).hexdigest(),
+                        hashlib.sha256(raw_bytes).hexdigest(),
                         width,
                         height,
                         latency_ms,
@@ -1359,6 +1397,7 @@ class Repository:
                 self.connection.commit()
         except Exception:
             target.unlink(missing_ok=True)
+            raw_target.unlink(missing_ok=True)
             raise
         return self.get_image_slot_state(task_id, plan_id, image_slot_id)
 
@@ -1466,6 +1505,19 @@ class Repository:
         path = self.image_asset_dir / filename
         if not path.is_file():
             raise NotFoundError("图片候选文件不存在")
+        return path, str(row["content_type"])
+
+    def get_raw_image_candidate_asset(self, candidate_id: str) -> tuple[Path, str]:
+        row = self.connection.execute(
+            "SELECT raw_output_filename, content_type FROM image_candidates WHERE id = ?",
+            (candidate_id,),
+        ).fetchone()
+        if row is None or not row["raw_output_filename"]:
+            raise NotFoundError("图片原始候选不存在")
+        filename = Path(str(row["raw_output_filename"])).name
+        path = self.image_asset_dir / filename
+        if not path.is_file():
+            raise NotFoundError("图片原始候选文件不存在")
         return path, str(row["content_type"])
 
     def assert_task_editable(self, task_id: str) -> None:

@@ -81,6 +81,7 @@ export default function EditorialDeskPage() {
           <span className="wordmark-en">WECHAT VISUAL DIRECTOR</span>
         </Link>
         <div className="topbar-actions">
+          <Link className="gallery-link" href="/theme-gallery">主题样本册</Link>
           <Link className="gallery-link settings-link" href="/settings">本地设置</Link>
           <span className="baseline-badge">LOCAL · {appVersion}</span>
         </div>

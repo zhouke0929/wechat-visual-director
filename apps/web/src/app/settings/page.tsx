@@ -32,20 +32,51 @@ const providerCards: Array<{
     note: "不消耗额度，不可作为发布素材",
   },
   {
-    mode: "agnes",
+    mode: "images_api",
     index: "03",
-    name: "Agnes 生图",
-    eyebrow: "REMOTE / EXPERIMENTAL",
-    description: "调用 Agnes 生成真实候选图；提示词由视觉主编根据文章自动组织。",
-    note: "当前仅用于试验，所有图片必须人工确认",
+    name: "通用 Images API",
+    eyebrow: "OPENAI / ARK / RELAY",
+    description: "连接 GPT Image、Seedream 以及兼容 Images API 的中转服务。",
+    note: "接口地址、协议和模型 ID 均可替换",
+  },
+  {
+    mode: "gemini",
+    index: "04",
+    name: "Google Gemini",
+    eyebrow: "NATIVE / NANO BANANA",
+    description: "通过 Google 原生 Interactions API 调用 Nano Banana 系列。",
+    note: "不强行伪装成 OpenAI 协议，减少隐性兼容错误",
   },
 ];
+
+const imageApiPresets = {
+  openai: {
+    endpoint: "https://api.openai.com/v1/images/generations",
+    model: "gpt-image-2",
+    size: "auto",
+  },
+  ark: {
+    endpoint: "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    model: "",
+    size: "2K",
+  },
+  ark_plan: {
+    endpoint: "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations",
+    model: "doubao-seedream-5.0-lite",
+    size: "2K",
+  },
+  extended: {
+    endpoint: "",
+    model: "",
+    size: "1K",
+  },
+} as const;
 
 function statusCopy(settings: ImageProviderSettings): string {
   if (settings.mode === "manual") return "人工上传已启用";
   if (settings.mode === "mock") return "本地演示已启用";
-  if (settings.real_generation_available) return "Agnes 已就绪";
-  return "Agnes 等待 API Key";
+  if (settings.real_generation_available) return "真实图片服务已就绪";
+  return "图片服务等待 API Key";
 }
 
 export default function ImageProviderSettingsPage() {
@@ -53,6 +84,10 @@ export default function ImageProviderSettingsPage() {
   const [mode, setMode] = useState<ImageProviderMode>("manual");
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
+  const [endpoint, setEndpoint] = useState("");
+  const [model, setModel] = useState("");
+  const [protocol, setProtocol] = useState<"openai" | "ark" | "ark_plan" | "extended">("openai");
+  const [size, setSize] = useState("auto");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -63,15 +98,56 @@ export default function ImageProviderSettingsPage() {
       .then((result) => {
         setSettings(result);
         setMode(result.mode);
+        if (result.mode === "images_api") {
+          setEndpoint(result.providers.images_api.endpoint);
+          setModel(result.providers.images_api.model);
+          setProtocol(result.providers.images_api.protocol);
+          setSize(result.providers.images_api.size);
+        } else if (result.mode === "gemini") {
+          setEndpoint(result.providers.gemini.endpoint);
+          setModel(result.providers.gemini.model);
+          setSize(result.providers.gemini.size);
+        }
       })
       .catch((reason: Error) => setError(reason.message))
       .finally(() => setLoading(false));
   }, []);
 
-  const hasUnsavedChanges = useMemo(
-    () => Boolean(settings && (mode !== settings.mode || apiKey.trim() || clearApiKey)),
-    [apiKey, clearApiKey, mode, settings],
-  );
+  const activeConfig = mode === "images_api"
+    ? settings?.providers.images_api
+    : mode === "gemini"
+      ? settings?.providers.gemini
+      : null;
+  const selectedKeyConfigured = Boolean(activeConfig?.api_key_configured);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!settings) return false;
+    const configChanged = activeConfig
+      ? endpoint !== activeConfig.endpoint
+        || model !== activeConfig.model
+        || size !== activeConfig.size
+        || (mode === "images_api" && protocol !== settings.providers.images_api.protocol)
+      : false;
+    return Boolean(mode !== settings.mode || apiKey.trim() || clearApiKey || configChanged);
+  }, [activeConfig, apiKey, clearApiKey, endpoint, mode, model, protocol, settings, size]);
+
+  function selectMode(nextMode: ImageProviderMode) {
+    if (!settings) return;
+    setMode(nextMode);
+    setApiKey("");
+    setClearApiKey(false);
+    setNotice("");
+    if (nextMode === "images_api") {
+      setEndpoint(settings.providers.images_api.endpoint);
+      setModel(settings.providers.images_api.model);
+      setProtocol(settings.providers.images_api.protocol);
+      setSize(settings.providers.images_api.size);
+    } else if (nextMode === "gemini") {
+      setEndpoint(settings.providers.gemini.endpoint);
+      setModel(settings.providers.gemini.model);
+      setSize(settings.providers.gemini.size);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -84,16 +160,18 @@ export default function ImageProviderSettingsPage() {
         mode,
         ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
         ...(clearApiKey ? { clear_api_key: true } : {}),
+        ...(mode === "images_api" || mode === "gemini"
+          ? { endpoint: endpoint.trim(), model: model.trim(), size: size.trim() }
+          : {}),
+        ...(mode === "images_api" ? { protocol } : {}),
       });
       setSettings(saved);
       setMode(saved.mode);
       setApiKey("");
       setClearApiKey(false);
-      setNotice(
-        saved.mode === "agnes" && saved.real_generation_available
-          ? "设置已保存并立即生效。首次实际生图会验证 Agnes 额度和接口权限。"
-          : "设置已保存并立即生效。",
-      );
+      setNotice(saved.real_generation_available
+        ? "设置已保存并立即生效。首次实际生图会验证模型权限与额度。"
+        : "设置已保存并立即生效。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "保存设置失败");
     } finally {
@@ -152,10 +230,7 @@ export default function ImageProviderSettingsPage() {
                       checked={selected}
                       disabled={settings.managed_by_environment}
                       name="provider"
-                      onChange={() => {
-                        setMode(provider.mode);
-                        setNotice("");
-                      }}
+                      onChange={() => selectMode(provider.mode)}
                       type="radio"
                       value={provider.mode}
                     />
@@ -175,53 +250,144 @@ export default function ImageProviderSettingsPage() {
             <section className={styles.keySection} aria-labelledby="key-heading">
               <header className={styles.sectionHeading}>
                 <div>
-                  <span>02 / CREDENTIAL</span>
-                  <h2 id="key-heading">Agnes API Key</h2>
+                  <span>02 / CONNECTION</span>
+                  <h2 id="key-heading">
+                    {mode === "images_api"
+                      ? "Images API 连接"
+                      : mode === "gemini"
+                        ? "Gemini 原生连接"
+                        : "无需外部连接"}
+                  </h2>
                 </div>
               </header>
 
-              <div className={styles.keyStatus}>
-                <span className={settings.api_key_configured ? styles.readyDot : styles.idleDot} />
-                <div>
-                  <strong>{settings.api_key_configured ? "本机已有 Key" : "尚未配置 Key"}</strong>
-                  <small>
-                    {settings.api_key_configured
-                      ? `来源：${settings.credential_source === "process_environment" ? "启动环境变量" : "本地私有配置"}`
-                      : "选择 Agnes 时需要填写；人工和 Mock 模式不需要。"}
-                  </small>
+              {activeConfig ? (
+                <>
+                  <div className={styles.keyStatus}>
+                    <span className={selectedKeyConfigured ? styles.readyDot : styles.idleDot} />
+                    <div>
+                      <strong>{selectedKeyConfigured ? "本机已有 Key" : "尚未配置 Key"}</strong>
+                      <small>
+                        {selectedKeyConfigured && mode === settings.mode
+                          ? `来源：${settings.credential_source === "process_environment" ? "启动环境变量" : "本地私有配置"}`
+                          : "Key 仅写入本机私有配置，不会交给宿主智能体。"}
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className={styles.connectionGrid}>
+                    {mode === "images_api" ? (
+                      <label>
+                        <span>接口协议</span>
+                        <select
+                          disabled={settings.managed_by_environment}
+                          onChange={(event) => {
+                            const nextProtocol = event.target.value as typeof protocol;
+                            const preset = imageApiPresets[nextProtocol];
+                            setProtocol(nextProtocol);
+                            setEndpoint(preset.endpoint);
+                            setModel(preset.model);
+                            setSize(preset.size);
+                          }}
+                          value={protocol}
+                        >
+                          <option value="openai">OpenAI Images API</option>
+                          <option value="ark">火山方舟按量 / Seedream</option>
+                          <option value="ark_plan">火山方舟 Agent Plan / Seedream</option>
+                          <option value="extended">扩展兼容（旧 Agnes 等）</option>
+                        </select>
+                      </label>
+                    ) : null}
+                    <label>
+                      <span>Endpoint</span>
+                      <input
+                        disabled={settings.managed_by_environment}
+                        onChange={(event) => setEndpoint(event.target.value)}
+                        required
+                        spellCheck={false}
+                        type="url"
+                        value={endpoint}
+                      />
+                    </label>
+                    <label>
+                      <span>Model ID</span>
+                      <input
+                        disabled={settings.managed_by_environment}
+                        onChange={(event) => setModel(event.target.value)}
+                        placeholder={
+                          mode === "images_api" && (protocol === "ark" || protocol === "ark_plan")
+                            ? "从火山方舟控制台复制 Model ID"
+                            : ""
+                        }
+                        required
+                        spellCheck={false}
+                        value={model}
+                      />
+                    </label>
+                    <label>
+                      <span>输出尺寸</span>
+                      {mode === "gemini" ? (
+                        <select
+                          disabled={settings.managed_by_environment}
+                          onChange={(event) => setSize(event.target.value)}
+                          value={size}
+                        >
+                          <option value="0.5K">0.5K</option>
+                          <option value="1K">1K</option>
+                          <option value="2K">2K</option>
+                          <option value="4K">4K</option>
+                        </select>
+                      ) : (
+                        <input
+                          disabled={settings.managed_by_environment}
+                          onChange={(event) => setSize(event.target.value)}
+                          placeholder="auto / 2K / 1536x1024"
+                          value={size}
+                        />
+                      )}
+                    </label>
+                  </div>
+
+                  <label className={styles.keyInput}>
+                    <span>写入新 API Key</span>
+                    <input
+                      autoComplete="off"
+                      disabled={settings.managed_by_environment || clearApiKey}
+                      onChange={(event) => {
+                        setApiKey(event.target.value);
+                        setNotice("");
+                      }}
+                      placeholder={selectedKeyConfigured ? "已保存；留空保持不变" : "仅在这里粘贴 API Key"}
+                      spellCheck={false}
+                      type="password"
+                      value={apiKey}
+                    />
+                    <small>保存后不会在页面、接口响应或日志中显示原值。</small>
+                  </label>
+
+                  {selectedKeyConfigured && !settings.managed_by_environment ? (
+                    <label className={styles.clearKey}>
+                      <input
+                        checked={clearApiKey}
+                        onChange={(event) => {
+                          setClearApiKey(event.target.checked);
+                          if (event.target.checked) setApiKey("");
+                        }}
+                        type="checkbox"
+                      />
+                      <span>保存时清除当前图片服务的 API Key</span>
+                    </label>
+                  ) : null}
+                </>
+              ) : (
+                <div className={styles.keyStatus}>
+                  <span className={styles.readyDot} />
+                  <div>
+                    <strong>本地能力可直接使用</strong>
+                    <small>人工上传和 Mock 不需要 Endpoint、模型或 API Key。</small>
+                  </div>
                 </div>
-              </div>
-
-              <label className={styles.keyInput}>
-                <span>写入新 Key</span>
-                <input
-                  autoComplete="off"
-                  disabled={settings.managed_by_environment || clearApiKey}
-                  onChange={(event) => {
-                    setApiKey(event.target.value);
-                    setNotice("");
-                  }}
-                  placeholder={settings.api_key_configured ? "已保存；留空保持不变" : "仅在这里粘贴 API Key"}
-                  spellCheck={false}
-                  type="password"
-                  value={apiKey}
-                />
-                <small>保存后不会在页面、接口响应或日志中显示原值。</small>
-              </label>
-
-              {settings.api_key_configured && !settings.managed_by_environment ? (
-                <label className={styles.clearKey}>
-                  <input
-                    checked={clearApiKey}
-                    onChange={(event) => {
-                      setClearApiKey(event.target.checked);
-                      if (event.target.checked) setApiKey("");
-                    }}
-                    type="checkbox"
-                  />
-                  <span>保存时清除本机 Agnes API Key</span>
-                </label>
-              ) : null}
+              )}
 
               {settings.managed_by_environment ? (
                 <div className={styles.managedNotice}>
@@ -239,14 +405,14 @@ export default function ImageProviderSettingsPage() {
               <dl>
                 <div><dt>当前 Provider</dt><dd>{settings.active_provider.toUpperCase()}</dd></div>
                 <div><dt>当前模型</dt><dd>{settings.active_model}</dd></div>
-                <div><dt>输出尺寸</dt><dd>{settings.agnes.size}</dd></div>
+                <div><dt>输出尺寸</dt><dd>{activeConfig?.size ?? "LOCAL"}</dd></div>
                 <div><dt>提示词</dt><dd>视觉主编自动生成</dd></div>
                 <div><dt>外部连接</dt><dd>首次真实生图时验证</dd></div>
               </dl>
               <details>
                 <summary>查看本地配置位置</summary>
                 <code>{settings.config_file}</code>
-                <p>{settings.agnes.endpoint}</p>
+                {activeConfig ? <p>{activeConfig.endpoint}</p> : null}
               </details>
             </aside>
           </div>
@@ -254,7 +420,7 @@ export default function ImageProviderSettingsPage() {
           <section className={styles.guardrails}>
             <div><span>01</span><strong>不要求宿主智能体读取 Key</strong><p>OpenCode、OpenClaw、Claude Code 等只需调用视觉规划流程。</p></div>
             <div><span>02</span><strong>提示词由系统自动组织</strong><p>基于文章语义、图片用途和风格约束生成，不让运营手写提示词。</p></div>
-            <div><span>03</span><strong>候选图片必须人工确认</strong><p>Agnes 当前未通过生产质量验收，不会自动成为发布素材。</p></div>
+            <div><span>03</span><strong>候选图片必须人工确认</strong><p>无论接入哪家模型，候选都不会绕过运营直接成为发布素材。</p></div>
           </section>
 
           <footer className={styles.actionBar}>

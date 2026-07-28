@@ -200,10 +200,12 @@ export function PublicationPanel({
       <div className="publication-dock-main">
         <div className="publication-dock-copy">
           <span>DELIVERY DOCK / LOCAL</span>
-          <h2>确认最终版本，再选择交付方式</h2>
+          <h2>{publisher?.ready ? "确认后，直接创建公众号草稿" : "保存最终版本"}</h2>
           <p>
             {readiness?.ready
-              ? "当前方案已通过发布检查；确认后组件、图片和封面会冻结。"
+              ? publisher?.ready
+                ? "当前方案已通过检查；一次点击完成本地保存并写入微信公众号草稿箱。"
+                : "当前方案已通过检查；保存后可以复制正文或下载交付包。"
               : `还有 ${blockerCount} 项需要处理，完成后才能确认最终版本。`}
           </p>
           <small className={`autosave-state autosave-${saveState}`} aria-live="polite">
@@ -217,7 +219,13 @@ export function PublicationPanel({
           onClick={() => void onFreeze(metadata)}
           type="button"
         >
-          {busy === "freeze" ? "正在冻结最终版本…" : "确认最终版本"}
+          {busy === "freeze"
+            ? "正在保存最终版本…"
+            : busy === "publish"
+              ? "正在创建公众号草稿…"
+              : publisher?.ready
+                ? "保存并创建公众号草稿"
+                : "保存最终版本"}
         </button>
       </div>
 

@@ -25,7 +25,7 @@ powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
 
 1. 读取用户主题、资料和明确约束。已有 Markdown 时保留其事实、数字、来源、观点与结论。
 2. 写作或整理前读取 [文章协议](references/article-protocol.md)。需要处理 CLI 状态或错误时再读取 [CLI 契约](references/cli-contract.md)。
-3. 将最终稿保存为 UTF-8 `.md` 临时文件。正文只能有一个 H1；H2 是主章节；H3 是章节内小主题。不要用 HTML/CSS 指定视觉效果。
+3. 将最终稿保存为 UTF-8 `.md` 临时文件。正文只能有一个 H1；H2 是主章节；H3 是章节内真实的小主题。按文章协议表达列表、引用、概念和对比关系；只对真正的重点短语使用 `**...**`，只在真实转场处使用 `---`，并把已有图片 alt 写成可直接发布的图注。不要为了触发组件制造结构，也不要用 HTML/CSS 指定视觉效果。
 4. 先只创建和预检任务：
 
 ```powershell
@@ -65,7 +65,9 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 ## 人工确认与交付
 
 - 收到 `next_action=human_review` 后，把工作台链接交给用户并暂停；不得替用户选择方案或点击发布。
-- 图片设置位于本地工作台 `/settings`；人工上传、Mock 和 Agnes 可切换，Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
+- 图片设置位于本地工作台 `/settings`；人工上传、Mock、通用 Images API 和 Google Gemini 可切换。需要配置真实生图时读取 [图片 Provider 说明](references/image-providers.md)。Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
+- 普通配图由模型生成无文字语义插画；结构信息图把锁定原文交给模型完成最终设计。若本机 OCR 未能证明所有文字一致，工作台必须展示大图与锁定原文，并把“文字无误，采用此图”作为一次明确的人工确认；不得绕过核对自动采用，也不要再要求用户重复勾选。模型原始输出与最终候选均可查看。
+- “使用保底信息图”是不调用外部模型的确定性兜底，仅在端到端信息图不满足要求时使用；不要把兜底模板描述为模型生成结果。
 - 工作台可以冻结最终版本、实验性复制富文本、下载交付包；本机配置 Wenyan 后还可以创建微信公众号草稿。
 - Wenyan 配置只允许来自本机进程环境或 Git 忽略的 `.env.local`。不要要求用户把 AppID、AppSecret 粘贴进对话。
 - 草稿结果为 `unknown` 时，先让用户去公众号后台核对；不得自动重试，以免产生重复草稿。

@@ -13,6 +13,7 @@ import type {
   PublicationRevision,
   Task,
   TaskDetail,
+  ThemeGalleryItem,
   VisualPlan,
   WenyanPublisherStatus,
 } from "./types";
@@ -47,9 +48,25 @@ export async function listTasks(): Promise<Task[]> {
   return payload.items;
 }
 
+export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
+  const response = await fetch(`${API_BASE}/theme-gallery`, { cache: "no-store" });
+  const payload = await parseResponse<{
+    schema_version: "theme_gallery.v0.2";
+    themes: ThemeGalleryItem[];
+  }>(response);
+  return payload.themes;
+}
+
 export async function getImageProviderSettings(): Promise<ImageProviderSettings> {
   const response = await fetch(`${API_BASE}/settings/image-provider`, { cache: "no-store" });
   const payload = await parseResponse<{ settings: ImageProviderSettings }>(response);
+  if (
+    payload.settings?.schema_version !== "image_provider_settings.v0.2"
+    || !payload.settings.providers?.images_api
+    || !payload.settings.providers?.gemini
+  ) {
+    throw new Error("检测到旧版核心服务仍占用端口。请停止旧服务并重新启动当前版本。");
+  }
   return payload.settings;
 }
 
@@ -57,6 +74,10 @@ export async function saveImageProviderSettings(payload: {
   mode: ImageProviderMode;
   api_key?: string;
   clear_api_key?: boolean;
+  endpoint?: string;
+  model?: string;
+  protocol?: "openai" | "ark" | "ark_plan" | "extended";
+  size?: string;
 }): Promise<ImageProviderSettings> {
   const response = await fetch(`${API_BASE}/settings/image-provider`, {
     method: "PUT",
@@ -285,7 +306,7 @@ export async function generateImageCandidate(
   planId: string,
   imageSlotId: string,
   expectedImageRevision: number,
-  mode: "start" | "regenerate",
+  mode: "start" | "regenerate" | "fallback",
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/image-slots/${imageSlotId}/generate`,
@@ -304,13 +325,17 @@ export async function acceptImageCandidate(
   imageSlotId: string,
   candidateId: string,
   expectedImageRevision: number,
+  textVerified = false,
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/image-slots/${imageSlotId}/candidates/${candidateId}/accept`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ expected_image_revision: expectedImageRevision }),
+      body: JSON.stringify({
+        expected_image_revision: expectedImageRevision,
+        text_verified: textVerified,
+      }),
     },
   );
   await parseResponse(response);

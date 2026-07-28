@@ -844,7 +844,7 @@ components:
         candidate_index: {type: integer, minimum: 1}
         provider:
           type: string
-          enum: [mock, agnes, manual_upload]
+          enum: [mock, images_api, gemini, agnes, manual_upload]
         model: {type: string}
         provider_prompt: {type: string}
         status: {type: string, const: generated}
@@ -904,7 +904,7 @@ components:
         plan_id: {type: string, format: uuid}
         provider_mode:
           type: string
-          enum: [mock, agnes]
+          enum: [manual, mock, images_api, gemini]
         items:
           type: array
           maxItems: 3
@@ -934,7 +934,7 @@ components:
         image_slot: {$ref: '#/components/schemas/ImageSlotState'}
         provider_mode:
           type: string
-          enum: [mock, agnes]
+          enum: [manual, mock, images_api, gemini]
 
     VisualPlanSummary:
       type: object

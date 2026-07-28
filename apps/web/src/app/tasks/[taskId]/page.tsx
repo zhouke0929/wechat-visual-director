@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BackIcon, CheckIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
@@ -108,6 +108,7 @@ export default function TaskReviewPage() {
   const [wenyanPublisher, setWenyanPublisher] = useState<WenyanPublisherStatus | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const initialWorkspaceResolved = useRef(false);
 
   const load = useCallback(async () => {
     const nextDetail = await getTask(taskId);
@@ -117,6 +118,10 @@ export default function TaskReviewPage() {
       const nextPlans = await getPlans(taskId);
       setPlanList(nextPlans);
       if (nextDetail.task.selected_plan_id) {
+        if (!initialWorkspaceResolved.current) {
+          setActiveEditorTab("images");
+          initialWorkspaceResolved.current = true;
+        }
         setImageReview(await getImageSlots(taskId, nextDetail.task.selected_plan_id));
         setCoverReview(await getCoverWorkspace(taskId, nextDetail.task.selected_plan_id));
       } else {
@@ -159,6 +164,7 @@ export default function TaskReviewPage() {
       const wasSelected = detail.task.selected_plan_id;
       await selectPlan(detail.task, plan.id);
       await load();
+      setActiveEditorTab("images");
       setNotice(wasSelected && wasSelected !== plan.id ? "方案已切换；没有重新调用规划器。" : "方案已选中，可以继续进入下一阶段。 ");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "选择方案失败");
@@ -244,7 +250,81 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleImageAccept(plan: VisualPlan, slot: ImageSlotReview, candidate: ImageCandidate) {
+  async function handleImageGenerateAll(plan: VisualPlan) {
+    if (!imageReview) return;
+    const targets = imageReview.items.filter(
+      (slot) =>
+        slot.state.decision === "pending" &&
+        slot.state.candidates.length === 0,
+    );
+    if (!targets.length) return;
+
+    setImageBusy("batch");
+    setError("");
+    setNotice("");
+    const failures: string[] = [];
+    let generatedCount = 0;
+    try {
+      // 图片 Provider 常有并发限制。这里有意串行执行，减少限流和重复计费风险。
+      for (const slot of targets) {
+        try {
+          await generateImageCandidate(
+            taskId,
+            plan.id,
+            slot.image_slot_id,
+            slot.state.image_revision,
+            "start",
+          );
+          generatedCount += 1;
+        } catch (reason) {
+          failures.push(
+            `${slot.anchor_block_id}：${reason instanceof Error ? reason.message : "生成失败"}`,
+          );
+        }
+      }
+      await refreshImageReview(plan.id);
+      if (generatedCount) {
+        setNotice(
+          `已依次生成 ${generatedCount} 张候选，工作台将从第一张大图开始连续审核。`,
+        );
+      }
+      if (failures.length) {
+        setError(`有 ${failures.length} 张未生成：${failures.join("；")}`);
+      }
+    } finally {
+      setImageBusy("");
+    }
+  }
+
+  async function handleImageFallback(plan: VisualPlan, slot: ImageSlotReview) {
+    const key = `${slot.image_slot_id}:fallback`;
+    setImageBusy(key);
+    setError("");
+    setNotice("");
+    try {
+      await generateImageCandidate(
+        taskId,
+        plan.id,
+        slot.image_slot_id,
+        slot.state.image_revision,
+        "fallback",
+      );
+      await refreshImageReview(plan.id);
+      setFocusSlotByPlan((current) => ({ ...current, [plan.id]: slot.image_slot_id }));
+      setNotice("已生成不调用模型的确定性保底信息图，可直接核对原文。");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "生成保底信息图失败");
+    } finally {
+      setImageBusy("");
+    }
+  }
+
+  async function handleImageAccept(
+    plan: VisualPlan,
+    slot: ImageSlotReview,
+    candidate: ImageCandidate,
+    textVerified: boolean,
+  ) {
     setImageBusy(`${slot.image_slot_id}:accept`);
     setError("");
     setNotice("");
@@ -255,6 +335,7 @@ export default function TaskReviewPage() {
         slot.image_slot_id,
         candidate.id,
         slot.state.image_revision,
+        textVerified,
       );
       setFocusSlotByPlan((current) => ({ ...current, [plan.id]: slot.image_slot_id }));
       await refreshImageReview(plan.id);
@@ -438,13 +519,26 @@ export default function TaskReviewPage() {
     setNotice("");
     try {
       await savePublicationDraft(taskId, metadata);
-      await freezePublication(detail.task, metadata);
-      await load();
-      setNotice("最终视觉版本已冻结。现在可以发布到微信、复制正文或下载交付包。");
+      const frozen = await freezePublication(detail.task, metadata);
+      if (wenyanPublisher?.ready) {
+        setPublicationBusy("publish");
+        const result = await createWenyanDraft(frozen.task, frozen.revision);
+        await load();
+        if (result.operation.status === "succeeded") {
+          setNotice("最终版本已保存，并创建微信公众号草稿。请到公众号后台完成最终审核。");
+        } else if (result.operation.status === "unknown") {
+          setError("最终版本已保存，但草稿创建结果未知。请先到公众号草稿箱核对，不要重复点击。");
+        } else {
+          setError(result.operation.last_error?.message ?? "最终版本已保存，但微信公众号草稿创建失败");
+        }
+      } else {
+        await load();
+        setNotice("最终视觉版本已保存。当前未配置微信发布器，可以复制正文或下载交付包。");
+      }
       window.requestAnimationFrame(() => document.getElementById("publication-console")?.scrollIntoView({ block: "start" }));
     } catch (reason) {
       await load().catch(() => undefined);
-      setError(reason instanceof Error ? reason.message : "保存本地冻结版本失败");
+      setError(reason instanceof Error ? reason.message : "保存最终版本失败");
     } finally {
       setPublicationBusy("");
     }
@@ -717,7 +811,7 @@ export default function TaskReviewPage() {
                     type="button"
                   >
                     <span>{String(activePlan.slots.length).padStart(2, "0")}</span>
-                    组件排版
+                    组件微调（可选）
                   </button>
                   <button
                     aria-selected={activeEditorTab === "images"}
@@ -727,7 +821,7 @@ export default function TaskReviewPage() {
                     type="button"
                   >
                     <span>{String(activePlan.image_slots.length).padStart(2, "0")}</span>
-                    文章配图
+                    配图审核
                   </button>
                   <button
                     aria-selected={activeEditorTab === "cover"}
@@ -805,8 +899,12 @@ export default function TaskReviewPage() {
                   ) : activeEditorTab === "images" ? (
                     <ImageReviewPanel
                       busy={imageBusy}
-                      onAccept={(slot, candidate) => handleImageAccept(activePlan, slot, candidate)}
+                      onAccept={(slot, candidate, textVerified) =>
+                        handleImageAccept(activePlan, slot, candidate, textVerified)
+                      }
+                      onFallback={(slot) => handleImageFallback(activePlan, slot)}
                       onGenerate={(slot) => handleImageGenerate(activePlan, slot)}
+                      onGenerateAll={() => handleImageGenerateAll(activePlan)}
                       onReplace={(slot, file) => handleImageReplace(activePlan, slot, file)}
                       onSkip={(slot) => handleImageSkip(activePlan, slot)}
                       plan={activePlan}

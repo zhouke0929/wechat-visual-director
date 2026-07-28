@@ -605,6 +605,20 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .image-editor-header span { color: #84d4c8; font: 800 8px/1.2 Arial; letter-spacing: .17em; }
 .image-editor-header h3 { margin: 5px 0 0; font: 750 17px/1.35 "Noto Serif SC", "Songti SC", serif; }
 .image-editor-header p { margin: 4px 0 0; color: #b9c7c3; font-size: 10px; }
+.image-editor-header-quick { align-items: stretch; }
+.image-review-header-actions { min-width: 190px; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 9px; }
+.image-batch-button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #f2b39a;
+  background: var(--coral);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .02em;
+  box-shadow: 3px 3px 0 rgba(238, 111, 72, .2);
+}
+.image-batch-button:hover:not(:disabled) { background: #ff835c; }
 .provider-stamp {
   width: 92px;
   min-height: 58px;
@@ -621,6 +635,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .provider-stamp small { margin-top: 5px; color: #c3cecb; font-size: 8px; line-height: 1.35; }
 .image-slot-card + .image-slot-card { border-top: 1px solid #ccd2ce; }
 .image-slot-card { padding: 18px; scroll-margin-top: 92px; }
+.image-slot-accepted { background: linear-gradient(90deg, rgba(28, 132, 119, .055), transparent 55%); }
+.image-slot-skipped { opacity: .72; }
 .image-slot-brief { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; }
 .image-slot-number {
   width: 38px;
@@ -636,6 +652,9 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .image-slot-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
 .image-slot-title-row strong { margin-right: auto; font-size: 13px; }
 .image-slot-title-row span { padding: 3px 6px; border: 1px solid #b9c3be; color: #53605c; font: 750 8px/1 Arial; }
+.image-slot-title-row .slot-status { border-color: #d3d7d3; background: #f4f3ed; }
+.image-slot-title-row .slot-status-accepted { border-color: #87bdb4; background: #e1f3ee; color: var(--teal); }
+.image-slot-title-row .slot-status-skipped { border-style: dashed; color: #858d89; }
 .image-slot-brief p { margin: 5px 0 0; color: #3e4946; font-size: 11px; line-height: 1.55; }
 .image-slot-brief small { display: block; margin-top: 4px; color: #858d89; font-size: 9px; }
 .image-slot-error { margin: 13px 0 0 50px; padding: 10px 12px; display: flex; align-items: center; justify-content: space-between; gap: 14px; border-left: 4px solid var(--coral); background: #fff0e8; }
@@ -651,6 +670,15 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .candidate-card { min-width: 0; padding: 7px; border: 1px solid #c8cdc9; background: #f7f5ed; }
 .candidate-card.candidate-selected { border: 2px solid var(--teal); padding: 6px; background: #edf7f3; }
 .candidate-image-wrap { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #dfe5e1; }
+.candidate-preview-button {
+  width: 100%;
+  padding: 0;
+  display: block;
+  border: 0;
+  color: inherit;
+  cursor: zoom-in;
+  text-align: left;
+}
 .candidate-image-wrap img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .candidate-image-wrap > span {
   position: absolute;
@@ -666,8 +694,32 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   white-space: nowrap;
 }
 .candidate-selected .candidate-image-wrap > span { background: var(--teal); }
+.candidate-image-wrap > i {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  padding: 5px 7px;
+  border: 1px solid rgba(255, 255, 255, .7);
+  background: rgba(255, 253, 247, .92);
+  color: var(--ink);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 850;
+  opacity: 0;
+  transform: translateY(-3px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.candidate-preview-button:hover > i,
+.candidate-preview-button:focus-visible > i { opacity: 1; transform: translateY(0); }
 .candidate-meta { margin: 7px 1px 0; display: flex; flex-wrap: wrap; gap: 3px 7px; color: #727c78; font-size: 8px; }
 .candidate-meta span:last-child { color: #a65331; }
+.candidate-copy-check { margin-top: 8px; padding: 9px 10px; border-left: 3px solid var(--amber); background: #fff9df; color: #34423e; }
+.candidate-copy-check strong { display: block; font-size: 9px; }
+.candidate-copy-check ol { margin: 6px 0; padding-left: 18px; }
+.candidate-copy-check li { margin: 2px 0; font-size: 8px; line-height: 1.45; }
+.candidate-copy-check label { display: flex; align-items: flex-start; gap: 6px; color: #7c4a20; cursor: pointer; font-size: 8px; font-weight: 750; line-height: 1.4; }
+.candidate-copy-check input { margin-top: 1px; accent-color: var(--teal); }
+.candidate-raw-link { display: inline-block; margin-top: 6px; color: var(--teal); font-size: 8px; font-weight: 750; text-decoration: underline; text-underline-offset: 2px; }
 .candidate-card details { margin-top: 6px; border-top: 1px solid #d4d7d2; }
 .candidate-card summary { padding: 6px 0 2px; color: #52605c; cursor: pointer; font-size: 8px; font-weight: 750; }
 .candidate-card details p { max-height: 72px; margin: 4px 0 5px; overflow: auto; color: #6e7773; font-size: 8px; line-height: 1.5; }
@@ -721,6 +773,135 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .image-plan-empty { padding: 28px 20px; background: #f4f3ed; }
 .image-plan-empty strong { font-family: "Noto Serif SC", "Songti SC", serif; font-size: 15px; }
 .image-plan-empty p { margin: 5px 0 0; color: var(--muted); font-size: 10px; }
+
+.image-review-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+.image-review-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background:
+    radial-gradient(circle at 25% 20%, rgba(42, 139, 126, .18), transparent 38%),
+    rgba(13, 24, 23, .88);
+  backdrop-filter: blur(8px);
+}
+.image-review-dialog {
+  position: relative;
+  width: min(1380px, calc(100vw - 36px));
+  height: min(900px, calc(100vh - 36px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  border: 1px solid #83928d;
+  border-top: 5px solid var(--coral);
+  background: #f4f1e8;
+  box-shadow: 22px 28px 80px rgba(0, 0, 0, .38);
+}
+.image-review-dialog-header {
+  min-height: 68px;
+  padding: 13px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid #aeb7b2;
+  background: #fffdf7;
+}
+.image-review-dialog-header > div:first-child { min-width: 0; }
+.image-review-dialog-header span { color: var(--coral); font: 850 8px/1 Arial, sans-serif; letter-spacing: .18em; }
+.image-review-dialog-header strong { margin-top: 6px; display: block; font: 760 16px/1.25 "Noto Serif SC", "Songti SC", serif; }
+.image-review-dialog-tools { flex: 0 0 auto; display: flex; align-items: center; gap: 5px; }
+.image-review-dialog-tools button {
+  min-width: 34px;
+  min-height: 32px;
+  padding: 0 9px;
+  border: 1px solid #9ba7a2;
+  background: transparent;
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 800;
+}
+.image-review-dialog-tools button:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }
+.image-review-dialog-tools span { min-width: 42px; color: var(--ink); text-align: center; letter-spacing: 0; }
+.image-review-dialog-body { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 350px; }
+.image-review-canvas { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; border-right: 1px solid #9fa9a4; background: #242c2a; }
+.image-review-canvas-scroll {
+  min-height: 0;
+  padding: 22px;
+  display: flex;
+  align-items: flex-start;
+  overflow: auto;
+  background:
+    linear-gradient(45deg, rgba(255,255,255,.025) 25%, transparent 25%, transparent 75%, rgba(255,255,255,.025) 75%),
+    #202826;
+  background-size: 24px 24px;
+}
+.image-review-canvas-scroll img {
+  min-width: 0;
+  height: auto;
+  margin: auto;
+  display: block;
+  object-fit: contain;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, .4);
+  transition: width .18s ease;
+}
+.image-review-canvas-caption {
+  min-height: 42px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid #46524f;
+  color: #b8c5c1;
+  font-size: 9px;
+}
+.image-review-canvas-caption a { margin-left: auto; color: #88d8cc; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.image-review-inspector { min-height: 0; padding: 24px; overflow: auto; background: #fffdf7; }
+.image-review-inspector > span { color: var(--teal); font: 850 8px/1 Arial, sans-serif; letter-spacing: .18em; }
+.image-review-inspector h4 { margin: 8px 0 5px; font: 760 21px/1.25 "Noto Serif SC", "Songti SC", serif; }
+.image-review-inspector > p { margin: 0; color: #64706c; font-size: 10px; line-height: 1.6; }
+.image-review-locked-copy,
+.image-review-no-copy {
+  margin-top: 22px;
+  padding: 15px;
+  border-left: 4px solid var(--amber);
+  background: #fff7d8;
+}
+.image-review-locked-copy > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.image-review-locked-copy strong,
+.image-review-no-copy strong { font-size: 10px; }
+.image-review-locked-copy i { padding: 4px 6px; background: var(--ink); color: #fff; font-size: 7px; font-style: normal; font-weight: 850; }
+.image-review-locked-copy ol { margin: 11px 0; padding-left: 20px; }
+.image-review-locked-copy li { margin: 7px 0; color: #34403d; font-size: 10px; line-height: 1.55; }
+.image-review-locked-copy small { display: block; padding-top: 10px; border-top: 1px solid #e2c766; color: #765122; font-size: 8px; line-height: 1.55; }
+.image-review-no-copy { border-left-color: var(--teal); background: #eaf5f1; }
+.image-review-no-copy p { margin: 6px 0 0; color: #53625d; font-size: 9px; line-height: 1.55; }
+.image-review-inspector details { margin-top: 18px; border-top: 1px solid #d3d7d3; }
+.image-review-inspector summary { padding: 12px 0; cursor: pointer; color: #56625e; font-size: 9px; font-weight: 800; }
+.image-review-inspector details p { max-height: 130px; overflow: auto; color: #6f7774; font-size: 8px; line-height: 1.55; }
+.image-review-primary-actions { margin-top: 22px; display: grid; gap: 8px; }
+.image-review-primary-actions button { min-height: 44px; padding: 0 14px; border: 1px solid #83908b; background: transparent; color: var(--ink); font-size: 10px; font-weight: 850; }
+.image-review-primary-actions .image-review-accept { min-height: 52px; border-color: var(--ink); background: var(--ink); color: #fff; box-shadow: 4px 4px 0 var(--amber); }
+.image-review-primary-actions .image-review-accept:hover:not(:disabled) { border-color: var(--teal); background: var(--teal); }
+.image-review-dialog-footer {
+  min-height: 48px;
+  padding: 0 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-top: 1px solid #aeb7b2;
+  background: #ece9df;
+}
+.image-review-dialog-footer button { border: 0; background: transparent; color: var(--teal); font-size: 9px; font-weight: 850; }
+.image-review-dialog-footer span { color: #66716d; font-size: 8px; }
 
 .phone-stage { padding: 22px 18px 28px; background: #dfe1dc; overflow: auto; scroll-margin-top: 18px; }
 .phone-label { width: 390px; max-width: 100%; margin: 0 auto 10px; display: flex; align-items: center; gap: 8px; color: #55625f; font: 700 9px Arial; letter-spacing: 0.1em; }
@@ -951,6 +1132,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .component-decision { grid-template-columns: 1fr; }
   .variant-choice { margin-left: 39px; }
   .image-editor-header { align-items: flex-start; }
+  .image-editor-header-quick { flex-direction: column; }
+  .image-review-header-actions { width: 100%; }
   .candidate-contact-sheet { grid-template-columns: 1fr; }
   .cover-actions-grid, .cover-contact-sheet > div { grid-template-columns: 1fr; }
   .image-slot-actions { grid-template-columns: 1fr; }
@@ -979,6 +1162,17 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .asset-tally { grid-template-columns: repeat(2, 1fr); }
   .asset-tally div:nth-child(3) { border-left: 0; border-top: 1px solid #bfc5c1; }
   .asset-tally div:nth-child(4) { border-top: 1px solid #bfc5c1; }
+  .image-review-modal { padding: 0; }
+  .image-review-dialog { width: 100vw; height: 100dvh; border: 0; border-top: 4px solid var(--coral); }
+  .image-review-dialog-header { padding: 10px 12px; align-items: flex-start; flex-direction: column; gap: 9px; }
+  .image-review-dialog-tools { width: 100%; }
+  .image-review-dialog-tools button:last-child { margin-left: auto; }
+  .image-review-dialog-body { grid-template-columns: 1fr; grid-template-rows: minmax(240px, 48vh) minmax(0, 1fr); }
+  .image-review-canvas { border-right: 0; border-bottom: 1px solid #9fa9a4; }
+  .image-review-canvas-scroll { padding: 12px; }
+  .image-review-inspector { padding: 18px 16px; }
+  .image-review-inspector h4 { font-size: 18px; }
+  .image-review-dialog-footer { padding: 0 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -18,6 +18,7 @@ from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
 from .version import application_version
+from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
 
 
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
@@ -300,19 +301,28 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
     started_commands: dict[str, list[str]] = {}
     root = _project_root()
 
+    running_version = str((api_health or {}).get("application_version") or "")
+    running_settings_schema = str(
+        (api_health or {}).get("image_provider_settings_schema_version") or ""
+    )
     if (
         api_health is not None
         and os.environ.get("VISUAL_DIRECTOR_INSTALL_ROOT")
-        and str(api_health.get("application_version") or "") != application_version()
+        and (
+            running_version != application_version()
+            or running_settings_schema != IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
+        )
     ):
         raise CliError(
             "core_version_mismatch",
-            "The running Visual Director API is not the installed version. Stop the old local service, then retry.",
+            "The running Visual Director API is not the installed build. Stop the old local service, then retry.",
             exit_code=3,
             retryable=True,
             details={
                 "installed_version": application_version(),
-                "running_version": api_health.get("application_version"),
+                "running_version": running_version,
+                "expected_settings_schema": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+                "running_settings_schema": running_settings_schema or None,
                 "api_base": api_base,
             },
         )
@@ -537,8 +547,16 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         if api_health is not None
         else None
     )
+    running_settings_schema = str(
+        (api_health or {}).get("image_provider_settings_schema_version") or ""
+    )
+    contract_match = (
+        running_settings_schema == IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
+        if api_health is not None and installation["persistent"]
+        else api_health is not None
+    )
     version_match = (
-        running_version == installation["version"]
+        running_version == installation["version"] and contract_match
         if api_health is not None and installation["persistent"]
         else api_health is not None
     )
@@ -556,6 +574,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("core_api_not_running")
     elif installation["persistent"] and not version_match:
         warnings.append("core_version_mismatch")
+        if not contract_match:
+            warnings.append("core_contract_mismatch")
     if not web_ready:
         warnings.append("workbench_not_running")
     if _pnpm_command() is None:

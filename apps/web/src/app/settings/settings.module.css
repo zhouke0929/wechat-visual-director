@@ -158,7 +158,7 @@
 
 .providerGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
 
@@ -287,6 +287,35 @@
   margin-top: 20px;
   display: grid;
   gap: 8px;
+}
+
+.connectionGrid {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.connectionGrid label {
+  display: grid;
+  gap: 7px;
+}
+
+.connectionGrid label > span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.connectionGrid input,
+.connectionGrid select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid rgba(20, 33, 31, .3);
+  border-radius: 0;
+  background: #fffefb;
+  color: var(--settings-ink);
+  font: 11px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
 }
 
 .keyInput > span {
@@ -507,6 +536,7 @@
   .sectionHeading { align-items: start; flex-direction: column; }
   .sectionHeading > p { text-align: left; }
   .guardrails { grid-template-columns: 1fr; }
+  .connectionGrid { grid-template-columns: 1fr; }
   .guardrails > div { border-right: 0; border-bottom: 1px solid rgba(20, 33, 31, .18); }
   .guardrails > div:last-child { border-bottom: 0; }
   .actionBar { align-items: stretch; flex-direction: column; bottom: 6px; }

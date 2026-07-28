@@ -65,6 +65,8 @@ class ImageVisualIntent(BaseModel):
     composition: str = Field(pattern=r"^(branching|layered|wide_scene|centered)$")
     style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry)$")
     palette_role: str = Field(default="plan_palette", pattern=r"^plan_palette$")
+    palette_roles: list[str] = Field(default_factory=list, max_length=5)
+    tone: list[str] = Field(default_factory=list, max_length=4)
     negative_space: str = Field(pattern=r"^(none|lower_right|lower_third)$")
 
 

@@ -353,6 +353,8 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
                     "composition": "branching" if intent.purpose == "structured_infographic" else "wide_scene",
                     "style_family": brief.art_direction.style_family,
                     "palette_role": "plan_palette",
+                    "palette_roles": list(brief.art_direction.palette_roles),
+                    "tone": list(brief.art_direction.tone),
                     "negative_space": "lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
                 },
                 "fact_bindings": fact_bindings,
@@ -453,43 +455,47 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
 def visual_system_configuration(visual_system: str) -> dict[str, Any]:
     if visual_system == "light_reading":
         return {
-            "heading_variant": "numbered_marker",
-            "key_point_variant": "warm_note",
-            "quote_variant": "side_quote",
-            "list_variant": "vertical_numbered",
+            "heading_variant": "botanical_section",
+            "key_point_variant": "open_highlight",
+            "quote_variant": "floating_quote",
+            "list_variant": "leaf_path",
             "table_variant": "compact_grid",
+            "theme_kit": "airy_organic_v1",
             "accent": LIGHT_READING_PALETTE["primary"],
             "palette": copy.deepcopy(LIGHT_READING_PALETTE),
         }
     if visual_system == "warm_humanist":
         warm_palette = ART_DIRECTION_PALETTES["warm_coral_editorial"]
         return {
-            "heading_variant": "numbered_marker",
-            "key_point_variant": "warm_note",
-            "quote_variant": "side_quote",
-            "list_variant": "vertical_numbered",
-            "table_variant": "compact_grid",
+            "heading_variant": "story_chapter",
+            "key_point_variant": "margin_highlight",
+            "quote_variant": "postcard_quote",
+            "list_variant": "stitched_path",
+            "table_variant": "soft_ledger",
+            "theme_kit": "warm_storybook_v1",
             "accent": warm_palette["primary"],
             "palette": copy.deepcopy(warm_palette),
         }
     if visual_system == "structured_grid":
         grid_palette = ART_DIRECTION_PALETTES["sage_sunlit_editorial"]
         return {
-            "heading_variant": "editorial_left_rule",
-            "key_point_variant": "concise_rule",
-            "quote_variant": "centered_sentence",
-            "list_variant": "compact_checklist",
-            "table_variant": "highlighted_column",
+            "heading_variant": "indexed_column",
+            "key_point_variant": "margin_register",
+            "quote_variant": "evidence_margin",
+            "list_variant": "audit_track",
+            "table_variant": "ledger_grid",
+            "theme_kit": "structured_editorial_v1",
             "accent": grid_palette["primary"],
             "palette": copy.deepcopy(grid_palette),
         }
     editorial_palette = ART_DIRECTION_PALETTES["ink_navy_editorial"]
     return {
-        "heading_variant": "editorial_left_rule",
-        "key_point_variant": "concise_rule",
-        "quote_variant": "centered_sentence",
-        "list_variant": "compact_checklist",
-        "table_variant": "highlighted_column",
+        "heading_variant": "masthead_section",
+        "key_point_variant": "headline_rule",
+        "quote_variant": "pull_quote",
+        "list_variant": "proof_list",
+        "table_variant": "editorial_matrix",
+        "theme_kit": "independent_magazine_v1",
         "accent": editorial_palette["primary"],
         "palette": copy.deepcopy(editorial_palette),
     }

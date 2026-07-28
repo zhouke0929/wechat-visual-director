@@ -1,0 +1,113 @@
+.page {
+  --ink: #17211f;
+  --paper: #f3efe5;
+  --line: rgba(23, 33, 31, .22);
+  min-height: 100vh;
+  color: var(--ink);
+  background: var(--paper);
+  font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+}
+.topbar { min-height: 72px; padding: 0 clamp(18px, 4vw, 64px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--line); background: rgba(243,239,229,.94); backdrop-filter: blur(14px); position: sticky; top: 0; z-index: 20; }
+.topbar > a { color: #55615d; font-size: 12px; font-weight: 750; }
+.topbar > div { display: flex; align-items: baseline; gap: 11px; }
+.topbar strong { font: 750 19px/1.2 "Noto Serif SC", "Songti SC", serif; }
+.topbar div span { color: #68736f; font: 800 8px/1 Arial, sans-serif; letter-spacing: .17em; }
+.topbar > span { justify-self: end; color: var(--theme-primary); font-size: 11px; font-weight: 800; }
+
+.masthead { min-height: 470px; padding: clamp(60px, 8vw, 110px) clamp(20px, 7vw, 104px); display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: end; gap: 70px; border-bottom: 1px solid var(--line); background: radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--theme-accent) 18%, transparent), transparent 30%); }
+.themeIntro > p:first-child, .articleNotes > span, .finalReview span { margin: 0; color: var(--theme-primary); font: 850 9px/1.2 Arial, sans-serif; letter-spacing: .19em; }
+.themeIntro h1 { margin: 14px 0 0; font: 760 clamp(60px, 8vw, 108px)/1 "Noto Serif SC", "Songti SC", serif; letter-spacing: -.065em; }
+.themeIntro > p:not(:first-child) { max-width: 690px; margin: 25px 0 0; color: #58645f; font-size: 16px; line-height: 1.82; }
+.palette { width: min(560px, 100%); height: 12px; margin-top: 36px; display: grid; grid-template-columns: 1.8fr 1fr .8fr 2.5fr; border: 1px solid rgba(23,33,31,.15); }
+.palette i { display: block; }
+.tags { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 7px; }
+.tags span { padding: 6px 9px; border: 1px solid #aeb7b2; background: rgba(255,255,255,.42); color: #52605c; font-size: 10px; }
+.reviewGuide { padding: 24px; border-top: 4px solid var(--theme-primary); background: rgba(255,253,247,.76); }
+.reviewGuide > span { color: var(--theme-primary); font-size: 10px; font-weight: 850; }
+.reviewGuide ol { margin: 16px 0 0; padding-left: 20px; }
+.reviewGuide li { margin: 10px 0; color: #53605c; font-size: 12px; line-height: 1.6; }
+
+.modeSwitch { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); background: #fffdf7; position: sticky; top: 72px; z-index: 18; }
+.modeSwitch button { min-height: 64px; border: 0; border-right: 1px solid var(--line); background: transparent; color: #66716d; font-size: 12px; font-weight: 800; }
+.modeSwitch button:last-child { border-right: 0; }
+.modeSwitch .active { background: var(--ink); color: #fff; }
+
+.articleReview { min-width: 0; display: grid; grid-template-columns: minmax(300px, .72fr) minmax(500px, 1.28fr); border-bottom: 1px solid var(--line); }
+.articleNotes { min-width: 0; padding: clamp(54px, 7vw, 100px) clamp(28px, 5vw, 78px); border-right: 1px solid var(--line); }
+.articleNotes h2 { margin: 17px 0 0; font: 750 clamp(36px, 4.4vw, 62px)/1.2 "Noto Serif SC", "Songti SC", serif; letter-spacing: -.045em; }
+.articleNotes > p { max-width: 480px; margin: 28px 0 0; color: #596560; font-size: 14px; line-height: 1.82; }
+.articleNotes dl { margin: 44px 0 0; border-top: 1px solid var(--line); }
+.articleNotes dl div { min-height: 50px; display: grid; grid-template-columns: 100px 1fr; align-items: center; border-bottom: 1px solid var(--line); }
+.articleNotes dt { color: #717b77; font-size: 10px; }
+.articleNotes dd { margin: 0; font-size: 12px; font-weight: 750; }
+.phoneStage { min-width: 0; padding: 54px clamp(20px, 6vw, 94px) 78px; overflow: hidden; background: #dfe2dc; }
+.ruler { width: 390px; max-width: 100%; margin: 0 auto 10px; display: flex; align-items: center; gap: 9px; color: #66716d; font: 750 8px/1 Arial, sans-serif; letter-spacing: .11em; }
+.ruler span:first-child { color: var(--theme-primary); }
+.ruler i { height: 1px; flex: 1; background: #9fa9a4; }
+.phone { width: 390px; max-width: 100%; margin: 0 auto; overflow: hidden; background: #fff; box-shadow: 0 22px 58px rgba(23,33,31,.18); }
+
+.specimenList { border-bottom: 1px solid var(--line); }
+.libraryDivider {
+  min-height: 290px;
+  padding: clamp(54px, 7vw, 94px) clamp(24px, 7vw, 104px);
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 12%, transparent), transparent 42%),
+    #fffdf7;
+}
+.libraryDivider > span {
+  color: var(--theme-primary);
+  font: 850 9px/1.2 Georgia, serif;
+  letter-spacing: .19em;
+}
+.libraryDivider h2 {
+  max-width: 850px;
+  margin: 18px 0 0;
+  font: 750 clamp(34px, 4.7vw, 66px)/1.18 "Noto Serif SC", "Songti SC", serif;
+  letter-spacing: -.045em;
+}
+.libraryDivider p {
+  max-width: 700px;
+  margin: 23px 0 0;
+  color: #5c6863;
+  font-size: 14px;
+  line-height: 1.8;
+}
+.specimen { min-width: 0; min-height: 620px; display: grid; grid-template-columns: minmax(280px, .68fr) minmax(470px, 1.32fr); border-bottom: 1px solid var(--line); }
+.specimenInfo { min-width: 0; padding: clamp(44px, 6vw, 82px) clamp(24px, 5vw, 72px); border-right: 1px solid var(--line); }
+.specimenInfo > span { color: var(--theme-primary); font: 850 8px/1.2 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
+.specimenInfo h2 { margin: 18px 0 0; font: 750 clamp(34px, 4vw, 56px)/1.2 "Noto Serif SC", "Songti SC", serif; }
+.specimenInfo > p { margin: 11px 0 0; color: #66716d; font-size: 13px; }
+.decisionGroup, .themeDecisions { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #8f9a95; }
+.decisionGroup button, .themeDecisions button { min-height: 46px; border: 0; border-right: 1px solid #8f9a95; background: transparent; color: #53605c; font-size: 11px; font-weight: 800; }
+.decisionGroup button:last-child, .themeDecisions button:nth-child(3) { border-right: 0; }
+.decisionGroup .selectedDecision, .themeDecisions .selectedDecision { background: var(--ink); color: #fff; }
+.componentStage { min-width: 0; padding: clamp(42px, 6vw, 80px); overflow: hidden; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--theme-primary) 8%, #e4e5df); }
+.componentCanvas { box-sizing: border-box; width: 390px; max-width: 100%; min-height: 330px; padding: 38px 25px; background: #fff; box-shadow: 0 20px 54px rgba(23,33,31,.15); color: #20312e; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+
+.finalReview { padding: clamp(62px, 9vw, 120px) clamp(20px, 7vw, 104px); display: grid; grid-template-columns: 1fr minmax(390px, .7fr); align-items: center; gap: 80px; background: #fffdf7; }
+.finalReview h2 { margin: 13px 0 0; font: 750 clamp(32px, 4vw, 54px)/1.25 "Noto Serif SC", "Songti SC", serif; }
+.finalReview p { max-width: 580px; margin: 18px 0 0; color: #616c68; font-size: 13px; line-height: 1.75; }
+.themeDecisions { margin-top: 0; }
+.themeDecisions .exportButton { grid-column: 1 / -1; min-height: 52px; border-top: 1px solid #8f9a95; border-right: 0; background: var(--theme-primary); color: #fff; }
+.statePage { min-height: 100vh; padding: 80px; background: #f3efe5; color: #17211f; }
+.statePage a { display: block; margin-top: 20px; color: #117c73; }
+
+@media (max-width: 900px) {
+  .masthead { grid-template-columns: 1fr; }
+  .reviewGuide { max-width: 500px; }
+  .articleReview, .specimen { grid-template-columns: 1fr; }
+  .articleNotes, .specimenInfo { border-right: 0; border-bottom: 1px solid var(--line); }
+  .finalReview { grid-template-columns: 1fr; gap: 38px; }
+}
+@media (max-width: 560px) {
+  .topbar { grid-template-columns: 1fr auto; }
+  .topbar div { display: none; }
+  .masthead { padding: 54px 18px; }
+  .themeIntro h1 { font-size: 60px; }
+  .modeSwitch { top: 72px; }
+  .phoneStage, .componentStage { padding: 34px 12px 48px; }
+  .specimenInfo { padding: 44px 18px; }
+  .componentCanvas { width: 100%; padding: 30px 20px; }
+  .finalReview { padding: 58px 18px; }
+}

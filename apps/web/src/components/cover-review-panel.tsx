@@ -46,8 +46,10 @@ export function CoverReviewPanel({ busy, review, onGenerate, onReuse, onSelect, 
               : busy === "generate" ? "生成中…" : "AI 总结全文生成封面"}
           </strong>
           <small>
-            {review.provider_mode === "agnes"
-              ? "Agnes 流程试验"
+            {review.provider_mode === "images_api"
+              ? "通用 Images API"
+              : review.provider_mode === "gemini"
+              ? "Gemini / Nano Banana"
               : review.provider_mode === "mock" ? "Mock 确定性候选" : "不调用图片模型"}
           </small>
         </button>

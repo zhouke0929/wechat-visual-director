@@ -28,6 +28,7 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.5",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -93,6 +94,7 @@ def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, ca
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.5",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -130,6 +132,7 @@ def test_doctor_rejects_stale_api_after_persistent_upgrade(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.4",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -159,6 +162,7 @@ def test_serve_refuses_to_reuse_stale_api_after_persistent_upgrade(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.4",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
         },
     )
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
@@ -168,6 +172,57 @@ def test_serve_refuses_to_reuse_stale_api_after_persistent_upgrade(
     assert payload["error"]["code"] == "core_version_mismatch"
     assert payload["error"]["details"]["installed_version"] == "0.1.0-alpha.5"
     assert payload["error"]["details"]["running_version"] == "0.1.0-alpha.4"
+
+
+def test_doctor_rejects_same_version_api_with_stale_settings_contract(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.7"
+    project_root.mkdir(parents=True)
+    (project_root / "VERSION").write_text("0.1.0-alpha.7\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.7",
+            "image_provider": "mock",
+            "image_provider_configured": True,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
+
+    assert cli.run(["doctor", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["installation"]["version_match"] is False
+    assert "core_contract_mismatch" in payload["warnings"]
+
+
+def test_serve_refuses_same_version_api_with_stale_settings_contract(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.7"
+    project_root.mkdir(parents=True)
+    (project_root / "VERSION").write_text("0.1.0-alpha.7\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.7",
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+
+    assert cli.run(["serve", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "core_version_mismatch"
+    assert payload["error"]["details"]["running_settings_schema"] is None
 
 
 def test_create_task_returns_agent_safe_result(tmp_path: Path, monkeypatch, capsys) -> None:

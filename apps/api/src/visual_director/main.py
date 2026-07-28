@@ -7,7 +7,6 @@ import hashlib
 import json
 import re
 import uuid
-from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -27,7 +26,14 @@ from .preflight import PREFLIGHT_RULESET_VERSION, PREFLIGHT_SCHEMA_VERSION, run_
 from .image_provider import (
     DEFAULT_AGNES_ENDPOINT,
     DEFAULT_AGNES_MODEL,
+    DEFAULT_GEMINI_IMAGE_ENDPOINT,
+    DEFAULT_GEMINI_IMAGE_MODEL,
+    DEFAULT_IMAGES_API_ENDPOINT,
+    DEFAULT_IMAGES_API_MODEL,
+    DEFAULT_IMAGES_API_PROTOCOL,
+    IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
     IMAGE_PROMPT_VERSION,
+    GeneratedImage,
     ImageProvider,
     ImageProviderError,
     build_cover_prompt,
@@ -58,8 +64,10 @@ from .infographic_overlay import (
     compose_structured_infographic,
     resolve_overlay_copy,
 )
+from .ocr_verifier import verify_locked_copy
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
+from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
 from .publication import (
     PUBLICATION_SCHEMA_VERSION,
     canonical_json,
@@ -91,9 +99,13 @@ class GeneratePlansRequest(BaseModel):
 
 
 class ImageProviderSettingsRequest(BaseModel):
-    mode: str = Field(pattern="^(manual|mock|agnes)$")
+    mode: str = Field(pattern="^(manual|mock|images_api|gemini)$")
     api_key: str | None = Field(default=None, max_length=512)
     clear_api_key: bool = False
+    endpoint: str | None = Field(default=None, max_length=500)
+    model: str | None = Field(default=None, max_length=160)
+    protocol: str | None = Field(default=None, pattern="^(openai|ark|ark_plan|extended)$")
+    size: str | None = Field(default=None, max_length=40)
 
 
 class SelectPlanRequest(BaseModel):
@@ -116,7 +128,7 @@ class UndoPlanRequest(BaseModel):
 
 
 class GenerateImageRequest(BaseModel):
-    mode: str = Field(pattern="^(start|regenerate)$")
+    mode: str = Field(pattern="^(start|regenerate|fallback)$")
     expected_image_revision: int = Field(ge=1)
 
 
@@ -136,6 +148,7 @@ class SelectCoverRequest(BaseModel):
 
 class ImageDecisionRequest(BaseModel):
     expected_image_revision: int = Field(ge=1)
+    text_verified: bool = False
 
 
 class GenerateEditorialBriefRequest(BaseModel):
@@ -702,30 +715,61 @@ def create_app(
     def image_provider_settings_snapshot() -> dict[str, Any]:
         env_path: Path = app.state.runtime_env_path
         file_values = read_env_file(env_path)
+        image_setting_keys = (
+            "VISUAL_DIRECTOR_IMAGE_PROVIDER",
+            "IMAGE_API_KEY",
+            "IMAGE_API_ENDPOINT",
+            "IMAGE_API_MODEL",
+            "IMAGE_API_PROTOCOL",
+            "IMAGE_API_SIZE",
+            "GEMINI_API_KEY",
+            "GEMINI_IMAGE_ENDPOINT",
+            "GEMINI_IMAGE_MODEL",
+            "GEMINI_IMAGE_SIZE",
+            # Legacy Agnes keys remain readable for a lossless upgrade.
+            "AGNES_API_KEY",
+            "AGNES_IMAGE_ENDPOINT",
+            "AGNES_IMAGE_MODEL",
+            "AGNES_IMAGE_SIZE",
+        )
         process_keys = {
             key
-            for key in (
-                "VISUAL_DIRECTOR_IMAGE_PROVIDER",
-                "AGNES_API_KEY",
-                "AGNES_IMAGE_ENDPOINT",
-                "AGNES_IMAGE_MODEL",
-                "AGNES_IMAGE_SIZE",
-            )
+            for key in image_setting_keys
             if key in os.environ
         }
-        mode = str(
+        raw_mode = str(
             os.environ.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
             or file_values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
             or "mock"
         ).strip().lower()
+        legacy_agnes = raw_mode == "agnes"
+        mode = "images_api" if legacy_agnes else raw_mode
+        active_key_name = "GEMINI_API_KEY" if mode == "gemini" else "IMAGE_API_KEY"
+        active_legacy_key_name = "AGNES_API_KEY" if mode == "images_api" else ""
+        process_has_primary_key = active_key_name in os.environ
+        file_has_primary_key = active_key_name in file_values
+        process_api_key = str(
+            os.environ.get(active_key_name, "")
+            if process_has_primary_key
+            else os.environ.get(active_legacy_key_name, "")
+            if active_legacy_key_name
+            else ""
+        ).strip()
+        file_api_key = str(
+            file_values.get(active_key_name, "")
+            if file_has_primary_key
+            else file_values.get(active_legacy_key_name, "")
+            if active_legacy_key_name
+            else ""
+        ).strip()
         api_key_configured = bool(
-            str(os.environ.get("AGNES_API_KEY") or file_values.get("AGNES_API_KEY") or "").strip()
+            process_api_key or file_api_key
         )
         credential_source = (
             "process_environment"
-            if str(os.environ.get("AGNES_API_KEY") or "").strip()
+            if process_api_key
             else "local_env_file"
-            if str(file_values.get("AGNES_API_KEY") or "").strip()
+            if file_api_key
             else "missing"
         )
         active_provider = app.state.image_provider
@@ -734,38 +778,97 @@ def create_app(
             warnings.append("manual_upload_only")
         elif mode == "mock":
             warnings.append("mock_images_are_not_production_assets")
-        elif mode == "agnes" and not active_provider.configured:
-            warnings.append("agnes_api_key_missing")
+        elif mode in {"images_api", "gemini"} and not active_provider.configured:
+            warnings.append("image_api_key_missing")
+        if legacy_agnes:
+            warnings.append("legacy_agnes_settings_mapped_to_images_api")
+        images_endpoint = str(
+            os.environ.get("IMAGE_API_ENDPOINT")
+            or file_values.get("IMAGE_API_ENDPOINT")
+            or os.environ.get("AGNES_IMAGE_ENDPOINT")
+            or file_values.get("AGNES_IMAGE_ENDPOINT")
+            or (DEFAULT_AGNES_ENDPOINT if legacy_agnes else DEFAULT_IMAGES_API_ENDPOINT)
+        )
+        images_model = str(
+            os.environ.get("IMAGE_API_MODEL")
+            or file_values.get("IMAGE_API_MODEL")
+            or os.environ.get("AGNES_IMAGE_MODEL")
+            or file_values.get("AGNES_IMAGE_MODEL")
+            or (DEFAULT_AGNES_MODEL if legacy_agnes else DEFAULT_IMAGES_API_MODEL)
+        )
         return {
-            "schema_version": "image_provider_settings.v0.1",
+            "schema_version": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
             "mode": mode,
             "active_provider": active_provider.provider,
             "active_model": active_provider.model,
             "real_generation_available": (
-                active_provider.provider == "agnes" and active_provider.configured
+                active_provider.provider in {"images_api", "gemini"} and active_provider.configured
             ),
             "api_key_configured": api_key_configured,
             "credential_source": credential_source,
             "managed_by_environment": bool(process_keys),
             "managed_fields": sorted(process_keys),
             "config_file": str(env_path),
-            "agnes": {
-                "endpoint": str(
-                    os.environ.get("AGNES_IMAGE_ENDPOINT")
-                    or file_values.get("AGNES_IMAGE_ENDPOINT")
-                    or DEFAULT_AGNES_ENDPOINT
-                ),
-                "model": str(
-                    os.environ.get("AGNES_IMAGE_MODEL")
-                    or file_values.get("AGNES_IMAGE_MODEL")
-                    or DEFAULT_AGNES_MODEL
-                ),
+            "providers": {
+                "images_api": {
+                    "endpoint": images_endpoint,
+                    "model": images_model,
+                    "protocol": str(
+                        os.environ.get("IMAGE_API_PROTOCOL")
+                        or file_values.get("IMAGE_API_PROTOCOL")
+                        or ("extended" if legacy_agnes else DEFAULT_IMAGES_API_PROTOCOL)
+                    ),
+                    "size": str(
+                        os.environ.get("IMAGE_API_SIZE")
+                        or file_values.get("IMAGE_API_SIZE")
+                        or os.environ.get("AGNES_IMAGE_SIZE")
+                        or file_values.get("AGNES_IMAGE_SIZE")
+                        or ("1K" if legacy_agnes else "auto")
+                    ),
+                    "api_key_configured": bool(
+                        str(
+                            os.environ.get("IMAGE_API_KEY", "")
+                            if "IMAGE_API_KEY" in os.environ
+                            else file_values.get("IMAGE_API_KEY", "")
+                            if "IMAGE_API_KEY" in file_values
+                            else os.environ.get("AGNES_API_KEY", "")
+                            or file_values.get("AGNES_API_KEY", "")
+                        ).strip()
+                    ),
+                },
+                "gemini": {
+                    "endpoint": str(
+                        os.environ.get("GEMINI_IMAGE_ENDPOINT")
+                        or file_values.get("GEMINI_IMAGE_ENDPOINT")
+                        or DEFAULT_GEMINI_IMAGE_ENDPOINT
+                    ),
+                    "model": str(
+                        os.environ.get("GEMINI_IMAGE_MODEL")
+                        or file_values.get("GEMINI_IMAGE_MODEL")
+                        or DEFAULT_GEMINI_IMAGE_MODEL
+                    ),
+                    "protocol": "gemini_interactions",
+                    "size": str(
+                        os.environ.get("GEMINI_IMAGE_SIZE")
+                        or file_values.get("GEMINI_IMAGE_SIZE")
+                        or "1K"
+                    ),
+                    "api_key_configured": bool(
+                        str(
+                            os.environ.get("GEMINI_API_KEY")
+                            or file_values.get("GEMINI_API_KEY")
+                            or ""
+                        ).strip()
+                    ),
+                },
+            },
+            "legacy_agnes": {
+                "detected": legacy_agnes,
                 "size": str(
                     os.environ.get("AGNES_IMAGE_SIZE")
                     or file_values.get("AGNES_IMAGE_SIZE")
                     or "1K"
                 ),
-                "production_approved": False,
             },
             "prompt_strategy": "visual_director_managed",
             "external_connection_tested": False,
@@ -808,10 +911,37 @@ def create_app(
         env_path: Path = app.state.runtime_env_path
         file_values = read_env_file(env_path)
         updates = {"VISUAL_DIRECTOR_IMAGE_PROVIDER": payload.mode}
-        if payload.clear_api_key:
-            updates["AGNES_API_KEY"] = ""
-        elif api_key is not None:
-            updates["AGNES_API_KEY"] = api_key
+        if payload.mode == "images_api":
+            updates.update(
+                {
+                    "IMAGE_API_ENDPOINT": (payload.endpoint or current["providers"]["images_api"]["endpoint"]).strip(),
+                    "IMAGE_API_MODEL": (payload.model or current["providers"]["images_api"]["model"]).strip(),
+                    "IMAGE_API_PROTOCOL": payload.protocol or current["providers"]["images_api"]["protocol"],
+                    "IMAGE_API_SIZE": (payload.size or current["providers"]["images_api"]["size"]).strip(),
+                }
+            )
+            if payload.clear_api_key:
+                updates["IMAGE_API_KEY"] = ""
+            elif api_key is not None:
+                updates["IMAGE_API_KEY"] = api_key
+        elif payload.mode == "gemini":
+            updates.update(
+                {
+                    "GEMINI_IMAGE_ENDPOINT": (payload.endpoint or current["providers"]["gemini"]["endpoint"]).strip(),
+                    "GEMINI_IMAGE_MODEL": (payload.model or current["providers"]["gemini"]["model"]).strip(),
+                    "GEMINI_IMAGE_SIZE": (payload.size or current["providers"]["gemini"]["size"]).strip(),
+                }
+            )
+            if payload.clear_api_key:
+                updates["GEMINI_API_KEY"] = ""
+            elif api_key is not None:
+                updates["GEMINI_API_KEY"] = api_key
+        elif api_key is not None or payload.clear_api_key:
+            return _error(
+                422,
+                "image_api_key_mode_invalid",
+                "人工上传和 Mock 模式不接收 API Key 修改。",
+            )
         prospective_settings = {**file_values, **updates, **os.environ}
         try:
             provider = create_image_provider_from_env(prospective_settings)
@@ -838,6 +968,7 @@ def create_app(
             "planner": "editorial_brief",
             "image_provider": app.state.image_provider.provider,
             "image_provider_configured": app.state.image_provider.configured,
+            "image_provider_settings_schema_version": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
             "image_prompt_version": IMAGE_PROMPT_VERSION,
             "text_planner_provider": app.state.text_planner_provider.provider,
             "text_planner_model": app.state.text_planner_provider.model,
@@ -849,6 +980,13 @@ def create_app(
             "preflight_ruleset_version": PREFLIGHT_RULESET_VERSION,
             "publication_schema_version": PUBLICATION_SCHEMA_VERSION,
             "publication_mode": "local",
+        }
+
+    @app.get("/api/v1/theme-gallery")
+    def theme_gallery() -> dict[str, Any]:
+        return {
+            "schema_version": THEME_GALLERY_SCHEMA_VERSION,
+            "themes": build_theme_gallery(),
         }
 
     @app.get("/api/v1/article-tasks")
@@ -2248,30 +2386,106 @@ def create_app(
         state = repository.get_image_slot_state(task_id, plan_id, image_slot_id)
         if payload.mode == "start" and state["candidates"]:
             return _error(409, "image_already_generated", "该图片槽已有候选，请使用重生成")
-        prompt = build_provider_prompt(image_slot, str(plan.get("article_type", "viewpoint_trend")))
         try:
-            generated = app.state.image_provider.generate(
-                prompt=prompt,
-                aspect_ratio=image_slot["aspect_ratio"],
-                candidate_index=len(state["candidates"]) + 1,
-            )
+            locked_copy: list[str] = []
+            infographic_title: str | None = None
+            infographic_items: list[str] | None = None
             if image_slot["purpose"] == "structured_infographic":
                 task = repository.get_task(task_id)
                 parsed = parse_markdown(task["normalized_markdown"], task["title"])
-                overlay_title, overlay_items = resolve_overlay_copy(parsed, image_slot["fact_bindings"])
-                overlaid = compose_structured_infographic(
-                    generated.content,
-                    title=overlay_title,
-                    items=overlay_items,
+                infographic_title, infographic_items = resolve_overlay_copy(
+                    parsed,
+                    image_slot["fact_bindings"],
                 )
-                generated = replace(
-                    generated,
-                    content=overlaid,
+                locked_copy = [infographic_title, *infographic_items]
+            if payload.mode == "fallback":
+                if image_slot["purpose"] != "structured_infographic":
+                    return _error(422, "fallback_not_supported", "确定性保底图只适用于结构信息图")
+                fallback_size = (1600, 1200) if image_slot["aspect_ratio"] == "4:3" else (1600, 900)
+                fallback_source = BytesIO()
+                Image.new("RGB", fallback_size, "#fffaf0").save(fallback_source, format="PNG")
+                raw_content = fallback_source.getvalue()
+                fallback_content = compose_structured_infographic(
+                    raw_content,
+                    title=infographic_title or "关键步骤",
+                    items=infographic_items or [],
+                )
+                generated = GeneratedImage(
+                    provider="deterministic_fallback",
+                    model="infographic-fallback-v2",
+                    prompt="deterministic locked-copy infographic fallback",
+                    content=fallback_content,
                     content_type="image/png",
+                    width=fallback_size[0],
+                    height=fallback_size[1],
+                    latency_ms=1,
+                    machine_checks={
+                        "file_valid": True,
+                        "ratio_valid": True,
+                        "qr_risk": "none",
+                        "text_risk": "deterministic_locked_copy",
+                        "logo_risk": "none",
+                        "person_risk": "none",
+                        "generation_mode": "deterministic_infographic_fallback",
+                        "locked_copy": locked_copy,
+                        "text_consistency": {
+                            "status": "passed",
+                            "engine": "deterministic_source_copy",
+                            "expected_count": len(locked_copy),
+                            "matched_count": len(locked_copy),
+                            "human_confirmation_required": False,
+                            "reason": None,
+                        },
+                    },
+                )
+            else:
+                prompt = build_provider_prompt(
+                    image_slot,
+                    str(plan.get("article_type", "viewpoint_trend")),
+                    infographic_title=infographic_title,
+                    infographic_items=infographic_items,
+                )
+                generated = app.state.image_provider.generate(
+                    prompt=prompt,
+                    aspect_ratio=image_slot["aspect_ratio"],
+                    candidate_index=len(state["candidates"]) + 1,
+                )
+                raw_content = generated.content
+            if image_slot["purpose"] == "structured_infographic" and payload.mode != "fallback":
+                text_consistency = verify_locked_copy(generated.content, locked_copy)
+                generated = type(generated)(
+                    provider=generated.provider,
+                    model=generated.model,
+                    prompt=generated.prompt,
+                    content=generated.content,
+                    content_type=generated.content_type,
+                    width=generated.width,
+                    height=generated.height,
+                    latency_ms=generated.latency_ms,
                     machine_checks={
                         **generated.machine_checks,
-                        "deterministic_overlay": "applied",
-                        "overlay_item_count": len(overlay_items),
+                        "generation_mode": "model_end_to_end_infographic",
+                        "locked_copy": locked_copy,
+                        "text_consistency": text_consistency.as_dict(),
+                    },
+                )
+            elif image_slot["purpose"] != "structured_infographic":
+                generated = type(generated)(
+                    provider=generated.provider,
+                    model=generated.model,
+                    prompt=generated.prompt,
+                    content=generated.content,
+                    content_type=generated.content_type,
+                    width=generated.width,
+                    height=generated.height,
+                    latency_ms=generated.latency_ms,
+                    machine_checks={
+                        **generated.machine_checks,
+                        "generation_mode": "semantic_illustration",
+                        "text_consistency": {
+                            "status": "not_applicable",
+                            "human_confirmation_required": False,
+                        },
                     },
                 )
         except InfographicOverlayError as error:
@@ -2281,14 +2495,14 @@ def create_app(
                 image_slot_id=image_slot_id,
                 expected_image_revision=payload.expected_image_revision,
                 error={
-                    "code": "infographic_overlay_failed",
+                    "code": "infographic_copy_resolution_failed",
                     "message": str(error),
                     "retryable": False,
                 },
             )
             return _error(
                 422,
-                "infographic_overlay_failed",
+                "infographic_copy_resolution_failed",
                 str(error),
                 details={
                     "image_slot_id": image_slot_id,
@@ -2338,6 +2552,7 @@ def create_app(
             height=generated.height,
             latency_ms=generated.latency_ms,
             machine_checks=generated.machine_checks,
+            raw_content=raw_content,
         )
         return {"image_slot": updated, "provider_mode": app.state.image_provider.provider}
 
@@ -2352,7 +2567,22 @@ def create_app(
         payload: ImageDecisionRequest,
     ) -> dict[str, Any]:
         repository.assert_task_editable(task_id)
-        image_slot_for_plan(task_id, plan_id, image_slot_id)
+        _, image_slot = image_slot_for_plan(task_id, plan_id, image_slot_id)
+        candidate = repository.get_image_candidate(candidate_id)
+        if (
+            candidate["task_id"] != task_id
+            or candidate["plan_id"] != plan_id
+            or candidate["image_slot_id"] != image_slot_id
+        ):
+            return _error(404, "image_candidate_not_found", "图片候选不存在")
+        if image_slot["purpose"] == "structured_infographic":
+            text_check = candidate["machine_checks"].get("text_consistency", {})
+            if text_check.get("status") != "passed" and not payload.text_verified:
+                return _error(
+                    422,
+                    "image_text_verification_required",
+                    "自动 OCR 未能证明图片文字与原文完全一致，请逐项人工核对后再确认。",
+                )
         updated = repository.decide_image_slot(
             task_id=task_id,
             plan_id=plan_id,
@@ -2442,6 +2672,11 @@ def create_app(
     @app.get("/api/v1/image-candidates/{candidate_id}/content")
     def image_candidate_content(candidate_id: str) -> FileResponse:
         path, content_type = repository.get_image_candidate_asset(candidate_id)
+        return FileResponse(path, media_type=content_type, filename=path.name)
+
+    @app.get("/api/v1/image-candidates/{candidate_id}/raw-content")
+    def raw_image_candidate_content(candidate_id: str) -> FileResponse:
+        path, content_type = repository.get_raw_image_candidate_asset(candidate_id)
         return FileResponse(path, media_type=content_type, filename=path.name)
 
     @app.get("/api/v1/render-artifacts/{artifact_id}/content", response_class=HTMLResponse)

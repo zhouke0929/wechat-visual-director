@@ -949,13 +949,24 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         assert len(state["candidates"]) == 1
         first_candidate = state["candidates"][0]
         assert first_candidate["provider"] == "mock"
+        assert first_candidate["raw_content_url"]
         image_response = client.get(first_candidate["content_url"])
         assert image_response.status_code == 200
         assert image_response.headers["content-type"].startswith("image/png")
+        raw_response = client.get(first_candidate["raw_content_url"])
+        assert raw_response.status_code == 200
+        assert raw_response.content == image_response.content
+
+        verification_blocked = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/candidates/{first_candidate["id"]}/accept',
+            json={"expected_image_revision": 2},
+        )
+        assert verification_blocked.status_code == 422
+        assert verification_blocked.json()["error"]["code"] == "image_text_verification_required"
 
         accepted = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/candidates/{first_candidate["id"]}/accept',
-            json={"expected_image_revision": 2},
+            json={"expected_image_revision": 2, "text_verified": True},
         )
         state = accepted.json()["image_slot"]
         assert state["status"] == "accepted"
@@ -976,20 +987,34 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         assert state["selected_candidate_id"] == first_candidate["id"]
         assert state["image_revision"] == 4
 
+        fallback = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/generate',
+            json={"mode": "fallback", "expected_image_revision": 4},
+        )
+        assert fallback.status_code == 200
+        state = fallback.json()["image_slot"]
+        fallback_candidate = state["candidates"][-1]
+        assert fallback_candidate["provider"] == "deterministic_fallback"
+        assert fallback_candidate["machine_checks"]["text_consistency"]["status"] == "passed"
+        assert client.get(fallback_candidate["content_url"]).content != client.get(
+            fallback_candidate["raw_content_url"]
+        ).content
+        assert state["image_revision"] == 5
+
         skipped = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/skip',
-            json={"expected_image_revision": 4},
+            json={"expected_image_revision": 5},
         )
         state = skipped.json()["image_slot"]
         assert state["status"] == "skipped"
         assert state["selected_candidate_id"] is None
-        assert state["image_revision"] == 5
+        assert state["image_revision"] == 6
         skipped_preview = client.get(selected["preview_url"])
         assert f'id="{item["image_slot_id"]}"' not in skipped_preview.text
 
         replaced = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/replace',
-            data={"expected_image_revision": "5"},
+            data={"expected_image_revision": "6"},
             files={"image_file": ("replacement.png", image_response.content, "image/png")},
         )
         assert replaced.status_code == 200
@@ -997,7 +1022,7 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         assert state["status"] == "replaced"
         assert state["decision"] == "replaced"
         assert state["selected_candidate_id"] is not None
-        assert state["image_revision"] == 6
+        assert state["image_revision"] == 7
         replaced_candidate = next(
             candidate for candidate in state["candidates"] if candidate["id"] == state["selected_candidate_id"]
         )
@@ -1099,7 +1124,7 @@ def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: 
         original_bytes = client.get(body_candidate["content_url"]).content
         client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots/{slot["image_slot_id"]}/candidates/{body_candidate["id"]}/accept',
-            json={"expected_image_revision": generated["image_revision"]},
+            json={"expected_image_revision": generated["image_revision"], "text_verified": True},
         )
         workspace = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/cover-candidates'

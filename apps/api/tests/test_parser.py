@@ -27,7 +27,7 @@ article_type: tutorial_steps
     assert classify_article(article) == "tutorial_steps"
 
 
-def test_horizontal_rules_are_not_paragraphs_and_images_are_structured() -> None:
+def test_horizontal_rules_become_thematic_breaks_and_images_are_structured() -> None:
     article = parse_markdown(
         """---
 title: 真实稿件结构
@@ -44,7 +44,8 @@ title: 真实稿件结构
 """
     )
     assert article.image_reference_count == 1
-    assert all(block.content != "---" for block in article.blocks)
+    thematic_break = next(block for block in article.blocks if block.type == "thematic_break")
+    assert thematic_break.content == "---"
     image_block = next(block for block in article.blocks if block.type == "image_reference")
     assert image_block.content == {
         "alt": "章节占位图",

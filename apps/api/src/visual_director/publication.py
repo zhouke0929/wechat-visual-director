@@ -86,6 +86,77 @@ def render_frozen_asset_urls(document: str, token_to_url: dict[str, str]) -> str
     return result
 
 
+def _placeholder_metadata(markup: str) -> tuple[str, str]:
+    frame_match = re.search(r'\bdata-image-frame="([^"]*)"', markup)
+    caption_match = re.search(r'\bdata-image-caption="([^"]*)"', markup)
+    return (
+        frame_match.group(1) if frame_match else "neutral",
+        caption_match.group(1) if caption_match else "",
+    )
+
+
+def _materialized_image_markup(
+    *,
+    element_id: str,
+    anchor_class: str,
+    content_url: str,
+    width: int,
+    height: int,
+    alt: str,
+    frame_variant: str,
+    caption_html: str = "",
+) -> str:
+    if frame_variant == "airy_organic":
+        wrapper_style = (
+            "scroll-margin-top:18px;margin:28px 0;padding:6px 0 13px;"
+            "border-bottom:1px solid #8BB9C0;"
+        )
+        image_style = "border-radius:18px 18px 5px 18px;"
+        caption_style = "margin:8px 0 0;color:#75817C;font-size:11px;line-height:1.55;text-align:center;"
+    elif frame_variant == "warm_storybook":
+        wrapper_style = (
+            "scroll-margin-top:18px;margin:29px 0;padding:8px 8px 14px;"
+            "border-bottom:1px solid #D7B995;background-color:#FFF9EF;box-shadow:7px 7px 0 #FBF2D8;"
+        )
+        image_style = "border-radius:0;"
+        caption_style = "margin:12px 0 0;color:#7B6861;font-size:11px;line-height:1.55;text-align:right;"
+    elif frame_variant == "editorial_masthead":
+        wrapper_style = (
+            "scroll-margin-top:18px;margin:29px 0;padding:0;"
+            "border-top:11px solid #202B33;border-bottom:3px solid #202B33;"
+        )
+        image_style = "border-radius:0;"
+        caption_style = (
+            "margin:8px 0;color:#687370;font-family:Georgia,serif;font-size:9px;"
+            "font-weight:800;letter-spacing:.12em;text-align:right;"
+        )
+    elif frame_variant == "structured_ledger":
+        wrapper_style = (
+            "scroll-margin-top:18px;margin:28px 0;padding:0 0 9px;"
+            "border-top:4px solid #526A43;border-bottom:1px solid #AEBBB5;"
+        )
+        image_style = "border-radius:0;"
+        caption_style = "margin:8px 0 0;color:#687370;font-size:10px;line-height:1.55;text-align:right;"
+    else:
+        wrapper_style = "scroll-margin-top:18px;margin:26px 0;"
+        image_style = "border-radius:12px;"
+        caption_style = "margin:8px 0 0;color:#75817C;font-size:11px;line-height:1.55;text-align:center;"
+    caption = (
+        f'<p data-content-role="image-caption" style="{caption_style}">{caption_html}</p>'
+        if caption_html
+        else ""
+    )
+    return (
+        f'<section id="{html.escape(element_id)}" class="{anchor_class}" '
+        f'data-image-frame="{html.escape(frame_variant)}" style="{wrapper_style}">'
+        f'<img src="{html.escape(content_url)}" width="{width}" height="{height}" '
+        f'loading="eager" decoding="sync" alt="{html.escape(alt)}" '
+        f'style="display:block;width:100%;height:auto;aspect-ratio:{width}/{height};'
+        f'object-fit:cover;margin:0;border:0;{image_style}" />'
+        f"{caption}</section>"
+    )
+
+
 def materialize_preview_document(repository: Any, artifact_id: str) -> str:
     artifact = repository.get_artifact_record(artifact_id)
     document = artifact["html"]
@@ -106,16 +177,19 @@ def materialize_preview_document(repository: Any, artifact_id: str) -> str:
         if selected and state["status"] in {"accepted", "replaced", "generated", "failed"}:
             image_width = int(selected["width"])
             image_height = int(selected["height"])
-            replacement = (
-                f'<section id="{html.escape(slot_id)}" class="image-slot-anchor" '
-                'style="scroll-margin-top:18px;margin:26px 0;">'
-                f'<img src="{html.escape(selected["content_url"])}" width="{image_width}" height="{image_height}" '
-                'loading="eager" decoding="sync" alt="运营已确认的文章配图" '
-                f'style="display:block;width:100%;height:auto;aspect-ratio:{image_width}/{image_height};'
-                'object-fit:cover;margin:0;border:0;border-radius:12px;" />'
-                '</section>'
-            )
-            document = pattern.sub(lambda _: replacement, document)
+            def replace_generated(match: re.Match[str]) -> str:
+                frame_variant, _ = _placeholder_metadata(match.group(0))
+                return _materialized_image_markup(
+                    element_id=slot_id,
+                    anchor_class="image-slot-anchor",
+                    content_url=str(selected["content_url"]),
+                    width=image_width,
+                    height=image_height,
+                    alt="运营已确认的文章配图",
+                    frame_variant=frame_variant,
+                )
+
+            document = pattern.sub(replace_generated, document)
     source_assets = repository.list_preflight_asset_replacements(artifact["task_id"])
     for asset in source_assets:
         if asset["asset_role"] != "body_image" or not asset["block_id"]:
@@ -125,15 +199,18 @@ def materialize_preview_document(repository: Any, artifact_id: str) -> str:
             rf'<section id="{re.escape(block_id)}" class="source-image-anchor".*?</section>',
             re.DOTALL,
         )
-        replacement = (
-            f'<section id="{html.escape(block_id)}" class="source-image-anchor" '
-            'style="scroll-margin-top:18px;margin:24px 0;">'
-            f'<img src="{html.escape(asset["content_url"])}" width="{int(asset["width"])}" '
-            f'height="{int(asset["height"])}" loading="eager" decoding="sync" '
-            'alt="运营替换的原稿图片" '
-            f'style="display:block;width:100%;height:auto;aspect-ratio:{int(asset["width"])}/{int(asset["height"])};'
-            'object-fit:cover;margin:0;border:0;border-radius:12px;" />'
-            '</section>'
-        )
-        document = pattern.sub(lambda _: replacement, document)
+        def replace_source(match: re.Match[str]) -> str:
+            frame_variant, caption_html = _placeholder_metadata(match.group(0))
+            return _materialized_image_markup(
+                element_id=block_id,
+                anchor_class="source-image-anchor",
+                content_url=str(asset["content_url"]),
+                width=int(asset["width"]),
+                height=int(asset["height"]),
+                alt=html.unescape(caption_html) or "运营替换的原稿图片",
+                frame_variant=frame_variant,
+                caption_html=caption_html,
+            )
+
+        document = pattern.sub(replace_source, document)
     return document

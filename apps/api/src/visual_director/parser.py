@@ -110,6 +110,13 @@ def parse_markdown(markdown: str, title_override: str | None = None) -> ParsedAr
 
         if HORIZONTAL_RULE_RE.fullmatch(stripped):
             _flush_paragraph(blocks, paragraph)
+            blocks.append(
+                ContentBlock(
+                    id=f"block-{len(blocks) + 1:03d}",
+                    type="thematic_break",
+                    content="---",
+                )
+            )
             cursor += 1
             continue
 

@@ -31,6 +31,44 @@ export type Task = {
   updated_at: string;
 };
 
+export type ThemeComponentSpecimen = {
+  component_type: string;
+  label: string;
+  variant: string;
+  variant_label: string;
+  status: "wechat_verified" | "wechat_candidate" | string;
+  html: string;
+};
+
+export type ThemeRhythmPrimitive = {
+  role: "section_heading" | "subheading" | "inline_emphasis" | "image_caption" | "divider" | "closing_cta";
+  label: string;
+  html: string;
+  production_status: "production";
+  production_trigger: string;
+};
+
+export type ThemeGalleryItem = {
+  id: "light_reading" | "warm_humanist" | "editorial_contrast" | "structured_grid";
+  label: string;
+  english: string;
+  description: string;
+  ideal_for: string[];
+  personality: string[];
+  palette: string[];
+  status: string;
+  core_component_count: number;
+  configuration: {
+    heading_variant: string;
+    quote_variant: string;
+    list_variant: string;
+    palette: Record<string, string>;
+  };
+  components: ThemeComponentSpecimen[];
+  rhythm_primitives: ThemeRhythmPrimitive[];
+  full_preview_html: string;
+};
+
 export type PublicationMetadata = {
   author: string;
   digest: string;
@@ -159,6 +197,8 @@ export type ImageSlotPlan = {
     composition: "branching" | "layered" | "wide_scene" | "centered";
     style_family: "editorial_paper_cut" | "soft_flat_illustration" | "clean_3d_geometry";
     palette_role: "plan_palette";
+    palette_roles?: string[];
+    tone?: string[];
     negative_space: "none" | "lower_right" | "lower_third";
   };
 };
@@ -167,11 +207,12 @@ export type ImageCandidate = {
   id: string;
   image_slot_id: string;
   candidate_index: number;
-  provider: "mock" | "agnes" | "manual_upload";
+  provider: "mock" | "images_api" | "gemini" | "manual_upload" | "deterministic_fallback" | "agnes";
   model: string;
   provider_prompt: string;
   status: "generated";
   content_url: string;
+  raw_content_url?: string | null;
   width: number;
   height: number;
   latency_ms: number;
@@ -183,6 +224,16 @@ export type ImageCandidate = {
     text_risk: string;
     logo_risk: string;
     person_risk: string;
+    generation_mode?: "semantic_illustration" | "model_end_to_end_infographic";
+    locked_copy?: string[];
+    text_consistency?: {
+      status: "passed" | "failed" | "human_required" | "not_applicable";
+      engine?: string;
+      expected_count?: number;
+      matched_count?: number;
+      human_confirmation_required: boolean;
+      reason?: string | null;
+    };
   };
 };
 
@@ -207,7 +258,7 @@ export type ImageSlotReview = ImageSlotPlan & {
 export type ImageSlotList = {
   task_id: string;
   plan_id: string;
-  provider_mode: "manual" | "mock" | "agnes";
+  provider_mode: ImageProviderMode;
   items: ImageSlotReview[];
 };
 
@@ -236,7 +287,7 @@ export type CoverReuseSource = {
 export type CoverWorkspace = {
   task_id: string;
   plan_id: string;
-  provider_mode: "manual" | "mock" | "agnes";
+  provider_mode: ImageProviderMode;
   cover_brief: {
     title: string;
     article_type: string;
@@ -386,10 +437,10 @@ export type WenyanPublisherStatus = {
   install_command: string;
 };
 
-export type ImageProviderMode = "manual" | "mock" | "agnes";
+export type ImageProviderMode = "manual" | "mock" | "images_api" | "gemini";
 
 export type ImageProviderSettings = {
-  schema_version: "image_provider_settings.v0.1";
+  schema_version: "image_provider_settings.v0.2";
   mode: ImageProviderMode;
   active_provider: ImageProviderMode;
   active_model: string;
@@ -399,12 +450,23 @@ export type ImageProviderSettings = {
   managed_by_environment: boolean;
   managed_fields: string[];
   config_file: string;
-  agnes: {
-    endpoint: string;
-    model: string;
-    size: string;
-    production_approved: false;
+  providers: {
+    images_api: {
+      endpoint: string;
+      model: string;
+      protocol: "openai" | "ark" | "ark_plan" | "extended";
+      size: string;
+      api_key_configured: boolean;
+    };
+    gemini: {
+      endpoint: string;
+      model: string;
+      protocol: "gemini_interactions";
+      size: string;
+      api_key_configured: boolean;
+    };
   };
+  legacy_agnes: { detected: boolean; size: string };
   prompt_strategy: "visual_director_managed";
   external_connection_tested: false;
   restart_required: false;

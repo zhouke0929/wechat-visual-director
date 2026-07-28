@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import base64
 from io import BytesIO
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,8 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from visual_director.image_provider import (
-    AgnesImageProvider,
+    GeminiImageProvider,
+    ImagesApiProvider,
     ImageProviderError,
     build_provider_prompt,
     create_image_provider_from_env,
@@ -62,7 +64,7 @@ def prompt_slot(*, purpose: str, subject: str, item_count: int = 0) -> dict[str,
     }
 
 
-def test_provider_prompt_routes_article_style_without_leaking_raw_copy() -> None:
+def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> None:
     atmosphere = build_provider_prompt(
         prompt_slot(
             purpose="atmosphere",
@@ -71,20 +73,36 @@ def test_provider_prompt_routes_article_style_without_leaking_raw_copy() -> None
         "data_policy",
     )
     assert "扫码" not in atmosphere
-    assert "华东师范大学" not in atmosphere
-    assert "deep navy" in atmosphere
-    assert "full-bleed editorial illustration" in atmosphere
-    assert "no QR code" in atmosphere
-    assert "no text" in atmosphere
+    assert "联系电话" not in atmosphere
+    assert "深海军蓝" in atmosphere
+    assert "语义插画" in atmosphere
+    assert "二维码" in atmosphere
+    assert "不要出现文字" in atmosphere
 
     structured = build_provider_prompt(
-        prompt_slot(purpose="structured_infographic", subject="冲稳保三个梯度", item_count=3),
+        {
+            **prompt_slot(purpose="structured_infographic", subject="三张纸雕路标组成核对路径", item_count=3),
+            "visual_intent": {
+                **prompt_slot(
+                    purpose="structured_infographic",
+                    subject="三张纸雕路标组成核对路径",
+                    item_count=3,
+                )["visual_intent"],
+                "palette_roles": ["warm_ivory", "muted_teal", "coral_accent"],
+                "tone": ["清晰", "可信"],
+            },
+        },
         "tutorial_steps",
+        infographic_title="填报前完成三项核对",
+        infographic_items=["核对成绩和位次", "检查专业限制", "保留复核记录"],
     )
-    assert "exactly 3 large empty rounded content zones" in structured
-    assert "later deterministic 3-node text overlay" in structured
-    assert "forest green" in structured
-    assert "冲稳保" not in structured
+    assert "模型完成最终版式" in structured
+    assert "填报前完成三项核对" in structured
+    assert "核对成绩和位次" in structured
+    assert "逐字完整呈现" in structured
+    assert "低饱和青绿" in structured
+    assert "通用商务PPT" in structured
+    assert "空白底板" not in structured
 
 
 def test_deterministic_infographic_overlay_preserves_canvas_and_adds_copy() -> None:
@@ -99,21 +117,25 @@ def test_deterministic_infographic_overlay_preserves_canvas_and_adds_copy() -> N
     assert overlaid != png_bytes(1152, 864)
 
 
-def test_agnes_provider_builds_official_payload_downloads_and_validates_image() -> None:
+def test_images_api_provider_builds_openai_payload_decodes_and_validates_image() -> None:
     requests: list[Any] = []
     responses = [
         FakeResponse(
-            json.dumps({"created": 1, "data": [{"url": "https://storage.example.com/output.png"}]}).encode(),
+            json.dumps(
+                {
+                    "created": 1,
+                    "data": [{"b64_json": base64.b64encode(png_bytes()).decode("ascii")}],
+                }
+            ).encode(),
             "application/json",
         ),
-        FakeResponse(png_bytes(), "image/png"),
     ]
 
     def urlopen(request: Any, **_: Any) -> FakeResponse:
         requests.append(request)
         return responses.pop(0)
 
-    provider = AgnesImageProvider(
+    provider = ImagesApiProvider(
         api_key="test-key-that-is-long-enough",
         urlopen=urlopen,
         resolve_host=public_resolver,
@@ -127,20 +149,66 @@ def test_agnes_provider_builds_official_payload_downloads_and_validates_image() 
 
     request_payload = json.loads(requests[0].data.decode("utf-8"))
     assert request_payload == {
-        "model": "agnes-image-2.1-flash",
+        "model": "gpt-image-2",
         "prompt": "Abstract editorial art inspired by: three learning paths, clean paper geometry",
-        "size": "1K",
-        "ratio": "4:3",
-        "extra_body": {"response_format": "url"},
+        "size": "1536x1024",
+        "n": 1,
     }
     assert requests[0].headers["Authorization"] == "Bearer test-key-that-is-long-enough"
-    assert generated.provider == "agnes"
+    assert generated.provider == "images_api"
     assert generated.content_type == "image/png"
     assert (generated.width, generated.height) == (1152, 864)
     assert generated.machine_checks["ratio_valid"] is True
 
 
-def test_agnes_provider_retries_one_transient_failure_only() -> None:
+def test_images_api_provider_builds_ark_agent_plan_payload() -> None:
+    requests: list[Any] = []
+    responses = [
+        FakeResponse(
+            json.dumps(
+                {
+                    "created": 1,
+                    "data": [{"b64_json": base64.b64encode(png_bytes(1312, 736)).decode("ascii")}],
+                }
+            ).encode(),
+            "application/json",
+        ),
+    ]
+
+    def urlopen(request: Any, **_: Any) -> FakeResponse:
+        requests.append(request)
+        return responses.pop(0)
+
+    provider = ImagesApiProvider(
+        api_key="agent-plan-test-key",
+        endpoint="https://ark.cn-beijing.volces.com/api/plan/v3/images/generations",
+        model="doubao-seedream-5.0-lite",
+        protocol="ark_plan",
+        size="2K",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=lambda _: None,
+    )
+    generated = provider.generate(
+        prompt="A calm editorial illustration about choosing a learning path",
+        aspect_ratio="16:9",
+        candidate_index=1,
+    )
+
+    assert requests[0].full_url == "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations"
+    assert json.loads(requests[0].data.decode("utf-8")) == {
+        "model": "doubao-seedream-5.0-lite",
+        "prompt": "A calm editorial illustration about choosing a learning path",
+        "size": "2K",
+        "sequential_image_generation": "disabled",
+        "response_format": "url",
+    }
+    assert requests[0].headers["Authorization"] == "Bearer agent-plan-test-key"
+    assert generated.provider == "images_api"
+    assert generated.machine_checks["ratio_valid"] is True
+
+
+def test_images_api_provider_retries_one_transient_failure_only() -> None:
     calls = 0
 
     def urlopen(_: Any, **__: Any) -> FakeResponse:
@@ -155,7 +223,7 @@ def test_agnes_provider_retries_one_transient_failure_only() -> None:
             )
         return FakeResponse(png_bytes(1312, 736), "image/png")
 
-    provider = AgnesImageProvider(
+    provider = ImagesApiProvider(
         api_key="test-key-that-is-long-enough",
         urlopen=urlopen,
         resolve_host=public_resolver,
@@ -170,7 +238,7 @@ def test_agnes_provider_retries_one_transient_failure_only() -> None:
     assert generated.machine_checks["ratio_valid"] is True
 
 
-def test_agnes_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
+def test_images_api_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
     calls = 0
 
     def unauthorized(request: Any, **_: Any) -> FakeResponse:
@@ -178,7 +246,7 @@ def test_agnes_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
         calls += 1
         raise urllib.error.HTTPError(request.full_url, 401, "Unauthorized", None, BytesIO(b"secret upstream body"))
 
-    provider = AgnesImageProvider(
+    provider = ImagesApiProvider(
         api_key="test-key-that-is-long-enough",
         urlopen=unauthorized,
         resolve_host=public_resolver,
@@ -190,7 +258,7 @@ def test_agnes_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
             aspect_ratio="4:3",
             candidate_index=1,
         )
-    assert captured.value.code == "agnes_auth_failed"
+    assert captured.value.code == "image_api_auth_failed"
     assert captured.value.retryable is False
     assert "secret upstream body" not in captured.value.public_message
     assert calls == 1
@@ -206,7 +274,7 @@ def test_agnes_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
 
 
 def test_image_url_validation_allows_proxy_fake_dns_but_keeps_private_ranges_blocked() -> None:
-    proxy_provider = AgnesImageProvider(
+    proxy_provider = ImagesApiProvider(
         api_key="test-key-that-is-long-enough",
         resolve_host=lambda *_args, **_kwargs: [(2, 1, 6, "", ("198.18.0.8", 443))],
     )
@@ -214,17 +282,73 @@ def test_image_url_validation_allows_proxy_fake_dns_but_keeps_private_ranges_blo
 
     with pytest.raises(ImageProviderError) as literal:
         proxy_provider._validate_image_url("https://198.18.0.8/output.png")
-    assert literal.value.code == "agnes_image_url_blocked"
+    assert literal.value.code == "image_api_url_blocked"
 
-    private_provider = AgnesImageProvider(
+    private_provider = ImagesApiProvider(
         api_key="test-key-that-is-long-enough",
         resolve_host=lambda *_args, **_kwargs: [(2, 1, 6, "", ("10.0.0.8", 443))],
     )
     with pytest.raises(ImageProviderError) as private:
         private_provider._validate_image_url("https://storage.example.com/output.png")
-    assert private.value.code == "agnes_image_url_blocked"
+    assert private.value.code == "image_api_url_blocked"
 
-def test_provider_factory_defaults_to_mock_and_allows_manual_or_unconfigured_agnes() -> None:
+
+def test_gemini_provider_builds_native_interactions_payload() -> None:
+    requests: list[Any] = []
+    response = FakeResponse(
+        json.dumps(
+            {"output_image": {"data": base64.b64encode(png_bytes(1312, 736)).decode("ascii")}}
+        ).encode(),
+        "application/json",
+    )
+
+    def urlopen(request: Any, **_: Any) -> FakeResponse:
+        requests.append(request)
+        return response
+
+    provider = GeminiImageProvider(
+        api_key="gemini-test-key",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=lambda _: None,
+    )
+    generated = provider.generate(
+        prompt="A calm editorial illustration with one clear learning path",
+        aspect_ratio="16:9",
+        candidate_index=1,
+    )
+    payload = json.loads(requests[0].data.decode("utf-8"))
+    assert payload == {
+        "model": "gemini-3.1-flash-image",
+        "input": [
+            {
+                "type": "text",
+                "text": "A calm editorial illustration with one clear learning path",
+            }
+        ],
+        "response_format": {
+            "type": "image",
+            "mime_type": "image/png",
+            "aspect_ratio": "16:9",
+            "image_size": "1K",
+        },
+    }
+    assert requests[0].headers["X-goog-api-key"] == "gemini-test-key"
+    assert generated.provider == "gemini"
+    assert generated.machine_checks["ratio_valid"] is True
+
+
+def test_images_api_provider_rejects_local_or_credentialed_endpoints() -> None:
+    for endpoint in (
+        "https://localhost/v1/images/generations",
+        "https://127.0.0.1/v1/images/generations",
+        "https://user:password@example.com/v1/images/generations",
+    ):
+        with pytest.raises(ValueError):
+            ImagesApiProvider(api_key="test-key", endpoint=endpoint)
+
+
+def test_provider_factory_defaults_to_mock_and_supports_images_api_gemini_and_legacy_agnes() -> None:
     assert create_image_provider_from_env({}).provider == "mock"
     manual = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual"})
     assert manual.provider == "manual"
@@ -233,30 +357,44 @@ def test_provider_factory_defaults_to_mock_and_allows_manual_or_unconfigured_agn
         manual.generate(prompt="Abstract geometry", aspect_ratio="4:3", candidate_index=1)
     assert manual_error.value.code == "manual_upload_required"
 
-    provider = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "agnes"})
-    assert provider.provider == "agnes"
+    provider = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "images_api"})
+    assert provider.provider == "images_api"
     assert provider.configured is False
     with pytest.raises(ImageProviderError) as captured:
         provider.generate(prompt="Abstract geometry", aspect_ratio="4:3", candidate_index=1)
-    assert captured.value.code == "agnes_not_configured"
+    assert captured.value.code == "image_api_not_configured"
+
+    gemini = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "gemini"})
+    assert gemini.provider == "gemini"
+    assert gemini.configured is False
+
+    legacy = create_image_provider_from_env(
+        {
+            "VISUAL_DIRECTOR_IMAGE_PROVIDER": "agnes",
+            "AGNES_API_KEY": "legacy-key",
+        }
+    )
+    assert legacy.provider == "images_api"
+    assert legacy.protocol == "extended"
+    assert legacy.model == "agnes-image-2.1-flash"
 
 
-class FailingAgnesProvider:
-    provider = "agnes"
-    model = "agnes-image-2.1-flash"
+class FailingImagesProvider:
+    provider = "images_api"
+    model = "gpt-image-2"
     configured = True
 
     def generate(self, **_: Any) -> Any:
         raise ImageProviderError(
-            "agnes_unavailable",
-            "Agnes 服务暂时不可用，自动重试仍未成功。",
+            "image_api_unavailable",
+            "图片服务暂时不可用，自动重试仍未成功。",
             retryable=True,
             http_status=503,
         )
 
 
 def test_api_persists_sanitized_provider_failure_without_blocking_task(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "failed-provider.db"), image_provider=FailingAgnesProvider())
+    app = create_app(str(tmp_path / "failed-provider.db"), image_provider=FailingImagesProvider())
     with TestClient(app) as client:
         markdown = """# 三步配图失败测试
 
@@ -288,7 +426,7 @@ def test_api_persists_sanitized_provider_failure_without_blocking_task(tmp_path:
             json={"mode": "start", "expected_image_revision": 1},
         )
         assert failed.status_code == 503
-        assert failed.json()["error"]["code"] == "agnes_unavailable"
+        assert failed.json()["error"]["code"] == "image_api_unavailable"
         assert failed.json()["error"]["retryable"] is True
         assert failed.json()["error"]["details"]["image_revision"] == 2
 
@@ -299,8 +437,8 @@ def test_api_persists_sanitized_provider_failure_without_blocking_task(tmp_path:
         assert state["image_revision"] == 2
         assert state["candidates"] == []
         assert state["last_error"] == {
-            "code": "agnes_unavailable",
-            "message": "Agnes 服务暂时不可用，自动重试仍未成功。",
+            "code": "image_api_unavailable",
+            "message": "图片服务暂时不可用，自动重试仍未成功。",
             "retryable": True,
         }
         assert client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]["status"] == "plan_selected"
