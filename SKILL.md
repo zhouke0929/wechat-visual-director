@@ -64,6 +64,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 9. 解析规划结果：
    - `planner_provider=host_agent` 且 `fallback_used=false`：宿主 Brief 已通过校验；
    - `normalization_count>0`：核心做了安全降级或规范化，允许继续评审；
+   - `coverage_added_count>0`：宿主选择低于文章当前的安全组件覆盖目标，核心已从原稿中真实存在且互不相邻的候选结构补齐；这不是模型新增内容，也不代表可以跳过人工评审；
    - `fallback_used=true`：宿主 Brief 未通过，当前方案来自规则兜底；必须如实告知用户，但不需要重复配置模型 Key。
    - `next_action=human_review`：把 `review_url` 告知用户并停止自主操作，等待其在工作台选择方案、组件、图片与封面。
 10. 用户明确要求“重新开一篇/另建版本”时，才在创建命令增加 `--new-task`。

@@ -90,7 +90,7 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
     assert len(plans[0]["slots"]) <= 4
     assert len(plans[1]["slots"]) <= 3
     assert all(plan["schema_version"] == "visual_plan.v0.5" for plan in plans)
-    assert all(plan["component_library_version"] == "wechat_components.v0.9.0" for plan in plans)
+    assert all(plan["component_library_version"] == "wechat_components.v0.11.0" for plan in plans)
     assert all(0 <= len(plan["image_slots"]) <= 3 for plan in plans)
     assert plans[0]["image_slots"]
     assert all(slot["required"] is False for plan in plans for slot in plan["image_slots"])
@@ -247,7 +247,7 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
     rendered = []
     for component_type, candidate_variant in target_variants.items():
         options = component_options(component_type)
-        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E"]
+        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E", "F", "G"]
         candidate = next(option for option in options if option["value"] == candidate_variant)
         assert candidate["status"] == "wechat_verified"
         bindings = {
@@ -263,7 +263,7 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
     assert all("核对信息，再做决定" not in document for document in rendered)
 
 
-def test_first_batch_components_have_four_distinct_system_morphologies() -> None:
+def test_first_batch_components_have_six_distinct_system_morphologies() -> None:
     article = parse_markdown(
         """# 四系统组件测试
 
@@ -294,14 +294,14 @@ def test_first_batch_components_have_four_distinct_system_morphologies() -> None
         "faq_card": {"question": question.id, "answer": answer.id},
         "action_checklist": {"items": refs},
     }
-    systems = ("light_reading", "warm_humanist", "editorial_contrast", "structured_grid")
+    systems = VISUAL_SYSTEM_ORDER
 
     for component_type, content_bindings in bindings.items():
         variants = [visual_system_variant(component_type, system) for system in systems]
-        assert len(set(variants)) == 4
+        assert len(set(variants)) == 6
         options = component_options(component_type)
-        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E"]
-        assert [option["value"] for option in options[:4]] == variants
+        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E", "F", "G"]
+        assert [option["value"] for option in options[:6]] == variants
         documents = [
             render_component(
                 {
@@ -313,7 +313,7 @@ def test_first_batch_components_have_four_distinct_system_morphologies() -> None
             )
             for variant in variants
         ]
-        assert len(set(documents)) == 4
+        assert len(set(documents)) == 6
         assert all("<table" not in document.lower() for document in documents)
         assert all("display:flex" not in document.lower() for document in documents)
         assert all("display:grid" not in document.lower() for document in documents)
@@ -556,7 +556,7 @@ def test_long_article_uses_semantic_components_with_plain_text_buffers() -> None
     assert "<table" not in document.lower()
 
 
-def test_four_themes_cover_all_eight_core_components_without_cross_theme_fallbacks() -> None:
+def test_six_themes_cover_all_eight_core_components_without_cross_theme_fallbacks() -> None:
     for component_type in CORE_THEME_COMPONENTS:
         definition = COMPONENT_CATALOG[component_type]
         system_variants = definition.get("system_variants", {})
@@ -565,7 +565,7 @@ def test_four_themes_cover_all_eight_core_components_without_cross_theme_fallbac
             visual_system_variant(component_type, visual_system)
             for visual_system in VISUAL_SYSTEM_ORDER
         ]
-        assert len(set(variants)) == 4
+        assert len(set(variants)) == 6
         assert definition["fallback_variant"] not in variants
 
 
@@ -609,6 +609,36 @@ def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> 
             "comparison_register",
             "summary_register",
         } for component in theme["components"])
+
+
+def test_new_themes_use_distinct_composition_grammars_not_recolors() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    campus = themes["youth_campus"]
+    future = themes["future_tech"]
+    editorial = themes["editorial_contrast"]
+
+    assert campus["english"] == "CAMPUS BULLETIN"
+    assert future["english"] == "FUTURE EDITION"
+    assert campus["configuration"]["palette"] != future["configuration"]["palette"]
+    assert {
+        component["variant"] for component in campus["components"]
+    }.isdisjoint({
+        component["variant"] for component in future["components"]
+    })
+    assert {
+        component["variant"] for component in future["components"]
+    }.isdisjoint({
+        component["variant"] for component in editorial["components"]
+    })
+    assert "COURSE TICKETS" in campus["full_preview_html"]
+    assert "NOTICEBOARD" in campus["full_preview_html"]
+    assert "FUTURE EDITION" in future["full_preview_html"]
+    assert "要点回收" in future["full_preview_html"]
+    assert "关键要点" in future["full_preview_html"]
+    assert "证据摘录" in future["full_preview_html"]
+    assert "FIELD INDEX" not in future["full_preview_html"]
+    assert "MISSION LOG" not in future["full_preview_html"]
+    assert "border-top:11px solid" not in future["full_preview_html"]
 
 
 def test_renderer_does_not_inject_decorative_semantic_slogans() -> None:
@@ -686,8 +716,10 @@ def test_all_theme_rhythm_primitives_are_wired_to_production_markdown() -> None:
     expected_frames = {
         "light_reading": "airy_organic",
         "warm_humanist": "warm_storybook",
+        "youth_campus": "campus_sticker",
         "editorial_contrast": "editorial_masthead",
         "structured_grid": "structured_ledger",
+        "future_tech": "future_signal",
     }
     rendered: dict[str, str] = {}
     for visual_system in VISUAL_SYSTEM_ORDER:

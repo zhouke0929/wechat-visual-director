@@ -67,6 +67,8 @@ const styleLabels: Record<string, string> = {
   editorial_contrast: "编辑对比",
   warm_humanist: "温暖人文",
   structured_grid: "理性网格",
+  youth_campus: "青春校园",
+  future_tech: "未来科技",
 };
 
 function historyMessage(slot: ComponentSlot): string | null {
@@ -844,7 +846,7 @@ export default function TaskReviewPage() {
                           <h3>局部组件 · 修订 R{String(activePlan.revision).padStart(2, "0")}</h3>
                           <small>
                             {activePlan.component_diagnostics
-                              ? `原稿识别 ${activePlan.component_diagnostics.eligible_component_types.length} 类候选，采用 ${activePlan.component_diagnostics.selected_component_count} 个组件`
+                              ? `原稿识别 ${activePlan.component_diagnostics.eligible_component_types.length} 类候选，安全目标 ${activePlan.component_diagnostics.coverage_target ?? "—"} 个，采用 ${activePlan.component_diagnostics.selected_component_count} 个组件${activePlan.component_diagnostics.coverage_added_count ? `（兜底补齐 ${activePlan.component_diagnostics.coverage_added_count} 个）` : ""}`
                               : "左侧切换，右侧文章内部自动定位"}
                           </small>
                         </div>

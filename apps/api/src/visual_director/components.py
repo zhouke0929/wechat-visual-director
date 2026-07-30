@@ -93,6 +93,16 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:0;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:19px;font-weight:750;line-height:1.72;">{title}</p>'
                 f'</section>'
             )
+        if variant == "campus_notice_prompt":
+            return (
+                f'<section style="margin:32px 0 28px;padding:0 7px 8px 0;">'
+                f'<p style="margin:0 0 -8px 17px;position:relative;"><span style="display:inline-block;padding:5px 13px;background-color:{secondary};color:{ink};font-size:10px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">CAMPUS NOTICE</span></p>'
+                f'<section style="padding:20px 18px 18px;border:2px solid {primary};border-radius:3px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
+                f'<span style="display:inline-block;width:18px;height:18px;margin-right:12px;border:5px solid {accent};border-radius:50%;vertical-align:top;"></span>'
+                f'<strong style="display:inline-block;width:82%;color:{ink};font-size:19px;line-height:1.62;vertical-align:top;">{title}</strong>'
+                f'<p style="height:1px;margin:14px 0 0;background-color:{sky};"><span style="display:block;width:31%;height:4px;background-color:{accent};"></span></p>'
+                f'</section></section>'
+            )
         if variant == "editorial_deck_question":
             return (
                 f'<section style="margin:30px 0 27px;padding:16px 0;border-top:4px solid {ink};border-bottom:1px solid {ink};white-space:normal;">'
@@ -108,6 +118,14 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="padding:17px 15px 16px;">'
                 f'<p style="margin:0;color:{ink};font-size:18px;font-weight:750;line-height:1.65;">{title}</p>'
                 f'</section></section>'
+            )
+        if variant == "holo_query":
+            return (
+                f'<section style="margin:33px 0 31px;padding:19px 19px 18px;border-radius:4px 40px 4px 22px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:6px 6px 0 {sky_pale};">'
+                f'<p style="margin:0 0 10px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.1em;">关键问题</p>'
+                f'<strong style="display:block;color:{ink};font-size:19px;line-height:1.67;">{title}</strong>'
+                f'<p style="margin:12px 0 -23px;text-align:right;"><span style="display:inline-block;width:44px;height:9px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-6deg);"></span></p>'
+                f'</section>'
             )
         return (
             '<section style="margin:28px 0 24px;text-align:center;">'
@@ -169,6 +187,38 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
             return (
                 f'<section style="margin:29px 0;padding:5px 0 1px 11px;border-left:5px solid {secondary};">'
                 f'<p style="margin:-9px 0 18px -16px;"><span style="display:inline-block;width:64px;height:12px;background-color:{accent_pale};transform:rotate(-3deg);"></span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "course_ticket_stack":
+            rows = []
+            for index, item in enumerate(items, 1):
+                item_color = (primary, accent, sky, secondary)[(index - 1) % 4]
+                rows.append(
+                    f'<section style="margin:0 0 13px;padding:0 0 0 9px;border-left:6px dotted {item_color};white-space:normal;">'
+                    f'<span style="display:inline-block;width:54px;padding:13px 4px;background-color:{item_color};color:#FFFFFF;font-family:Georgia,serif;font-size:14px;font-weight:800;text-align:center;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:12px 13px;border-top:1px solid {item_color};border-right:1px dashed {item_color};border-bottom:1px solid {item_color};background-color:{surface};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{_inline(item)}</p>'
+                    f'</section>'
+                )
+            return (
+                f'<section style="margin:29px 0;padding:18px 13px 5px;background-color:{sky_pale};">'
+                f'<p style="margin:-25px 0 16px 8px;"><span style="display:inline-block;padding:4px 11px;background-color:{secondary};color:{ink};font-size:10px;font-weight:800;letter-spacing:.12em;transform:rotate(-2deg);">COURSE TICKETS</span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "spectrum_nodes":
+            rows = []
+            for index, item in enumerate(items, 1):
+                item_color = (primary, accent, sky, secondary)[(index - 1) % 4]
+                item_background = (pale, accent_pale, sky_pale, secondary_pale)[(index - 1) % 4]
+                offset = 0 if index % 2 else 6
+                rows.append(
+                    f'<section style="margin:0 0 14px;padding-left:{offset}%;white-space:normal;">'
+                    f'<span style="display:inline-block;width:18%;padding:7px 0;color:{item_color};font-family:Georgia,serif;font-size:25px;font-weight:800;line-height:1.2;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0;padding:12px 15px;border-radius:{4 if index % 2 else 22}px {22 if index % 2 else 4}px 22px 22px;background-color:{item_background};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{_inline(item)}</p>'
+                    f'</section>'
+                )
+            return (
+                f'<section style="margin:31px 0;padding:5px 0 1px;">'
+                f'<p style="margin:0 0 17px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.12em;">关键要点 <span style="color:{accent};">●</span></p>'
                 f'{"".join(rows)}</section>'
             )
         if variant == "coordinate_index":
@@ -254,13 +304,20 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:8px 0 -21px;text-align:right;"><span style="display:inline-block;width:58px;height:10px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
                 f'</section>'
             )
-        if variant == "evidence_register":
+        if variant == "megaphone_quote":
             return (
-                f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
-                f'<section style="height:8px;background-color:{primary};"><span style="display:inline-block;width:22%;height:8px;background-color:{secondary};"></span></section>'
-                f'<section style="padding:15px 15px 16px;border-left:7px solid {secondary};">'
-                f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.82;">{evidence}</p>'
-                f'</section></section>'
+                f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
+                f'<span style="display:inline-block;width:66px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
+                f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
+            )
+        if variant == "pulse_quote":
+            return (
+                f'<section style="margin:34px 0;padding:3px 0 12px;white-space:normal;">'
+                f'<span style="display:inline-block;width:17%;color:{secondary};font-family:Georgia,serif;font-size:64px;font-weight:800;line-height:.72;vertical-align:top;">“</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:83%;padding:4px 0 12px 15px;border-bottom:5px solid {accent_pale};vertical-align:top;">'
+                f'<p style="margin:0 0 8px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.08em;">证据摘录</p>'
+                f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.86;">{evidence}</p></section></section>'
             )
         if variant == "editorial_margin_quote":
             return (
@@ -309,6 +366,17 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:0 0 13px 15px;border-bottom:4px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.76;vertical-align:top;">{after}</p></section>'
                 f'</section>'
             )
+        if variant == "split_page_flip":
+            return (
+                f'<section style="margin:31px 0;padding:10px 8px 16px;background-color:{sky_pale};white-space:normal;">'
+                f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border:1px dashed {accent};background-color:{surface};transform:rotate(-1deg);vertical-align:top;">'
+                f'<span style="display:block;margin-bottom:10px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.14em;">BEFORE PAGE</span>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.77;">{before}</p></section>'
+                f'<span style="display:inline-block;width:6%;padding-top:53px;color:{primary};font-size:18px;text-align:center;vertical-align:top;">›</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:15px;padding:15px 13px;border-bottom:5px solid {primary};background-color:{secondary_pale};transform:rotate(1deg);vertical-align:top;">'
+                f'<span style="display:block;margin-bottom:10px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">NEXT PAGE</span>'
+                f'<p style="margin:0;color:{ink};font-size:14px;font-weight:650;line-height:1.77;">{after}</p></section></section>'
+            )
         if variant == "airy_before_after":
             return (
                 f'<section style="margin:28px 0;padding:9px 0;border-top:1px solid {sky};border-bottom:1px solid {sky};white-space:normal;">'
@@ -340,6 +408,14 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="box-sizing:border-box;display:inline-block;width:57%;min-height:158px;margin-top:18px;padding:16px 0 19px 17px;background-color:{pale};vertical-align:top;">'
                 f'<span style="display:block;margin-bottom:13px;color:{primary};font-family:Georgia,serif;font-size:27px;font-weight:800;line-height:1;">AFTER</span>'
                 f'<p style="margin:0;color:{ink};font-size:15px;font-weight:700;line-height:1.78;">{after}</p></section></section>'
+            )
+        if variant == "vector_shift":
+            return (
+                f'<section style="margin:34px 0;padding:4px 0 8px;">'
+                f'<section style="width:80%;padding:15px 17px;border-radius:4px 28px 28px 18px;background-color:{accent_pale};"><span style="color:{accent};font-size:10px;font-weight:800;">变化前</span><p style="margin:7px 0 0;color:{ink};font-size:14px;line-height:1.77;">{before}</p></section>'
+                f'<p style="height:29px;margin:0 0 0 47%;border-left:2px dotted {secondary};"><span style="display:inline-block;width:8px;height:8px;margin:20px 0 0 -5px;border-radius:50%;background-color:{secondary};"></span></p>'
+                f'<section style="width:80%;margin-left:12%;padding:15px 17px;border-radius:28px 4px 18px 28px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:5px 5px 0 {sky_pale};"><span style="color:{primary};font-size:10px;font-weight:800;">变化后</span><p style="margin:7px 0 0;color:{ink};font-size:14px;font-weight:650;line-height:1.77;">{after}</p></section>'
+                f'</section>'
             )
         if variant == "change_register":
             return (
@@ -375,6 +451,35 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="margin:27px 0;padding:16px 13px 8px;border-top:1px solid {sky};border-bottom:1px solid {sky};">'
                 f'{"".join(rows)}</section>'
             )
+        if variant == "club_route_map":
+            rows = []
+            for index, item in enumerate(items, 1):
+                node_color = (primary, accent, sky, secondary)[(index - 1) % 4]
+                rows.append(
+                    f'<section style="margin:0 0 11px;white-space:normal;">'
+                    f'<span style="display:inline-block;width:20%;padding:10px 5px;background-color:{node_color};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.08em;text-align:center;transform:rotate({-2 if index % 2 else 2}deg);vertical-align:middle;">STOP {index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section style="margin:29px 0;padding:17px 14px 8px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
+                f'<p style="margin:-25px 0 18px;"><span style="display:inline-block;padding:4px 11px;background-color:{secondary};color:{ink};font-size:9px;font-weight:800;letter-spacing:.14em;">CLUB ROUTE MAP</span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "campus_badge_route":
+            rows = []
+            for index, item in enumerate(items, 1):
+                node_color = (primary, accent, sky, secondary)[(index - 1) % 4]
+                text_color = ink if node_color == secondary else "#FFFFFF"
+                rows.append(
+                    f'<section style="margin:0 0 12px;white-space:normal;">'
+                    f'<span style="display:inline-block;width:38px;height:38px;border:3px solid {surface};border-radius:12px 12px 4px 12px;background-color:{node_color};box-shadow:3px 3px 0 {secondary_pale};color:{text_color};font-family:Georgia,serif;font-size:11px;font-weight:800;line-height:38px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:middle;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:81%;margin:0 0 0 11px;padding:11px 14px;border-bottom:2px solid {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p>'
+                    f'</section>'
+                )
+            return (
+                f'<section style="margin:28px 0;padding:16px 13px 8px;border:2px dashed {sky};border-radius:19px 6px 19px 19px;background-color:{surface};">'
+                f'{"".join(rows)}</section>'
+            )
         if variant == "process_register":
             rows = []
             for index, item in enumerate(items, 1):
@@ -388,6 +493,39 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
             return (
                 f'<section style="margin:27px 0;border:1px solid {primary};background-color:{surface};">'
                 f'<p style="height:8px;margin:0;background-color:{primary};"><span style="display:inline-block;width:24%;height:8px;background-color:{secondary};"></span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "orbit_route":
+            rows = []
+            for index, item in enumerate(items, 1):
+                item_color = (primary, secondary, accent, sky)[(index - 1) % 4]
+                item_pale = (pale, secondary_pale, accent_pale, sky_pale)[(index - 1) % 4]
+                offset = 0 if index % 2 else 7
+                radius = "4px 24px 24px 16px" if index % 2 else "24px 4px 16px 24px"
+                rows.append(
+                    f'<section style="margin:0 0 13px;padding-left:{offset}%;white-space:normal;">'
+                    f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;vertical-align:middle;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section style="margin:31px 0;padding:8px 0 3px;">'
+                f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径'
+                f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "signal_route":
+            rows = []
+            for index, item in enumerate(items, 1):
+                rows.append(
+                    f'<section style="border-top:1px solid #B9D8D2;white-space:normal;">'
+                    f'<span style="display:inline-block;width:50px;padding:13px 7px;color:{accent};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">S{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:12px 10px;border-left:2px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:top;">{_inline(item)}</p>'
+                    f'<span style="display:inline-block;width:13%;padding:14px 5px;color:{primary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">●</span>'
+                    f'</section>'
+                )
+            return (
+                f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
+                f'<p style="height:6px;margin:0;background-color:{primary};"><span style="display:block;width:28%;height:6px;background-color:{secondary};"></span></p>'
                 f'{"".join(rows)}</section>'
             )
         if variant == "folded_stair":
@@ -453,6 +591,13 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.8;">{definition}</p></section>'
                 f'</section>'
             )
+        if variant == "notebook_term":
+            return (
+                f'<section style="margin:31px 0;padding:17px 17px 18px 27px;border-left:10px dotted {sky};background-color:{surface};box-shadow:6px 7px 0 {secondary_pale};">'
+                f'<p style="margin:-5px 0 11px;"><span style="display:inline-block;padding:4px 10px;background-color:{accent};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.13em;transform:rotate(-2deg);">NOTEBOOK TERM</span></p>'
+                f'<p style="margin:0 0 10px;color:{primary};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;padding-top:10px;border-top:1px solid {sky};color:{ink};font-size:15px;line-height:1.86;">{definition}</p></section>'
+            )
         if variant == "airy_definition":
             return (
                 f'<section style="margin:28px 0;padding:19px 18px;border:1px solid {sky};border-radius:20px 20px 6px 20px;background-color:{sky_pale};box-shadow:5px 5px 0 {secondary_pale};">'
@@ -474,6 +619,14 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="box-sizing:border-box;display:inline-block;width:39%;margin:0;padding:15px 12px 18px 0;color:{accent};font-family:Georgia,\'Noto Serif SC\',serif;font-size:23px;font-weight:800;line-height:1.42;vertical-align:top;">{title}</p>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:61%;margin:0;padding:15px 0 18px 17px;border-left:6px solid {accent};color:{ink};font-size:15px;line-height:1.84;vertical-align:top;">{definition}</p></section>'
             )
+        if variant == "hologram_term":
+            return (
+                f'<section style="margin:33px 0;padding:19px 18px 18px;border-radius:4px 44px 4px 22px;background:linear-gradient(135deg,{surface},{secondary_pale});box-shadow:6px 6px 0 {sky_pale};">'
+                f'<p style="margin:0 0 11px;"><span style="display:inline-block;padding:4px 10px;border-radius:12px 3px 12px 3px;background-color:{primary};color:#FFFFFF;font-size:10px;font-weight:800;">概念</span></p>'
+                f'<p style="margin:0 0 9px;color:{ink};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;padding-top:11px;border-top:1px solid {secondary};color:{ink};font-size:15px;line-height:1.85;">{definition}</p>'
+                f'<p style="margin:9px 0 -23px;text-align:right;"><span style="display:inline-block;width:38px;height:8px;border-radius:14px 3px 14px 3px;background-color:{accent};transform:rotate(-6deg);"></span></p></section>'
+            )
         if variant == "definition_register":
             return (
                 f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
@@ -494,6 +647,36 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         body = _inline(_one(parsed, bindings, "body"))
         if variant == "plain_case":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{surface};"><strong style="color:{primary};">案例｜{title}</strong><p style="margin:8px 0 0;color:{ink};font-size:15px;line-height:1.8;">{body}</p></section>'
+        if variant == "polaroid_story":
+            return (
+                f'<section style="margin:33px 8px 32px;padding:15px 15px 21px;background-color:{surface};box-shadow:8px 9px 0 {sky_pale};transform:rotate(-1deg);">'
+                f'<p style="width:72px;height:12px;margin:-22px auto 15px;background-color:{secondary};opacity:.85;"></p>'
+                f'<p style="margin:0 0 12px;padding-bottom:11px;border-bottom:2px dashed {sky};color:{primary};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:15px;line-height:1.86;">{body}</p>'
+                f'<p style="margin:14px 0 -13px;text-align:right;"><span style="color:{accent};font-size:9px;font-weight:800;letter-spacing:.15em;">CAMPUS STORY</span></p></section>'
+            )
+        if variant == "campus_story_card":
+            return (
+                f'<section style="margin:31px 0;padding:7px 0 16px;border-bottom:2px solid {sky};">'
+                f'<p style="width:68px;height:12px;margin:0 0 -5px 17px;background-color:{secondary};transform:rotate(-4deg);"></p>'
+                f'<section style="padding:18px 17px;border:2px solid {primary};border-radius:5px 20px 20px 20px;background-color:{surface};box-shadow:6px 6px 0 {accent_pale};">'
+                f'<p style="margin:0 0 10px;color:{primary};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;padding-top:11px;border-top:2px dashed {sky};color:{ink};font-size:15px;line-height:1.85;">{body}</p></section></section>'
+            )
+        if variant == "prototype_file":
+            return (
+                f'<section style="margin:33px 0 31px;padding:18px 18px 19px;border-radius:4px 36px 4px 24px;background:linear-gradient(140deg,{pale},{secondary_pale});box-shadow:7px 7px 0 {sky_pale};">'
+                f'<p style="margin:-24px 0 14px;"><span style="display:inline-block;padding:5px 11px;border-radius:13px 3px 13px 3px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;transform:rotate(-2deg);">案例观察</span></p>'
+                f'<p style="margin:0 0 10px;color:{ink};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;padding-top:11px;border-top:1px solid {sky};color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
+            )
+        if variant == "signal_case_file":
+            return (
+                f'<section style="margin:29px 0;border:1px solid {primary};background-color:{surface};">'
+                f'<p style="height:6px;margin:0;background-color:{secondary};"><span style="display:block;width:27%;height:6px;background-color:{accent};"></span></p>'
+                f'<section style="padding:15px 16px;border-bottom:1px solid #B9D8D2;"><strong style="color:{primary};font-size:17px;line-height:1.55;">{title}</strong></section>'
+                f'<p style="margin:0;padding:15px 16px 17px;border-left:7px solid {secondary};color:{ink};font-size:15px;line-height:1.84;">{body}</p></section>'
+            )
         return (
             f'<section style="margin:30px 0;padding:18px;border:1px solid {primary};border-radius:3px 18px 18px 18px;background-color:{surface};box-shadow:6px 6px 0 {secondary_pale};">'
             f'<p style="margin:0 0 9px;color:{primary};font-family:Georgia,\'Noto Serif SC\',serif;font-size:18px;font-weight:750;line-height:1.55;">{title}</p>'
@@ -518,6 +701,12 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:15px 0 15px 17px;color:{ink};font-size:15px;line-height:1.82;vertical-align:top;">{body}</p>'
                 f'</section>'
             )
+        if variant == "sticky_alert":
+            return (
+                f'<section style="margin:32px 5px;padding:19px 17px 17px;background-color:{secondary_pale};box-shadow:7px 7px 0 {accent_pale};transform:rotate(-1deg);">'
+                f'<p style="margin:-27px 0 13px;"><span style="display:inline-block;padding:4px 10px;background-color:{accent};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.13em;">PINNED</span></p>'
+                f'<p style="margin:0;color:{ink};font-size:15px;font-weight:650;line-height:1.82;">{body}</p></section>'
+            )
         if variant == "soft_caution":
             return (
                 f'<section style="margin:27px 0;padding:15px 17px;border:1px solid {sky};border-radius:18px 18px 5px 18px;background-color:{sky_pale};">'
@@ -535,6 +724,13 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="margin:31px 0;padding:0;border-top:2px solid {ink};border-bottom:9px solid {ink};white-space:normal;">'
                 f'<span style="display:inline-block;width:21%;padding:18px 6px;background-color:{accent};color:#FFFFFF;font-family:Georgia,serif;font-size:38px;font-weight:800;line-height:1;text-align:center;vertical-align:top;">!</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:16px 0 18px 17px;color:{ink};font-size:15px;font-weight:750;line-height:1.82;vertical-align:top;">{body}</p></section>'
+            )
+        if variant == "anomaly_alert":
+            return (
+                f'<section style="margin:33px 0;padding:16px 17px;border-left:6px solid {accent};border-radius:3px 24px 24px 3px;background-color:{accent_pale};white-space:normal;">'
+                f'<span style="display:inline-block;width:18%;color:{accent};font-family:Georgia,serif;font-size:28px;font-weight:800;line-height:1;vertical-align:top;">!</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:82%;vertical-align:top;"><p style="margin:0 0 6px;color:{accent};font-size:10px;font-weight:800;">需要注意</p>'
+                f'<p style="margin:0;color:{ink};font-size:15px;line-height:1.82;">{body}</p></section></section>'
             )
         if variant == "risk_register":
             return (
@@ -581,6 +777,20 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:0;padding:7px 0;color:#71807A;font-family:Georgia,serif;font-size:8px;font-weight:800;letter-spacing:.16em;">AUDIT TRACK / HUMAN CHECK</p>'
                 f'{"".join(rows)}</section>'
             )
+        if variant == "punch_card_list":
+            rows = []
+            for index, item in enumerate(items, 1):
+                item_color = (primary, accent, sky, secondary)[(index - 1) % 4]
+                rows.append(
+                    f'<section style="margin:0 0 10px;padding:0 0 0 8px;border-left:5px dotted {item_color};white-space:normal;">'
+                    f'<span style="display:inline-block;width:44px;padding:11px 4px;background-color:{item_color};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:81%;margin:0;padding:10px 12px;border-top:1px dashed {item_color};border-bottom:1px dashed {item_color};color:{ink};font-size:14px;line-height:1.72;vertical-align:top;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section style="margin:29px 0;padding:16px 12px 6px;background-color:{secondary_pale};">'
+                f'<p style="margin:-23px 0 16px 9px;"><span style="display:inline-block;padding:4px 10px;background-color:{primary};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">PUNCH LIST</span></p>'
+                f'{"".join(rows)}</section>'
+            )
         if variant == "soft_tick_list":
             rows = []
             for item in items:
@@ -615,6 +825,21 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
             return (
                 f'<section style="margin:29px 0;padding:0;border-top:10px solid {ink};border-bottom:3px solid {ink};">'
                 f'<p style="width:35%;height:7px;margin:0 0 5px;background-color:{accent};"></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "mission_nodes":
+            rows = []
+            for index, item in enumerate(items, 1):
+                item_color = (primary, secondary, accent, sky)[(index - 1) % 4]
+                item_background = (pale, secondary_pale, accent_pale, sky_pale)[(index - 1) % 4]
+                rows.append(
+                    f'<section style="margin:0 0 11px;white-space:normal;">'
+                    f'<span style="display:inline-block;width:17%;padding:11px 0;color:{item_color};font-family:Georgia,serif;font-size:16px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0;padding:11px 14px;border-radius:4px 18px 18px 18px;background-color:{item_background};color:{ink};font-size:14px;line-height:1.72;vertical-align:top;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section style="margin:31px 0;padding:5px 0 1px;">'
+                f'<p style="margin:0 0 16px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.1em;">行动清单 <span style="color:{secondary};">→</span></p>'
                 f'{"".join(rows)}</section>'
             )
         if variant == "audit_matrix":
@@ -655,12 +880,41 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:0 0 12px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:750;line-height:1.68;">来信：{question}</p>'
                 f'<p style="margin:0;padding-top:12px;border-top:1px dashed #D7C3A6;color:#4A514D;font-size:15px;line-height:1.84;">回信：{answer}</p></section>'
             )
+        if variant == "campus_dialogue":
+            return (
+                f'<section style="margin:31px 0;padding:16px 13px 10px;background-color:{sky_pale};">'
+                f'<p style="margin:-24px 0 15px 8px;"><span style="display:inline-block;padding:4px 10px;background-color:{secondary};color:{ink};font-size:9px;font-weight:800;letter-spacing:.13em;transform:rotate(-2deg);">CAMPUS TALK</span></p>'
+                f'<section style="width:84%;padding:13px 15px;border-left:5px solid {accent};background-color:{surface};box-shadow:5px 5px 0 {secondary_pale};"><p style="margin:0;color:{ink};font-size:15px;font-weight:750;line-height:1.72;">{question}</p></section>'
+                f'<section style="width:84%;margin:13px 0 0 8%;padding:13px 15px;border-bottom:4px solid {primary};background-color:{surface};"><p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{answer}</p></section></section>'
+            )
+        if variant == "campus_qa_cards":
+            return (
+                f'<section style="margin:29px 0;padding:5px 0 7px;">'
+                f'<section style="width:86%;padding:14px 16px;border:2px solid {primary};border-radius:18px 18px 18px 5px;background-color:{surface};box-shadow:5px 5px 0 {secondary_pale};">'
+                f'<p style="margin:0;color:{primary};font-size:16px;font-weight:800;line-height:1.7;"><span style="margin-right:8px;color:{accent};font-family:Georgia,serif;">Q</span>{question}</p></section>'
+                f'<section style="width:84%;margin:12px 0 0 8%;padding:14px 16px;border-radius:18px 5px 18px 18px;background-color:{sky_pale};">'
+                f'<p style="margin:0;color:{ink};font-size:15px;line-height:1.82;"><strong style="margin-right:8px;color:{sky};font-family:Georgia,serif;">A</strong>{answer}</p></section></section>'
+            )
         if variant == "qa_register":
             return (
                 f'<section style="margin:27px 0;border:1px solid {primary};background-color:{surface};">'
                 f'<p style="height:8px;margin:0;background-color:{primary};"><span style="display:inline-block;width:24%;height:8px;background-color:{secondary};"></span></p>'
                 f'<section style="padding:13px 14px;border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="display:inline-block;width:35px;color:{accent};font-family:Georgia,serif;font-size:18px;font-weight:750;vertical-align:top;">Q</span><p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;color:{ink};font-size:15px;font-weight:750;line-height:1.68;vertical-align:top;">{question}</p></section>'
                 f'<section style="padding:13px 14px 15px;white-space:normal;"><span style="display:inline-block;width:35px;color:{primary};font-family:Georgia,serif;font-size:18px;font-weight:750;vertical-align:top;">A</span><p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;color:{ink};font-size:14px;line-height:1.82;vertical-align:top;">{answer}</p></section></section>'
+            )
+        if variant == "console_dialogue":
+            return (
+                f'<section style="margin:32px 0;padding:18px 17px;border-radius:4px 34px 4px 24px;background:linear-gradient(135deg,{pale},{secondary_pale});">'
+                f'<p style="margin:0 0 13px;color:{accent};font-size:10px;font-weight:800;">问答</p>'
+                f'<p style="margin:0 0 13px;padding:0 0 11px;border-bottom:1px solid {sky};color:{ink};font-size:15px;font-weight:750;line-height:1.72;"><span style="margin-right:9px;color:{accent};font-family:Georgia,serif;font-size:20px;">Q</span>{question}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;"><span style="margin-right:9px;color:{primary};font-family:Georgia,serif;font-size:17px;font-weight:800;">A</span>{answer}</p></section>'
+            )
+        if variant == "signal_qa":
+            return (
+                f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
+                f'<p style="height:6px;margin:0;background-color:{primary};"><span style="display:block;width:29%;height:6px;background-color:{accent};"></span></p>'
+                f'<section style="padding:13px 15px;border-bottom:1px solid #B9D8D2;white-space:normal;"><span style="display:inline-block;width:42px;color:{accent};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">ASK</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;color:{ink};font-size:15px;font-weight:750;line-height:1.7;vertical-align:top;">{question}</p></section>'
+                f'<section style="padding:14px 15px 16px;white-space:normal;"><span style="display:inline-block;width:42px;color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">RSP</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:12px;border-left:2px solid {secondary};color:{ink};font-size:14px;line-height:1.82;vertical-align:top;">{answer}</p></section></section>'
             )
         return (
             f'<section style="margin:28px 0;padding:17px 0 15px;border-top:4px solid {ink};border-bottom:1px solid {ink};background-color:#FBF6EC;">'
@@ -700,6 +954,14 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{right}</p></section>'
                 f'</section>'
             )
+        if variant == "debate_cards":
+            return (
+                f'<section style="margin:31px 0;padding:15px 10px;background-color:{secondary_pale};white-space:normal;">'
+                f'<p style="margin:-23px 0 15px;text-align:center;"><span style="display:inline-block;padding:4px 12px;background-color:{primary};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.14em;">CAMPUS DEBATE</span></p>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:46%;padding:15px 13px;border-top:5px solid {accent};background-color:{surface};transform:rotate(-1deg);vertical-align:top;"><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{left}</p></section>'
+                f'<span style="display:inline-block;width:8%;padding-top:45px;color:{sky};font-family:Georgia,serif;font-size:14px;font-weight:800;text-align:center;vertical-align:top;">VS</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:46%;margin-top:17px;padding:15px 13px;border-bottom:5px solid {primary};background-color:{surface};transform:rotate(1deg);vertical-align:top;"><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{right}</p></section></section>'
+            )
         if variant == "soft_split":
             return (
                 f'<section style="margin:28px 0;white-space:normal;">'
@@ -725,6 +987,13 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="box-sizing:border-box;display:inline-block;width:58%;min-height:164px;margin-top:18px;padding:15px 0 18px 17px;background-color:{pale};vertical-align:top;">'
                 f'<span style="display:block;margin-bottom:12px;color:{primary};font-family:Georgia,serif;font-size:22px;font-weight:800;line-height:1;">B / COUNTERPOINT</span>'
                 f'<p style="margin:0;color:{ink};font-size:14px;font-weight:700;line-height:1.8;">{right}</p></section></section>'
+            )
+        if variant == "dual_channel":
+            return (
+                f'<section style="margin:33px 0;padding:6px 0 12px;white-space:normal;">'
+                f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:16px 14px;border-radius:4px 28px 4px 20px;background-color:{pale};vertical-align:top;"><span style="display:block;margin-bottom:9px;color:{primary};font-size:10px;font-weight:800;">A</span><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{left}</p></section>'
+                f'<span style="display:inline-block;width:6%;padding-top:55px;color:{secondary};font-size:18px;font-weight:800;text-align:center;vertical-align:top;">×</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:22px;padding:16px 14px;border-radius:28px 4px 20px 4px;background-color:{accent_pale};vertical-align:top;"><span style="display:block;margin-bottom:9px;color:{accent};font-size:10px;font-weight:800;">B</span><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{right}</p></section></section>'
             )
         if variant == "comparison_register":
             return (
@@ -766,6 +1035,13 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="padding:9px 0 5px;white-space:normal;"><span style="display:inline-block;width:30%;color:{primary};font-family:Georgia,serif;font-size:20px;font-weight:800;vertical-align:top;">SUM</span><span style="display:inline-block;width:70%;padding-top:7px;color:#71807A;font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.16em;text-align:right;vertical-align:top;">EXECUTIVE SUMMARY</span></section>'
                 f'{"".join(register_rows)}</section>'
             )
+        if variant == "noticeboard_takeaway":
+            return (
+                f'<section style="margin:32px 0;padding:20px 18px 16px;border:2px dashed {primary};background-color:{secondary_pale};box-shadow:7px 7px 0 {sky_pale};">'
+                f'<p style="margin:-29px 0 17px;"><span style="display:inline-block;padding:5px 12px;background-color:{accent};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">NOTICEBOARD</span></p>'
+                f'{"".join(rows)}'
+                f'<p style="margin:14px 0 0;text-align:right;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background-color:{primary};"></span><span style="display:inline-block;width:36px;height:2px;margin:0 0 4px 8px;background-color:{sky};"></span></p></section>'
+            )
         if variant == "airy_takeaway":
             return (
                 f'<section style="margin:30px 0;padding:18px 19px;border:1px solid {sky};border-radius:18px 18px 5px 18px;background-color:{sky_pale};box-shadow:5px 5px 0 {secondary_pale};">'
@@ -790,6 +1066,19 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="margin:33px 0;padding:0;border-top:11px solid {ink};border-bottom:3px solid {ink};">'
                 f'<p style="width:32%;height:7px;margin:0 0 5px;background-color:{accent};"></p>'
                 f'{"".join(editorial_rows)}</section>'
+            )
+        if variant == "signal_core":
+            core_rows = []
+            for index, item in enumerate(items, 1):
+                core_rows.append(
+                    f'<section style="padding:9px 0;white-space:normal;"><span style="display:inline-block;width:14%;color:{accent if index % 2 else primary};font-family:Georgia,serif;font-size:15px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section style="margin:34px 0;padding:19px 18px 14px;border-radius:4px 42px 4px 26px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:7px 7px 0 {sky_pale};">'
+                f'<p style="margin:0 0 10px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.08em;">要点回收</p>'
+                f'{"".join(core_rows)}'
+                f'<p style="margin:8px 0 -20px;text-align:right;"><span style="display:inline-block;width:52px;height:9px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{accent};"></span></p></section>'
             )
         if variant == "summary_register":
             register_rows = []

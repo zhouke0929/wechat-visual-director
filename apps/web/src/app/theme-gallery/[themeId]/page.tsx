@@ -104,7 +104,7 @@ export default function ThemeDetailPage() {
   return (
     <main className={styles.page} style={{ "--theme-primary": theme.palette[0], "--theme-accent": theme.palette[2] } as React.CSSProperties}>
       <header className={styles.topbar}>
-        <Link href="/theme-gallery">← 四主题总览</Link>
+        <Link href="/theme-gallery">← 六主题总览</Link>
         <div>
           <strong>{theme.label}</strong>
           <span>{theme.english}</span>

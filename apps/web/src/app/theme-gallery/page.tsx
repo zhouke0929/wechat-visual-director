@@ -30,11 +30,11 @@ export default function ThemeGalleryPage() {
         <h1>统一设计基因，<br />拒绝统一卡片形状。</h1>
         <div className={styles.heroFoot}>
           <p>
-            第一轮先重做轻盈阅读与理性网格：每套包含六类节奏部件和八类语义组件。
-            温暖人文与编辑对比暂时保留旧版，等待首轮方法通过后再升级。
+            六套主题已经进入同一套正式渲染链路：每套包含六类节奏部件和八类语义组件。
+            青春校园强调参与感，未来科技强调浅色信号秩序；两者都不是简单换色。
           </p>
           <dl>
-            <div><dt>重做主题</dt><dd>02</dd></div>
+            <div><dt>正式主题</dt><dd>06</dd></div>
             <div><dt>单套部件</dt><dd>14</dd></div>
             <div><dt>目标主题</dt><dd>10</dd></div>
           </dl>
@@ -44,7 +44,7 @@ export default function ThemeGalleryPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
       {!error && themes.length === 0 ? <p className={styles.loading}>正在装订主题样本……</p> : null}
 
-      <section className={styles.themeGrid} aria-label="现有四套视觉主题">
+      <section className={styles.themeGrid} aria-label="现有六套视觉主题">
         {themes.map((theme, index) => (
           <Link className={styles.themeCard} href={`/theme-gallery/${theme.id}`} key={theme.id}>
             <div className={styles.cardTop}>

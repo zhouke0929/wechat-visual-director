@@ -9,7 +9,7 @@
 ## 当前可用
 
 - 解析 Markdown，并检查标题层级、数据来源与高风险结构；
-- 支持 4 类文章、4 套视觉系统和 6 类语义组件；
+- 支持 4 类文章、6 套视觉系统和 12 类语义组件；
 - 生成结构不同的双方案，支持组件局部换型和撤回；
 - 在 390px 移动端画布中实时预览；
 - 规划封面与正文图片槽，支持 Mock 候选和人工上传；
@@ -140,7 +140,7 @@ openclaw skills install <absolute-repository-path> --as wechat-visual-director
 从 GitHub 安装：
 
 ```text
-openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.10
+openclaw skills install git:zhouke0929/wechat-visual-director@v0.1.0-alpha.11
 ```
 
 首次使用仍需由 Agent 执行 `scripts/install.ps1`，并在后续调用安装结果中的稳定 `launcher`。Alpha.10 安装器会把最小 Skill 入口同时注册到 `~/.agents/skills/wechat-visual-director` 和 `~/.config/opencode/skills/wechat-visual-director`，并为 OpenCode 注册 `/wechat-visual-director` 命令，因此新对话不再依赖最初克隆仓库的上下文。核心 CLI/API 不绑定 OpenClaw，其他支持 Skill 或命令调用的 Agent 也可以复用。

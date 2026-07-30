@@ -53,6 +53,16 @@ def _body_inline(value: str, config: dict[str, Any]) -> str:
             f"padding:1px 3px;border-bottom:2px solid {palette.get('primary', accent)};"
             f"color:{palette.get('primary', accent)};font-weight:800;"
         )
+    elif heading_variant == "sticker_section":
+        style = (
+            f"padding:1px 4px;border-bottom:7px solid {palette.get('secondary_pale', '#FFF6D9')};"
+            f"color:{palette.get('primary', accent)};font-weight:850;"
+        )
+    elif heading_variant == "signal_section":
+        style = (
+            f"padding:1px 4px;border-bottom:6px solid {palette.get('secondary_pale', '#EAF9F6')};"
+            f"color:{palette.get('primary', accent)};font-weight:820;"
+        )
     else:
         style = f"color:{accent};font-weight:800;"
     escaped = re.sub(
@@ -69,6 +79,8 @@ def _image_frame_variant(config: dict[str, Any]) -> str:
         "story_chapter": "warm_storybook",
         "masthead_section": "editorial_masthead",
         "indexed_column": "structured_ledger",
+        "sticker_section": "campus_sticker",
+        "signal_section": "future_signal",
     }.get(str(config.get("heading_variant")), "neutral")
 
 
@@ -107,6 +119,22 @@ def _render_thematic_break(config: dict[str, Any]) -> str:
             '<p data-content-role="thematic-break" style="margin:35px 0;border-top:1px solid #AEBBB5;text-align:right;">'
             f'<span style="display:inline-block;width:18%;height:5px;background-color:{palette.get("secondary", accent)};"></span>'
             f'<span style="display:inline-block;width:9px;height:9px;margin-left:8px;border:2px solid {palette.get("primary", accent)};vertical-align:middle;"></span></p>'
+        )
+    if heading_variant == "sticker_section":
+        return (
+            '<p data-content-role="thematic-break" style="margin:36px 0;text-align:center;white-space:nowrap;">'
+            f'<span style="display:inline-block;width:19%;height:1px;border-top:2px dashed {palette.get("sky", accent)};"></span>'
+            f'<span style="display:inline-block;width:30px;height:12px;margin:0 10px;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);vertical-align:middle;"></span>'
+            f'<span style="display:inline-block;width:10px;height:10px;margin-right:10px;border-radius:50%;background-color:{palette.get("accent", accent)};vertical-align:middle;"></span>'
+            f'<span style="display:inline-block;width:19%;height:1px;border-top:2px dashed {palette.get("sky", accent)};"></span></p>'
+        )
+    if heading_variant == "signal_section":
+        return (
+            '<p data-content-role="thematic-break" style="margin:38px 0;text-align:center;white-space:nowrap;">'
+            f'<span style="display:inline-block;width:20%;height:1px;background-color:{palette.get("sky", accent)};vertical-align:middle;"></span>'
+            f'<span style="display:inline-block;width:18px;height:7px;margin:0 8px;border-radius:12px 2px 12px 2px;background-color:{palette.get("secondary", accent)};transform:rotate(-12deg);vertical-align:middle;"></span>'
+            f'<span style="display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background-color:{palette.get("accent", accent)};vertical-align:middle;"></span>'
+            f'<span style="display:inline-block;width:20%;height:1px;background-color:{palette.get("primary", accent)};vertical-align:middle;"></span></p>'
         )
     return (
         f'<p data-content-role="thematic-break" style="height:1px;margin:34px 0;background-color:{accent};"></p>'
@@ -187,6 +215,29 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
             "</section>"
         )
 
+    if level == 2 and config["heading_variant"] == "sticker_section":
+        section_label = "CAMPUS BULLETIN" if _has_explicit_heading_number(content) else f"COURSE NOTE {section_index:02d}"
+        return (
+            f'<section data-heading-level="2" data-auto-numbered="{str(not _has_explicit_heading_number(content)).lower()}" '
+            f'style="margin:45px 0 23px;padding:0 8px 8px 0;">'
+            f'<p style="margin:0 0 -8px 17px;"><span style="display:inline-block;padding:5px 12px;background-color:{secondary};color:{palette.get("ink", "#20304A")};font-size:9px;font-weight:800;letter-spacing:.13em;transform:rotate(-2deg);">{section_label}</span></p>'
+            f'<section style="padding:19px 17px 16px 26px;border-left:10px dotted {palette.get("sky", accent)};border-bottom:3px solid {accent};background-color:{palette.get("surface", "#FFFEFB")};box-shadow:7px 7px 0 {palette.get("secondary_pale", "#FFF6D9")};">'
+            f'<strong style="display:block;color:{palette.get("ink", "#20304A")};font-size:21px;line-height:1.5;">{_inline(content)}</strong>'
+            f'</section></section>'
+        )
+
+    if level == 2 and config["heading_variant"] == "signal_section":
+        section_label = "专题" if _has_explicit_heading_number(content) else f"{section_index:02d}"
+        return (
+            f'<section data-heading-level="2" data-auto-numbered="{str(not _has_explicit_heading_number(content)).lower()}" '
+            f'style="margin:48px 0 24px;padding:0 0 10px;white-space:normal;">'
+            f'<span style="display:inline-block;width:19%;color:{palette.get("sky_pale", "#EEF1FA")};font-family:Georgia,serif;font-size:46px;font-weight:800;line-height:.92;vertical-align:top;">{section_label}</span>'
+            f'<section style="box-sizing:border-box;display:inline-block;width:81%;padding:2px 0 10px 16px;border-left:5px solid {palette.get("secondary", accent)};vertical-align:top;">'
+            f'<strong style="display:block;color:{palette.get("ink", "#24304F")};font-size:21px;line-height:1.52;">{_inline(content)}</strong>'
+            f'<p style="height:3px;margin:11px 0 0;background:linear-gradient(90deg,{palette.get("accent", accent)} 0%,{palette.get("accent", accent)} 28%,{palette.get("sky_pale", "#EEF1FA")} 28%);"></p></section>'
+            "</section>"
+        )
+
     if level == 2 and config["heading_variant"] == "numbered_marker":
         if _has_explicit_heading_number(content):
             return (
@@ -240,6 +291,34 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
                 '<section data-heading-level="3" data-auto-numbered="false" style="margin:30px 0 13px;padding:0 0 8px;border-bottom:2px solid #202B33;white-space:normal;">'
                 f'<span style="display:block;width:30px;height:7px;margin:0 0 8px;background-color:{palette.get("accent", accent)};"></span>'
                 f'<strong style="display:block;color:#202B33;font-size:18px;line-height:1.5;font-weight:850;">{_inline(content)}</strong>'
+                "</section>"
+            )
+        if config["heading_variant"] == "sticker_section":
+            return (
+                '<section data-heading-level="3" data-auto-numbered="false" style="margin:29px 0 13px;white-space:normal;">'
+                f'<span style="display:inline-block;width:32px;height:13px;margin:5px 9px 0 0;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);vertical-align:top;"></span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:84%;padding:0 0 8px;border-bottom:2px dashed {palette.get("sky", accent)};color:{palette.get("ink", "#20304A")};font-size:18px;line-height:1.55;vertical-align:top;">{_inline(content)}</strong>'
+                "</section>"
+            )
+        if config["heading_variant"] == "_legacy_sticker_section":
+            return (
+                '<section data-heading-level="3" data-auto-numbered="false" style="margin:29px 0 13px;white-space:normal;">'
+                f'<span style="display:inline-block;width:25px;height:25px;margin-right:9px;border-radius:9px 9px 3px 9px;background-color:{palette.get("accent", accent)};color:#FFFFFF;font-size:12px;font-weight:800;line-height:25px;text-align:center;transform:rotate(-5deg);vertical-align:top;">✦</span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:85%;padding:1px 0 8px;border-bottom:2px dashed {palette.get("sky", accent)};color:{palette.get("ink", "#20304A")};font-size:18px;line-height:1.55;vertical-align:top;">{_inline(content)}</strong>'
+                "</section>"
+            )
+        if config["heading_variant"] == "signal_section":
+            return (
+                '<section data-heading-level="3" data-auto-numbered="false" style="margin:30px 0 14px;white-space:normal;">'
+                f'<span style="display:inline-block;width:18px;height:8px;margin:6px 10px 0 0;border-radius:12px 2px 12px 2px;background-color:{palette.get("secondary", accent)};transform:rotate(-12deg);vertical-align:top;"></span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:87%;padding:0 0 8px;color:{palette.get("ink", "#24304F")};font-size:18px;line-height:1.55;vertical-align:top;">{_inline(content)}</strong>'
+                "</section>"
+            )
+        if config["heading_variant"] == "_legacy_signal_section":
+            return (
+                '<section data-heading-level="3" data-auto-numbered="false" style="margin:29px 0 13px;padding-bottom:8px;border-bottom:1px solid #B9D8D2;white-space:normal;">'
+                f'<span style="display:inline-block;width:35px;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.1em;vertical-align:top;">NODE</span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:86%;padding-left:12px;border-left:2px solid {palette.get("secondary", accent)};color:{palette.get("ink", "#17313D")};font-size:18px;line-height:1.55;vertical-align:top;">{_inline(content)}</strong>'
                 "</section>"
             )
         return (
@@ -310,6 +389,45 @@ def _render_table(rows: list[list[str]], config: dict[str, Any]) -> str:
         for row_index, row in enumerate(body):
             cells = "".join(
                 f'<td style="padding:11px 8px;border-bottom:1px solid #202B33;border-left:{f"5px solid {editorial_accent}" if cell_index == 0 else "0"};background-color:{"#EEF2F3" if row_index % 2 == 0 else "#FFFFFF"};color:#202B33;font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>'
+                for cell_index, cell in enumerate(row[:4])
+            )
+            trs.append(f"<tr>{cells}</tr>")
+        return (
+            '<section style="margin:24px 0;overflow-x:auto;">'
+            f'<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table>'
+            "</section>"
+        )
+    if config.get("table_variant") == "campus_grid":
+        palette = config.get("palette", {})
+        secondary = palette.get("secondary", accent)
+        sky = palette.get("sky", accent)
+        ths = "".join(
+            f'<th style="padding:10px 8px;border-bottom:3px solid {accent};background-color:{palette.get("secondary_pale", "#FFF6D9")};color:{palette.get("ink", "#20304A")};font-size:12px;font-weight:800;line-height:1.4;text-align:left;">{_inline(cell)}</th>'
+            for cell in header[:4]
+        )
+        trs = []
+        for row_index, row in enumerate(body):
+            cells = "".join(
+                f'<td style="padding:11px 8px;border-bottom:1px dashed {sky};background-color:{"#EEF4FF" if row_index % 2 == 0 else "#FFFEFB"};color:{palette.get("ink", "#20304A")};font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>'
+                for cell in row[:4]
+            )
+            trs.append(f"<tr>{cells}</tr>")
+        return (
+            f'<section style="margin:24px 0;padding:6px;border:2px solid {accent};border-radius:14px 14px 4px 14px;box-shadow:5px 5px 0 {secondary};overflow-x:auto;">'
+            f'<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table>'
+            "</section>"
+        )
+    if config.get("table_variant") == "signal_matrix":
+        palette = config.get("palette", {})
+        secondary = palette.get("secondary", accent)
+        ths = "".join(
+            f'<th style="padding:10px 8px;border-top:4px solid {accent};border-bottom:1px solid #B9D8D2;background-color:{palette.get("surface", "#FBFEFD")};color:{accent};font-size:12px;font-weight:800;line-height:1.4;text-align:left;">{_inline(cell)}</th>'
+            for cell in header[:4]
+        )
+        trs = []
+        for row_index, row in enumerate(body):
+            cells = "".join(
+                f'<td style="padding:11px 8px;border-bottom:1px solid #CFE2DE;border-left:{f"3px solid {secondary}" if cell_index == 0 else "0"};background-color:{"#F1F4FF" if row_index % 2 == 0 else "#FBFEFD"};color:{palette.get("ink", "#17313D")};font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>'
                 for cell_index, cell in enumerate(row[:4])
             )
             trs.append(f"<tr>{cells}</tr>")
@@ -394,6 +512,40 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
             '<section style="margin:22px 0 25px;border-top:10px solid #202B33;border-bottom:3px solid #202B33;">'
             f'{"".join(rendered)}</section>'
         )
+    if config["list_variant"] == "campus_steps":
+        rendered = []
+        for index, item in enumerate(items, 1):
+            marker = f"{index:02d}" if ordered else "✓"
+            marker_color = (
+                accent,
+                palette.get("accent", accent),
+                sky,
+                secondary,
+            )[(index - 1) % 4]
+            rendered.append(
+                '<section style="margin:0 0 12px;white-space:normal;">'
+                f'<span style="display:inline-block;width:31px;height:31px;border:3px solid #FFFEFB;border-radius:10px 10px 3px 10px;background-color:{marker_color};box-shadow:3px 3px 0 {palette.get("secondary_pale", "#FFF6D9")};color:#FFFFFF;font-family:Georgia,serif;font-size:10px;font-weight:800;line-height:31px;text-align:center;transform:rotate({-4 if index % 2 else 4}deg);vertical-align:top;">{marker}</span>'
+                f'<p style="box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 11px;padding:6px 0 11px;border-bottom:2px dashed {sky};color:{palette.get("ink", "#20304A")};font-size:15px;line-height:1.72;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+            )
+        return f'<section style="margin:22px 0 25px;padding:15px 13px 5px;border:2px solid {accent};border-radius:18px 6px 18px 18px;">{"".join(rendered)}</section>'
+    if config["list_variant"] == "signal_track":
+        rendered = []
+        for index, item in enumerate(items, 1):
+            marker = f"{index:02d}" if ordered else "•"
+            item_background = (
+                palette.get("pale", "#F3F5FC"),
+                palette.get("secondary_pale", "#EAF9F6"),
+                palette.get("accent_pale", "#FFF1EC"),
+            )[(index - 1) % 3]
+            rendered.append(
+                '<section style="margin:0 0 11px;white-space:normal;">'
+                f'<span style="display:inline-block;width:17%;padding:10px 0;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:18px;font-weight:800;vertical-align:top;">{marker}</span>'
+                f'<p style="box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:11px 14px;border-radius:4px 18px 18px 18px;background-color:{item_background};color:{palette.get("ink", "#24304F")};font-size:15px;line-height:1.72;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+            )
+        return (
+            f'<section style="margin:23px 0 26px;padding:4px 0 1px;">'
+            f'{"".join(rendered)}</section>'
+        )
     rendered = []
     for index, item in enumerate(items, 1):
         marker = str(index) if ordered or config["list_variant"] == "vertical_numbered" else "✓"
@@ -429,6 +581,18 @@ def _image_placeholder_style(config: dict[str, Any]) -> str:
             f"scroll-margin-top:18px;margin:28px 0;padding:18px 16px;border-top:4px solid {palette.get('primary', config['accent'])};"
             "border-right:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;border-left:1px solid #AEBBB5;"
             "background-color:#F5F7F5;text-align:center;"
+        )
+    if variant == "campus_sticker":
+        return (
+            f"scroll-margin-top:18px;margin:29px 0;padding:20px 16px;border:2px dashed {palette.get('sky', '#62C7BE')};"
+            f"border-radius:20px 7px 20px 20px;background-color:{palette.get('surface', '#FFFEFB')};"
+            f"box-shadow:6px 6px 0 {palette.get('accent_pale', '#FFF0F5')};text-align:center;"
+        )
+    if variant == "future_signal":
+        return (
+            f"scroll-margin-top:18px;margin:30px 0;padding:21px 16px;border-radius:4px 34px 4px 24px;"
+            f"background:linear-gradient(135deg,{palette.get('pale', '#F3F5FC')},{palette.get('secondary_pale', '#EAF9F6')});"
+            f"box-shadow:6px 6px 0 {palette.get('sky_pale', '#EEF1FA')};text-align:center;"
         )
     return (
         "scroll-margin-top:18px;margin:26px 0;padding:18px;border:1px dashed #AAB8B4;"
@@ -512,6 +676,20 @@ def _render_fixed_footer(footer: dict[str, Any], config: dict[str, Any]) -> str:
             "border-bottom:1px solid #AEBBB5;text-align:center;"
         )
         text_style = f"margin:0 0 14px;color:{palette.get('primary', accent)};font-size:15px;font-weight:800;letter-spacing:.02em;"
+    elif frame_variant == "campus_sticker":
+        style = (
+            f"margin:40px 0 0;padding:22px 17px 18px;border:2px dashed {palette.get('sky', accent)};"
+            f"border-radius:20px 7px 20px 20px;background-color:{palette.get('surface', '#FFFEFB')};"
+            f"box-shadow:6px 6px 0 {palette.get('accent_pale', '#FFF0F5')};text-align:center;"
+        )
+        text_style = f"margin:0 0 14px;color:{palette.get('primary', accent)};font-size:15px;font-weight:850;"
+    elif frame_variant == "future_signal":
+        style = (
+            f"margin:40px 0 0;padding:21px 17px 18px;border-radius:4px 36px 4px 24px;"
+            f"background:linear-gradient(135deg,{palette.get('pale', '#F3F5FC')},{palette.get('secondary_pale', '#EAF9F6')});"
+            f"box-shadow:6px 6px 0 {palette.get('sky_pale', '#EEF1FA')};text-align:center;"
+        )
+        text_style = f"margin:0 0 14px;color:{palette.get('primary', accent)};font-size:15px;font-weight:820;letter-spacing:.02em;"
     else:
         style = "margin:38px 0 0;padding:24px 0 0;border-top:1px solid #D9DED9;text-align:center;"
         text_style = "margin:0 0 14px;color:#263331;font-size:15px;font-weight:700;"
@@ -536,6 +714,8 @@ def render_preview(
     warm = config["heading_variant"] == "story_chapter"
     airy = config["heading_variant"] == "botanical_section"
     structured = config["heading_variant"] == "indexed_column"
+    campus = config["heading_variant"] == "sticker_section"
+    future = config["heading_variant"] == "signal_section"
     slots_by_anchor = {slot["anchor_block_id"]: slot for slot in validated.get("slots", [])}
     image_slots_by_anchor: dict[str, list[dict[str, Any]]] = {}
     for image_slot in validated.get("image_slots", []):
@@ -585,6 +765,37 @@ def render_preview(
                         f'<p style="margin:0;color:#342B28;font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:650;line-height:1.84;">{_body_inline(str(block.content), config)}</p>'
                         f'<p style="margin:9px 0 -20px;text-align:right;"><span style="display:inline-block;width:52px;height:10px;background-color:{palette.get("secondary", accent)};opacity:.72;transform:rotate(-3deg);"></span></p></section>'
                     )
+                elif campus:
+                    body.append(
+                        f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
+                        f'style="margin:26px 0 32px;padding:18px 17px 16px 27px;border-left:10px dotted {palette.get("sky", accent)};background-color:{palette.get("surface", "#FFFEFB")};box-shadow:7px 7px 0 {palette.get("secondary_pale", "#FFF6D9")};">'
+                        f'<p style="margin:-25px 0 15px;"><span style="display:inline-block;padding:5px 11px;background-color:{palette.get("secondary", accent)};color:{palette.get("ink", "#20304A")};font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">{html.escape(opening_highlight_label or "本文导读")}</span></p>'
+                        f'<p style="margin:0;color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:680;line-height:1.82;">{_body_inline(str(block.content), config)}</p></section>'
+                    )
+                elif False and campus:
+                    body.append(
+                        f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
+                        f'style="margin:25px 0 31px;padding:6px 0 15px;border-bottom:2px solid {palette.get("sky", accent)};">'
+                        f'<p style="width:61px;height:11px;margin:0 0 -5px 15px;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);"></p>'
+                        f'<section style="padding:17px 18px;border:2px solid {accent};border-radius:6px 20px 20px 20px;background-color:{palette.get("surface", "#FFFEFB")};box-shadow:6px 6px 0 {palette.get("accent_pale", "#FFF0F5")};">'
+                        f'<p style="margin:0 0 7px;color:{palette.get("accent", accent)};font-size:10px;font-weight:800;letter-spacing:.13em;">{html.escape(opening_highlight_label or "本文导读")}</p>'
+                        f'<p style="margin:0;color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:680;line-height:1.82;">{_body_inline(str(block.content), config)}</p></section></section>'
+                    )
+                elif future:
+                    body.append(
+                        f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
+                        f'style="margin:28px 0 34px;padding:18px 19px 17px;border-radius:4px 38px 4px 22px;background:linear-gradient(135deg,{palette.get("secondary_pale", "#EAF9F6")},{palette.get("pale", "#F3F5FC")});box-shadow:6px 6px 0 {palette.get("sky_pale", "#EEF1FA")};">'
+                        f'<p style="margin:0 0 10px;color:{palette.get("accent", accent)};font-size:10px;font-weight:800;letter-spacing:.1em;">{html.escape(opening_highlight_label or "本文导读")}</p>'
+                        f'<p style="margin:0;color:{palette.get("ink", "#24304F")};font-size:17px;font-weight:680;line-height:1.82;">{_body_inline(str(block.content), config)}</p>'
+                        f'<p style="margin:10px 0 -22px;text-align:right;"><span style="display:inline-block;width:45px;height:8px;border-radius:14px 3px 14px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-5deg);"></span></p></section>'
+                    )
+                elif False and future:
+                    body.append(
+                        f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
+                        f'style="margin:24px 0 31px;border-top:6px solid {accent};border-bottom:1px solid #B9D8D2;white-space:normal;">'
+                        f'<span style="display:inline-block;width:21%;padding:15px 7px 13px 0;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.11em;vertical-align:top;">LEAD</span>'
+                        f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:13px 0 15px 15px;border-left:2px solid {palette.get("secondary", accent)};color:{palette.get("ink", "#17313D")};font-size:17px;font-weight:680;line-height:1.82;vertical-align:top;">{_body_inline(str(block.content), config)}</p></section>'
+                    )
                 elif editorial:
                     body.append(
                         f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
@@ -629,6 +840,35 @@ def render_preview(
                     f'<span style="box-sizing:border-box;display:inline-block;width:77%;padding:9px 0 11px 16px;border-left:6px solid {accent};color:#202B33;font-family:Georgia,\'Noto Serif SC\',serif;font-size:19px;font-weight:800;line-height:1.78;vertical-align:top;">{_body_inline(str(block.content), config)}</span>'
                     f'</blockquote>'
                 )
+            elif config.get("quote_variant") == "campus_quote":
+                body.append(
+                    f'<blockquote style="margin:32px 0;padding:7px 0 17px;border-bottom:2px dashed {palette.get("sky", accent)};white-space:normal;">'
+                    f'<span style="display:inline-block;width:65px;padding:14px 5px;background-color:{palette.get("accent", accent)};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{palette.get("secondary_pale", "#FFF6D9")};box-shadow:6px 6px 0 {palette.get("sky_pale", "#EEF4FF")};color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:700;line-height:1.85;vertical-align:top;">{_body_inline(str(block.content), config)}</span></blockquote>'
+                )
+            elif config.get("quote_variant") == "_legacy_campus_quote":
+                body.append(
+                    f'<blockquote style="margin:31px 0;padding:6px 0 14px;border-bottom:2px solid {palette.get("sky", accent)};">'
+                    f'<p style="width:54px;height:11px;margin:0 0 -5px 13px;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);"></p>'
+                    f'<section style="padding:17px 18px;border:2px solid {accent};border-radius:5px 20px 20px 20px;background-color:{palette.get("surface", "#FFFEFB")};box-shadow:6px 6px 0 {palette.get("accent_pale", "#FFF0F5")};">'
+                    f'<span style="display:inline-block;width:34px;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:42px;font-weight:800;line-height:.8;vertical-align:top;">“</span>'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:87%;color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:700;line-height:1.85;vertical-align:top;">{_body_inline(str(block.content), config)}</span>'
+                    f'</section></blockquote>'
+                )
+            elif config.get("quote_variant") == "signal_quote":
+                body.append(
+                    f'<blockquote style="margin:34px 0;padding:2px 0 12px;white-space:normal;">'
+                    f'<span style="display:inline-block;width:17%;color:{palette.get("secondary", accent)};font-family:Georgia,serif;font-size:64px;font-weight:800;line-height:.72;vertical-align:top;">“</span>'
+                    f'<section style="box-sizing:border-box;display:inline-block;width:83%;padding:4px 0 12px 15px;border-bottom:5px solid {palette.get("accent_pale", "#FFF1EC")};vertical-align:top;">'
+                    f'<p style="margin:0 0 8px;color:{palette.get("accent", accent)};font-size:10px;font-weight:800;letter-spacing:.08em;">证据摘录</p>'
+                    f'<p style="margin:0;color:{palette.get("ink", "#24304F")};font-size:17px;font-weight:720;line-height:1.86;">{_body_inline(str(block.content), config)}</p></section></blockquote>'
+                )
+            elif config.get("quote_variant") == "_legacy_signal_quote":
+                body.append(
+                    f'<blockquote style="margin:31px 0;border-top:6px solid {accent};border-bottom:1px solid #B9D8D2;white-space:normal;">'
+                    f'<span style="display:inline-block;width:20%;padding:16px 7px;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">QUOTE</span>'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:80%;padding:15px 0 16px 15px;border-left:2px solid {palette.get("secondary", accent)};color:{palette.get("ink", "#17313D")};font-size:17px;font-weight:720;line-height:1.85;vertical-align:top;">{_body_inline(str(block.content), config)}</span></blockquote>'
+                )
             elif editorial:
                 body.append(
                     f'<blockquote style="margin:30px 6px;padding:24px 12px;border-top:1px solid {accent};border-bottom:1px solid {accent};color:#1F2B29;font-family:Georgia,serif;font-size:20px;line-height:1.75;text-align:center;">{_body_inline(str(block.content), config)}</blockquote>'
@@ -663,6 +903,47 @@ def render_preview(
             f'<h1 style="margin:0;color:#111C1A;font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;line-height:1.38;font-weight:750;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
             f'<p style="margin:15px 0 0;color:#687370;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · 组件库 {html.escape(validated["component_library_version"])}</p>'
             f'<p style="margin:16px 0 -29px;text-align:right;"><span style="display:inline-block;width:28px;height:14px;border-radius:20px 3px 20px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-12deg);"></span><span style="display:inline-block;width:7px;height:7px;margin-left:7px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
+            "</header>"
+        )
+    elif campus:
+        hero = (
+            f'<header data-content-role="article-metadata-preview" style="padding:33px 8px 27px 0;">'
+            f'<p style="margin:0 0 -8px 19px;"><span style="display:inline-block;padding:5px 12px;background-color:{palette.get("secondary", accent)};color:{palette.get("ink", "#20304A")};font:800 9px/1.2 Georgia,serif;letter-spacing:.14em;transform:rotate(-2deg);">CAMPUS BULLETIN</span></p>'
+            f'<section style="padding:22px 18px 19px 28px;border-left:11px dotted {palette.get("sky", accent)};border-bottom:4px solid {accent};background-color:{palette.get("surface", "#FFFEFB")};box-shadow:8px 8px 0 {palette.get("secondary_pale", "#FFF6D9")};">'
+            f'<p style="margin:0 0 12px;color:{palette.get("accent", accent)};font:800 9px/1.2 Georgia,serif;letter-spacing:.15em;">{kicker}</p>'
+            f'<h1 style="margin:0;color:{palette.get("ink", "#20304A")};font-size:30px;line-height:1.38;font-weight:830;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
+            f'<p style="margin:16px 0 0;padding-top:11px;border-top:2px dashed {palette.get("sky", accent)};color:#63718A;font-size:11px;line-height:1.6;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p></section>'
+            "</header>"
+        )
+    elif False and campus:
+        hero = (
+            f'<header data-content-role="article-metadata-preview" style="padding:31px 0 24px;border-bottom:2px solid {palette.get("sky", accent)};">'
+            f'<p style="width:72px;height:12px;margin:0 0 -4px 17px;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);"></p>'
+            f'<section style="padding:18px 18px 19px;border:2px solid {accent};border-radius:6px 22px 22px 22px;background-color:{palette.get("surface", "#FFFEFB")};box-shadow:7px 7px 0 {palette.get("accent_pale", "#FFF0F5")};">'
+            f'<p style="margin:0 0 11px;color:{palette.get("accent", accent)};font:800 10px/1.2 Georgia,serif;letter-spacing:.14em;">{kicker}</p>'
+            f'<h1 style="margin:0;color:{palette.get("ink", "#20304A")};font-size:30px;line-height:1.38;font-weight:820;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
+            f'<p style="margin:15px 0 0;color:#63718A;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p></section>'
+            "</header>"
+        )
+    elif future:
+        hero = (
+            f'<header data-content-role="article-metadata-preview" style="margin:30px 0 29px;padding:24px 20px 20px;border-left:6px solid {palette.get("primary", accent)};border-radius:0 62px 0 24px;background:linear-gradient(135deg,{palette.get("surface", "#FEFEFF")} 0%,{palette.get("pale", "#F3F5FC")} 48%,{palette.get("secondary_pale", "#EAF9F6")} 100%);box-shadow:8px 8px 0 {palette.get("sky_pale", "#EEF1FA")};">'
+            f'<p style="margin:0 0 15px;color:{palette.get("primary", accent)};font:800 9px/1.2 Georgia,serif;letter-spacing:.18em;">FUTURE EDITION <span style="color:{palette.get("accent", accent)};">●</span></p>'
+            f'<p style="margin:0 0 9px;color:{accent};font-size:10px;font-weight:750;letter-spacing:.1em;">{kicker}</p>'
+            f'<h1 style="margin:0;color:{palette.get("ink", "#24304F")};font-size:29px;line-height:1.4;font-weight:830;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
+            f'<p style="margin:17px 0 0;padding-top:11px;border-top:1px solid {palette.get("sky", accent)};color:#69738F;font-size:10px;line-height:1.5;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
+            f'<p style="margin:10px 0 -28px;text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
+            "</header>"
+        )
+    elif False and future:
+        hero = (
+            f'<header data-content-role="article-metadata-preview" style="padding:30px 0 23px;border-top:8px solid {accent};border-bottom:1px solid #B9D8D2;">'
+            f'<p style="height:5px;margin:-8px 0 15px;background-color:{palette.get("secondary", accent)};width:29%;"></p>'
+            f'<section style="white-space:normal;"><span style="display:inline-block;width:21%;color:{palette.get("accent", accent)};font:800 10px/1.2 Georgia,serif;letter-spacing:.13em;vertical-align:top;">SIGNAL</span>'
+            f'<section style="box-sizing:border-box;display:inline-block;width:79%;padding-left:15px;border-left:2px solid {palette.get("secondary", accent)};vertical-align:top;">'
+            f'<p style="margin:0 0 10px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.13em;">{kicker}</p>'
+            f'<h1 style="margin:0;color:{palette.get("ink", "#17313D")};font-size:29px;line-height:1.4;font-weight:820;letter-spacing:-.02em;">{_inline(parsed.title)}</h1></section></section>'
+            f'<p style="margin:16px 0 0;color:#607985;font-size:11px;line-height:1.6;text-align:right;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
             "</header>"
         )
     elif warm:

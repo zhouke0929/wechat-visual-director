@@ -7,18 +7,20 @@ from playwright.sync_api import sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
-ARTIFACT_DIR = ROOT / "artifacts" / "theme-kit-v0.9"
+ARTIFACT_DIR = ROOT / "artifacts" / "theme-kit-v0.11"
 THEMES = (
     "light_reading",
     "warm_humanist",
+    "youth_campus",
     "editorial_contrast",
     "structured_grid",
+    "future_tech",
 )
 
 
 def inspect_page(page, theme: str, viewport: str) -> dict[str, object]:
     page.goto(f"http://127.0.0.1:3000/theme-gallery/{theme}", wait_until="networkidle")
-    page.get_by_text("先判断主题，", exact=False).first.wait_for()
+    page.locator("article").first.wait_for()
     article = page.locator("article").first
     article_metrics = article.evaluate(
         "(node) => ({clientWidth: node.clientWidth, scrollWidth: node.scrollWidth})"
@@ -27,9 +29,9 @@ def inspect_page(page, theme: str, viewport: str) -> dict[str, object]:
     if viewport == "desktop":
         article.screenshot(path=ARTIFACT_DIR / f"{theme}-article-full.png")
 
-    page.get_by_role("button", name="02　主题部件库").click()
+    page.locator("nav button").nth(1).click()
     page.get_by_text("RHYTHM PRIMITIVES / 01", exact=True).wait_for()
-    primitive_count = page.locator('[class*="specimen"]').count()
+    specimen_count = page.locator('[class*="specimen"]').count()
     production_trigger_count = page.get_by_text("正式链路已接入", exact=False).count()
     canvas_metrics = page.locator('[class*="componentCanvas"]').evaluate_all(
         "(nodes) => nodes.map((node) => ({clientWidth: node.clientWidth, scrollWidth: node.scrollWidth}))"
@@ -41,7 +43,7 @@ def inspect_page(page, theme: str, viewport: str) -> dict[str, object]:
         "theme": theme,
         "viewport": viewport,
         "article_metrics": article_metrics,
-        "specimen_node_count": primitive_count,
+        "specimen_node_count": specimen_count,
         "production_trigger_count": production_trigger_count,
         "canvas_metrics": canvas_metrics,
         "document_metrics": document_metrics,
@@ -63,14 +65,21 @@ def main() -> None:
             ("mobile", {"width": 430, "height": 932}),
         ):
             page = browser.new_page(viewport=size)
-            page.on("console", lambda message: print(f"browser:{message.type}:{message.text}") if message.type == "error" else None)
+            page.on(
+                "console",
+                lambda message: (
+                    print(f"browser:{message.type}:{message.text}")
+                    if message.type == "error"
+                    else None
+                ),
+            )
             for theme in THEMES:
                 results.append(inspect_page(page, theme, viewport))
             page.close()
         browser.close()
 
     report = {
-        "schema_version": "theme_kit_visual_acceptance.v0.3",
+        "schema_version": "theme_kit_visual_acceptance.v0.4",
         "themes": list(THEMES),
         "results": results,
     }

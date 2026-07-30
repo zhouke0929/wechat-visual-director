@@ -49,7 +49,13 @@ export type ThemeRhythmPrimitive = {
 };
 
 export type ThemeGalleryItem = {
-  id: "light_reading" | "warm_humanist" | "editorial_contrast" | "structured_grid";
+  id:
+    | "light_reading"
+    | "warm_humanist"
+    | "youth_campus"
+    | "editorial_contrast"
+    | "structured_grid"
+    | "future_tech";
   label: string;
   english: string;
   description: string;
@@ -146,7 +152,13 @@ export type VisualPlan = {
   plan_name: string;
   recommendation: "recommended" | "alternative";
   style_mode: string;
-  visual_system?: "light_reading" | "editorial_contrast" | "warm_humanist" | "structured_grid";
+  visual_system?:
+    | "light_reading"
+    | "editorial_contrast"
+    | "warm_humanist"
+    | "structured_grid"
+    | "youth_campus"
+    | "future_tech";
   structure_fingerprint?: string;
   visual_system_metadata?: {
     planner_recalled: false;
@@ -181,6 +193,8 @@ export type VisualPlan = {
     requested_component_count?: number | null;
     selected_component_count: number;
     selected_component_types: string[];
+    coverage_target?: number;
+    coverage_added_count?: number;
     compiler_adjustments: Array<Record<string, string>>;
   };
   summary: string;

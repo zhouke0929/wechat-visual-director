@@ -239,6 +239,117 @@ def _rhythm_primitives(
                 ),
             },
         ]
+    if visual_system == "youth_campus":
+        return [
+            {
+                "role": "section_heading",
+                "label": "活页公告章节",
+                "html": (
+                    f'<section style="margin:40px 0 20px;padding:0 8px 8px 0;"><p style="margin:0 0 -8px 17px;"><span style="display:inline-block;padding:5px 12px;background-color:{secondary};color:{ink};font-size:9px;font-weight:800;letter-spacing:.13em;transform:rotate(-2deg);">COURSE NOTE</span></p>'
+                    f'<section style="padding:19px 17px 16px 26px;border-left:10px dotted {sky};border-bottom:3px solid {primary};background-color:{palette["surface"]};box-shadow:7px 7px 0 {palette["secondary_pale"]};"><strong style="display:block;color:{ink};font-size:21px;line-height:1.5;">把信息变成愿意参与的校园议题</strong></section></section>'
+                ),
+            },
+            {
+                "role": "subheading",
+                "label": "荧光笔小标题",
+                "html": (
+                    f'<section style="margin:27px 0 12px;white-space:normal;"><span style="display:inline-block;width:32px;height:13px;margin:5px 9px 0 0;background-color:{secondary};transform:rotate(-4deg);vertical-align:top;"></span>'
+                    f'<strong style="box-sizing:border-box;display:inline-block;width:84%;padding:0 0 8px;border-bottom:2px dashed {sky};color:{ink};font-size:18px;line-height:1.55;vertical-align:top;">先找到学生真正关心的问题</strong></section>'
+                ),
+            },
+            {
+                "role": "inline_emphasis",
+                "label": "手账划线重点",
+                "html": (
+                    f'<p style="margin:22px 0;color:{ink};font-size:16px;line-height:1.9;">年轻感不等于信息噪声，真正要强调的是 '
+                    f'<strong style="padding:1px 4px;border-bottom:7px solid {palette["secondary_pale"]};color:{primary};font-weight:850;">能让读者参与判断的关键词</strong>。</p>'
+                ),
+            },
+            {
+                "role": "image_caption",
+                "label": "相册冲印图位",
+                "html": (
+                    f'<section style="margin:30px 7px;padding:10px 10px 16px;background-color:{palette["surface"]};box-shadow:8px 8px 0 {palette["sky_pale"]};transform:rotate(-1deg);"><p style="width:68px;height:11px;margin:-17px auto 12px;background-color:{secondary};"></p>'
+                    f'<section style="height:148px;background-color:{pale};"><span style="display:block;width:67%;height:12px;margin:0 0 17px;background-color:{secondary};"></span><span style="display:block;width:48%;height:12px;margin-left:34%;background-color:{accent};"></span></section>'
+                    f'<p style="margin:11px 0 0;color:#63718A;font-size:11px;line-height:1.55;text-align:center;">图示 · 用场景建立参与感</p></section>'
+                ),
+            },
+            {
+                "role": "divider",
+                "label": "票根分隔",
+                "html": (
+                    f'<p style="margin:35px 0;text-align:center;white-space:nowrap;"><span style="display:inline-block;width:19%;height:1px;border-top:2px dashed {sky};"></span>'
+                    f'<span style="display:inline-block;width:30px;height:12px;margin:0 10px;background-color:{secondary};transform:rotate(-4deg);vertical-align:middle;"></span><span style="display:inline-block;width:10px;height:10px;margin-right:10px;border-radius:50%;background-color:{accent};vertical-align:middle;"></span>'
+                    f'<span style="display:inline-block;width:19%;height:1px;border-top:2px dashed {sky};"></span></p>'
+                ),
+            },
+            {
+                "role": "closing_cta",
+                "label": "公告栏收束",
+                "html": (
+                    f'<section style="margin:35px 0 0;padding:20px 18px 17px;border:2px dashed {primary};background-color:{palette["secondary_pale"]};box-shadow:7px 7px 0 {palette["sky_pale"]};"><p style="margin:-29px 0 15px;"><span style="display:inline-block;padding:5px 11px;background-color:{accent};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">NOTICEBOARD</span></p>'
+                    f'<p style="margin:0 0 7px;color:{primary};font-size:17px;font-weight:850;line-height:1.65;">把今天的判断带进下一次真实行动</p><p style="margin:0;color:{ink};font-size:13px;line-height:1.76;">保存文章，再回到自己的选择中验证。</p></section>'
+                ),
+            },
+        ]
+    if visual_system == "_legacy_youth_campus":
+        return [
+            {
+                "role": "section_heading",
+                "label": "贴纸章节标题",
+                "html": (
+                    f'<section style="margin:40px 0 20px;padding:5px 0 14px;border-bottom:2px solid {sky};">'
+                    f'<p style="width:64px;height:12px;margin:0 0 -6px 14px;background-color:{secondary};transform:rotate(-4deg);"></p>'
+                    f'<section style="padding:16px 17px;border:2px solid {primary};border-radius:5px 20px 20px 20px;background-color:{palette["surface"]};box-shadow:6px 6px 0 {palette["accent_pale"]};">'
+                    f'<p style="margin:0 0 7px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.13em;">CAMPUS NOTE</p>'
+                    f'<strong style="display:block;color:{ink};font-size:21px;line-height:1.5;">把信息变成愿意参与的校园议题</strong></section></section>'
+                ),
+            },
+            {
+                "role": "subheading",
+                "label": "徽章小标题",
+                "html": (
+                    '<section style="margin:27px 0 12px;white-space:normal;">'
+                    f'<span style="display:inline-block;width:25px;height:25px;margin-right:9px;border-radius:9px 9px 3px 9px;background-color:{accent};color:#FFFFFF;font-size:12px;font-weight:800;line-height:25px;text-align:center;transform:rotate(-5deg);vertical-align:top;">✦</span>'
+                    f'<strong style="box-sizing:border-box;display:inline-block;width:85%;padding:1px 0 8px;border-bottom:2px dashed {sky};color:{ink};font-size:18px;line-height:1.55;vertical-align:top;">先找到学生真正关心的问题</strong></section>'
+                ),
+            },
+            {
+                "role": "inline_emphasis",
+                "label": "荧光笔重点",
+                "html": (
+                    f'<p style="margin:22px 0;color:{ink};font-size:16px;line-height:1.9;">年轻感不等于信息噪声，真正需要突出的是'
+                    f'<strong style="padding:1px 4px;border-bottom:7px solid {palette["secondary_pale"]};color:{primary};font-weight:850;">能让读者参与判断的关键词</strong>。</p>'
+                ),
+            },
+            {
+                "role": "image_caption",
+                "label": "校园贴页图位",
+                "html": (
+                    f'<section style="margin:29px 0;padding:7px;border:2px dashed {sky};border-radius:20px 7px 20px 20px;box-shadow:6px 6px 0 {palette["accent_pale"]};">'
+                    f'<section style="height:148px;background-color:{pale};"><span style="display:block;width:67%;height:12px;margin:0 0 17px;background-color:{secondary};transform:rotate(-2deg);"></span><span style="display:block;width:48%;height:12px;margin-left:34%;background-color:{accent};"></span></section>'
+                    f'<p style="margin:10px 0 2px;color:#63718A;font-size:11px;line-height:1.55;text-align:center;">图示　用场景建立参与感</p></section>'
+                ),
+            },
+            {
+                "role": "divider",
+                "label": "徽章分隔",
+                "html": (
+                    f'<p style="margin:35px 0;text-align:center;white-space:nowrap;"><span style="display:inline-block;width:23%;height:2px;background-color:{sky};"></span>'
+                    f'<span style="display:inline-block;width:18px;height:18px;margin:0 10px;border:3px solid {accent};border-radius:6px;transform:rotate(13deg);vertical-align:middle;"></span>'
+                    f'<span style="display:inline-block;width:23%;height:2px;background-color:{secondary};"></span></p>'
+                ),
+            },
+            {
+                "role": "closing_cta",
+                "label": "打卡行动区",
+                "html": (
+                    f'<section style="margin:35px 0 0;padding:20px 18px;border:2px dashed {sky};border-radius:20px 7px 20px 20px;background-color:{palette["surface"]};box-shadow:6px 6px 0 {palette["accent_pale"]};">'
+                    f'<p style="margin:0 0 7px;color:{primary};font-size:17px;font-weight:850;line-height:1.65;">把今天的判断，带进下一次真实行动</p>'
+                    f'<p style="margin:0;color:{ink};font-size:13px;line-height:1.76;">保存文章，再回到自己的选择中验证。</p></section>'
+                ),
+            },
+        ]
     if visual_system == "editorial_contrast":
         return [
             {
@@ -352,6 +463,114 @@ def _rhythm_primitives(
                 ),
             },
         ]
+    if visual_system == "future_tech":
+        return [
+            {
+                "role": "section_heading",
+                "label": "杂志大号章节",
+                "html": (
+                    f'<section style="margin:44px 0 22px;padding:0 0 10px;white-space:normal;"><span style="display:inline-block;width:19%;color:{palette["sky_pale"]};font-family:Georgia,serif;font-size:46px;font-weight:800;line-height:.92;vertical-align:top;">01</span>'
+                    f'<section style="box-sizing:border-box;display:inline-block;width:81%;padding:2px 0 10px 16px;border-left:5px solid {secondary};vertical-align:top;"><strong style="display:block;color:{ink};font-size:21px;line-height:1.52;">从趋势信号中识别真正变化</strong>'
+                    f'<p style="height:3px;margin:11px 0 0;background:linear-gradient(90deg,{accent} 0%,{accent} 28%,{palette["sky_pale"]} 28%);"></p></section></section>'
+                ),
+            },
+            {
+                "role": "subheading",
+                "label": "极光叶片小标题",
+                "html": (
+                    f'<section style="margin:29px 0 13px;white-space:normal;"><span style="display:inline-block;width:18px;height:8px;margin:6px 10px 0 0;border-radius:12px 2px 12px 2px;background-color:{secondary};transform:rotate(-12deg);vertical-align:top;"></span>'
+                    f'<strong style="box-sizing:border-box;display:inline-block;width:87%;padding:0 0 8px;color:{ink};font-size:18px;line-height:1.55;vertical-align:top;">先确认技术真正改变了什么</strong></section>'
+                ),
+            },
+            {
+                "role": "inline_emphasis",
+                "label": "柔光划线重点",
+                "html": (
+                    f'<p style="margin:22px 0;color:{ink};font-size:16px;line-height:1.9;">前沿感来自 '
+                    f'<strong style="padding:1px 4px;border-bottom:6px solid {palette["secondary_pale"]};color:{primary};font-weight:820;">清晰、可验证的变化信号</strong>，而不是黑色背景。</p>'
+                ),
+            },
+            {
+                "role": "image_caption",
+                "label": "极光视觉图位",
+                "html": (
+                    f'<section style="margin:30px 0;padding:12px;border-radius:4px 36px 4px 24px;background:linear-gradient(135deg,{pale},{palette["secondary_pale"]});box-shadow:6px 6px 0 {palette["sky_pale"]};">'
+                    f'<section style="height:150px;border-radius:3px 28px 3px 20px;background:linear-gradient(140deg,{palette["sky_pale"]},{palette["secondary_pale"]});"><span style="display:block;width:72%;height:8px;margin:24px 0 16px;border-radius:10px;background-color:{secondary};"></span><span style="display:block;width:47%;height:8px;margin-left:24%;border-radius:10px;background-color:{accent};"></span></section>'
+                    f'<p style="margin:9px 2px 2px;color:#69738F;font-size:9px;font-weight:800;letter-spacing:.1em;text-align:right;">VISUAL / FUTURE EDITION</p></section>'
+                ),
+            },
+            {
+                "role": "divider",
+                "label": "极光轨迹分隔",
+                "html": (
+                    f'<p style="margin:36px 0;text-align:center;white-space:nowrap;"><span style="display:inline-block;width:20%;height:1px;background-color:{sky};vertical-align:middle;"></span><span style="display:inline-block;width:18px;height:7px;margin:0 8px;border-radius:12px 2px 12px 2px;background-color:{secondary};transform:rotate(-12deg);vertical-align:middle;"></span>'
+                    f'<span style="display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background-color:{accent};vertical-align:middle;"></span><span style="display:inline-block;width:20%;height:1px;background-color:{primary};vertical-align:middle;"></span></p>'
+                ),
+            },
+            {
+                "role": "closing_cta",
+                "label": "极光要点收束",
+                "html": (
+                    f'<section style="margin:36px 0 0;padding:19px 18px;border-radius:4px 42px 4px 26px;background:linear-gradient(135deg,{palette["secondary_pale"]},{pale});box-shadow:7px 7px 0 {palette["sky_pale"]};">'
+                    f'<p style="margin:0 0 9px;color:{primary};font-size:10px;font-weight:800;">要点回收</p><p style="margin:0;color:{ink};font-size:16px;font-weight:750;line-height:1.75;">保留有效信号，进入下一次真实验证</p></section>'
+                ),
+            },
+        ]
+    if visual_system == "_legacy_future_tech":
+        return [
+            {
+                "role": "section_heading",
+                "label": "信号章节标题",
+                "html": (
+                    f'<section style="margin:40px 0 20px;border-top:6px solid {primary};border-bottom:1px solid #B9D8D2;white-space:normal;">'
+                    f'<span style="display:inline-block;width:20%;padding:12px 8px 11px 0;color:{accent};font-family:Georgia,serif;font-size:17px;font-weight:800;vertical-align:top;">S01</span>'
+                    f'<strong style="box-sizing:border-box;display:inline-block;width:80%;padding:10px 0 12px 15px;border-left:2px solid {secondary};color:{ink};font-size:21px;line-height:1.5;vertical-align:top;">从趋势信号中识别真正变化</strong></section>'
+                ),
+            },
+            {
+                "role": "subheading",
+                "label": "节点小标题",
+                "html": (
+                    '<section style="margin:27px 0 12px;padding-bottom:8px;border-bottom:1px solid #B9D8D2;white-space:normal;">'
+                    f'<span style="display:inline-block;width:35px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.1em;vertical-align:top;">NODE</span>'
+                    f'<strong style="box-sizing:border-box;display:inline-block;width:86%;padding-left:12px;border-left:2px solid {secondary};color:{ink};font-size:18px;line-height:1.55;vertical-align:top;">先确认技术真正改变了什么</strong></section>'
+                ),
+            },
+            {
+                "role": "inline_emphasis",
+                "label": "信号线重点",
+                "html": (
+                    f'<p style="margin:22px 0;color:{ink};font-size:16px;line-height:1.9;">前沿感不来自深色背景，而来自'
+                    f'<strong style="padding:1px 3px;border-bottom:3px solid {secondary};color:{primary};font-weight:820;">清楚、可验证的变化信号</strong>。</p>'
+                ),
+            },
+            {
+                "role": "image_caption",
+                "label": "信号图像位",
+                "html": (
+                    f'<section style="margin:28px 0;border-top:6px solid {primary};border-left:5px solid {secondary};border-bottom:1px solid #B9D8D2;">'
+                    f'<section style="height:150px;padding:16px;background-color:{pale};"><span style="display:block;width:72%;height:8px;margin:24px 0 16px;background-color:{secondary};"></span><span style="display:block;width:47%;height:8px;margin-left:24%;background-color:{accent};"></span></section>'
+                    f'<p style="margin:8px 10px;color:#607985;font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.12em;text-align:right;">VISUAL SIGNAL</p></section>'
+                ),
+            },
+            {
+                "role": "divider",
+                "label": "轨道分隔",
+                "html": (
+                    f'<p style="margin:35px 0;border-top:1px solid #B9D8D2;text-align:right;"><span style="display:inline-block;width:24%;height:5px;background-color:{secondary};"></span>'
+                    f'<span style="display:inline-block;width:7px;height:7px;margin-left:8px;border-radius:50%;background-color:{accent};vertical-align:middle;"></span></p>'
+                ),
+            },
+            {
+                "role": "closing_cta",
+                "label": "下一信号页尾",
+                "html": (
+                    f'<section style="margin:35px 0 0;padding:20px 16px 17px;border-top:7px solid {primary};border-left:5px solid {secondary};border-bottom:1px solid #B9D8D2;background-color:#F5FBFA;">'
+                    f'<p style="margin:0 0 7px;color:{primary};font-size:17px;font-weight:820;line-height:1.65;">保留信号，进入下一次真实验证</p>'
+                    f'<p style="margin:0;color:{ink};font-size:13px;line-height:1.75;">技术判断仍由事实与人工确认共同完成。</p></section>'
+                ),
+            },
+        ]
     return []
 
 
@@ -373,6 +592,16 @@ def _full_preview(
                 '<p style="margin:16px 0 0;color:#7B6861;font-size:13px;line-height:1.75;">主题统一的是叙事温度与纸页节奏，而不是重复同一种卡片。</p></header>',
             ]
         )
+    elif theme["label"] == "青春校园":
+        body.extend(
+            [
+                f'<header style="padding:0 0 24px;border-bottom:2px solid {palette["sky"]};">',
+                f'<p style="width:72px;height:12px;margin:0 0 -4px 17px;background-color:{palette["secondary"]};transform:rotate(-4deg);"></p>',
+                f'<section style="padding:18px;border:2px solid {palette["primary"]};border-radius:6px 22px 22px 22px;background-color:{palette["surface"]};box-shadow:7px 7px 0 {palette["accent_pale"]};"><p style="margin:0 0 11px;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;">{theme["label"]}</p>',
+                f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:820;">把复杂选择变成一条清晰的行动路线</h1>',
+                '<p style="margin:16px 0 0;color:#63718A;font-size:13px;line-height:1.75;">主题统一的是参与感和贴页节奏，不是堆满彩色卡片。</p></section></header>',
+            ]
+        )
     elif theme["label"] == "编辑对比":
         body.extend(
             [
@@ -380,6 +609,16 @@ def _full_preview(
                 f'<p style="margin:15px 0 11px;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;">{theme["label"]}<span style="display:inline-block;width:52px;height:7px;margin-left:11px;background-color:{palette["primary"]};"></span></p>',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-size:30px;line-height:1.36;font-weight:850;">把复杂选择变成一条清晰的行动路线</h1>',
                 '<p style="margin:16px 0 0;padding-top:8px;border-top:1px solid #202B33;color:#687370;font-size:13px;line-height:1.7;text-align:right;">主题统一的是编辑秩序与观点强度。</p></header>',
+            ]
+        )
+    elif theme["label"] == "未来科技":
+        body.extend(
+            [
+                f'<header style="padding:0 0 23px;border-top:8px solid {palette["primary"]};border-bottom:1px solid #B9D8D2;">',
+                f'<p style="width:29%;height:5px;margin:0 0 15px;background-color:{palette["secondary"]};"></p>',
+                f'<section style="white-space:normal;"><span style="display:inline-block;width:21%;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.13em;vertical-align:top;">{theme["label"]}</span><section style="box-sizing:border-box;display:inline-block;width:79%;padding-left:15px;border-left:2px solid {palette["secondary"]};vertical-align:top;">',
+                f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:820;">把复杂选择变成一条清晰的行动路线</h1>',
+                '<p style="margin:16px 0 0;color:#607985;font-size:13px;line-height:1.75;">主题统一的是信号轨道和模块秩序，而不是黑底科技感。</p></section></section></header>',
             ]
         )
     else:
@@ -390,6 +629,20 @@ def _full_preview(
                 '<p style="margin:17px 0 28px;color:#65706D;font-size:13px;line-height:1.75;">主题统一的是设计基因，而不是把每一段都装进同一种卡片。</p>',
             ]
         )
+    if theme.get("english") == "CAMPUS BULLETIN":
+        body = [
+            '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
+            f'<header style="padding:0 8px 27px 0;"><p style="margin:0 0 -8px 19px;"><span style="display:inline-block;padding:5px 12px;background-color:{palette["secondary"]};color:{palette["ink"]};font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">CAMPUS BULLETIN</span></p>',
+            f'<section style="padding:22px 18px 19px 28px;border-left:11px dotted {palette["sky"]};border-bottom:4px solid {palette["primary"]};background-color:{palette["surface"]};box-shadow:8px 8px 0 {palette["secondary_pale"]};"><h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1>',
+            f'<p style="margin:16px 0 0;padding-top:11px;border-top:2px dashed {palette["sky"]};color:#63718A;font-size:13px;line-height:1.75;">主题统一的是公告栏、活页与票根节奏，不是重复彩色卡片。</p></section></header>',
+        ]
+    elif theme.get("english") == "FUTURE EDITION":
+        body = [
+            '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
+            f'<header style="padding:24px 20px 20px;border-left:6px solid {palette["primary"]};border-radius:0 62px 0 24px;background:linear-gradient(135deg,{palette["surface"]} 0%,{palette["pale"]} 48%,{palette["secondary_pale"]} 100%);box-shadow:8px 8px 0 {palette["sky_pale"]};">',
+            f'<p style="margin:0 0 15px;color:{palette["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">FUTURE EDITION <span style="color:{palette["accent"]};">●</span></p>',
+            f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1><p style="margin:16px 0 0;padding-top:11px;border-top:1px solid {palette["sky"]};color:#69738F;font-size:13px;line-height:1.75;">主题统一的是极光色带、错位留白和科学杂志节奏，不是技术术语与密集线框。</p><p style="margin:10px 0 -28px;text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette["secondary"]};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette["accent"]};"></span></p></header>',
+        ]
     body.append(
         f'<p style="margin:26px 0 20px;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">真正有效的排版，不是把每一段都装进卡片，而是帮助读者迅速看见重点、证据和下一步。</p>'
     )

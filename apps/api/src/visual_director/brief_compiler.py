@@ -15,7 +15,11 @@ from .editorial_brief import (
 )
 from .parser import ContentBlock, ParsedArticle
 from .plan_schema import validate_plan_for_article
-from .planner import component_opportunity_diagnostics, generate_plans
+from .planner import (
+    component_opportunity_diagnostics,
+    generate_plans,
+    supplement_component_coverage,
+)
 
 
 class EditorialBriefCompileError(ValueError):
@@ -58,6 +62,30 @@ ART_DIRECTION_PALETTES: dict[str, dict[str, str]] = {
         "sky_pale": "#EAF0ED",
         "surface": "#FFFDF8",
         "ink": "#26332F",
+    },
+    "campus_pop_editorial": {
+        "primary": "#2D6CDF",
+        "secondary": "#FFC857",
+        "accent": "#F06F8F",
+        "sky": "#72C9C1",
+        "pale": "#EEF4FF",
+        "secondary_pale": "#FFF6D9",
+        "accent_pale": "#FFF0F5",
+        "sky_pale": "#EAF9F6",
+        "surface": "#FFFEFB",
+        "ink": "#20304A",
+    },
+    "future_signal_editorial": {
+        "primary": "#304B8E",
+        "secondary": "#5CCBC1",
+        "accent": "#FF826E",
+        "sky": "#98A7E8",
+        "pale": "#F3F5FC",
+        "secondary_pale": "#EAF9F6",
+        "accent_pale": "#FFF1EC",
+        "sky_pale": "#EEF1FA",
+        "surface": "#FEFEFF",
+        "ink": "#24304F",
     },
 }
 
@@ -379,6 +407,12 @@ def compile_editorial_brief(
     baseline = generate_plans(parsed, contract.article.article_type, history_window, recent)[0]
     palette_profile, art_configuration = _art_direction_profile(contract)
     slots, compiler_adjustments = _compile_slots(contract, parsed, recent)
+    slots, coverage_adjustments, coverage_target = supplement_component_coverage(
+        parsed,
+        slots,
+        recent,
+    )
+    compiler_adjustments.extend(coverage_adjustments)
     opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
     compiled = {
         **baseline,
@@ -411,6 +445,8 @@ def compile_editorial_brief(
             "selected_component_types": [
                 slot["component_type"] for slot in slots
             ],
+            "coverage_target": coverage_target,
+            "coverage_added_count": len(coverage_adjustments),
             "compiler_adjustments": compiler_adjustments,
         },
     }
@@ -490,6 +526,18 @@ def visual_system_configuration(visual_system: str) -> dict[str, Any]:
             "accent": warm_palette["primary"],
             "palette": copy.deepcopy(warm_palette),
         }
+    if visual_system == "youth_campus":
+        campus_palette = ART_DIRECTION_PALETTES["campus_pop_editorial"]
+        return {
+            "heading_variant": "sticker_section",
+            "key_point_variant": "marker_highlight",
+            "quote_variant": "campus_quote",
+            "list_variant": "campus_steps",
+            "table_variant": "campus_grid",
+            "theme_kit": "campus_bulletin_v2",
+            "accent": campus_palette["primary"],
+            "palette": copy.deepcopy(campus_palette),
+        }
     if visual_system == "structured_grid":
         grid_palette = ART_DIRECTION_PALETTES["sage_sunlit_editorial"]
         return {
@@ -501,6 +549,18 @@ def visual_system_configuration(visual_system: str) -> dict[str, Any]:
             "theme_kit": "structured_editorial_v1",
             "accent": grid_palette["primary"],
             "palette": copy.deepcopy(grid_palette),
+        }
+    if visual_system == "future_tech":
+        future_palette = ART_DIRECTION_PALETTES["future_signal_editorial"]
+        return {
+            "heading_variant": "signal_section",
+            "key_point_variant": "signal_highlight",
+            "quote_variant": "signal_quote",
+            "list_variant": "signal_track",
+            "table_variant": "signal_matrix",
+            "theme_kit": "future_science_editorial_v1",
+            "accent": future_palette["primary"],
+            "palette": copy.deepcopy(future_palette),
         }
     editorial_palette = ART_DIRECTION_PALETTES["ink_navy_editorial"]
     return {
@@ -527,7 +587,12 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
         value = summary.get("visual_system") or summary.get("style_mode")
         if value == "light_reading":
             counts["light_reading"] += 1
-        elif value in {"warm_humanist", "structured_grid"}:
+        elif value in {
+            "warm_humanist",
+            "youth_campus",
+            "structured_grid",
+            "future_tech",
+        }:
             counts[str(value)] += 1
         elif value in editorial_modes:
             counts["editorial_contrast"] += 1
@@ -548,8 +613,8 @@ def compile_editorial_brief_variants(
     recent = recent_summaries or []
     base = compile_editorial_brief(parsed, brief, history_window, recent)
     counts = _visual_system_counts(recent[-history_window:])
-    soft_systems = ("light_reading", "warm_humanist")
-    structural_systems = ("editorial_contrast", "structured_grid")
+    soft_systems = ("light_reading", "warm_humanist", "youth_campus")
+    structural_systems = ("editorial_contrast", "structured_grid", "future_tech")
     selected_systems = (
         min(soft_systems, key=lambda value: (counts[value], soft_systems.index(value))),
         min(structural_systems, key=lambda value: (counts[value], structural_systems.index(value))),
@@ -561,6 +626,8 @@ def compile_editorial_brief_variants(
         "editorial_contrast": ("编辑对比", "以鲜明的杂志编辑层级呈现。"),
         "warm_humanist": ("温暖人文", "以暖调、亲和且有叙事温度的系统呈现。"),
         "structured_grid": ("理性网格", "以清晰网格和秩序感组织数据与流程。"),
+        "youth_campus": ("青春校园", "以贴纸切角、明快撞色和轻手账节奏呈现。"),
+        "future_tech": ("未来科技", "以极光色带、错位留白和科学杂志节奏呈现。"),
     }
     for plan, visual_system in zip(plans, selected_systems, strict=True):
         for slot in plan.get("slots", []):

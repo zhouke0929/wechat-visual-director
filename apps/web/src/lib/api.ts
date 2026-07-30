@@ -51,7 +51,7 @@ export async function listTasks(): Promise<Task[]> {
 export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
   const response = await fetch(`${API_BASE}/theme-gallery`, { cache: "no-store" });
   const payload = await parseResponse<{
-    schema_version: "theme_gallery.v0.2";
+    schema_version: "theme_gallery.v0.3";
     themes: ThemeGalleryItem[];
   }>(response);
   return payload.themes;

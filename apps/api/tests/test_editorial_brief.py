@@ -217,7 +217,91 @@ def test_normalizer_does_not_turn_article_h1_into_body_question_component() -> N
     assert normalized.sections[0].component_intent == "plain"
     assert any(item["code"] == "component_intent_lowered_to_plain" for item in adjustments)
     plan = compile_editorial_brief(request.parsed, normalized, 5, [])
-    assert not plan["slots"]
+    assert all("block-001" not in slot["consume_block_ids"] for slot in plan["slots"])
+
+
+def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> None:
+    parsed = parse_markdown(
+        """# 弱模型组件覆盖验收
+
+本文围绕教育选择中的事实、风险、对比与行动展开。正文保留足够缓冲，避免组件连续堆叠。
+
+## 事件与证据
+
+> 官方公开信息显示，相关项目仍需经过后续程序确认。
+
+这一证据之后保留一段普通解释，避免把来源和结论混在一起。
+
+读者还需要结合自身地区和年份核对最新口径。
+
+## 风险边界
+
+请注意：来源不明的内部排名存在明显风险，不要直接用于最终决策。
+
+风险提示之后继续说明为什么需要交叉核验。
+
+所有判断都应回到当年公开文件和个人实际条件。
+
+## 提交前核对清单
+
+1. 保存官方页面和截图
+2. 核对年份、地区与统计口径
+3. 标记专业限制与个人条件
+4. 提交前由另一人再次复核
+
+完成清单后先回到普通正文，确认各项信息没有遗漏。
+
+不同家庭的约束条件不同，不能照搬他人的最终顺序。
+
+## 两种判断方式对比
+
+- 只看单一分数，操作更快但容易忽略年份差异
+- 同时核对位次和规则，步骤更多但依据更完整
+
+对比之后仍需结合个人目标和风险承受能力。
+
+工具可以协助整理信息，但不能替代人工确认。
+
+## 本章小结
+
+- 先保存可追溯材料
+- 再核对统一口径
+- 最后完成人工复核
+
+文章最后回到普通正文，提醒读者持续关注最新通知。
+
+正式提交前还应再次确认信息是否发生变化。
+"""
+    )
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="data_policy",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    weak_brief = MockTextPlannerProvider().generate(request).model_copy(deep=True)
+    weak_brief.sections = []
+    weak_brief.image_intents = []
+
+    plan = compile_editorial_brief(parsed, weak_brief, 5, [])
+    diagnostics = plan["component_diagnostics"]
+
+    assert diagnostics["requested_component_count"] == 0
+    assert diagnostics["coverage_target"] >= 4
+    assert diagnostics["coverage_added_count"] >= 4
+    assert diagnostics["selected_component_count"] >= 4
+    selected_types = set(diagnostics["selected_component_types"])
+    assert len(selected_types) >= 4
+    assert {
+        "warning_note",
+        "action_checklist",
+        "comparison_card",
+    }.issubset(selected_types)
+    assert all(
+        slot["selection_reason"].startswith("组件覆盖兜底：")
+        for slot in plan["slots"]
+    )
 
 
 def test_compiler_consumes_only_bound_blocks_and_preserves_context_copy() -> None:
@@ -298,6 +382,22 @@ def test_visual_system_pool_rotates_both_groups_after_confirmed_history() -> Non
 
     assert [plan["visual_system"] for plan in plans] == ["warm_humanist", "structured_grid"]
     assert plans[0]["configuration"]["palette"] != plans[1]["configuration"]["palette"]
+    assert all(plan["visual_system_metadata"]["recent_use_count"] == 0 for plan in plans)
+
+
+def test_visual_system_pool_reaches_new_themes_after_four_existing_themes() -> None:
+    request = _request(_visual_contrast_samples()[1])
+    brief = MockTextPlannerProvider().generate(request)
+    recent = [
+        {"visual_system": "light_reading", "components": []},
+        {"visual_system": "warm_humanist", "components": []},
+        {"visual_system": "editorial_contrast", "components": []},
+        {"visual_system": "structured_grid", "components": []},
+    ]
+
+    plans = compile_editorial_brief_variants(request.parsed, brief, 5, recent)
+
+    assert [plan["visual_system"] for plan in plans] == ["youth_campus", "future_tech"]
     assert all(plan["visual_system_metadata"]["recent_use_count"] == 0 for plan in plans)
 
 

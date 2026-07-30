@@ -62,6 +62,28 @@ STYLE_PALETTES = {
     },
 }
 
+COMPONENT_COVERAGE_PRIORITIES = (
+    "faq_card",
+    "case_card",
+    "action_checklist",
+    "warning_note",
+    "comparison_card",
+    "section_summary",
+    "question_hook",
+    "logic_path",
+    "before_after_timeline",
+    "evidence_callout",
+    "concept_explainer",
+    "numbered_insight",
+)
+
+SEMANTIC_FAMILIES = {
+    "question_hook": "question",
+    "faq_card": "question",
+    "before_after_timeline": "comparison",
+    "comparison_card": "comparison",
+}
+
 
 def _base_usage(parsed: ParsedArticle) -> Counter[str]:
     usage: Counter[str] = Counter()
@@ -255,6 +277,146 @@ def component_opportunity_diagnostics(
     }
 
 
+def _block_number(block_id: str) -> int:
+    return int(block_id.rsplit("-", 1)[-1])
+
+
+def _article_text_length(parsed: ParsedArticle) -> int:
+    length = 0
+    for block in parsed.blocks:
+        if isinstance(block.content, list):
+            for item in block.content:
+                if isinstance(item, list):
+                    length += sum(len(str(cell)) for cell in item)
+                else:
+                    length += len(str(item))
+        else:
+            length += len(str(block.content))
+    return length
+
+
+def component_coverage_target(
+    parsed: ParsedArticle,
+    recent_summaries: list[dict[str, Any]] | None = None,
+) -> int:
+    """Return a safe component floor bounded by real, non-overlapping candidates."""
+    candidates = _build_candidates(parsed, recent_summaries or [])
+    feasible = _select_candidates(
+        candidates,
+        COMPONENT_COVERAGE_PRIORITIES,
+        6,
+    )
+    if not feasible:
+        return 0
+
+    text_length = _article_text_length(parsed)
+    block_count = len(parsed.blocks)
+    if text_length >= 3200 or block_count >= 32:
+        desired = 5
+    elif text_length >= 1800 or block_count >= 22:
+        desired = 4
+    elif text_length >= 900 or block_count >= 12:
+        desired = 3
+    else:
+        desired = 2
+    return min(desired, len(feasible), 6)
+
+
+def supplement_component_coverage(
+    parsed: ParsedArticle,
+    selected_slots: list[dict[str, Any]],
+    recent_summaries: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
+    """Fill weak-model gaps using only deterministic, fact-bound candidates.
+
+    Existing model choices always win. Candidates that overlap, sit directly
+    beside a strong component, or repeat a semantic family are skipped.
+    """
+    recent = recent_summaries or []
+    target = component_coverage_target(parsed, recent)
+    if len(selected_slots) >= target:
+        return copy.deepcopy(selected_slots), [], target
+
+    candidates = _build_candidates(parsed, recent)
+    priority = {
+        component_type: index
+        for index, component_type in enumerate(COMPONENT_COVERAGE_PRIORITIES)
+    }
+    ordered = sorted(
+        candidates,
+        key=lambda item: (
+            priority.get(item["component_type"], len(priority)),
+            item["anchor_block_id"],
+        ),
+    )
+    selected = copy.deepcopy(selected_slots)
+    consumed = {
+        block_id
+        for slot in selected
+        for block_id in slot["consume_block_ids"]
+    }
+    consumed_numbers = {
+        _block_number(block_id)
+        for block_id in consumed
+    }
+    type_counts: Counter[str] = Counter(
+        slot["component_type"] for slot in selected
+    )
+    family_counts: Counter[str] = Counter(
+        SEMANTIC_FAMILIES.get(slot["component_type"], slot["component_type"])
+        for slot in selected
+    )
+    adjustments: list[dict[str, str]] = []
+
+    for allow_repeat in (False, True):
+        for item in ordered:
+            component_type = item["component_type"]
+            family = SEMANTIC_FAMILIES.get(component_type, component_type)
+            if not allow_repeat and type_counts[component_type] > 0:
+                continue
+            if type_counts[component_type] >= 2 or family_counts[family] >= 2:
+                continue
+            if consumed.intersection(item["consume_block_ids"]):
+                continue
+            numbers = {
+                _block_number(block_id)
+                for block_id in item["consume_block_ids"]
+            }
+            if any(
+                abs(number - existing) <= 1
+                for number in numbers
+                for existing in consumed_numbers
+            ):
+                continue
+
+            candidate = copy.deepcopy(item)
+            candidate["selection_reason"] = (
+                f"组件覆盖兜底：{candidate['selection_reason']}"
+            )
+            selected.append(candidate)
+            consumed.update(candidate["consume_block_ids"])
+            consumed_numbers.update(numbers)
+            type_counts[component_type] += 1
+            family_counts[family] += 1
+            adjustments.append(
+                {
+                    "code": "component_coverage_candidate_added",
+                    "component": component_type,
+                    "source_block_ids": ",".join(candidate["consume_block_ids"]),
+                    "reason": "宿主选择低于当前文章的安全覆盖目标，使用原稿真实候选补齐。",
+                }
+            )
+            if len(selected) >= target:
+                break
+        if len(selected) >= target:
+            break
+
+    selected.sort(key=lambda item: item["anchor_block_id"])
+    for index, item in enumerate(selected, 1):
+        item["slot_id"] = f"slot-{index:03d}"
+    return selected, adjustments, target
+
+
 def _select_candidates(candidates: list[dict[str, Any]], priorities: tuple[str, ...], limit: int) -> list[dict[str, Any]]:
     priority = {component_type: index for index, component_type in enumerate(priorities)}
     ordered = sorted(
@@ -269,21 +431,15 @@ def _select_candidates(candidates: list[dict[str, Any]], priorities: tuple[str, 
     consumed_numbers: set[int] = set()
     type_counts: Counter[str] = Counter()
     family_counts: Counter[str] = Counter()
-    semantic_family = {
-        "question_hook": "question",
-        "faq_card": "question",
-        "before_after_timeline": "comparison",
-        "comparison_card": "comparison",
-    }
     for item in ordered:
         if type_counts[item["component_type"]] >= 2:
             continue
-        family = semantic_family.get(item["component_type"], item["component_type"])
+        family = SEMANTIC_FAMILIES.get(item["component_type"], item["component_type"])
         if family_counts[family] >= 2:
             continue
         if consumed.intersection(item["consume_block_ids"]):
             continue
-        numbers = {int(block_id.rsplit("-", 1)[-1]) for block_id in item["consume_block_ids"]}
+        numbers = {_block_number(block_id) for block_id in item["consume_block_ids"]}
         if any(abs(number - existing) <= 1 for number in numbers for existing in consumed_numbers):
             continue
         selected.append(copy.deepcopy(item))
@@ -507,11 +663,7 @@ def generate_plans(
     first_palette = STYLE_PALETTES[styles[0]]
     second_palette = STYLE_PALETTES[styles[1]]
     strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
-    first_slots = _select_candidates(
-        candidates,
-        ("faq_card", "case_card", "action_checklist", "warning_note", "comparison_card", "section_summary", "question_hook", "logic_path", "before_after_timeline", "evidence_callout", "concept_explainer", "numbered_insight"),
-        strong_limit,
-    )
+    first_slots = _select_candidates(candidates, COMPONENT_COVERAGE_PRIORITIES, strong_limit)
     second_slots = _select_candidates(
         candidates,
         ("section_summary", "comparison_card", "warning_note", "action_checklist", "case_card", "faq_card", "concept_explainer", "numbered_insight", "evidence_callout", "before_after_timeline", "question_hook", "logic_path"),
