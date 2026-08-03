@@ -10,12 +10,14 @@ from .component_catalog import COMPONENT_CATALOG, automatic_variants
 from .editorial_brief import (
     EditorialBrief,
     SectionBrief,
-    is_concept_pair,
+    adjacent_concept_pairs,
+    adjacent_comparison_pair,
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
 from .plan_schema import validate_plan_for_article
 from .planner import (
+    component_diversity_target,
     component_opportunity_diagnostics,
     generate_plans,
     supplement_component_coverage,
@@ -187,18 +189,20 @@ def _compile_bindings(
         refs = _item_refs(lists[0], 2)
         return {"before": refs[0], "after": refs[1]}
     if component == "concept_explainer":
-        requested = {block.id for block in blocks}
-        for index, block in enumerate(parsed.blocks[:-1]):
-            following = parsed.blocks[index + 1]
-            if (
-                block.id in requested
-                and following.id in requested
-                and block.type == "heading"
-                and (block.level or 0) >= 3
-                and following.type == "paragraph"
-                and is_concept_pair(str(block.content), str(following.content))
-            ):
-                return {"title": block.id, "definition": following.id}
+        pairs = adjacent_concept_pairs(
+            section.source_block_ids,
+            {block.id: block for block in parsed.blocks},
+            require_concept_semantics=True,
+        )
+        if pairs:
+            bindings: dict[str, str | list[str]] = {
+                "title": pairs[0][0].id,
+                "definition": pairs[0][1].id,
+            }
+            if len(pairs) > 1:
+                bindings["related_titles"] = [pair[0].id for pair in pairs[1:]]
+                bindings["related_definitions"] = [pair[1].id for pair in pairs[1:]]
+            return bindings
     if component in {"case_card", "faq_card"}:
         requested = {block.id for block in blocks}
         for index, block in enumerate(parsed.blocks[:-1]):
@@ -215,11 +219,23 @@ def _compile_bindings(
                 return {"question": block.id, "answer": following.id}
     if component == "warning_note" and evidence:
         return {"body": evidence[0].id}
-    if component in {"action_checklist", "section_summary"} and lists:
+    if component == "action_checklist" and lists:
+        # The normalizer only accepts up to ten source items. Bind every one:
+        # consuming the list while rendering only six would silently delete
+        # the remaining checklist facts from the final article.
+        return {"items": _item_refs(lists[0])}
+    if component == "section_summary" and lists:
         return {"items": _item_refs(lists[0], 6)}
     if component == "comparison_card" and lists and len(lists[0].content) >= 2:
         refs = _item_refs(lists[0], 2)
         return {"left": refs[0], "right": refs[1]}
+    if component == "comparison_card":
+        pair = adjacent_comparison_pair(
+            section.source_block_ids,
+            {block.id: block for block in parsed.blocks},
+        )
+        if pair:
+            return {"left": pair[0].id, "right": pair[1].id}
     raise EditorialBriefCompileError(f"原文块与组件意图不兼容：{component} -> {section.source_block_ids}")
 
 
@@ -414,6 +430,20 @@ def compile_editorial_brief(
     )
     compiler_adjustments.extend(coverage_adjustments)
     opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
+    selected_component_types = [slot["component_type"] for slot in slots]
+    selected_type_counts = Counter(selected_component_types)
+    block_positions = {block.id: index for index, block in enumerate(parsed.blocks)}
+    occupied_article_thirds = sorted(
+        {
+            min(
+                2,
+                (block_positions[slot["anchor_block_id"]] * 3)
+                // max(1, len(parsed.blocks)),
+            )
+            for slot in slots
+        }
+    )
+    diversity_target = component_diversity_target(parsed, coverage_target)
     compiled = {
         **baseline,
         "plan_name": "智能规划 · Editorial Brief",
@@ -442,9 +472,20 @@ def compile_editorial_brief(
                 if section.component_intent != "plain"
             ),
             "selected_component_count": len(slots),
-            "selected_component_types": [
-                slot["component_type"] for slot in slots
-            ],
+            "selected_component_types": selected_component_types,
+            "selected_distinct_component_type_count": len(selected_type_counts),
+            "repeated_component_types": sorted(
+                component_type
+                for component_type, count in selected_type_counts.items()
+                if count > 1
+            ),
+            "occupied_article_thirds": occupied_article_thirds,
+            "rhythm_target_distinct_types": diversity_target,
+            "rhythm_status": (
+                "pass"
+                if len(selected_type_counts) >= diversity_target
+                else "limited_by_source_candidates"
+            ),
             "coverage_target": coverage_target,
             "coverage_added_count": len(coverage_adjustments),
             "compiler_adjustments": compiler_adjustments,

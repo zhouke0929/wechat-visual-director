@@ -669,7 +669,15 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 }
 .candidate-card { min-width: 0; padding: 7px; border: 1px solid #c8cdc9; background: #f7f5ed; }
 .candidate-card.candidate-selected { border: 2px solid var(--teal); padding: 6px; background: #edf7f3; }
-.candidate-image-wrap { position: relative; aspect-ratio: 16 / 10; overflow: hidden; background: #dfe5e1; }
+.candidate-image-wrap {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background:
+    linear-gradient(45deg, rgba(23, 52, 48, .035) 25%, transparent 25%, transparent 75%, rgba(23, 52, 48, .035) 75%),
+    #edf0ec;
+  background-size: 18px 18px;
+}
 .candidate-preview-button {
   width: 100%;
   padding: 0;
@@ -679,7 +687,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   cursor: zoom-in;
   text-align: left;
 }
-.candidate-image-wrap img { width: 100%; height: 100%; display: block; object-fit: cover; }
+.candidate-image-wrap img { width: 100%; height: 100%; display: block; object-fit: contain; }
 .candidate-image-wrap > span {
   position: absolute;
   left: 6px;

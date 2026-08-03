@@ -23,8 +23,8 @@ from .parser import ParsedArticle
 from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.5-component-opportunities"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.2-component-opportunities"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.6-concept-groups"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.3-concept-groups"
 DEFAULT_QWEN_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 QWEN_MODEL_PRICES_CNY_PER_MILLION = {
     "qwen3.6-flash": (1.2, 7.2),
@@ -48,9 +48,9 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "视觉新鲜感不能破坏品牌一致性和正文可读性。",
     "question_hook 只能引用 H3–H6 子标题；numbered_insight 必须引用含 2–5 项的列表。",
     "logic_path 必须引用含 3–5 项的 ordered_list；before_after_timeline 必须引用至少 2 项的列表。",
-    "concept_explainer 只能引用 H3–H6 子标题及其紧随的定义段落。",
+    "concept_explainer 只能引用同一 H2 下 1–4 组连续的 H3–H6 子标题及其各自紧随的解释段落；连续多组会被编译为一个词条组，普通正文会中断该组。",
     "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 必须直接绑定含风险提示的原文。",
-    "action_checklist、comparison_card、section_summary 必须直接绑定原文列表，不得把普通段落改写为列表。",
+    "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 可绑定原文列表，或绑定标题已明确表示对比且正文自身带有双方语义的两个相邻段落；不得把普通段落改写为列表或凭空制造对照。",
     "数据来源、资料来源和规则来源保持普通排版，不得用作强组件。",
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",
     "图片意图只能为 optional 或 recommended；不得把品牌 CTA 送入图片生成。",

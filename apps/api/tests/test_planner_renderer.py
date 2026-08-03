@@ -90,7 +90,7 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
     assert len(plans[0]["slots"]) <= 4
     assert len(plans[1]["slots"]) <= 3
     assert all(plan["schema_version"] == "visual_plan.v0.5" for plan in plans)
-    assert all(plan["component_library_version"] == "wechat_components.v0.11.0" for plan in plans)
+    assert all(plan["component_library_version"] == "wechat_components.v0.12.0" for plan in plans)
     assert all(0 <= len(plan["image_slots"]) <= 3 for plan in plans)
     assert plans[0]["image_slots"]
     assert all(slot["required"] is False for plan in plans for slot in plan["image_slots"])
@@ -373,6 +373,70 @@ def test_feature_heading_is_not_consumed_as_concept_explainer() -> None:
     assert concept_slots
     assert all("block-003" not in slot["consume_block_ids"] for slot in concept_slots)
     assert all("block-005" in slot["consume_block_ids"] for slot in concept_slots)
+
+
+def test_consecutive_concepts_render_as_one_theme_specific_glossary() -> None:
+    article = parse_markdown(
+        """# 新高考概念说明
+
+## 新高考模式下的核心规则变化
+
+### 院校专业组
+
+新高考不再按学校加专业投档，而是按院校专业组投档，每个组有独立的选科要求和投档线。
+
+### 等级赋分制
+
+等级赋分制按照考生所在省份的排名比例换算成绩，用来降低不同年份卷面难度差异带来的影响。
+
+### 选科要求与专业绑定
+
+高校会在招生计划中明确专业组的选考科目要求，选科决定考生可以报考的专业组范围。
+
+这一组术语之后的普通正文必须保留，不应被概念组件吞掉。
+"""
+    )
+    plans = generate_plans(article, "data_policy", 5)
+    grouped_slots = [
+        slot
+        for plan in plans
+        for slot in plan["slots"]
+        if slot["component_type"] == "concept_explainer"
+        and "related_titles" in slot["content_bindings"]
+    ]
+    assert grouped_slots
+    slot = grouped_slots[0]
+    assert slot["consume_block_ids"] == [
+        "block-003",
+        "block-004",
+        "block-005",
+        "block-006",
+        "block-007",
+        "block-008",
+    ]
+    assert slot["content_bindings"]["related_titles"] == ["block-005", "block-007"]
+
+    documents = []
+    for visual_system in VISUAL_SYSTEM_ORDER:
+        document = render_component(
+            {
+                **slot,
+                "variant": visual_system_variant("concept_explainer", visual_system),
+            },
+            article,
+        )
+        documents.append(document)
+        assert "院校专业组" in document
+        assert "等级赋分制" in document
+        assert "选科要求与专业绑定" in document
+    assert len(set(documents)) == 6
+    assert all("<table" not in document.lower() for document in documents)
+    assert all("display:flex" not in document.lower() for document in documents)
+    assert all("display:grid" not in document.lower() for document in documents)
+    assert all("position:absolute" not in document.lower() for document in documents)
+
+    preview = render_preview(article, plans[0])
+    assert "这一组术语之后的普通正文必须保留" in preview
 
 
 def test_plan_contract_rejects_unknown_variant_and_missing_block() -> None:

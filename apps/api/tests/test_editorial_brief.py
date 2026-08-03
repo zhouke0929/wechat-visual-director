@@ -174,6 +174,74 @@ def test_normalizer_moves_image_out_of_component_middle_and_plan_compiles() -> N
     compile_editorial_brief(request.parsed, normalized, 5, [])
 
 
+def test_normalizer_expands_one_selected_concept_to_consecutive_sibling_group() -> None:
+    parsed = parse_markdown(
+        """# 新高考概念说明
+
+## 核心规则
+
+### 院校专业组
+
+院校专业组是高校将若干专业组成的投档单位，每个组有独立的选科要求和投档线。
+
+### 等级赋分制
+
+等级赋分制是按照考生所在省份的排名比例换算成绩，用来降低不同年份试题难度差异的影响。
+
+### 选科要求与专业绑定
+
+选科要求与专业绑定是指高校明确每个专业组允许报考的选考科目范围。
+
+普通正文从这里继续，不属于上面的概念词条组。
+"""
+    )
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="data_policy",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    raw["sections"] = [
+        {
+            "source_block_ids": ["block-003", "block-004"],
+            "semantic_role": "concept",
+            "visual_priority": "high",
+            "component_intent": "concept_explainer",
+            "reasoning": "宿主模型只选中了第一个真实术语。",
+        }
+    ]
+    raw["image_intents"] = []
+
+    normalized, adjustments = normalize_editorial_brief_for_article(raw, parsed)
+    assert normalized.sections[0].source_block_ids == [
+        "block-003",
+        "block-004",
+        "block-005",
+        "block-006",
+        "block-007",
+        "block-008",
+    ]
+    assert any(
+        item["code"] == "concept_group_expanded_from_sibling_terms"
+        for item in adjustments
+    )
+
+    plan = compile_editorial_brief(parsed, normalized, 5, [])
+    slot = next(
+        item for item in plan["slots"]
+        if item["component_type"] == "concept_explainer"
+    )
+    assert slot["content_bindings"]["related_titles"] == ["block-005", "block-007"]
+    assert slot["content_bindings"]["related_definitions"] == ["block-006", "block-008"]
+    preview = render_preview(parsed, plan)
+    assert "院校专业组" in preview
+    assert "等级赋分制" in preview
+    assert "选科要求与专业绑定" in preview
+    assert "普通正文从这里继续" in preview
+
+
 def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> None:
     request = _request(_dev_samples()[4])
     raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
@@ -325,6 +393,127 @@ def test_compiler_consumes_only_bound_blocks_and_preserves_context_copy() -> Non
     assert concept_slot["consume_block_ids"] == ["block-003", "block-004"]
     viewpoint_html = render_preview(viewpoint.parsed, viewpoint_plan)
     assert str(next(block.content for block in viewpoint.parsed.blocks if block.id == "block-005")) in viewpoint_html
+
+
+def test_real_article_concept_and_long_checklist_survive_normalization() -> None:
+    parsed = parse_markdown(
+        """# 2026 年志愿填报核对指南
+
+## 先理解三个核心规则
+
+### 院校专业组
+
+新高考不再只按学校投档，同一所大学会拆分为多个具有独立选科要求和投档线的专业组。
+
+普通正文继续解释规则变化对考生选择的影响，不能被概念组件吞掉。
+
+## 服从调剂的风险与收益
+
+服从专业调剂能降低退档风险，但两种极端处理方式都有问题。
+
+盲目勾选的风险是被调剂到自己完全不能接受的专业。
+
+完全不勾选的风险是分数达到投档线后仍可能直接退档。
+
+正确判断仍要回到专业组内全部专业是否可以接受。
+
+## 志愿填报前的完整核对清单
+
+提交前建议逐项核对，全部确认后再完成提交。
+
+- 查阅本省最新政策
+- 核对本人选科组合
+- 保存一分一段表
+- 对比近三年录取位次
+- 检查专业组内专业
+- 确认是否服从调剂
+- 设置合理志愿梯度
+- 保存最终志愿截图
+"""
+    )
+    base = MockTextPlannerProvider().generate(
+        TextPlannerRequest(
+            parsed=parsed,
+            article_type="data_policy",
+            history_window=5,
+            recent_summaries=[],
+            brand_config={},
+        )
+    ).model_dump(mode="json")
+    concept_heading = next(
+        block for block in parsed.blocks
+        if block.type == "heading" and block.level == 3
+    )
+    concept_body = parsed.blocks[parsed.blocks.index(concept_heading) + 1]
+    checklist = next(
+        block for block in parsed.blocks
+        if block.type == "unordered_list" and len(block.content) == 8
+    )
+    checklist_heading = next(
+        block for block in parsed.blocks
+        if block.type == "heading" and "核对清单" in str(block.content)
+    )
+    checklist_intro = parsed.blocks[parsed.blocks.index(checklist_heading) + 1]
+    comparison_heading = next(
+        block for block in parsed.blocks
+        if block.type == "heading" and "风险与收益" in str(block.content)
+    )
+    comparison_blocks = []
+    for block in parsed.blocks[parsed.blocks.index(comparison_heading) :]:
+        if (
+            block is not comparison_heading
+            and block.type == "heading"
+            and (block.level or 0) <= (comparison_heading.level or 0)
+        ):
+            break
+        comparison_blocks.append(block)
+    base["sections"] = [
+        {
+            "source_block_ids": [concept_heading.id, concept_body.id],
+            "semantic_role": "concept",
+            "visual_priority": "high",
+            "component_intent": "concept_explainer",
+            "reasoning": "短子标题与紧随解释段构成原文概念单元。",
+        },
+        {
+            "source_block_ids": [block.id for block in comparison_blocks],
+            "semantic_role": "comparison",
+            "visual_priority": "high",
+            "component_intent": "comparison_card",
+            "reasoning": "相邻两段分别描述两种极端选择的风险。",
+        },
+        {
+            "source_block_ids": [checklist_heading.id, checklist_intro.id, checklist.id],
+            "semantic_role": "checklist",
+            "visual_priority": "high",
+            "component_intent": "action_checklist",
+            "reasoning": "引导段后的八项列表是完整行动清单。",
+        },
+    ]
+    base["image_intents"] = []
+
+    normalized, adjustments = normalize_editorial_brief_for_article(base, parsed)
+    assert not [
+        item for item in adjustments
+        if item["code"] == "component_intent_lowered_to_plain"
+    ]
+    plan = compile_editorial_brief(parsed, normalized, 5, [])
+    component_types = {slot["component_type"] for slot in plan["slots"]}
+    assert {
+        "concept_explainer",
+        "comparison_card",
+        "action_checklist",
+    }.issubset(component_types)
+    checklist_slot = next(
+        slot for slot in plan["slots"]
+        if slot["component_type"] == "action_checklist"
+    )
+    assert len(checklist_slot["content_bindings"]["items"]) == 8
+    document = render_preview(parsed, plan)
+    assert "保存最终志愿截图" in document
+    assert "普通正文继续解释规则变化" in document
+    assert "盲目勾选的风险" in document
+    assert "完全不勾选的风险" in document
 
 
 def test_compiler_maps_art_direction_to_frozen_palette_and_layout() -> None:

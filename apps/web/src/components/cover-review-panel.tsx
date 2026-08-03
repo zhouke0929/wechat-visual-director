@@ -70,7 +70,7 @@ export function CoverReviewPanel({ busy, review, onGenerate, onReuse, onSelect, 
 
       {review.reuse_sources.length ? (
         <section className="cover-source-strip">
-          <header><strong>从正文中挑选</strong><span>系统将中心裁切，不改变正文原图</span></header>
+          <header><strong>从正文中挑选</strong><span>完整保留正文原图，用柔化背景适配 5:4</span></header>
           <div>
             {review.reuse_sources.map((source) => (
               <button disabled={Boolean(busy)} key={`${source.source_type}:${source.source_id}`} onClick={() => void onReuse(source)} type="button">
@@ -87,7 +87,7 @@ export function CoverReviewPanel({ busy, review, onGenerate, onReuse, onSelect, 
       <section className="cover-contact-sheet">
         <header>
           <strong>封面候选</strong>
-          <span>{review.candidates.length ? `${review.candidates.length} 张 · 全部已裁切为 5:4` : "尚未生成候选"}</span>
+          <span>{review.candidates.length ? `${review.candidates.length} 张 · 全部已无损适配为 5:4` : "尚未生成候选"}</span>
         </header>
         {review.candidates.length ? (
           <div>

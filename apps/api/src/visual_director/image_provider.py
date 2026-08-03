@@ -34,7 +34,7 @@ DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
 DEFAULT_AGNES_ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 DEFAULT_AGNES_MODEL = "agnes-image-2.1-flash"
 IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION = "image_provider_settings.v0.2"
-IMAGE_PROMPT_VERSION = "v4-end-to-end-infographic"
+IMAGE_PROMPT_VERSION = "v5-seedream-safe-infographic"
 ALLOWED_RATIOS = {"4:3", "16:9"}
 # OpenAI and Gemini can return the generated image inline as Base64. A 4K
 # image can make the JSON envelope much larger than a normal API response.
@@ -110,21 +110,29 @@ def validate_provider_prompt(prompt: str) -> None:
 def _visual_concept(subject: str, article_type: str) -> str:
     normalized = sanitize_subject(subject)
     routes = [
-        (r"位次|分数|数据|核对|官方|政策", "careful comparison, verification, and evidence-based educational choices"),
-        (r"冲|稳|保|梯度|排序|路径", "a clear three-tier decision path from ambitious to secure choices"),
-        (r"步骤|提交|检查|清单|复核", "a calm step-by-step review and confirmation process"),
-        (r"玩|兴趣|项目|动手|机器人|实践", "hands-on learning, playful exploration, and student-made projects"),
-        (r"AI|人工智能|科技|未来", "human-centered learning and creativity in an AI-enabled future"),
+        (r"位次|分数|数据|核对|官方|政策", "基于公开信息核验、比较并谨慎做出教育选择"),
+        (r"冲|稳|保|梯度|排序|路径", "从冲刺到稳妥选择的清晰决策路径"),
+        (r"步骤|提交|检查|清单|复核", "平静、可靠的分步核对流程"),
+        (r"玩|兴趣|项目|动手|机器人|实践", "动手学习、兴趣探索与学生自主创作"),
+        (r"AI|人工智能|科技|未来", "人工智能时代以人为本的学习与创造力"),
     ]
     for pattern, concept in routes:
         if re.search(pattern, normalized, re.IGNORECASE):
             return concept
     return {
-        "data_policy": "careful educational decision-making based on verified public information",
-        "tutorial_steps": "a reliable step-by-step educational decision workflow",
-        "lively_growth": "curiosity, hands-on learning, and personal growth",
-        "viewpoint_trend": "a thoughtful editorial perspective on learning and future choices",
-    }.get(article_type, "a thoughtful editorial perspective on learning and future choices")
+        "data_policy": "基于已核验公开信息做出谨慎的教育决策",
+        "tutorial_steps": "可靠、清楚的教育决策步骤",
+        "lively_growth": "好奇心、动手学习与个人成长",
+        "viewpoint_trend": "关于学习与未来选择的编辑视角",
+    }.get(article_type, "关于学习与未来选择的编辑视角")
+
+
+def _structured_layout(item_count: int) -> str:
+    if item_count == 2:
+        return "两条内容上下排列，形成一条清楚的纵向对照动线，不使用左右分栏"
+    if item_count == 3:
+        return "三条内容上下排列成纵向编辑序列，一行一个观点，禁止三列并排"
+    return "四条内容使用两段纵向序列，每段两条上下排列，禁止四列并排"
 
 
 def build_provider_prompt(
@@ -195,30 +203,30 @@ def build_provider_prompt(
                 retryable=False,
                 http_status=422,
             )
-        locked_copy = "；".join(f'节点{index + 1}：“{item}”' for index, item in enumerate(items))
+        locked_copy = "；".join(f'{index + 1}. “{item}”' for index, item in enumerate(items))
+        layout = _structured_layout(len(items))
         prompt = " ".join(
             [
-                "为教育类微信公众号正文设计一张完整的横版专业信息图，由模型完成最终版式、插画、图标和文字排版。",
-                f'信息图标题必须逐字写为：“{title}”。',
-                f"必须包含且只包含以下{len(items)}个信息节点：{locked_copy}。",
-                "以上中文属于锁定原文，必须逐字完整呈现，不改写、不省略、不新增事实；文字要清晰易读，不能溢出、遮挡或被裁切。",
-                f"信息结构：{composition}；{negative_space}。",
-                f"视觉隐喻：{sanitize_subject(str(intent.get('subject') or ''))}。",
-                f"美术方向：{style}。整体气质：{tone}。配色：{palette}。",
-                "使用统一而有辨识度的小图标、轻量插画和阅读动线建立层次；避免通用商务PPT、后台界面、僵硬表格、重复圆角卡片和粗重阴影。",
-                "适合手机端阅读，标题、节点和插画形成一个完整视觉作品。",
-                "除锁定原文外不要添加任何文字；不得出现二维码、Logo、水印、条形码、官方印章或虚构数据。",
+                "设计一张教育类微信公众号使用的横版4:3编辑信息图，像一页有呼吸感的现代教育杂志，不是PPT、后台界面或卡片模板。",
+                "画布安全区是中央区域：左右各留12%，上下各留10%；所有标题、正文、编号和图标必须完整位于安全区内，不得贴边、越界或被裁切。",
+                f"版式：标题左对齐置于顶部；{layout}；正文使用适合手机阅读的清晰中文字体。",
+                f'只呈现以下锁定文字。标题：“{title}”。内容：{locked_copy}。',
+                "锁定文字逐字呈现，不改写、不省略；不要添加系统字段名、副标题、说明或虚构数据。",
+                f"视觉隐喻只作为小型边缘插画，不占用文字区：{sanitize_subject(str(intent.get('subject') or ''))}。",
+                f"风格：{style}；气质：{tone}；配色：{palette}。背景以冷白或极浅灰为主，暖色只做局部点缀，不要大面积米黄或黄色底。",
+                "用开放式分区、细线、手绘标记和少量图标建立阅读节奏；避免三列小卡片、重复圆角框、粗重阴影和大面积装饰。",
+                "不得出现二维码、Logo、水印、条形码或官方印章。",
             ]
         )
         validate_provider_prompt(prompt)
         return prompt
     prompt = " ".join(
         [
-            "为教育类微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。",
+            "为教育类微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
             f"文章语义：{concept}。",
             f"具体视觉隐喻：{sanitize_subject(str(intent.get('subject') or ''))}。",
             f"构图：{composition}；{negative_space}。",
-            f"美术方向：{style}。整体气质：{tone}。配色：{palette}。",
+            f"美术方向：{style}。整体气质：{tone}。配色：{palette}；背景以冷白或极浅灰为主，暖色只作局部点缀。",
             "使用一个明确、具体的主要场景，不使用没有信息目的的装饰几何形状，画面有层次但不过度堆砌。",
             "画面中不要出现文字、字母、汉字、数字、表格、图表、文档、界面、Logo、水印、二维码、条形码、官方印章或招牌。",
         ]

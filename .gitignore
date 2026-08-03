@@ -54,7 +54,7 @@ docs/*
 !docs/V1.0规范化文章输入协议.md
 !docs/V1.0开源Skill产品定位与发行决策.md
 !docs/组件视觉质量基线-V1.0.md
-!docs/Alpha.11真实运营观察表.md
+!docs/真实运营观察表.md
 !docs/releases/
 !docs/releases/*.md
 

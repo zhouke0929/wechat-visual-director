@@ -16,7 +16,7 @@ from fastapi import FastAPI, File, Form, Header, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .component_catalog import COMPONENT_CATALOG, allowed_variants, component_options
 from .brand import brand_asset_path, load_brand_profile, public_brand_profile
@@ -240,18 +240,39 @@ def _public_task(task: dict[str, Any]) -> dict[str, Any]:
     } | {"publication_mode": "local"}
 
 
-def _crop_cover(content: bytes) -> bytes:
+def _fit_cover(content: bytes) -> bytes:
     try:
         with Image.open(BytesIO(content)) as source:
             converted = source.convert("RGB")
-            fitted = ImageOps.fit(
+            target_size = (1080, 864)
+            # Reused article images are commonly 16:9 while WeChat cover assets
+            # use a 5:4 canvas. Keep the full source visible instead of silently
+            # deleting the left/right information with a center crop. A softened
+            # backdrop fills the remaining bands so the result still reads as a
+            # deliberate cover rather than a letterboxed screenshot.
+            backdrop = ImageOps.fit(
                 converted,
-                (1080, 864),
+                target_size,
                 method=Image.Resampling.LANCZOS,
                 centering=(0.5, 0.5),
+            ).filter(ImageFilter.GaussianBlur(radius=28))
+            backdrop = Image.blend(
+                backdrop,
+                Image.new("RGB", target_size, "#F7F5EF"),
+                0.34,
             )
+            fitted = ImageOps.contain(
+                converted,
+                target_size,
+                method=Image.Resampling.LANCZOS,
+            )
+            offset = (
+                (target_size[0] - fitted.width) // 2,
+                (target_size[1] - fitted.height) // 2,
+            )
+            backdrop.paste(fitted, offset)
             output = BytesIO()
-            fitted.save(output, format="PNG", optimize=True)
+            backdrop.save(output, format="PNG", optimize=True)
             return output.getvalue()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("封面来源不是有效图片") from error
@@ -2240,7 +2261,7 @@ def create_app(
                 aspect_ratio="4:3",
                 candidate_index=len(workspace["candidates"]) + 1,
             )
-            cropped = _crop_cover(generated.content)
+            fitted = _fit_cover(generated.content)
         except ImageProviderError as error:
             return _error(
                 error.http_status,
@@ -2257,7 +2278,7 @@ def create_app(
             provider=generated.provider,
             model=generated.model,
             provider_prompt=generated.prompt,
-            content=cropped,
+            content=fitted,
             content_type="image/png",
             extension=".png",
             width=1080,
@@ -2265,7 +2286,7 @@ def create_app(
             latency_ms=generated.latency_ms,
             machine_checks={
                 **generated.machine_checks,
-                "cover_crop": "1080x864_center_safe",
+                "cover_fit": "1080x864_contain_over_soft_backdrop",
                 "ratio_valid": True,
             },
         )
@@ -2292,22 +2313,26 @@ def create_app(
             path, _ = repository.get_image_candidate_asset(payload.source_id)
         else:
             path, _ = repository.get_preflight_asset(payload.source_id)
-        cropped = _crop_cover(path.read_bytes())
+        fitted = _fit_cover(path.read_bytes())
         candidate = repository.add_cover_candidate(
             task_id=task_id,
             plan_id=plan_id,
             source_type=payload.source_type,
             source_resource_id=payload.source_id,
             provider="reuse",
-            model="deterministic_center_crop_v1",
-            provider_prompt="reuse accepted article image; deterministic 1080x864 center crop",
-            content=cropped,
+            model="deterministic_cover_fit_v2",
+            provider_prompt="reuse accepted article image; deterministic 1080x864 contain fit",
+            content=fitted,
             content_type="image/png",
             extension=".png",
             width=1080,
             height=864,
             latency_ms=0,
-            machine_checks={"file_valid": True, "ratio_valid": True, "cover_crop": "1080x864_center_safe"},
+            machine_checks={
+                "file_valid": True,
+                "ratio_valid": True,
+                "cover_fit": "1080x864_contain_over_soft_backdrop",
+            },
         )
         return {"candidate": candidate, "workspace": cover_workspace(task_id, plan_id)}
 

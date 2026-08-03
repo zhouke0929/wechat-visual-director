@@ -6,6 +6,32 @@ from pathlib import Path
 from visual_director import cli
 
 
+def test_pnpm_command_supports_powershell_shim(monkeypatch) -> None:
+    def fake_which(name: str) -> str | None:
+        return {
+            "pnpm": "C:/tools/pnpm.ps1",
+            "pnpm.ps1": "C:/tools/pnpm.ps1",
+            "pwsh.exe": "C:/tools/pwsh.exe",
+            "powershell.exe": "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
+        }.get(name)
+
+    monkeypatch.setattr(cli.shutil, "which", fake_which)
+
+    command = cli._pnpm_command()
+
+    if cli.os.name == "nt":
+        assert command == [
+            "C:/tools/pwsh.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "C:/tools/pnpm.ps1",
+        ]
+    else:
+        assert command == ["C:/tools/pnpm.ps1"]
+
+
 def test_doctor_json_reports_missing_services(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "_probe_json", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)

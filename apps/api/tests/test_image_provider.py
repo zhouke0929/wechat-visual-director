@@ -96,12 +96,16 @@ def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> No
         infographic_title="填报前完成三项核对",
         infographic_items=["核对成绩和位次", "检查专业限制", "保留复核记录"],
     )
-    assert "模型完成最终版式" in structured
+    assert "横版4:3编辑信息图" in structured
     assert "填报前完成三项核对" in structured
     assert "核对成绩和位次" in structured
-    assert "逐字完整呈现" in structured
+    assert "锁定文字逐字呈现" in structured
     assert "低饱和青绿" in structured
-    assert "通用商务PPT" in structured
+    assert "中央区域" in structured
+    assert "左右各留12%" in structured
+    assert "禁止三列并排" in structured
+    assert "节点1" not in structured
+    assert "大面积米黄或黄色底" in structured
     assert "空白底板" not in structured
 
 

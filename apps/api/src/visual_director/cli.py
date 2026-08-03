@@ -308,11 +308,27 @@ def _spawn_detached(
 
 
 def _pnpm_command() -> list[str] | None:
-    pnpm = shutil.which("pnpm") or shutil.which("pnpm.cmd")
+    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm") or shutil.which("pnpm.ps1")
     if pnpm:
+        if os.name == "nt" and Path(pnpm).suffix.lower() == ".ps1":
+            powershell = shutil.which("pwsh.exe") or shutil.which("powershell.exe")
+            if powershell:
+                return [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", pnpm]
         return [pnpm]
-    corepack = shutil.which("corepack") or shutil.which("corepack.cmd")
+    corepack = shutil.which("corepack.cmd") or shutil.which("corepack") or shutil.which("corepack.ps1")
     if corepack:
+        if os.name == "nt" and Path(corepack).suffix.lower() == ".ps1":
+            powershell = shutil.which("pwsh.exe") or shutil.which("powershell.exe")
+            if powershell:
+                return [
+                    powershell,
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    corepack,
+                    "pnpm",
+                ]
         return [corepack, "pnpm"]
     return None
 

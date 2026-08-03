@@ -10,7 +10,7 @@ from .parser import ParsedArticle
 
 
 EDITORIAL_BRIEF_SCHEMA_VERSION = "editorial_brief.v0.1"
-EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.5-concept-semantic-guard"
+EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.7-concept-groups"
 
 CONCEPT_HEADING_RE = re.compile(r"什么是|核心概念|概念解释|概念定义|定义[：:]?")
 NON_CONCEPT_HEADING_RE = re.compile(
@@ -19,6 +19,10 @@ NON_CONCEPT_HEADING_RE = re.compile(
     r"怎么(?:做|操作|使用)|如何(?:操作|使用)"
 )
 CONCEPT_DEFINITION_RE = re.compile(r"是指|指的是|本质上是|定义为|可以理解为")
+COMPARISON_SIDE_RE = re.compile(
+    r"^(?:盲目|完全|一方面|另一方面|过去|现在|改革前|改革后|传统|新方式|"
+    r"优点|缺点|优势|不足|错误做法|正确做法)"
+)
 
 
 def is_concept_pair(heading: str, paragraph: str) -> bool:
@@ -31,7 +35,20 @@ def is_concept_pair(heading: str, paragraph: str) -> bool:
         return True
     if NON_CONCEPT_HEADING_RE.search(heading):
         return False
-    return bool(CONCEPT_DEFINITION_RE.search(paragraph))
+    if CONCEPT_DEFINITION_RE.search(paragraph):
+        return True
+
+    # A short H3+ noun phrase followed by a substantial explanatory paragraph
+    # is a safe concept unit even when Chinese prose does not literally use
+    # “是指/定义为”. H1/H2 are still protected by _is_component_heading,
+    # while operational headings remain excluded by NON_CONCEPT_HEADING_RE.
+    compact_heading = re.sub(r"\s+", "", heading)
+    compact_paragraph = re.sub(r"\s+", "", paragraph)
+    return (
+        2 <= len(compact_heading) <= 18
+        and 20 <= len(compact_paragraph) <= 220
+        and not re.search(r"[？?]$", compact_heading)
+    )
 
 ArticleType = Literal["data_policy", "tutorial_steps", "viewpoint_trend", "lively_growth"]
 ComponentIntent = Literal[
@@ -161,23 +178,25 @@ def _is_component_heading(block: object) -> bool:
     return block.type == "heading" and (block.level or 0) >= 3
 
 
-def _adjacent_concept_pair(
+def _concept_pair_runs(
     source_block_ids: list[str],
     blocks: dict[str, object],
     *,
     require_concept_semantics: bool = False,
-) -> tuple[object, object] | None:
-    """Return an H3+ heading and its immediately following definition paragraph.
-
-    The adjacency check is performed against the complete article order, not a
-    filtered source list.  This prevents a broad model reference from silently
-    pairing an H2 with an unrelated later paragraph (D86).
-    """
+) -> list[list[tuple[object, object]]]:
+    """Return every run of adjacent H3+ concept-definition pairs."""
     requested = set(source_block_ids)
     ordered = list(blocks.values())
+    runs: list[list[tuple[object, object]]] = []
+    current: list[tuple[object, object]] = []
+    current_parent: str | None = None
+    parent_heading: str | None = None
+    last_paragraph_index: int | None = None
     for index, block in enumerate(ordered[:-1]):
+        if block.type == "heading" and (block.level or 0) <= 2:
+            parent_heading = block.id
         following = ordered[index + 1]
-        if (
+        is_pair = (
             block.id in requested
             and following.id in requested
             and _is_component_heading(block)
@@ -186,7 +205,138 @@ def _adjacent_concept_pair(
                 not require_concept_semantics
                 or is_concept_pair(str(block.content), str(following.content))
             )
+        )
+        if not is_pair:
+            continue
+        continues_run = (
+            current
+            and current_parent == parent_heading
+            and last_paragraph_index is not None
+            and index == last_paragraph_index + 1
+        )
+        if not continues_run:
+            if current:
+                runs.append(current)
+            current = []
+            current_parent = parent_heading
+        current.append((block, following))
+        last_paragraph_index = index + 1
+    if current:
+        runs.append(current)
+    return runs
+
+
+def adjacent_concept_pairs(
+    source_block_ids: list[str],
+    blocks: dict[str, object],
+    *,
+    require_concept_semantics: bool = False,
+) -> list[tuple[object, object]]:
+    """Return the longest run of adjacent H3+ concept-definition pairs.
+
+    The adjacency check is performed against the complete article order, not a
+    filtered source list. This prevents a broad model reference from silently
+    pairing an H2 with an unrelated later paragraph. A run may contain two to
+    four sibling terms under the same protected H2; intervening prose breaks
+    the run instead of being swallowed into the component.
+    """
+    runs = _concept_pair_runs(
+        source_block_ids,
+        blocks,
+        require_concept_semantics=require_concept_semantics,
+    )
+    if not runs:
+        return []
+    return max(runs, key=len)[:4]
+
+
+def surrounding_concept_group(
+    source_block_ids: list[str],
+    blocks: dict[str, object],
+) -> list[tuple[object, object]]:
+    """Expand one selected term to its consecutive sibling glossary group.
+
+    Expansion is confined to the same H2 and only chooses the run that contains
+    one of the model-selected blocks. This lets a weak host model select one
+    valid concept without causing the remaining adjacent terms to fall back to
+    visually unrelated ordinary subheadings.
+    """
+    requested = set(source_block_ids)
+    ordered = list(blocks.values())
+    selected_positions = [
+        index for index, block in enumerate(ordered)
+        if block.id in requested and _is_component_heading(block)
+    ]
+    if not selected_positions:
+        return []
+    anchor_index = selected_positions[0]
+    start = 0
+    for index in range(anchor_index, -1, -1):
+        block = ordered[index]
+        if block.type == "heading" and (block.level or 0) <= 2:
+            start = index
+            break
+    end = len(ordered)
+    for index in range(anchor_index + 1, len(ordered)):
+        block = ordered[index]
+        if block.type == "heading" and (block.level or 0) <= 2:
+            end = index
+            break
+    section_ids = [block.id for block in ordered[start:end]]
+    runs = _concept_pair_runs(
+        section_ids,
+        blocks,
+        require_concept_semantics=True,
+    )
+    for run in runs:
+        run_ids = {block.id for pair in run for block in pair}
+        if requested.intersection(run_ids):
+            return run[:4]
+    return []
+
+
+def _adjacent_concept_pair(
+    source_block_ids: list[str],
+    blocks: dict[str, object],
+    *,
+    require_concept_semantics: bool = False,
+) -> tuple[object, object] | None:
+    pairs = adjacent_concept_pairs(
+        source_block_ids,
+        blocks,
+        require_concept_semantics=require_concept_semantics,
+    )
+    return pairs[0] if pairs else None
+
+
+def adjacent_comparison_pair(
+    source_block_ids: list[str],
+    blocks: dict[str, object],
+) -> tuple[object, object] | None:
+    """Return two adjacent, explicitly contrasted source paragraphs.
+
+    H1/H2 may provide semantic context but are never consumed. The returned
+    pair must be verbatim neighbouring paragraphs, preventing the model from
+    inventing or joining unrelated claims into a comparison component.
+    """
+    requested = set(source_block_ids)
+    ordered = list(blocks.values())
+    for index, block in enumerate(ordered[:-1]):
+        following = ordered[index + 1]
+        if not (
+            block.id in requested
+            and following.id in requested
+            and block.type == "paragraph"
+            and following.type == "paragraph"
         ):
+            continue
+        left = str(block.content).strip()
+        right = str(following.content).strip()
+        explicit_sides = bool(
+            COMPARISON_SIDE_RE.search(left)
+            and COMPARISON_SIDE_RE.search(right)
+        )
+        if explicit_sides:
             return block, following
     return None
 
@@ -216,23 +366,29 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
     ):
         return [lists[0].id]
     if section.component_intent == "concept_explainer":
-        pair = _adjacent_concept_pair(
+        pairs = adjacent_concept_pairs(
             section.source_block_ids,
             blocks,
             require_concept_semantics=True,
         )
-        if pair:
-            return [pair[0].id, pair[1].id]
+        if pairs:
+            return [block.id for pair in pairs for block in pair]
     if section.component_intent in {"case_card", "faq_card"}:
         pair = _adjacent_concept_pair(section.source_block_ids, blocks)
         if pair:
             return [pair[0].id, pair[1].id]
     if section.component_intent == "warning_note" and evidence:
         return [evidence[0].id]
-    if section.component_intent in {"action_checklist", "section_summary"} and lists and 2 <= len(lists[0].content) <= 6:
+    if section.component_intent == "action_checklist" and lists and 2 <= len(lists[0].content) <= 10:
         return [lists[0].id]
-    if section.component_intent == "comparison_card" and lists and len(lists[0].content) >= 2:
+    if section.component_intent == "section_summary" and lists and 2 <= len(lists[0].content) <= 6:
         return [lists[0].id]
+    if section.component_intent == "comparison_card":
+        if lists and len(lists[0].content) >= 2:
+            return [lists[0].id]
+        pair = adjacent_comparison_pair(section.source_block_ids, blocks)
+        if pair:
+            return [pair[0].id, pair[1].id]
     return []
 
 
@@ -340,6 +496,21 @@ def normalize_editorial_brief_for_article(
             raise ValueError(f"组件建议引用了不存在的原文块：{sorted(missing)}")
         if section.component_intent == "plain":
             continue
+        if section.component_intent == "concept_explainer":
+            concept_group = surrounding_concept_group(section.source_block_ids, blocks)
+            if len(concept_group) > 1:
+                expanded_ids = [block.id for pair in concept_group for block in pair]
+                if expanded_ids != section.source_block_ids:
+                    previous_ids = list(section.source_block_ids)
+                    section.source_block_ids = expanded_ids
+                    adjustments.append(
+                        {
+                            "code": "concept_group_expanded_from_sibling_terms",
+                            "location": f"sections[{index}].source_block_ids",
+                            "from": ",".join(previous_ids),
+                            "reason": f"同一 H2 下存在 {len(concept_group)} 个连续且可回溯的概念词条，合并为一个词条组。",
+                        }
+                    )
         bound_ids = _section_bound_block_ids(section, blocks)
         overlap = consumed.intersection(bound_ids)
         if overlap or not bound_ids:

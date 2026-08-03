@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Any
 
 
-COMPONENT_LIBRARY_VERSION = "wechat_components.v0.11.0"
-RENDERER_VERSION = "preview_renderer.v0.16.0-future-science-editorial"
+COMPONENT_LIBRARY_VERSION = "wechat_components.v0.12.0"
+RENDERER_VERSION = "preview_renderer.v0.17.0-concept-groups"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 

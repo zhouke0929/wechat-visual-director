@@ -67,6 +67,151 @@ def _plain_list(items: list[str], accent: str) -> str:
     return '<section style="margin:24px 0;">' + "".join(rows) + "</section>"
 
 
+def _concept_entries(
+    parsed: ParsedArticle,
+    bindings: dict[str, Any],
+) -> list[tuple[str, str]]:
+    titles = [_one(parsed, bindings, "title")]
+    definitions = [_one(parsed, bindings, "definition")]
+    if "related_titles" in bindings or "related_definitions" in bindings:
+        if "related_titles" not in bindings or "related_definitions" not in bindings:
+            raise ValueError("连续概念词条必须同时提供标题与解释")
+        titles.extend(_many(parsed, bindings, "related_titles"))
+        definitions.extend(_many(parsed, bindings, "related_definitions"))
+    if len(titles) != len(definitions) or not 1 <= len(titles) <= 4:
+        raise ValueError("连续概念词条必须包含 1–4 组标题与解释")
+    return [(_inline(title), _inline(definition)) for title, definition in zip(titles, definitions, strict=True)]
+
+
+def _render_concept_group(
+    entries: list[tuple[str, str]],
+    variant: str,
+    colors: dict[str, str],
+) -> str:
+    primary = colors["primary"]
+    secondary = colors["secondary"]
+    accent = colors["accent"]
+    sky = colors["sky"]
+    pale = colors["pale"]
+    secondary_pale = colors["secondary_pale"]
+    accent_pale = colors["accent_pale"]
+    sky_pale = colors["sky_pale"]
+    surface = colors["surface"]
+    ink = colors["ink"]
+
+    if variant == "note_definition":
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            rows.append(
+                f'<section style="padding:16px 0 17px;border-top:1px solid #D7B995;white-space:normal;">'
+                f'<span style="display:inline-block;width:17%;padding:2px 8px 0 0;color:{accent};font-family:Georgia,serif;font-size:18px;font-weight:800;vertical-align:top;">{index:02d}<span style="display:block;width:28px;height:7px;margin-top:8px;background-color:{secondary};transform:rotate(-5deg);"></span></span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:83%;padding-left:15px;border-left:2px dashed #D7B995;vertical-align:top;">'
+                f'<p style="margin:0 0 7px;color:{primary};font-family:Georgia,\'Noto Serif SC\',serif;font-size:18px;font-weight:750;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.86;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:32px 0;padding:0 14px 3px;background-color:{surface};box-shadow:6px 7px 0 {secondary_pale};">'
+            f'<p style="margin:0 0 2px;padding:8px 12px;background-color:{accent_pale};color:{accent};font-size:11px;font-weight:800;letter-spacing:.12em;">概念手册 · {len(entries)} 个核心词条</p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    if variant in {"open_definition_note", "airy_definition"}:
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            dot_color = (primary, sky, accent, secondary)[(index - 1) % 4]
+            rows.append(
+                f'<section style="margin:0 0 17px;padding:0 0 15px;border-bottom:1px solid {sky};white-space:normal;">'
+                f'<span style="display:inline-block;width:10%;color:{dot_color};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:90%;vertical-align:top;">'
+                f'<p style="margin:0 0 6px;color:{primary};font-size:17px;font-weight:750;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.84;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:29px 0;padding:18px 18px 2px;border-left:3px solid {primary};border-radius:0 20px 6px 0;background-color:{sky_pale};">'
+            f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.14em;">核心概念</p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    if variant == "notebook_term":
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            tab_color = (accent, sky, primary, secondary)[(index - 1) % 4]
+            rows.append(
+                f'<section style="margin:0 0 14px;padding:13px 13px 14px;background-color:{surface};box-shadow:4px 4px 0 {secondary_pale};white-space:normal;">'
+                f'<span style="display:inline-block;width:15%;padding:4px 3px;background-color:{tab_color};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">{index:02d}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:85%;padding-left:12px;vertical-align:top;">'
+                f'<p style="margin:0 0 7px;color:{primary};font-size:17px;font-weight:800;line-height:1.5;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:31px 0;padding:18px 13px 5px 22px;border-left:9px dotted {sky};background-color:{pale};">'
+            f'<p style="margin:-24px 0 17px;"><span style="display:inline-block;padding:5px 11px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;transform:rotate(-2deg);">课堂词条</span></p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    if variant == "editorial_definition":
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            rows.append(
+                f'<section style="border-top:1px solid {ink};white-space:normal;">'
+                f'<span style="display:inline-block;width:18%;padding:15px 8px 16px 0;color:{accent};font-family:Georgia,serif;font-size:24px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:82%;padding:15px 0 17px 16px;border-left:6px solid {accent};vertical-align:top;">'
+                f'<p style="margin:0 0 7px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:18px;font-weight:800;line-height:1.5;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.84;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:31px 0;border-top:11px solid {ink};border-bottom:3px solid {ink};">'
+            f'<p style="margin:0;padding:8px 0;color:{accent};font-size:10px;font-weight:800;letter-spacing:.16em;">术语索引</p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    if variant in {"coordinate_definition", "definition_register"}:
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            rows.append(
+                f'<section style="border-top:1px solid #B7C5C0;white-space:normal;">'
+                f'<span style="display:inline-block;width:22%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">TERM-{index:02d}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:78%;padding:14px 13px 16px;border-left:1px solid #B7C5C0;vertical-align:top;">'
+                f'<p style="margin:0 0 6px;color:{primary};font-size:17px;font-weight:750;line-height:1.55;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:30px 0;border:1px solid {primary};background-color:{surface};">'
+            f'<p style="height:8px;margin:0;background-color:{primary};"><span style="display:block;width:27%;height:8px;background-color:{secondary};"></span></p>'
+            f'<p style="margin:0;padding:9px 12px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">概念坐标</p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    if variant == "hologram_term":
+        rows = []
+        for index, (title, definition) in enumerate(entries, 1):
+            signal = (accent, primary, sky, secondary)[(index - 1) % 4]
+            rows.append(
+                f'<section style="margin:0 0 12px;padding:14px 15px;border-left:5px solid {signal};border-radius:3px 24px 3px 16px;background-color:{surface};white-space:normal;">'
+                f'<span style="display:inline-block;width:13%;color:{signal};font-family:Georgia,serif;font-size:16px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:87%;vertical-align:top;">'
+                f'<p style="margin:0 0 6px;color:{ink};font-size:17px;font-weight:800;line-height:1.52;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{definition}</p></section></section>'
+            )
+        return (
+            f'<section style="margin:32px 0;padding:18px 15px 7px;border-radius:4px 40px 4px 22px;background:linear-gradient(135deg,{sky_pale},{secondary_pale});box-shadow:6px 6px 0 {pale};">'
+            f'<p style="margin:0 0 14px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">概念切片 · {len(entries)} 项</p>'
+            f'{"".join(rows)}</section>'
+        )
+
+    rows = []
+    for index, (title, definition) in enumerate(entries, 1):
+        rows.append(
+            f'<section style="padding:14px 0;border-top:1px solid {sky};">'
+            f'<p style="margin:0 0 7px;color:{primary};font-size:17px;font-weight:750;">{index:02d} · {title}</p>'
+            f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{definition}</p></section>'
+        )
+    return (
+        f'<section style="margin:28px 0;padding:16px;border-left:4px solid {primary};background-color:{pale};">'
+        f'<p style="margin:0 0 6px;color:{primary};font-size:11px;font-weight:800;">核心概念</p>{"".join(rows)}</section>'
+    )
+
+
 def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[str, str] | None = None) -> str:
     component_type = slot["component_type"]
     variant = slot["variant"]
@@ -570,8 +715,10 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         )
 
     if component_type == "concept_explainer":
-        title = _inline(_one(parsed, bindings, "title"))
-        definition = _inline(_one(parsed, bindings, "definition"))
+        entries = _concept_entries(parsed, bindings)
+        if len(entries) > 1:
+            return _render_concept_group(entries, variant, colors)
+        title, definition = entries[0]
         if variant == "plain_definition":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{pale};"><strong style="color:{primary};">{title}</strong><p style="margin:8px 0 0;line-height:1.8;">{definition}</p></section>'
         if variant == "open_definition_note":

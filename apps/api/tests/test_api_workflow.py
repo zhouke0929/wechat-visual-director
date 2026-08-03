@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from visual_director.main import create_app
+from visual_director.main import _fit_cover, create_app
 from visual_director.delivery import WenyanPublishResult
 from visual_director.image_provider import MockImageProvider
 from visual_director.text_planner import MockTextPlannerProvider
@@ -37,6 +37,23 @@ class _SuccessfulWenyanPublisher:
         assert b"<h1" not in files["article.md"]
         assert b"padding:0 24px 34px" not in files["article.md"]
         return WenyanPublishResult(status="succeeded", media_id="REAL_MEDIA_001", error=None)
+
+
+def test_cover_fit_preserves_both_edges_of_wide_source() -> None:
+    source = Image.new("RGB", (1600, 900), "#55aa66")
+    for x in range(100):
+        for y in range(900):
+            source.putpixel((x, y), (220, 40, 40))
+            source.putpixel((1599 - x, y), (40, 70, 220))
+    buffer = BytesIO()
+    source.save(buffer, format="PNG")
+
+    fitted = _fit_cover(buffer.getvalue())
+
+    with Image.open(BytesIO(fitted)) as cover:
+        assert cover.size == (1080, 864)
+        assert cover.getpixel((0, 432))[0] > 180
+        assert cover.getpixel((1079, 432))[2] > 180
 
 
 class _FailThenSucceedWenyanPublisher(_SuccessfulWenyanPublisher):
@@ -1141,6 +1158,11 @@ def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: 
         )
         assert reused.status_code == 200
         assert reused.json()["candidate"]["source_type"] == "accepted_body_image"
+        assert reused.json()["candidate"]["model"] == "deterministic_cover_fit_v2"
+        assert (
+            reused.json()["candidate"]["machine_checks"]["cover_fit"]
+            == "1080x864_contain_over_soft_backdrop"
+        )
         assert client.get(body_candidate["content_url"]).content == original_bytes
 
 
