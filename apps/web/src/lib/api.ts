@@ -22,6 +22,34 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 const API_ORIGIN = API_BASE.replace(/\/api\/v1\/?$/, "");
+const REQUEST_TIMEOUT_MS = 12_000;
+const EXPECTED_APPLICATION_VERSION =
+  process.env.NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION ?? null;
+
+type RuntimeHealth = {
+  status: string;
+  application_version?: string;
+  image_provider_settings_schema_version?: string;
+};
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (reason) {
+    if (reason instanceof DOMException && reason.name === "AbortError") {
+      throw new Error("本地服务响应超时，请运行 doctor --json 检查后重试。");
+    }
+    throw reason;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 export function absoluteApiUrl(path: string): string {
   if (/^https?:\/\//.test(path)) return path;
@@ -29,9 +57,27 @@ export function absoluteApiUrl(path: string): string {
 }
 
 export async function getApplicationVersion(): Promise<string> {
-  const response = await fetch(`${API_ORIGIN}/health`, { cache: "no-store" });
+  const response = await fetchWithTimeout(`${API_ORIGIN}/health`, { cache: "no-store" });
   const payload = await parseResponse<{ application_version: string }>(response);
   return payload.application_version;
+}
+
+export async function assertRuntimeCompatibility(): Promise<RuntimeHealth> {
+  const response = await fetchWithTimeout(`${API_ORIGIN}/health`, { cache: "no-store" });
+  const payload = await parseResponse<RuntimeHealth>(response);
+  const versionMatches =
+    !EXPECTED_APPLICATION_VERSION
+    || payload.application_version === EXPECTED_APPLICATION_VERSION;
+  if (
+    !payload.application_version
+    || payload.image_provider_settings_schema_version !== "image_provider_settings.v0.2"
+    || !versionMatches
+  ) {
+    throw new Error(
+      "检测到旧版或不匹配的核心服务仍占用端口。请关闭旧服务，再通过稳定启动器重新打开工作台。",
+    );
+  }
+  return payload;
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -162,12 +208,12 @@ export async function replacePreflightAsset(
 }
 
 export async function getTask(taskId: string): Promise<TaskDetail> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}`, { cache: "no-store" });
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}`, { cache: "no-store" });
   return parseResponse<TaskDetail>(response);
 }
 
 export async function getPlans(taskId: string): Promise<PlanList> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/plans`, { cache: "no-store" });
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/plans`, { cache: "no-store" });
   return parseResponse<PlanList>(response);
 }
 
@@ -242,7 +288,7 @@ export async function undoPlanChange(
 }
 
 export async function getImageSlots(taskId: string, planId: string): Promise<ImageSlotList> {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/image-slots`,
     { cache: "no-store" },
   );
@@ -250,7 +296,7 @@ export async function getImageSlots(taskId: string, planId: string): Promise<Ima
 }
 
 export async function getCoverWorkspace(taskId: string, planId: string): Promise<CoverWorkspace> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/plans/${planId}/cover-candidates`, {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/plans/${planId}/cover-candidates`, {
     cache: "no-store",
   });
   return parseResponse<CoverWorkspace>(response);
@@ -376,7 +422,7 @@ export async function replaceImageSlot(
 }
 
 export async function getPublicationReadiness(taskId: string): Promise<PublicationReadiness> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/publication-readiness`, {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/publication-readiness`, {
     cache: "no-store",
   });
   return parseResponse<PublicationReadiness>(response);
@@ -395,7 +441,7 @@ export async function savePublicationDraft(
 }
 
 export async function getPublicationRevisions(taskId: string): Promise<PublicationRevision[]> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/publication-revisions`, {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/publication-revisions`, {
     cache: "no-store",
   });
   const payload = await parseResponse<{ items: PublicationRevision[] }>(response);
@@ -451,7 +497,7 @@ export async function createMockDraft(
 }
 
 export async function getWenyanPublisherStatus(): Promise<WenyanPublisherStatus> {
-  const response = await fetch(`${API_BASE}/publishers/wenyan/status`, { cache: "no-store" });
+  const response = await fetchWithTimeout(`${API_BASE}/publishers/wenyan/status`, { cache: "no-store" });
   return parseResponse<WenyanPublisherStatus>(response);
 }
 
@@ -486,7 +532,7 @@ export function publicationBundleUrl(revisionId: string): string {
 }
 
 export async function getDraftOperations(taskId: string): Promise<DraftOperation[]> {
-  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/draft-operations`, {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/draft-operations`, {
     cache: "no-store",
   });
   const payload = await parseResponse<{ items: DraftOperation[] }>(response);

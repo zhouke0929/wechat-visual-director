@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 
 from visual_director import cli
@@ -30,6 +32,68 @@ def test_pnpm_command_supports_powershell_shim(monkeypatch) -> None:
         ]
     else:
         assert command == ["C:/tools/pnpm.ps1"]
+
+
+def test_pnpm_command_strips_outer_quotes_from_host_path(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli.shutil,
+        "which",
+        lambda name: '"C:/Users/test/AppData/Roaming/TRAE SOLO CN/tools/node/pnpm.CMD"'
+        if name == "pnpm.cmd"
+        else None,
+    )
+
+    assert cli._pnpm_command() == [
+        "C:/Users/test/AppData/Roaming/TRAE SOLO CN/tools/node/pnpm.CMD"
+    ]
+
+
+def test_web_probe_requires_current_workbench_identity(monkeypatch) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda url, **_kwargs: {
+            "application": cli.WORKBENCH_ID,
+            "application_version": cli.application_version(),
+        }
+        if url.endswith("/api/health")
+        else None,
+    )
+
+    assert cli._probe_web("http://127.0.0.1:3000") is True
+
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "application": cli.WORKBENCH_ID,
+            "application_version": "0.1.0-alpha.1",
+        },
+    )
+    assert cli._probe_web("http://127.0.0.1:3000") is False
+
+
+def test_windows_batch_launch_supports_path_with_spaces(tmp_path: Path) -> None:
+    if os.name != "nt":
+        return
+    shim_dir = tmp_path / "TRAE SOLO CN" / "tools" / "node"
+    shim_dir.mkdir(parents=True)
+    shim = shim_dir / "pnpm.CMD"
+    shim.write_text("@echo off\r\necho host-shim-ok\r\n", encoding="ascii")
+
+    launch = cli._platform_launch_command([str(shim), "dev"])
+    result = subprocess.run(
+        launch,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=10,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "host-shim-ok" in result.stdout
 
 
 def test_doctor_json_reports_missing_services(monkeypatch, capsys) -> None:
@@ -275,6 +339,27 @@ def test_serve_refuses_same_version_api_with_stale_settings_contract(
     payload = json.loads(capsys.readouterr().out)
     assert payload["error"]["code"] == "core_version_mismatch"
     assert payload["error"]["details"]["running_settings_schema"] is None
+
+
+def test_serve_refuses_reachable_stale_workbench(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda url, **_kwargs: {
+            "status": "ok",
+            "application_version": cli.application_version(),
+            "image_provider_settings_schema_version": cli.IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+        }
+        if url.endswith("/health")
+        else None,
+    )
+    monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)
+
+    assert cli.run(["serve", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "workbench_version_mismatch"
+    assert payload["error"]["details"]["expected_version"] == cli.application_version()
 
 
 def test_create_task_returns_agent_safe_result(tmp_path: Path, monkeypatch, capsys) -> None:

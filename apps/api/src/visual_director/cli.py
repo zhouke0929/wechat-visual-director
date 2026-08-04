@@ -25,6 +25,7 @@ from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
 DEFAULT_WEB_BASE = "http://127.0.0.1:3000"
 CLI_SCHEMA_VERSION = "visual_director_cli.v0.2"
+WORKBENCH_ID = "wechat_visual_director_workbench"
 
 
 class CliError(RuntimeError):
@@ -221,13 +222,23 @@ def _probe_json(url: str, timeout: float = 1.5) -> dict[str, Any] | None:
         return None
 
 
-def _probe_web(url: str, timeout: float = 1.5) -> bool:
+def _probe_http(url: str, timeout: float = 1.5) -> bool:
     try:
         request = Request(url, method="GET")
         with urlopen(request, timeout=timeout) as response:
             return 200 <= response.status < 500
     except (HTTPError, URLError, TimeoutError, OSError):
         return False
+
+
+def _probe_web(url: str, timeout: float = 1.5) -> bool:
+    health_url = urljoin(f"{url.rstrip('/')}/", "api/health")
+    payload = _probe_json(health_url, timeout=timeout)
+    return bool(
+        payload
+        and payload.get("application") == WORKBENCH_ID
+        and payload.get("application_version") == application_version()
+    )
 
 
 def _multipart_markdown(
@@ -276,15 +287,7 @@ def _spawn_detached(
 ) -> int:
     runtime = _runtime_home()
     log_path = runtime / "logs" / log_name
-    launch_command = command
-    if os.name == "nt" and Path(command[0]).suffix.lower() in {".cmd", ".bat"}:
-        launch_command = [
-            os.environ.get("COMSPEC", "cmd.exe"),
-            "/d",
-            "/s",
-            "/c",
-            subprocess.list2cmdline(command),
-        ]
+    launch_command = _platform_launch_command(command)
     with log_path.open("ab") as log:
         child_env = os.environ.copy()
         child_env.update(extra_env or {})
@@ -307,18 +310,49 @@ def _spawn_detached(
     return process.pid
 
 
+def _platform_launch_command(command: list[str]) -> list[str] | str:
+    if os.name != "nt" or Path(command[0]).suffix.lower() not in {".cmd", ".bat"}:
+        return command
+    # Passing the command tail as a separate Popen argument makes cmd.exe strip
+    # the first quote in paths such as "TRAE SOLO CN\...\pnpm.CMD". Build one
+    # Windows command line so cmd receives the documented /s /c quoting form:
+    # cmd.exe /d /s /c ""C:\path with spaces\pnpm.cmd" dev ..."
+    comspec = os.environ.get("COMSPEC", "cmd.exe")
+    return (
+        f"{subprocess.list2cmdline([comspec])} /d /s /c "
+        f'"{subprocess.list2cmdline(command)}"'
+    )
+
+
+def _normalized_executable(value: str | None) -> str | None:
+    if not value:
+        return None
+    normalized = value.strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] == '"':
+        normalized = normalized[1:-1].strip()
+    return normalized or None
+
+
+def _which_command(*names: str) -> str | None:
+    for name in names:
+        found = _normalized_executable(shutil.which(name))
+        if found:
+            return found
+    return None
+
+
 def _pnpm_command() -> list[str] | None:
-    pnpm = shutil.which("pnpm.cmd") or shutil.which("pnpm") or shutil.which("pnpm.ps1")
+    pnpm = _which_command("pnpm.cmd", "pnpm", "pnpm.ps1")
     if pnpm:
         if os.name == "nt" and Path(pnpm).suffix.lower() == ".ps1":
-            powershell = shutil.which("pwsh.exe") or shutil.which("powershell.exe")
+            powershell = _which_command("pwsh.exe", "powershell.exe")
             if powershell:
                 return [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", pnpm]
         return [pnpm]
-    corepack = shutil.which("corepack.cmd") or shutil.which("corepack") or shutil.which("corepack.ps1")
+    corepack = _which_command("corepack.cmd", "corepack", "corepack.ps1")
     if corepack:
         if os.name == "nt" and Path(corepack).suffix.lower() == ".ps1":
-            powershell = shutil.which("pwsh.exe") or shutil.which("powershell.exe")
+            powershell = _which_command("pwsh.exe", "powershell.exe")
             if powershell:
                 return [
                     powershell,
@@ -351,6 +385,7 @@ def _wait_until(check: Any, *, timeout: float, label: str) -> None:
 def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> dict[str, Any]:
     api_health_url = urljoin(f"{_api_origin(api_base)}/", "health")
     api_health = _probe_json(api_health_url)
+    web_reachable = _probe_http(web_base)
     web_ready = _probe_web(web_base)
     started: dict[str, int] = {}
     started_commands: dict[str, list[str]] = {}
@@ -410,7 +445,40 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
         _wait_until(lambda: _probe_json(api_health_url) is not None, timeout=timeout, label="API")
         api_health = _probe_json(api_health_url)
 
+    running_version = str((api_health or {}).get("application_version") or "")
+    running_settings_schema = str(
+        (api_health or {}).get("image_provider_settings_schema_version") or ""
+    )
+    if (
+        running_version != application_version()
+        or running_settings_schema != IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
+    ):
+        raise CliError(
+            "core_version_mismatch",
+            "The running Visual Director API is not the current build. Stop the old local service, then retry.",
+            exit_code=3,
+            retryable=True,
+            details={
+                "installed_version": application_version(),
+                "running_version": running_version or None,
+                "expected_settings_schema": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+                "running_settings_schema": running_settings_schema or None,
+                "api_base": api_base,
+            },
+        )
+
     if not web_ready:
+        if web_reachable:
+            raise CliError(
+                "workbench_version_mismatch",
+                "Port is occupied by another or older workbench. Close that service, then retry from the stable launcher.",
+                exit_code=3,
+                retryable=True,
+                details={
+                    "expected_version": application_version(),
+                    "web_base": web_base,
+                },
+            )
         web_dir = root / "apps" / "web"
         pnpm_command = _pnpm_command()
         if not pnpm_command:
@@ -436,7 +504,11 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
             command,
             cwd=web_dir,
             log_name="web.log",
-            extra_env={"NEXT_PUBLIC_API_BASE_URL": api_base},
+            extra_env={
+                "NEXT_PUBLIC_API_BASE_URL": api_base,
+                "NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION": application_version(),
+                "VISUAL_DIRECTOR_APPLICATION_VERSION": application_version(),
+            },
         )
         started_commands["web"] = command
         _wait_until(lambda: _probe_web(web_base), timeout=timeout, label="Web 工作台")
@@ -595,6 +667,7 @@ def _stop_services() -> tuple[dict[str, Any], int]:
 
 def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     api_health = _probe_json(urljoin(f"{_api_origin(api_base)}/", "health"))
+    web_reachable = _probe_http(web_base)
     web_ready = _probe_web(web_base)
     installation = _installation_summary()
     running_version = (
@@ -633,7 +706,9 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         if not contract_match:
             warnings.append("core_contract_mismatch")
     if not web_ready:
-        warnings.append("workbench_not_running")
+        warnings.append(
+            "workbench_version_mismatch" if web_reachable else "workbench_not_running"
+        )
     if installation["persistent"] and not host_skill["registered"]:
         warnings.append("host_skill_not_registered")
     if _pnpm_command() is None:

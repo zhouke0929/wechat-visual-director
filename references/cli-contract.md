@@ -1,6 +1,6 @@
 # CLI 调用契约
 
-首次从 `{baseDir}/scripts/install.ps1` 的 JSON 结果读取稳定 `launcher`；后续入口脚本统一记为 `{launcher}`。不要继续调用临时下载目录。
+首次从 `{baseDir}/scripts/install.ps1` 的 JSON 结果读取稳定 `launcher`；使用 CMD 的宿主还可以读取 `launcher_cmd`。后续只调用这两个稳定入口之一，不要继续调用临时下载目录，也不要手动启动系统 Python 或源码目录中的 Next.js。
 
 ## 常用命令
 
@@ -47,6 +47,7 @@
 - `doctor.capabilities.bundle_export=true`：冻结版本可以下载为本地交付包。
 - `doctor.installation.persistent=true`：当前使用固定安装目录；同时核对 `version`、`app_root` 和 `data_root`。
 - `doctor.installation.version_match=true`：当前 API 进程与已安装版本一致；`core_version_mismatch` 时不得继续创建任务，先停止旧服务并重新启动。
+- `workbench_version_mismatch`：工作台端口被其他项目或旧版占用；不得改用旧源码手动启动，关闭占用进程后从稳定入口重试。
 
 退出码：`0` 成功；`2` 输入/配置错误；`3` 本地服务不可用；`4` Preflight 阻断；`5` 规划或 Provider 失败；`6` 安全停止拒绝；`10` 未知内部错误。
 

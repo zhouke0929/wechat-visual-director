@@ -11,6 +11,7 @@ import { PublicationPanel } from "@/components/publication-panel";
 import { StatusPill } from "@/components/status-pill";
 import {
   absoluteApiUrl,
+  assertRuntimeCompatibility,
   acknowledgePreflightFinding,
   acceptImageCandidate,
   continueEditingPublication,
@@ -110,46 +111,69 @@ export default function TaskReviewPage() {
   const [wenyanPublisher, setWenyanPublisher] = useState<WenyanPublisherStatus | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [workspaceWarning, setWorkspaceWarning] = useState("");
   const initialWorkspaceResolved = useRef(false);
 
-  const load = useCallback(async () => {
-    const nextDetail = await getTask(taskId);
-    setDetail(nextDetail);
-    setWenyanPublisher(await getWenyanPublisherStatus());
-    if (["plans_ready", "plan_selected"].includes(nextDetail.task.status)) {
-      const nextPlans = await getPlans(taskId);
-      setPlanList(nextPlans);
-      if (nextDetail.task.selected_plan_id) {
-        if (!initialWorkspaceResolved.current) {
-          setActiveEditorTab("images");
-          initialWorkspaceResolved.current = true;
-        }
-        setImageReview(await getImageSlots(taskId, nextDetail.task.selected_plan_id));
-        setCoverReview(await getCoverWorkspace(taskId, nextDetail.task.selected_plan_id));
-      } else {
+  const loadSupplementalWorkspace = useCallback(async (nextDetail: TaskDetail) => {
+    const warnings: string[] = [];
+    try {
+      setWenyanPublisher(await getWenyanPublisherStatus());
+    } catch {
+      setWenyanPublisher(null);
+      warnings.push("公众号草稿发布状态暂时不可用");
+    }
+
+    const selectedPlanId = nextDetail.task.selected_plan_id;
+    if (selectedPlanId) {
+      if (!initialWorkspaceResolved.current) {
+        setActiveEditorTab("images");
+        initialWorkspaceResolved.current = true;
+      }
+      try {
+        // Keep SQLite-backed reads ordered. They are supplemental and must not
+        // keep the article preview behind the full-page loading state.
+        setImageReview(await getImageSlots(taskId, selectedPlanId));
+        setCoverReview(await getCoverWorkspace(taskId, selectedPlanId));
+      } catch {
         setImageReview(null);
         setCoverReview(null);
+        warnings.push("图片与封面工作区暂时未加载，可稍后重试");
       }
     } else {
-      setPlanList(null);
       setImageReview(null);
       setCoverReview(null);
     }
-    if (nextDetail.task.selected_plan_id || nextDetail.task.active_publication_revision_id) {
-      // Repository currently uses one SQLite connection. Keep these reads ordered so a
-      // browser refresh cannot make three worker threads use that connection at once.
-      const nextReadiness = await getPublicationReadiness(taskId);
-      const nextRevisions = await getPublicationRevisions(taskId);
-      const nextOperations = await getDraftOperations(taskId);
-      setPublicationReadiness(nextReadiness);
-      setPublicationRevisions(nextRevisions);
-      setDraftOperations(nextOperations);
+
+    if (selectedPlanId || nextDetail.task.active_publication_revision_id) {
+      try {
+        setPublicationReadiness(await getPublicationReadiness(taskId));
+        setPublicationRevisions(await getPublicationRevisions(taskId));
+        setDraftOperations(await getDraftOperations(taskId));
+      } catch {
+        setPublicationReadiness(null);
+        setPublicationRevisions([]);
+        setDraftOperations([]);
+        warnings.push("交付与草稿状态暂时未加载，可稍后重试");
+      }
     } else {
       setPublicationReadiness(null);
       setPublicationRevisions([]);
       setDraftOperations([]);
     }
+    setWorkspaceWarning(warnings.join("；"));
   }, [taskId]);
+
+  const load = useCallback(async () => {
+    await assertRuntimeCompatibility();
+    const nextDetail = await getTask(taskId);
+    setDetail(nextDetail);
+    if (["plans_ready", "plan_selected"].includes(nextDetail.task.status)) {
+      setPlanList(await getPlans(taskId));
+    } else {
+      setPlanList(null);
+    }
+    void loadSupplementalWorkspace(nextDetail);
+  }, [loadSupplementalWorkspace, taskId]);
 
   useEffect(() => {
     load()
@@ -981,6 +1005,7 @@ export default function TaskReviewPage() {
       ) : null}
 
       {notice ? <div className="toast toast-success" role="status">{notice}</div> : null}
+      {workspaceWarning ? <div className="toast toast-warning" role="status">{workspaceWarning}</div> : null}
       {error ? <div className="toast toast-error" role="alert">{error}</div> : null}
     </main>
   );

@@ -220,6 +220,7 @@ $ConfigRoot = Join-Path $InstallRoot "config"
 $RuntimeRoot = Join-Path $InstallRoot "runtime"
 $ConfigFile = Join-Path $ConfigRoot ".env.local"
 $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
+$StableCmdLauncher = Join-Path $InstallRoot "visual-director.cmd"
 $ManifestPath = Join-Path $InstallRoot "install.json"
 
 Assert-ChildPath $InstallRoot $VersionsRoot
@@ -334,6 +335,7 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
 }
 
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force
+Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.cmd") -Destination $StableCmdLauncher -Force
 $HostRegistration = Register-HostSkill -ApplicationRoot $VersionRoot -UserHomeOverride $HostHome
 $InstalledAt = [DateTimeOffset]::UtcNow.ToString("o")
 $Manifest = [ordered]@{
@@ -346,6 +348,7 @@ $Manifest = [ordered]@{
     config_file = $ConfigFile
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
+    launcher_cmd = $StableCmdLauncher
     host_registration = $HostRegistration
     installed_at = $InstalledAt
 }
@@ -363,6 +366,7 @@ $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $M
     config_file = $ConfigFile
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
+    launcher_cmd = $StableCmdLauncher
     skill_root = $HostRegistration.generic_skill_root
     host_registration = $HostRegistration
     dependencies_installed = -not $SkipDependencies

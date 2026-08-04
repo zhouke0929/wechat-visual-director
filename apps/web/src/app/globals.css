@@ -928,6 +928,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .not-ready-state button { min-height: 44px; padding: 0 18px; border: 1px solid var(--ink); background: var(--ink); color: white; }
 .legacy-preflight-state a { min-height: 44px; padding: 8px 18px; display: inline-flex; align-items: center; border: 1px solid var(--ink); background: var(--ink); color: white; font-size: 12px; font-weight: 800; }
 .toast { position: fixed; right: 24px; bottom: 24px; z-index: 50; max-width: 420px; padding: 14px 18px; background: var(--ink); color: white; box-shadow: var(--shadow); font-size: 13px; }
+.toast-warning { bottom: 82px; background: #8a661d; }
 .toast-error { background: var(--danger); }
 
 .publication-console {
