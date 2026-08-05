@@ -117,33 +117,47 @@ export function PublicationPanel({
             </dl>
 
             {operation ? (
-              <section className={`draft-receipt draft-receipt-${operation.status}`}>
-                <span>{realOperation ? "WECHAT SYNC RECEIPT" : "LOCAL TEST RECEIPT"}</span>
-                {succeeded ? (
-                  <>
-                    <h3>{realOperation ? "真实公众号草稿已创建" : "本地模拟记录已创建"}</h3>
-                    <code>{operation.media_id}</code>
-                    <p>请在公众号后台核对标题、封面、正文图片和手机端样式。</p>
-                  </>
-                ) : null}
-                {failed ? (
-                  <>
-                    <h3>草稿创建失败</h3>
-                    <p>{operation.last_error?.message ?? "发布器返回了明确失败结果。"}</p>
-                    {realOperation ? (
-                      <button disabled={!publisher?.ready || Boolean(busy)} onClick={onRetry} type="button">
-                        {busy === "retry" ? "正在重新写入…" : "修正后重试"}
-                      </button>
-                    ) : null}
-                  </>
-                ) : null}
-                {unknown ? (
-                  <>
-                    <h3>结果未知，暂时不要重复点击</h3>
-                    <p>{operation.last_error?.message ?? "请先到公众号后台核对是否已经生成草稿。"}</p>
-                  </>
-                ) : null}
-              </section>
+              <>
+                <section className={`draft-receipt draft-receipt-${operation.status}`}>
+                  <span>{realOperation ? "WECHAT SYNC RECEIPT" : "LOCAL TEST RECEIPT"}</span>
+                  {succeeded ? (
+                    <>
+                      <h3>{realOperation ? "真实公众号草稿已创建" : "本地模拟记录已创建"}</h3>
+                      <code>{operation.media_id}</code>
+                      <p>请在公众号后台核对标题、封面、正文图片和手机端样式。</p>
+                    </>
+                  ) : null}
+                  {failed ? (
+                    <>
+                      <h3>草稿创建失败</h3>
+                      <p>{operation.last_error?.message ?? "发布器返回了明确失败结果。"}</p>
+                      {realOperation ? (
+                        <button disabled={!publisher?.ready || Boolean(busy)} onClick={onRetry} type="button">
+                          {busy === "retry" ? "正在重新写入…" : "修正后重试"}
+                        </button>
+                      ) : null}
+                    </>
+                  ) : null}
+                  {unknown ? (
+                    <>
+                      <h3>结果未知，暂时不要重复点击</h3>
+                      <p>{operation.last_error?.message ?? "请先到公众号后台核对是否已经生成草稿。"}</p>
+                      <small>诊断码：{operation.last_error?.code ?? "wenyan_result_unknown"}</small>
+                    </>
+                  ) : null}
+                </section>
+                <div className="delivery-action-stack delivery-fallback-stack">
+                  <strong>{unknown || failed ? "仍可使用安全的手动交付" : "保留一份可编辑的本地副本"}</strong>
+                  <p>下面两项不会再次调用微信接口，也不会重复创建草稿。</p>
+                  <div className="delivery-action-row">
+                    <button disabled={Boolean(busy)} onClick={onCopy} type="button">
+                      {busy === "copy" ? "正在复制…" : "复制全文到剪贴板"}
+                    </button>
+                    {bundleUrl ? <a download href={bundleUrl}>下载交付包</a> : null}
+                  </div>
+                  <small>粘贴到公众号后台后，请保存、重新打开并用手机预览，重点检查图片和样式。</small>
+                </div>
+              </>
             ) : (
               <div className="delivery-action-stack">
                 <button
@@ -156,7 +170,7 @@ export function PublicationPanel({
                 </button>
                 <div className="delivery-action-row">
                   <button disabled={Boolean(busy)} onClick={onCopy} type="button">
-                    {busy === "copy" ? "正在复制…" : "复制正文（实验）"}
+                    {busy === "copy" ? "正在复制…" : "复制全文到剪贴板"}
                   </button>
                   {bundleUrl ? <a download href={bundleUrl}>下载交付包</a> : null}
                 </div>

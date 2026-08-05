@@ -36,6 +36,10 @@ Visual Director 将这些问题拆成两层：
 - OpenClaw、OpenCode、Claude Code、Trae 等宿主可复用现有文本模型，不要求再配置一份文本模型 Key；
 - Windows 持久安装、升级保留数据、通用 Skill 注册和 OpenCode 命令注册。
 
+> 能力口径：`mock` 只用于自动化回归和演示，不是正常发布路径。只要 `doctor --json` 返回
+> `capabilities.wechat_draft=true` 且 `publishers.wenyan.ready=true`，工作台就会调用本机 Wenyan
+> 创建真实公众号草稿；Alpha 标识不代表该能力仍是 Mock。
+
 ## 工作流
 
 ```text
@@ -159,6 +163,10 @@ WECHAT_APP_SECRET=
 还需要把当前网络的公网出口 IP 加入公众号后台白名单。Visual Director 负责冻结文章和生成内联 HTML；Wenyan 只负责图片上传与草稿传输。只有界面返回真实 Media ID，才表示草稿已写入公众号后台。
 
 当前不会自动执行最终群发，微信公众号后台仍必须人工复核标题、封面、摘要、图片和手机端效果。
+
+如果页面显示“结果未知”，表示 Wenyan 已被调用，但本地没有拿到可确认的 Media ID；此时先到公众号
+草稿箱核对，不要重复推送。无论发布成功、失败还是结果未知，冻结页都会继续提供“复制全文到剪贴板”
+和“下载交付包”，这两项不会再次调用微信接口。
 
 ## 数据与安全边界
 

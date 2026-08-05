@@ -1009,6 +1009,9 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .publisher-readiness-note { margin: 14px 0 0; color: #52605c; font-size: 10px; line-height: 1.55; }
 .publisher-install-command { display: block; margin-top: 9px; padding: 9px 10px; overflow-wrap: anywhere; background: #fff; border-left: 3px solid var(--coral); color: #33403d; font-size: 9px; }
 .delivery-action-stack > small { display: block; margin-top: 10px; color: #7a827f; font-size: 9px; line-height: 1.5; }
+.delivery-fallback-stack { margin-top: 12px; background: #fffdf7; }
+.delivery-fallback-stack > strong { display: block; color: var(--ink); font-size: 12px; line-height: 1.4; }
+.delivery-fallback-stack > p { margin: 6px 0 0; color: #66716d; font-size: 9px; line-height: 1.55; }
 .mock-warning-band { min-height: 52px; padding: 0 24px; display: flex; align-items: center; gap: 18px; background: var(--ink); color: #fff; }
 .mock-warning-band strong { align-self: stretch; padding: 0 18px; display: inline-flex; align-items: center; background: #e9b82d; color: var(--ink); font: 900 12px/1 Arial, sans-serif; letter-spacing: .12em; }
 .mock-warning-band span { font-size: 12px; font-weight: 800; }

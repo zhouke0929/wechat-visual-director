@@ -157,3 +157,56 @@ def test_wenyan_publisher_launches_windows_cmd_shim(tmp_path: Path, monkeypatch)
     result = publisher.publish({"article.md": b"# test", "visual-director-theme.css": b""})
     assert result.status == "succeeded"
     assert result.media_id == "WINDOWS_CMD_MEDIA"
+
+
+def test_wenyan_publisher_accepts_confirmed_media_id_even_when_wrapper_exits_nonzero(tmp_path: Path, monkeypatch) -> None:
+    command = tmp_path / "wenyan.exe"
+    command.write_bytes(b"")
+    monkeypatch.setenv("WECHAT_APP_ID", "local-app-id")
+    monkeypatch.setenv("WECHAT_APP_SECRET", "local-secret")
+
+    def runner(args, **kwargs):
+        if "--version" in args:
+            return subprocess.CompletedProcess(args, 0, stdout="2.0.11\n", stderr="")
+        return subprocess.CompletedProcess(
+            args,
+            1,
+            stdout='发布成功，{\"media_id\": \"CONFIRMED_MEDIA_002\"}',
+            stderr="wrapper cleanup failed",
+        )
+
+    result = WenyanPublisher(tmp_path, command=str(command), runner=runner).publish(
+        {"article.md": b"# test", "visual-director-theme.css": b""}
+    )
+    assert result.status == "succeeded"
+    assert result.media_id == "CONFIRMED_MEDIA_002"
+
+
+def test_wenyan_publisher_unknown_result_keeps_only_redacted_diagnostics(tmp_path: Path, monkeypatch) -> None:
+    command = tmp_path / "wenyan.exe"
+    command.write_bytes(b"")
+    monkeypatch.setenv("WECHAT_APP_ID", "private-app-id")
+    monkeypatch.setenv("WECHAT_APP_SECRET", "private-secret")
+
+    def runner(args, **kwargs):
+        if "--version" in args:
+            return subprocess.CompletedProcess(args, 0, stdout="2.0.11\n", stderr="")
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout="publish completed without a receipt",
+            stderr="private-app-id private-secret",
+        )
+
+    result = WenyanPublisher(tmp_path, command=str(command), runner=runner).publish(
+        {"article.md": b"# test", "visual-director-theme.css": b""}
+    )
+    assert result.status == "unknown"
+    diagnostics = result.error["diagnostics"]
+    assert diagnostics["return_code"] == 0
+    assert diagnostics["stdout_chars"] > 0
+    assert diagnostics["stderr_chars"] > 0
+    assert diagnostics["media_id_detected"] is False
+    serialized = json.dumps(result.error)
+    assert "private-app-id" not in serialized
+    assert "private-secret" not in serialized

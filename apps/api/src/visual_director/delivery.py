@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as html_module
+import hashlib
 import io
 import json
 import os
@@ -18,7 +19,11 @@ import yaml
 
 WENYAN_MINIMUM_VERSION = "2.0.1"
 WENYAN_RECOMMENDED_VERSION = "2.0.11"
-MEDIA_ID_PATTERN = re.compile(r"Media ID:\s*([^\s]+)", re.IGNORECASE)
+ANSI_ESCAPE_PATTERN = re.compile(r"\x1B(?:[@-_][0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))")
+MEDIA_ID_PATTERNS = (
+    re.compile(r"\bMedia\s*ID\s*[:：=]\s*[\"']?([A-Za-z0-9_-]+)", re.IGNORECASE),
+    re.compile(r"[\"'](?:media_id|mediaId)[\"']\s*[:=]\s*[\"']([A-Za-z0-9_-]+)[\"']", re.IGNORECASE),
+)
 ROOT_MAIN_PATTERN = re.compile(
     r'(<main\b[^>]*\bstyle=")([^"]*)(")',
     flags=re.IGNORECASE,
@@ -30,6 +35,47 @@ def _version_tuple(value: str | None) -> tuple[int, ...]:
         return ()
     match = re.search(r"(\d+(?:\.\d+)+)", value)
     return tuple(int(item) for item in match.group(1).split(".")) if match else ()
+
+
+def _decode_process_output(value: str | bytes | None) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
+
+
+def _extract_media_id(output: str) -> str | None:
+    normalized = ANSI_ESCAPE_PATTERN.sub("", output)
+    for pattern in MEDIA_ID_PATTERNS:
+        match = pattern.search(normalized)
+        if match and match.group(1).lower() not in {"null", "none", "undefined"}:
+            return match.group(1)
+    return None
+
+
+def _wenyan_diagnostics(
+    *,
+    stdout: str,
+    stderr: str,
+    return_code: int | None,
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Persist enough evidence to compare failures without storing CLI output or credentials."""
+
+    combined = "\n".join(item for item in (stdout, stderr) if item)
+    for key in ("WECHAT_APP_ID", "WECHAT_APP_SECRET"):
+        value = os.environ.get(key)
+        if value:
+            combined = combined.replace(value, f"<{key.lower()}_redacted>")
+    diagnostics: dict[str, Any] = {
+        "return_code": return_code,
+        "stdout_chars": len(stdout),
+        "stderr_chars": len(stderr),
+        "output_sha256": hashlib.sha256(combined.encode("utf-8", errors="replace")).hexdigest(),
+        "media_id_detected": _extract_media_id(combined) is not None,
+    }
+    if timeout_seconds is not None:
+        diagnostics["timeout_seconds"] = timeout_seconds
+    return diagnostics
 
 
 def _extract_main(document: str) -> str:
@@ -343,7 +389,14 @@ class WenyanPublisher:
                     check=False,
                     env=os.environ.copy(),
                 )
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as error:
+                timeout_stdout = _decode_process_output(error.stdout)
+                timeout_stderr = _decode_process_output(error.stderr)
+                timeout_media_id = _extract_media_id(
+                    "\n".join(item for item in (timeout_stdout, timeout_stderr) if item)
+                )
+                if timeout_media_id:
+                    return WenyanPublishResult(status="succeeded", media_id=timeout_media_id, error=None)
                 return WenyanPublishResult(
                     status="unknown",
                     media_id=None,
@@ -351,6 +404,12 @@ class WenyanPublisher:
                         "code": "wenyan_timeout_unknown",
                         "message": "发布请求超时，结果未知。请先到公众号草稿箱核对，避免重复创建。",
                         "retryable": False,
+                        "diagnostics": _wenyan_diagnostics(
+                            stdout=timeout_stdout,
+                            stderr=timeout_stderr,
+                            return_code=None,
+                            timeout_seconds=self.timeout_seconds,
+                        ),
                     },
                 )
             except OSError:
@@ -360,10 +419,14 @@ class WenyanPublisher:
                     error={"code": "wenyan_launch_failed", "message": "无法启动 Wenyan CLI。", "retryable": True},
                 )
 
-        output = "\n".join(item for item in (completed.stdout, completed.stderr) if item)
-        media_match = MEDIA_ID_PATTERN.search(output)
-        if completed.returncode == 0 and media_match:
-            return WenyanPublishResult(status="succeeded", media_id=media_match.group(1), error=None)
+        stdout = _decode_process_output(completed.stdout)
+        stderr = _decode_process_output(completed.stderr)
+        output = "\n".join(item for item in (stdout, stderr) if item)
+        media_id = _extract_media_id(output)
+        # A returned Media ID is the authoritative draft receipt. Some shells or
+        # wrappers can still exit non-zero after the WeChat request has succeeded.
+        if media_id:
+            return WenyanPublishResult(status="succeeded", media_id=media_id, error=None)
         lowered = output.lower()
         known_errors = (
             (("invalid ip", "40164"), "wechat_ip_not_whitelisted", "当前公网出口 IP 未加入公众号白名单。"),
@@ -381,5 +444,10 @@ class WenyanPublisher:
                 "code": "wenyan_result_unknown",
                 "message": "Wenyan 未返回可确认的 Media ID。请先到公众号草稿箱核对，避免重复创建。",
                 "retryable": False,
+                "diagnostics": _wenyan_diagnostics(
+                    stdout=stdout,
+                    stderr=stderr,
+                    return_code=completed.returncode,
+                ),
             },
         )
