@@ -4,7 +4,7 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 工作台。宿主 Agent 负责理解内容并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营只需在浏览器里确认方案、图片与封面，不需要让模型自由编写整段 HTML/CSS。
 
-当前版本：**v0.1.0-alpha.13**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
+当前版本：**v0.1.0-alpha.14**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
@@ -69,7 +69,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 ```text
 请从以下固定版本安装或升级 wechat-visual-director，执行项目安装器和 doctor 检查，然后用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。
 
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.13
+https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.14
 ```
 
 安装器会把最小 Skill 入口注册到通用 Agent 目录和 OpenCode 目录。安装完成后请重启宿主对话，使新会话能够自动发现 Skill。
@@ -79,7 +79,7 @@ https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.13
 需要 Python 3.11+、Node.js，以及 pnpm 或 Corepack。
 
 ```powershell
-git clone --branch v0.1.0-alpha.13 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.14 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 Set-Location .\wechat-visual-director
 
 $install = powershell -ExecutionPolicy Bypass -File ".\scripts\install.ps1" | ConvertFrom-Json
