@@ -21,10 +21,11 @@ from urllib.request import Request, urlopen
 from .version import application_version
 from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
 from .onboarding import DEFAULT_PUBLIC_IP_ENDPOINTS, PublicIpProbe
+from .data_recovery import DataRecoveryError, recover_dataset, scan_datasets
 
 
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
-DEFAULT_WEB_BASE = "http://127.0.0.1:3000"
+DEFAULT_WEB_BASE = "http://127.0.0.1:8000"
 CLI_SCHEMA_VERSION = "visual_director_cli.v0.2"
 WORKBENCH_ID = "wechat_visual_director_workbench"
 
@@ -108,6 +109,70 @@ def _installation_summary() -> dict[str, Any]:
         "data_root": str(data_root),
         "config_file": str(config_file),
         "runtime_root": str(_runtime_home().resolve()),
+    }
+
+
+def _install_history_path(installation: dict[str, Any]) -> Path:
+    install_root = installation.get("install_root")
+    if install_root:
+        return Path(str(install_root)) / "config" / "install-history.json"
+    return _project_root() / "config" / "install-history.json"
+
+
+def _data_scan(args: argparse.Namespace) -> dict[str, Any]:
+    installation = _installation_summary()
+    datasets = scan_datasets(
+        active_root=Path(installation["data_root"]),
+        project_root=_project_root(),
+        history_file=_install_history_path(installation),
+        explicit=[Path(value) for value in args.candidate],
+    )
+    active = os.path.normcase(str(Path(installation["data_root"]).resolve()))
+    return {
+        "ok": True,
+        "schema_version": "data_scan_result.v0.1",
+        "active_data_root": installation["data_root"],
+        "datasets": [
+            item.as_dict() | {"active": os.path.normcase(str(item.root)) == active}
+            for item in datasets
+        ],
+        "next_action": (
+            "review_candidates"
+            if any(item.exists and item.task_count > 0 for item in datasets)
+            else "none"
+        ),
+    }
+
+
+def _data_recover(args: argparse.Namespace) -> dict[str, Any]:
+    installation = _installation_summary()
+    if _probe_json(urljoin(f"{_api_origin(args.api_base)}/", "health"), timeout=1) is not None:
+        raise CliError(
+            "services_must_be_stopped",
+            "恢复数据前必须停止视觉主编服务，避免正在运行的 SQLite 连接写入旧数据",
+            details={"action": "visual-director stop"},
+        )
+    install_root = installation.get("install_root")
+    backup_root = (
+        Path(str(install_root)) / "backups"
+        if install_root
+        else Path(installation["data_root"]).parent / "backups"
+    )
+    try:
+        result = recover_dataset(
+            source_root=Path(args.source),
+            target_root=Path(installation["data_root"]),
+            backup_root=backup_root,
+            activate=args.activate,
+            confirmed=args.yes,
+        )
+    except DataRecoveryError as exc:
+        raise CliError(exc.code, exc.message, details=exc.details) from exc
+    return {
+        "ok": True,
+        "schema_version": "data_recover_result.v0.1",
+        **result,
+        "next_action": "serve",
     }
 
 
@@ -325,49 +390,6 @@ def _platform_launch_command(command: list[str]) -> list[str] | str:
     )
 
 
-def _normalized_executable(value: str | None) -> str | None:
-    if not value:
-        return None
-    normalized = value.strip()
-    if len(normalized) >= 2 and normalized[0] == normalized[-1] == '"':
-        normalized = normalized[1:-1].strip()
-    return normalized or None
-
-
-def _which_command(*names: str) -> str | None:
-    for name in names:
-        found = _normalized_executable(shutil.which(name))
-        if found:
-            return found
-    return None
-
-
-def _pnpm_command() -> list[str] | None:
-    pnpm = _which_command("pnpm.cmd", "pnpm", "pnpm.ps1")
-    if pnpm:
-        if os.name == "nt" and Path(pnpm).suffix.lower() == ".ps1":
-            powershell = _which_command("pwsh.exe", "powershell.exe")
-            if powershell:
-                return [powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", pnpm]
-        return [pnpm]
-    corepack = _which_command("corepack.cmd", "corepack", "corepack.ps1")
-    if corepack:
-        if os.name == "nt" and Path(corepack).suffix.lower() == ".ps1":
-            powershell = _which_command("pwsh.exe", "powershell.exe")
-            if powershell:
-                return [
-                    powershell,
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    corepack,
-                    "pnpm",
-                ]
-        return [corepack, "pnpm"]
-    return None
-
-
 def _listening_process_id(port: int) -> int | None:
     if os.name != "nt":
         return None
@@ -472,6 +494,10 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
         started["api"] = _listening_process_id(api_port) or started["api"]
         api_health = _probe_json(api_health_url)
 
+    # Alpha.16 serves the static workbench from the same FastAPI process.
+    web_reachable = _probe_http(web_base)
+    web_ready = _probe_web(web_base)
+
     running_version = str((api_health or {}).get("application_version") or "")
     running_settings_schema = str(
         (api_health or {}).get("image_provider_settings_schema_version") or ""
@@ -495,59 +521,17 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
         )
 
     if not web_ready:
-        if web_reachable:
-            raise CliError(
-                "workbench_version_mismatch",
-                "Port is occupied by another or older workbench. Close that service, then retry from the stable launcher.",
-                exit_code=3,
-                retryable=True,
-                details={
-                    "expected_version": application_version(),
-                    "web_base": web_base,
-                },
-            )
-        web_dir = root / "apps" / "web"
-        pnpm_command = _pnpm_command()
-        if not pnpm_command:
-            raise CliError(
-                "pnpm_not_found",
-                "未找到 pnpm，暂时无法启动排版工作台",
-                exit_code=2,
-                details={"action": "安装 pnpm 后重新执行 visual-director serve"},
-            )
-        if not (web_dir / "node_modules").exists():
-            raise CliError(
-                "web_dependencies_missing",
-                "工作台依赖尚未安装",
-                exit_code=2,
-                details={"action": f"在 {web_dir} 执行 pnpm install"},
-            )
-        if not (web_dir / ".next" / "BUILD_ID").is_file():
-            raise CliError(
-                "web_production_build_missing",
-                "The production workbench has not been built yet.",
-                exit_code=2,
-                retryable=True,
-                details={
-                    "action": f"Run pnpm --dir {web_dir} build, or rerun scripts/install.ps1",
-                    "expected": str(web_dir / ".next" / "BUILD_ID"),
-                },
-            )
-        port = str(_port_from_url(web_base, 3000))
-        command = [*pnpm_command, "start", "-H", "127.0.0.1", "-p", port]
-        started["web"] = _spawn_detached(
-            command,
-            cwd=web_dir,
-            log_name="web.log",
-            extra_env={
-                "VISUAL_DIRECTOR_API_BASE": api_base,
-                "VISUAL_DIRECTOR_APPLICATION_VERSION": application_version(),
+        raise CliError(
+            "workbench_build_missing",
+            "API 已启动，但未找到与当前版本匹配的静态工作台",
+            exit_code=2,
+            retryable=True,
+            details={
+                "action": "重新运行安装程序以生成或安装 apps/web/dist",
+                "web_base": web_base,
+                "expected_version": application_version(),
             },
         )
-        started_commands["web"] = command
-        _wait_until(lambda: _probe_web(web_base), timeout=timeout, label="Web 工作台")
-        started["web"] = _listening_process_id(int(port)) or started["web"]
-        web_ready = True
 
     if started:
         previous = _read_runtime_state()
@@ -758,8 +742,6 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         )
     if installation["persistent"] and not host_skill["registered"]:
         warnings.append("host_skill_not_registered")
-    if _pnpm_command() is None:
-        warnings.append("pnpm_not_found")
     image_provider = str((api_health or {}).get("image_provider") or "none")
     text_planner_provider = str((api_health or {}).get("text_planner_provider") or "none")
     text_planner_configured = bool((api_health or {}).get("text_planner_configured", False))
@@ -1181,6 +1163,18 @@ def build_parser() -> argparse.ArgumentParser:
     public_ip = network_subparsers.add_parser("public-ip", help="显式查询当前公网出口 IP")
     public_ip.add_argument("--json", action="store_true", dest="json_output")
 
+    data = subparsers.add_parser("data", help="盘点和恢复本机历史任务数据")
+    data_subparsers = data.add_subparsers(dest="data_command", required=True)
+    data_scan = data_subparsers.add_parser("scan", help="只读扫描已知或显式指定的数据目录")
+    data_scan.add_argument("--candidate", action="append", default=[], help="额外候选数据目录，可重复")
+    data_scan.add_argument("--json", action="store_true", dest="json_output")
+    data_recover = data_subparsers.add_parser("recover", help="备份目标后恢复一个完整历史数据集")
+    _add_connection_args(data_recover)
+    data_recover.add_argument("--from", required=True, dest="source", help="来源数据目录")
+    data_recover.add_argument("--activate", action="store_true", help="目标已有任务时显式激活来源数据")
+    data_recover.add_argument("--yes", action="store_true", help="确认执行非空目标切换")
+    data_recover.add_argument("--json", action="store_true", dest="json_output")
+
     task = subparsers.add_parser("task", help="管理视觉任务")
     task_subparsers = task.add_subparsers(dest="task_command", required=True)
 
@@ -1259,6 +1253,10 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _stop_services()
         elif args.command == "network" and args.network_command == "public-ip":
             payload, exit_code = _network_public_ip()
+        elif args.command == "data" and args.data_command == "scan":
+            payload, exit_code = _data_scan(args), 0
+        elif args.command == "data" and args.data_command == "recover":
+            payload, exit_code = _data_recover(args), 0
         elif args.command == "task" and args.task_command == "create":
             payload, exit_code = _create_task(args), 0
         elif args.command == "task" and args.task_command == "status":

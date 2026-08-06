@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/router";
 import { useEffect, useState } from "react";
 import { getThemeGallery } from "@/lib/api";
 import type { ThemeGalleryItem } from "@/lib/types";

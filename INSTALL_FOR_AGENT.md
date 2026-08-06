@@ -8,9 +8,10 @@ know the Python, pnpm, or process-management details.
 
 - Work only from the repository URL or local source path supplied by the user.
 - Never read, print, copy, or request API keys, AppSecret, cookies, or tokens in chat.
-- Do not start `uvicorn`, `next dev`, or a temporary clone manually.
+- Do not start `uvicorn`, `next dev`, `vite`, or a temporary clone manually.
 - Do not delete the source repository. Installed program files live under
-  `%LOCALAPPDATA%\wechat-visual-director`.
+  `%LOCALAPPDATA%\wechat-visual-director` on Windows or
+  `~/Library/Application Support/wechat-visual-director` on macOS.
 - Creating a WeChat draft still requires explicit confirmation in the workbench;
   final mass publishing is outside this installer.
 
@@ -19,10 +20,14 @@ know the Python, pnpm, or process-management details.
 1. If `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` exists and the
    user did not ask to upgrade, run `doctor --json` first. A new conversation is
    not a reason to reinstall.
-2. When installing or explicitly upgrading from this repository, run exactly:
+2. When installing or explicitly upgrading from this repository, use the platform entry:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
+```
+
+```bash
+bash scripts/bootstrap.sh
 ```
 
 3. Parse only the final JSON written to stdout. Progress text is written to
@@ -51,6 +56,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File \
 Use the returned error code and action. Do not work around a version mismatch
 by running the source API or Web project directly.
 
+If tasks appear missing after a reinstall, do not move only the SQLite file.
+Stop the service and run `data scan --json`, adding `--candidate <old-data-root>`
+when the old source location is known. A dataset consists of the database,
+`image-assets`, and `publication-assets`. Non-empty targets require explicit
+`data recover --from <root> --activate --yes`; the command creates a backup first.
+
 ## Uninstall
 
 Only uninstall when the user explicitly asks.
@@ -73,3 +84,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File \
 
 Both modes remove host Skill registrations. Neither mode may delete the Git
 source repository supplied by the user.
+
+On macOS use the stable `visual-director` and `uninstall.sh` files under the
+Application Support install root. macOS support remains Technical Preview until
+the release has passed a real-device end-to-end review.

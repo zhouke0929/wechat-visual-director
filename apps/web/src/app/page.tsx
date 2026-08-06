@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import Link, { useRouter } from "@/lib/router";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowIcon, UploadIcon } from "@/components/icons";
 import { StatusPill } from "@/components/status-pill";
-import { createTask, getApplicationVersion, listTasks } from "@/lib/api";
+import { createTask, deleteTasks, getApplicationVersion, listTasks } from "@/lib/api";
 import type { Task } from "@/lib/types";
 
 const articleTypes = [
@@ -32,15 +31,30 @@ export default function EditorialDeskPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [taskError, setTaskError] = useState("");
   const [appVersion, setAppVersion] = useState("ALPHA");
+  const [manageTasks, setManageTasks] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [taskNotice, setTaskNotice] = useState("");
 
   useEffect(() => {
     listTasks()
       .then(setTasks)
-      .catch((reason: Error) => setError(reason.message))
+      .catch((reason: Error) => setTaskError(reason.message))
       .finally(() => setLoading(false));
     getApplicationVersion().then(setAppVersion).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!confirmDelete) return undefined;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) setConfirmDelete(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [confirmDelete, deleting]);
 
   async function chooseValidationSample() {
     setError("");
@@ -70,6 +84,47 @@ export default function EditorialDeskPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "创建任务失败");
       setSubmitting(false);
+    }
+  }
+
+  function toggleTaskSelection(taskId: string) {
+    setSelectedTaskIds((current) => {
+      const next = new Set(current);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  }
+
+  function closeManageMode() {
+    setManageTasks(false);
+    setSelectedTaskIds(new Set());
+    setTaskNotice("");
+    setTaskError("");
+  }
+
+  async function confirmTaskDeletion() {
+    const ids = Array.from(selectedTaskIds);
+    if (ids.length === 0) return;
+    setDeleting(true);
+    setTaskError("");
+    try {
+      const result = await deleteTasks(ids);
+      const deleted = new Set(result.deleted_task_ids);
+      setTasks((current) => current.filter((task) => !deleted.has(task.id)));
+      setSelectedTaskIds(new Set());
+      setManageTasks(false);
+      setConfirmDelete(false);
+      setTaskNotice(
+        result.asset_cleanup_warnings.length > 0
+          ? `已删除 ${result.deleted_count} 个任务；有少量缓存素材将在维护时继续清理。`
+          : `已删除 ${result.deleted_count} 个历史任务。`,
+      );
+    } catch (reason) {
+      setTaskError(reason instanceof Error ? reason.message : "删除历史任务失败");
+      setConfirmDelete(false);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -150,8 +205,47 @@ export default function EditorialDeskPage() {
             <p className="eyebrow">RECENT BRIEFS</p>
             <h2 id="recent-title">最近任务</h2>
           </div>
-          <p>任务创建时会冻结品牌版本、历史窗口和 CTA 版本。</p>
+          <div className="task-heading-actions">
+            <p>任务创建时会冻结品牌版本、历史窗口和 CTA 版本。</p>
+            {tasks.length > 0 && !manageTasks ? (
+              <button className="task-manage-button" type="button" onClick={() => { setManageTasks(true); setTaskNotice(""); setTaskError(""); }}>
+                管理历史任务
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {manageTasks ? (
+          <div className="task-manage-toolbar" aria-label="历史任务批量管理">
+            <button
+              className="task-select-all"
+              type="button"
+              onClick={() => setSelectedTaskIds(
+                selectedTaskIds.size === tasks.length ? new Set() : new Set(tasks.map((task) => task.id)),
+              )}
+            >
+              <span className={selectedTaskIds.size === tasks.length ? "task-check is-selected" : "task-check"} aria-hidden="true">
+                {selectedTaskIds.size === tasks.length ? "✓" : ""}
+              </span>
+              {selectedTaskIds.size === tasks.length ? "取消全选" : "全选当前任务"}
+            </button>
+            <span className="task-selected-count" aria-live="polite">已选 {selectedTaskIds.size} 项</span>
+            <div className="task-manage-toolbar-actions">
+              <button className="task-cancel-button" type="button" onClick={closeManageMode}>退出管理</button>
+              <button
+                className="task-delete-button"
+                type="button"
+                disabled={selectedTaskIds.size === 0}
+                onClick={() => setConfirmDelete(true)}
+              >
+                删除所选
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {taskNotice ? <p className="task-notice" role="status">{taskNotice}</p> : null}
+        {taskError ? <p className="task-notice task-notice-error" role="alert">{taskError}</p> : null}
 
         {loading ? <div className="loading-line" role="status">正在读取任务…</div> : null}
         {!loading && tasks.length === 0 ? (
@@ -162,19 +256,61 @@ export default function EditorialDeskPage() {
           </div>
         ) : null}
         <div className="task-list">
-          {tasks.map((task, index) => (
-            <Link className="task-row" href={`/tasks/${task.id}`} key={task.id}>
-              <span className="task-index">{String(index + 1).padStart(2, "0")}</span>
-              <div className="task-main">
-                <h3>{task.title}</h3>
-                <p>{articleLabels[task.article_type ?? ""] ?? "待识别"} · 历史 {task.history_window} 篇 · {new Date(task.updated_at).toLocaleString("zh-CN")}</p>
-              </div>
-              <StatusPill status={task.status} />
-              <ArrowIcon className="task-arrow" />
-            </Link>
-          ))}
+          {tasks.map((task, index) => {
+            const rowContent = (
+              <>
+                <span className={manageTasks ? (selectedTaskIds.has(task.id) ? "task-check is-selected" : "task-check") : "task-index"}>
+                  {manageTasks ? (selectedTaskIds.has(task.id) ? "✓" : "") : String(index + 1).padStart(2, "0")}
+                </span>
+                <div className="task-main">
+                  <h3>{task.title}</h3>
+                  <p>{articleLabels[task.article_type ?? ""] ?? "待识别"} · 历史 {task.history_window} 篇 · {new Date(task.updated_at).toLocaleString("zh-CN")}</p>
+                </div>
+                <StatusPill status={task.status} />
+                {manageTasks ? <span className="task-selection-state">{selectedTaskIds.has(task.id) ? "已选择" : "选择"}</span> : <ArrowIcon className="task-arrow" />}
+              </>
+            );
+            return manageTasks ? (
+              <button
+                aria-checked={selectedTaskIds.has(task.id)}
+                className="task-row task-select-row"
+                key={task.id}
+                role="checkbox"
+                type="button"
+                onClick={() => toggleTaskSelection(task.id)}
+              >
+                {rowContent}
+              </button>
+            ) : (
+              <Link className="task-row" href={`/tasks/${task.id}`} key={task.id}>{rowContent}</Link>
+            );
+          })}
         </div>
       </section>
+
+      {confirmDelete ? (
+        <div className="task-delete-modal" role="presentation" onMouseDown={(event) => {
+          if (event.currentTarget === event.target && !deleting) setConfirmDelete(false);
+        }}>
+          <section className="task-delete-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-task-title">
+            <p className="eyebrow">LOCAL DATA / CLEANUP</p>
+            <h2 id="delete-task-title">删除 {selectedTaskIds.size} 个历史任务？</h2>
+            <p>
+              将同时清理这些任务的本地预览、生成图片和冻结交付资产，并停止将它们用于最近 5 篇参考。公众号后台已有草稿和已发布文章不会受影响。
+            </p>
+            <ul>
+              {tasks.filter((task) => selectedTaskIds.has(task.id)).slice(0, 3).map((task) => <li key={task.id}>{task.title}</li>)}
+              {selectedTaskIds.size > 3 ? <li>以及另外 {selectedTaskIds.size - 3} 个任务</li> : null}
+            </ul>
+            <div className="task-delete-dialog-actions">
+              <button className="task-cancel-button" type="button" disabled={deleting} onClick={() => setConfirmDelete(false)}>保留任务</button>
+              <button className="task-delete-button" type="button" disabled={deleting} onClick={confirmTaskDeletion}>
+                {deleting ? "正在删除…" : "确认永久删除"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

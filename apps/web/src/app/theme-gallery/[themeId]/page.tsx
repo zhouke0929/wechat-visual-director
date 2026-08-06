@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import Link, { useRouteParam } from "@/lib/router";
 import { useEffect, useMemo, useState } from "react";
 import { getThemeGallery } from "@/lib/api";
 import type { ThemeGalleryItem } from "@/lib/types";
@@ -35,8 +34,7 @@ function readReview(themeId: string): ReviewState {
 }
 
 export default function ThemeDetailPage() {
-  const params = useParams<{ themeId: string }>();
-  const themeId = params.themeId;
+  const themeId = useRouteParam("theme-gallery");
   const [themes, setThemes] = useState<ThemeGalleryItem[]>([]);
   const [mode, setMode] = useState<"article" | "components">("article");
   const [review, setReview] = useState<ReviewState>({ components: {}, primitives: {} });

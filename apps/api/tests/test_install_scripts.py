@@ -27,6 +27,8 @@ def _manifest(install_root: Path) -> None:
                 "install_root": str(install_root),
                 "current_root": str(version_root),
                 "current_version": "0.1.0-test",
+                "data_root": str(install_root / "data"),
+                "installed_at": "2026-08-06T00:00:00Z",
             }
         ),
         encoding="utf-8-sig",
@@ -75,9 +77,19 @@ def test_uninstall_preserves_data_and_removes_host_registration(tmp_path: Path) 
     assert payload["mode"] == "preserve_data"
     assert (install_root / "data" / "task.txt").is_file()
     assert (install_root / "config" / "private.txt").is_file()
+    history = json.loads((install_root / "config" / "install-history.json").read_text(encoding="utf-8-sig"))
+    assert history["last_version"] == "0.1.0-test"
+    assert history["data_root"] == str(install_root / "data")
     assert not (install_root / "versions").exists()
     assert not registration.exists()
     assert REPOSITORY_ROOT.joinpath("SKILL.md").is_file()
+
+
+def test_macos_scripts_are_present_and_do_not_depend_on_powershell() -> None:
+    for name in ("install.sh", "uninstall.sh", "bootstrap.sh", "persistent-launcher.sh", "visual-director.sh"):
+        content = (REPOSITORY_ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert content.startswith("#!/usr/bin/env bash")
+        assert "powershell" not in content.lower()
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")

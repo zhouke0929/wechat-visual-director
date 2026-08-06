@@ -182,9 +182,39 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .section-title-row { display: flex; align-items: end; justify-content: space-between; gap: 40px; margin-bottom: 26px; }
 .section-title-row h2 { margin: 0; font: 750 clamp(30px, 4vw, 48px)/1.2 "Noto Serif SC", "Songti SC", serif; }
 .section-title-row > p { max-width: 440px; margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+.task-heading-actions { max-width: 440px; display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
+.task-heading-actions p { margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
+.task-manage-button,
+.task-cancel-button,
+.task-delete-button,
+.task-select-all {
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 254, 250, .72);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+.task-manage-button { border-color: rgba(15, 118, 110, .34); color: var(--teal); }
+.task-manage-button:hover,
+.task-cancel-button:hover { background: var(--teal-soft); border-color: var(--teal); }
+.task-manage-toolbar { min-height: 58px; padding: 10px 12px; display: flex; align-items: center; gap: 12px; border-top: 2px solid var(--ink); background: rgba(255, 254, 250, .78); }
+.task-select-all { display: inline-flex; align-items: center; gap: 9px; border: 0; background: transparent; }
+.task-selected-count { color: var(--muted); font-size: 12px; }
+.task-manage-toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.task-delete-button { border-color: var(--danger); background: var(--danger); color: white; }
+.task-delete-button:hover:not(:disabled) { background: #8f1d14; border-color: #8f1d14; }
+.task-notice { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--teal); background: var(--teal-soft); color: #095d57; font-size: 12px; }
+.task-notice-error { border-left-color: var(--danger); background: #fae9e7; color: var(--danger); }
 .task-list { border-top: 2px solid var(--ink); }
 .task-row { min-height: 92px; padding: 18px 8px; display: grid; grid-template-columns: 48px 1fr auto 28px; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); transition: background-color 180ms ease; }
 .task-row:hover { background: rgba(255, 254, 250, 0.7); }
+.task-select-row { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: inherit; text-align: left; }
+.task-select-row[aria-checked="true"] { background: rgba(223, 238, 234, .58); }
+.task-check { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; justify-self: center; border: 1px solid #9ca8a4; background: var(--surface); color: white; font: 800 13px/1 Arial, sans-serif; }
+.task-check.is-selected { border-color: var(--teal); background: var(--teal); }
+.task-selection-state { color: var(--teal); font-size: 11px; font-weight: 750; }
 .task-index { color: var(--coral); font: 700 13px Arial; }
 .task-main h3 { margin: 0 0 3px; font-size: 17px; }
 .task-main p { margin: 0; color: var(--muted); font-size: 12px; }
@@ -193,6 +223,12 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .empty-state span { color: var(--coral); font: 700 12px Arial; }
 .empty-state h3 { margin: 5px 0; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 24px; }
 .empty-state p { margin: 0; color: var(--muted); }
+.task-delete-modal { position: fixed; inset: 0; z-index: 100; padding: 24px; display: grid; place-items: center; background: rgba(19, 32, 31, .48); backdrop-filter: blur(4px); }
+.task-delete-dialog { width: min(540px, 100%); padding: 30px; border: 1px solid var(--ink); border-top: 5px solid var(--danger); background: var(--surface); box-shadow: var(--shadow); }
+.task-delete-dialog h2 { margin: 5px 0 12px; font: 760 28px/1.3 "Noto Serif SC", "Songti SC", serif; }
+.task-delete-dialog > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 13px; }
+.task-delete-dialog ul { margin: 20px 0 24px; padding: 14px 14px 14px 34px; border-block: 1px solid var(--line); color: var(--ink); font-size: 13px; }
+.task-delete-dialog-actions { display: flex; justify-content: flex-end; gap: 10px; }
 
 .status-created { border-color: #bfc4bf; }
 .status-analyzing { border-color: #d6a33d; background: #fbf3df; color: #75520c; }
@@ -1100,8 +1136,15 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .task-section { padding: 54px 18px 80px; }
   .section-title-row { align-items: flex-start; flex-direction: column; gap: 12px; }
   .section-title-row > p { text-align: left; }
+  .task-heading-actions { width: 100%; align-items: flex-start; }
+  .task-heading-actions p { text-align: left; }
+  .task-manage-toolbar { align-items: flex-start; flex-wrap: wrap; }
+  .task-manage-toolbar-actions { width: 100%; margin-left: 0; }
+  .task-manage-toolbar-actions button { flex: 1; }
   .task-row { grid-template-columns: 34px 1fr auto; gap: 10px; }
-  .task-row .status-pill, .task-arrow { display: none; }
+  .task-row .status-pill, .task-arrow, .task-selection-state { display: none; }
+  .task-delete-modal { padding: 12px; }
+  .task-delete-dialog { padding: 22px 18px; }
   .review-title p { display: none; }
   .review-title h1 { font-size: 15px; }
   .review-topbar > .status-pill { display: none; }

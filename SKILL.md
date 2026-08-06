@@ -10,16 +10,23 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；若宿主终端更适合 CMD，也记录同目录的 `visual-director.cmd` 为 `{launcherCmd}`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
+2. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，直接使用它。Windows CMD 还可记录同目录的 `visual-director.cmd`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
 3. 只有稳定入口不存在，或用户明确要求从其提供的 Git 仓库/本地源码升级时，才读取 [Agent 安装与恢复说明](INSTALL_FOR_AGENT.md)，并从完整仓库运行统一入口：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/bootstrap.ps1"
 ```
 
+macOS 使用：
+
+```bash
+bash "{baseDir}/scripts/bootstrap.sh"
+```
+
 4. 只解析 bootstrap stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
 5. 确认 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`。若出现版本或契约不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
+7. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
 
 ## 创建文章任务
 
@@ -100,6 +107,8 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task open <task-id> --json
 ```powershell
 powershell -ExecutionPolicy Bypass -File "{launcher}" stop --json
 ```
+
+若重装后历史任务为空，先停止服务并执行 `data scan --json`；已知旧源码数据目录时增加 `--candidate <path>`。不得只复制数据库文件。恢复必须把数据库、`image-assets` 与 `publication-assets` 视为一个整体；目标已有任务时，未经用户核对扫描结果并明确同意，不得执行 `data recover --activate --yes`。
 
 ## 安全门禁
 

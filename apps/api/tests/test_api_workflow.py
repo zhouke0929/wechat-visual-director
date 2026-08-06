@@ -153,6 +153,124 @@ def _freeze_publication(client: TestClient, task: dict, key: str = "freeze-publi
     return response.json()
 
 
+def test_batch_delete_tasks_removes_local_records_and_assets_but_keeps_other_tasks(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "batch-delete.db"))
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        revision = _freeze_publication(client, task, key="freeze-for-delete")["revision"]
+        retained = client.post(
+            "/api/v1/article-tasks",
+            files={
+                "markdown_file": (
+                    "retained.md",
+                    b"---\ntitle: Retained task\n---\n# Retained task\n\nKeep this task.",
+                    "text/markdown",
+                )
+            },
+        ).json()["task"]
+
+        repository = app.state.repository
+        replacement = repository.connection.execute(
+            "SELECT output_filename FROM preflight_asset_replacements WHERE task_id = ?",
+            (task["id"],),
+        ).fetchone()
+        assert replacement is not None
+        image_path = repository.image_asset_dir / replacement["output_filename"]
+        publication_dir = repository.publication_asset_dir / revision["id"]
+        assert image_path.exists()
+        assert publication_dir.exists()
+
+        response = client.post(
+            "/api/v1/article-tasks/batch-delete",
+            json={"task_ids": [task["id"], "missing-task", task["id"]]},
+        )
+
+        assert response.status_code == 200
+        result = response.json()
+        assert result["schema_version"] == "task_batch_delete_result.v0.1"
+        assert result["deleted_count"] == 1
+        assert result["deleted_task_ids"] == [task["id"]]
+        assert result["missing_task_ids"] == ["missing-task"]
+        assert result["asset_cleanup_warnings"] == []
+        assert client.get(f'/api/v1/article-tasks/{task["id"]}').status_code == 404
+        assert client.get(f'/api/v1/article-tasks/{retained["id"]}').status_code == 200
+        assert not image_path.exists()
+        assert not publication_dir.exists()
+        assert repository.connection.execute(
+            "SELECT COUNT(*) FROM tasks WHERE id = ?",
+            (task["id"],),
+        ).fetchone()[0] == 0
+        for table in (
+            "artifacts",
+            "plans",
+            "plan_revisions",
+            "audit_events",
+            "recent_article_component_summaries",
+            "image_slot_states",
+            "image_candidates",
+            "cover_candidates",
+            "preflight_asset_replacements",
+            "publication_revisions",
+            "draft_slots",
+            "draft_operations",
+        ):
+            count = repository.connection.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE task_id = ?",
+                (task["id"],),
+            ).fetchone()[0]
+            assert count == 0, table
+
+
+def test_batch_delete_tasks_requires_at_least_one_id(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "batch-delete-validation.db"))
+    with TestClient(app) as client:
+        response = client.post("/api/v1/article-tasks/batch-delete", json={"task_ids": []})
+
+    assert response.status_code == 422
+
+
+def test_batch_delete_tasks_blocks_unknown_draft_operations(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("VISUAL_DIRECTOR_ENABLE_MOCK_FAILURES", "1")
+    app = create_app(str(tmp_path / "batch-delete-active-draft.db"))
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task, key="freeze-before-guarded-delete")
+        unknown = client.post(
+            f'/api/v1/publication-revisions/{frozen["revision"]["id"]}/draft-operations',
+            headers={"Idempotency-Key": "unknown-before-delete"},
+            json={
+                "expected_task_version": frozen["task"]["version"],
+                "draft_slot": "primary",
+                "simulation_mode": "unknown",
+            },
+        ).json()
+
+        blocked = client.post(
+            "/api/v1/article-tasks/batch-delete",
+            json={"task_ids": [task["id"]]},
+        )
+        assert blocked.status_code == 409
+        assert "结果未知" in blocked.json()["error"]["message"]
+
+        resolved = client.post(
+            f'/api/v1/draft-operations/{unknown["operation"]["id"]}/resolve-unknown',
+            headers={"Idempotency-Key": "resolve-before-delete", "X-Operator-Id": "product_owner"},
+            json={
+                "expected_task_version": unknown["task"]["version"],
+                "expected_operation_version": unknown["operation"]["version"],
+                "outcome": "confirmed_not_created",
+                "evidence": "已核对公众号后台，确认没有产生草稿。",
+            },
+        )
+        assert resolved.status_code == 200
+        deleted = client.post(
+            "/api/v1/article-tasks/batch-delete",
+            json={"task_ids": [task["id"]]},
+        )
+        assert deleted.status_code == 200
+        assert deleted.json()["deleted_count"] == 1
+
+
 def test_create_task_idempotency_replays_and_rejects_conflicting_source(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "idempotency.db"))
     markdown = """---

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/router";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { BackIcon, CheckIcon } from "@/components/icons";
 import {

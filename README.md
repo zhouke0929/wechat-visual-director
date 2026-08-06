@@ -4,7 +4,7 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 工作台。宿主 Agent 负责理解内容并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营只需在浏览器里确认方案、图片与封面，不需要让模型自由编写整段 HTML/CSS。
 
-当前版本：**v0.1.0-alpha.15**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
+当前版本：**v0.1.0-alpha.16**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
@@ -30,11 +30,13 @@ Visual Director 将这些问题拆成两层：
 - 双视觉方案与 390px 移动端预览；
 - 正文配图、结构信息图、人工上传与封面候选；
 - 人工、Mock、OpenAI/Ark/兼容 Images API、Gemini Nano Banana 图片 Provider；
-- 本地任务、历史方案、图片选择与冻结版本持久化；
+- 本地任务、历史方案、图片选择与冻结版本持久化，并支持在工作台批量清理历史任务；
 - 富文本复制、Markdown/HTML/图片交付包；
 - 可选 Wenyan 适配器写入微信公众号草稿箱；
 - OpenClaw、OpenCode、Claude Code、Trae 等宿主可复用现有文本模型，不要求再配置一份文本模型 Key；
-- Windows 持久安装、升级保留数据、通用 Skill 注册和 OpenCode 命令注册。
+- FastAPI 单进程同时托管 API 与静态工作台，运行时不依赖 Node.js 或 3000 端口；
+- 历史数据只读扫描、完整备份与显式恢复；
+- Windows 持久安装与升级；macOS 技术预览安装；通用 Skill 和 OpenCode 命令注册。
 
 > 能力口径：`mock` 只用于自动化回归和演示，不是正常发布路径。只要 `doctor --json` 返回
 > `capabilities.wechat_draft=true` 且 `publishers.wenyan.ready=true`，工作台就会调用本机 Wenyan
@@ -51,7 +53,7 @@ Visual Director 将这些问题拆成两层：
         ↓
 确定性组件库生成两套视觉方案
         ↓
-运营在 Next.js 工作台确认主题、组件、图片和封面
+运营在同一 FastAPI 地址的静态工作台确认主题、组件、图片和封面
         ↓
 冻结版本
         ↓
@@ -69,17 +71,17 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 ```text
 请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。
 
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.15
+https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.16
 ```
 
 安装器会把最小 Skill 入口注册到通用 Agent 目录和 OpenCode 目录。安装完成后请重启宿主对话，使新会话能够自动发现 Skill。
 
 ### 方式二：Windows PowerShell
 
-需要 Python 3.11+、Node.js，以及 pnpm 或 Corepack。
+预构建发行包只需要 Python 3.11+。从未构建的源码开发工作台时，才额外需要 Node.js 与 Corepack。
 
 ```powershell
-git clone --branch v0.1.0-alpha.15 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.16 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 Set-Location .\wechat-visual-director
 
 $bootstrap = powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1" | ConvertFrom-Json
@@ -93,6 +95,7 @@ wechat-visual-director/
 ├── versions/   # 各程序版本
 ├── data/       # 任务、图片和冻结产物
 ├── config/     # 本地私有配置
+├── backups/    # 数据恢复前的完整备份
 ├── runtime/    # PID 与运行日志
 ├── visual-director.ps1
 ├── visual-director.cmd     # CMD/桌面 Agent 兼容入口
@@ -124,6 +127,29 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-vi
 ```
 
 两种方式都不会删除你的 Git 源码目录。
+
+### macOS 技术预览
+
+macOS 使用相同的单进程核心，默认安装到 `~/Library/Application Support/wechat-visual-director`：
+
+```bash
+git clone --branch v0.1.0-alpha.16 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+cd wechat-visual-director
+bash scripts/bootstrap.sh
+```
+
+稳定入口为 `~/Library/Application Support/wechat-visual-director/visual-director`。基础排版、人工图片和交付包不需要 Node.js；使用 Wenyan 创建公众号草稿时才需要另行安装其 Node.js 工具。macOS 在真实设备完成完整人工验收前标记为 **Technical Preview**。
+
+### 找回旧任务
+
+升级或重装后若看不到旧任务，先停止服务并只读扫描，不要手动复制单个数据库文件：
+
+```powershell
+& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" stop --json
+& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" data scan --candidate "C:\旧源码\apps\api\data" --json
+```
+
+目标库为空时可用 `data recover --from <data-root>` 迁移。目标库已有任务时，命令会拒绝覆盖；只有人工核对扫描结果后显式增加 `--activate --yes` 才会先备份当前完整数据集，再激活所选历史数据。
 
 ## 文本规划
 
@@ -200,7 +226,7 @@ WECHAT_APP_SECRET=
 ├── agents/openai.yaml       # Skill UI 元数据
 ├── scripts/                 # 安装器、稳定启动器和公开验证脚本
 ├── apps/api/                # FastAPI、SQLite、规划、组件与发布适配器
-├── apps/web/                # Next.js 本地评审工作台
+├── apps/web/                # React/Vite 源码与预构建静态工作台
 ├── references/              # 文章协议、CLI 契约、图片 Provider 说明
 ├── samples/                 # 中性公开样例与回归样本
 ├── contracts/               # EditorialBrief、OpenAPI 等契约
@@ -213,11 +239,13 @@ WECHAT_APP_SECRET=
 ```powershell
 $env:PYTHONPATH="apps/api/src"
 python -m pytest apps/api/tests -q
-pnpm --dir apps/web typecheck
-pnpm --dir apps/web build
+corepack pnpm@11.7.0 --dir apps/web typecheck
+corepack pnpm@11.7.0 --dir apps/web build
 ```
 
-Alpha.15 已完成 API 全量测试、Next.js 生产构建、隔离安装/卸载/重装回归，以及真实 Markdown → 双方案 → 图片/封面确认 → 微信公众号草稿箱的人工端到端验证。工作台与 API 会校验运行版本，桌面 Agent 不应使用旧源码、系统 Python 或 `pnpm dev` 绕过稳定入口。下一阶段优先观察真实文章中的默认主题采用率、组件修改位置、图片采纳率和人工处理时间，而不是继续无边界扩充主题。
+Alpha.16 将工作台与 API 合并为一个本地服务，并补充跨安装模式的数据恢复契约。桌面 Agent 不应使用旧源码、系统 Python、`uvicorn` 或开发服务器绕过稳定入口。Windows 是正式支持平台；macOS 在真实设备人工验收前为技术预览。
+
+历史任务的批量删除只清理本机任务、预览、生成图片和冻结交付资产，并使其退出最近 5 篇参考窗口；已经进入微信公众号后台的草稿或已发布文章不会被远程删除。
 
 运营观察模板见 [真实运营观察表](docs/真实运营观察表.md)。
 

@@ -3,7 +3,7 @@ param(
     [string]$InstallRoot = "",
     [string]$HostHome = "",
     [string]$ApiBase = "http://127.0.0.1:8000/api/v1",
-    [string]$WebBase = "http://127.0.0.1:3000",
+    [string]$WebBase = "http://127.0.0.1:8000",
     [switch]$SkipDependencies
 )
 

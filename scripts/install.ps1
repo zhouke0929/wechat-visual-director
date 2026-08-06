@@ -265,6 +265,7 @@ $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
 $StableCmdLauncher = Join-Path $InstallRoot "visual-director.cmd"
 $StableUninstaller = Join-Path $InstallRoot "uninstall.ps1"
 $ManifestPath = Join-Path $InstallRoot "install.json"
+$HistoryPath = Join-Path $ConfigRoot "install-history.json"
 
 Assert-ChildPath $InstallRoot $VersionsRoot
 Assert-ChildPath $InstallRoot $VersionRoot
@@ -286,6 +287,7 @@ try {
 
 $MigratedDatabase = $false
 $MigratedImages = $false
+$MigratedPublicationAssets = $false
 $MigratedConfig = $false
 $TargetDatabase = Join-Path $DataRoot "visual-director.db"
 $LegacyDatabase = Join-Path $SourceRoot "apps\api\data\visual-director.db"
@@ -299,6 +301,13 @@ $LegacyImages = Join-Path $SourceRoot "apps\api\data\image-assets"
 if (-not (Test-Path -LiteralPath $TargetImages) -and (Test-Path -LiteralPath $LegacyImages -PathType Container)) {
     Copy-Item -LiteralPath $LegacyImages -Destination $TargetImages -Recurse
     $MigratedImages = $true
+}
+
+$TargetPublicationAssets = Join-Path $DataRoot "publication-assets"
+$LegacyPublicationAssets = Join-Path $SourceRoot "apps\api\data\publication-assets"
+if (-not (Test-Path -LiteralPath $TargetPublicationAssets) -and (Test-Path -LiteralPath $LegacyPublicationAssets -PathType Container)) {
+    Copy-Item -LiteralPath $LegacyPublicationAssets -Destination $TargetPublicationAssets -Recurse
+    $MigratedPublicationAssets = $true
 }
 
 $LegacyConfig = Join-Path $SourceRoot ".env.local"
@@ -350,49 +359,53 @@ if (-not $SkipDependencies) {
         Write-Failure "python_install_failed" "Could not install the Visual Director API package."
     }
 
-    $Pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
-    $DependencyLog = Join-Path $RuntimeRoot "install-web-dependencies.log"
-    if ($null -ne $Pnpm) {
-        & $Pnpm.Source --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
-    } else {
+    $StaticWorkbench = Join-Path $WebDir "dist\index.html"
+    if (-not (Test-Path -LiteralPath $StaticWorkbench -PathType Leaf)) {
+        $RequiredPnpmVersion = "11.7.0"
         $Corepack = Get-Command corepack -ErrorAction SilentlyContinue
-        if ($null -eq $Corepack) {
-            Write-Failure "pnpm_not_found" "pnpm or corepack is required to install the workbench."
-        }
-        & $Corepack.Source pnpm --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
-    }
-    if ($LASTEXITCODE -ne 0) {
-        Write-Failure "web_install_failed" "Could not install the Web workbench dependencies." @{
-            log = $DependencyLog
-        }
-    }
-
-    $PreviousPublicVersion = $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION
-    $BuildLog = Join-Path $RuntimeRoot "install-web-build.log"
-    $PreviousErrorActionPreference = $ErrorActionPreference
-    try {
-        $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION = $Version
-        # pnpm writes normal lifecycle progress to stderr on Windows. Judge the
-        # native command by its exit code and keep that output in the build log.
-        $ErrorActionPreference = "Continue"
-        if ($null -ne $Pnpm) {
-            & $Pnpm.Source --dir $WebDir build *> $BuildLog
+        $PnpmCommand = $null
+        $PnpmPrefix = @()
+        if ($null -ne $Corepack) {
+            $PnpmCommand = $Corepack.Source
+            $PnpmPrefix = @("pnpm@$RequiredPnpmVersion")
         } else {
-            & $Corepack.Source pnpm --dir $WebDir build *> $BuildLog
-        }
-        $BuildExitCode = $LASTEXITCODE
-        $ErrorActionPreference = $PreviousErrorActionPreference
-        if ($BuildExitCode -ne 0) {
-            Write-Failure "web_build_failed" "Could not build the production Web workbench." @{
-                log = $BuildLog
+            $Pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+            if ($null -ne $Pnpm) {
+                $DetectedPnpmVersion = (& $Pnpm.Source --version).Trim()
+                if ($DetectedPnpmVersion -ne $RequiredPnpmVersion) {
+                    Write-Failure "pnpm_version_unsupported" "The source workbench requires pnpm $RequiredPnpmVersion." @{
+                        detected = $DetectedPnpmVersion
+                        required = $RequiredPnpmVersion
+                        action = "Install or enable Corepack, or use a prebuilt release package."
+                    }
+                }
+                $PnpmCommand = $Pnpm.Source
             }
         }
-    } finally {
-        $ErrorActionPreference = $PreviousErrorActionPreference
-        if ($null -eq $PreviousPublicVersion) {
-            Remove-Item Env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION -ErrorAction SilentlyContinue
-        } else {
-            $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION = $PreviousPublicVersion
+        if ($null -eq $PnpmCommand) {
+            Write-Failure "web_build_tool_missing" "The source checkout has no prebuilt workbench and Corepack was not found." @{
+                expected = $StaticWorkbench
+                action = "Use a prebuilt release package, or install Node.js with Corepack."
+            }
+        }
+
+        $DependencyLog = Join-Path $RuntimeRoot "install-web-dependencies.log"
+        & $PnpmCommand @PnpmPrefix --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
+        if ($LASTEXITCODE -ne 0) {
+            Write-Failure "web_install_failed" "Could not install the Web workbench dependencies." @{ log = $DependencyLog }
+        }
+        $BuildLog = Join-Path $RuntimeRoot "install-web-build.log"
+        $PreviousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            & $PnpmCommand @PnpmPrefix --dir $WebDir build *> $BuildLog
+            $BuildExitCode = $LASTEXITCODE
+            $ErrorActionPreference = $PreviousErrorActionPreference
+            if ($BuildExitCode -ne 0) {
+                Write-Failure "web_build_failed" "Could not build the static Web workbench." @{ log = $BuildLog }
+            }
+        } finally {
+            $ErrorActionPreference = $PreviousErrorActionPreference
         }
     }
 }
@@ -411,6 +424,13 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
             manifest = $ManifestPath
         }
     }
+} elseif (Test-Path -LiteralPath $HistoryPath -PathType Leaf) {
+    try {
+        $InstallHistory = Get-Content -Raw -Encoding UTF8 -LiteralPath $HistoryPath | ConvertFrom-Json
+        $PreviousVersion = [string]$InstallHistory.last_version
+    } catch {
+        Write-Failure "install_history_invalid" "The preserved installation history is invalid." @{ history = $HistoryPath }
+    }
 }
 
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force
@@ -419,7 +439,7 @@ Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\uninstall.ps1") -Destina
 $HostRegistration = Register-HostSkill -ApplicationRoot $VersionRoot -UserHomeOverride $HostHome
 $InstalledAt = [DateTimeOffset]::UtcNow.ToString("o")
 $Manifest = [ordered]@{
-    schema_version = "persistent_install.v0.1"
+    schema_version = "persistent_install.v0.2"
     current_version = $Version
     previous_version = $PreviousVersion
     install_root = $InstallRoot
@@ -434,6 +454,14 @@ $Manifest = [ordered]@{
     installed_at = $InstalledAt
 }
 $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $ManifestPath
+$InstallHistory = [ordered]@{
+    schema_version = "install_history.v0.1"
+    last_version = $Version
+    data_root = $DataRoot
+    last_install_at = $InstalledAt
+    last_uninstall_at = $null
+}
+$InstallHistory | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $HistoryPath
 $VersionCleanup = Remove-OldVersionDirectories `
     -VersionsDirectory $VersionsRoot `
     -KeepVersions @($Version, $PreviousVersion) `
@@ -464,13 +492,14 @@ if (-not [string]::IsNullOrWhiteSpace($PreviousVersion) -and $PreviousVersion -n
     skill_root = $HostRegistration.generic_skill_root
     host_registration = $HostRegistration
     dependencies_installed = -not $SkipDependencies
-    production_workbench_built = -not $SkipDependencies
+    production_workbench_built = (Test-Path -LiteralPath (Join-Path $WebDir "dist\index.html") -PathType Leaf)
     retained_versions = $RetainedVersions
     removed_versions = $VersionCleanup.removed
     warnings = $InstallWarnings
     migrated = @{
         database = $MigratedDatabase
         image_assets = $MigratedImages
+        publication_assets = $MigratedPublicationAssets
         config = $MigratedConfig
     }
     next_action = "run_doctor"

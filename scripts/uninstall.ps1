@@ -142,6 +142,20 @@ if (Test-Path -LiteralPath $StableLauncher -PathType Leaf) {
     }
 }
 
+if (-not $Purge) {
+    $ConfigRoot = Join-Path $InstallRoot "config"
+    $HistoryPath = Join-Path $ConfigRoot "install-history.json"
+    New-Item -ItemType Directory -Force -Path $ConfigRoot | Out-Null
+    $History = [ordered]@{
+        schema_version = "install_history.v0.1"
+        last_version = [string]$Manifest.current_version
+        data_root = [string]$Manifest.data_root
+        last_install_at = [string]$Manifest.installed_at
+        last_uninstall_at = [DateTimeOffset]::UtcNow.ToString("o")
+    }
+    $History | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $HistoryPath
+}
+
 if ([string]::IsNullOrWhiteSpace($HostHome)) {
     $HostHome = [Environment]::GetFolderPath("UserProfile")
 }
@@ -182,7 +196,7 @@ foreach ($Target in $ProgramTargets) {
 
 $Preserved = @()
 if (-not $Purge) {
-    foreach ($Name in @("data", "config")) {
+    foreach ($Name in @("data", "config", "backups")) {
         $PathValue = Join-Path $InstallRoot $Name
         if (Test-Path -LiteralPath $PathValue) {
             $Preserved += $PathValue

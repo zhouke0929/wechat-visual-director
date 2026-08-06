@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import Link, { useRouteParam } from "@/lib/router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackIcon, CheckIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
@@ -85,8 +84,7 @@ function historyMessage(slot: ComponentSlot): string | null {
 }
 
 export default function TaskReviewPage() {
-  const params = useParams<{ taskId: string }>();
-  const taskId = params.taskId;
+  const taskId = useRouteParam("tasks");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [planList, setPlanList] = useState<PlanList | null>(null);
   const [activeMobilePlan, setActiveMobilePlan] = useState(0);

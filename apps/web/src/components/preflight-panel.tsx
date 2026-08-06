@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/router";
 import { CheckIcon } from "@/components/icons";
 import { absoluteApiUrl } from "@/lib/api";
 import type { PreflightFinding, PreflightReport, TaskStatus } from "@/lib/types";

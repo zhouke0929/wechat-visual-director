@@ -10,46 +10,6 @@ import pytest
 from visual_director import cli
 
 
-def test_pnpm_command_supports_powershell_shim(monkeypatch) -> None:
-    def fake_which(name: str) -> str | None:
-        return {
-            "pnpm": "C:/tools/pnpm.ps1",
-            "pnpm.ps1": "C:/tools/pnpm.ps1",
-            "pwsh.exe": "C:/tools/pwsh.exe",
-            "powershell.exe": "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe",
-        }.get(name)
-
-    monkeypatch.setattr(cli.shutil, "which", fake_which)
-
-    command = cli._pnpm_command()
-
-    if cli.os.name == "nt":
-        assert command == [
-            "C:/tools/pwsh.exe",
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            "C:/tools/pnpm.ps1",
-        ]
-    else:
-        assert command == ["C:/tools/pnpm.ps1"]
-
-
-def test_pnpm_command_strips_outer_quotes_from_host_path(monkeypatch) -> None:
-    monkeypatch.setattr(
-        cli.shutil,
-        "which",
-        lambda name: '"C:/Users/test/AppData/Roaming/TRAE SOLO CN/tools/node/pnpm.CMD"'
-        if name == "pnpm.cmd"
-        else None,
-    )
-
-    assert cli._pnpm_command() == [
-        "C:/Users/test/AppData/Roaming/TRAE SOLO CN/tools/node/pnpm.CMD"
-    ]
-
-
 def test_web_probe_requires_current_workbench_identity(monkeypatch) -> None:
     monkeypatch.setattr(
         cli,
@@ -108,7 +68,7 @@ def test_web_process_recognition_accepts_production_and_legacy_modes() -> None:
     assert not cli._command_matches_service("web", "pnpm.CMD build")
 
 
-def test_serve_reports_missing_production_workbench_build(
+def test_serve_reports_missing_static_workbench_build(
     tmp_path: Path, monkeypatch
 ) -> None:
     web_dir = tmp_path / "apps" / "web"
@@ -125,15 +85,13 @@ def test_serve_reports_missing_production_workbench_build(
     )
     monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)
-    monkeypatch.setattr(cli, "_pnpm_command", lambda: ["pnpm.cmd"])
-
     with pytest.raises(cli.CliError) as raised:
         cli._ensure_services(
             "http://127.0.0.1:8000/api/v1",
             "http://127.0.0.1:3000",
         )
 
-    assert raised.value.code == "web_production_build_missing"
+    assert raised.value.code == "workbench_build_missing"
 
 
 def test_doctor_json_reports_missing_services(monkeypatch, capsys) -> None:
@@ -382,7 +340,7 @@ def test_serve_refuses_same_version_api_with_stale_settings_contract(
     assert payload["error"]["details"]["running_settings_schema"] is None
 
 
-def test_serve_refuses_reachable_stale_workbench(monkeypatch, capsys) -> None:
+def test_serve_reports_reachable_but_incompatible_workbench(monkeypatch, capsys) -> None:
     monkeypatch.setattr(
         cli,
         "_probe_json",
@@ -397,9 +355,9 @@ def test_serve_refuses_reachable_stale_workbench(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)
 
-    assert cli.run(["serve", "--json"]) == 3
+    assert cli.run(["serve", "--json"]) == 2
     payload = json.loads(capsys.readouterr().out)
-    assert payload["error"]["code"] == "workbench_version_mismatch"
+    assert payload["error"]["code"] == "workbench_build_missing"
     assert payload["error"]["details"]["expected_version"] == cli.application_version()
 
 
@@ -484,7 +442,7 @@ article_type: tutorial_steps
         "idempotency_replayed": False,
         "plans_generated": True,
         "planner": "rule",
-        "review_url": "http://127.0.0.1:3000/tasks/task-123",
+        "review_url": "http://127.0.0.1:8000/tasks/task-123",
         "opened": True,
         "next_action": "human_review",
     }

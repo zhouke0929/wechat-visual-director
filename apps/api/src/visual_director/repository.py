@@ -464,6 +464,147 @@ class Repository:
         rows = self.connection.execute("SELECT * FROM tasks ORDER BY updated_at DESC").fetchall()
         return [self._task_from_row(row) for row in rows]
 
+    def delete_tasks(self, task_ids: list[str]) -> dict[str, Any]:
+        """Delete local task records and their generated assets as one database operation."""
+        normalized_ids = list(dict.fromkeys(task_id.strip() for task_id in task_ids if task_id.strip()))
+        if not normalized_ids:
+            raise ValueError("请至少选择一个历史任务")
+
+        placeholders = ",".join("?" for _ in normalized_ids)
+        with self.lock:
+            existing_rows = self.connection.execute(
+                f"SELECT id FROM tasks WHERE id IN ({placeholders})",
+                normalized_ids,
+            ).fetchall()
+            existing_ids = [str(row["id"]) for row in existing_rows]
+            existing_set = set(existing_ids)
+            missing_ids = [task_id for task_id in normalized_ids if task_id not in existing_set]
+            if not existing_ids:
+                return {
+                    "deleted_task_ids": [],
+                    "missing_task_ids": missing_ids,
+                    "asset_cleanup_warnings": [],
+                }
+
+            task_placeholders = ",".join("?" for _ in existing_ids)
+            active_operation = self.connection.execute(
+                f"""SELECT task_id FROM draft_operations
+                WHERE task_id IN ({task_placeholders}) AND status IN ('running', 'unknown')
+                LIMIT 1""",
+                existing_ids,
+            ).fetchone()
+            if active_operation is not None:
+                raise VersionConflictError("所选任务中仍有草稿同步正在进行或结果未知，请先处理后再删除")
+            revision_rows = self.connection.execute(
+                f"SELECT id FROM publication_revisions WHERE task_id IN ({task_placeholders})",
+                existing_ids,
+            ).fetchall()
+            revision_ids = [str(row["id"]) for row in revision_rows]
+            operation_rows = self.connection.execute(
+                f"SELECT id FROM draft_operations WHERE task_id IN ({task_placeholders})",
+                existing_ids,
+            ).fetchall()
+            operation_ids = [str(row["id"]) for row in operation_rows]
+
+            asset_filenames: set[str] = set()
+            for row in self.connection.execute(
+                f"SELECT output_filename, raw_output_filename FROM image_candidates WHERE task_id IN ({task_placeholders})",
+                existing_ids,
+            ).fetchall():
+                asset_filenames.add(Path(str(row["output_filename"])).name)
+                if row["raw_output_filename"]:
+                    asset_filenames.add(Path(str(row["raw_output_filename"])).name)
+            for table in ("cover_candidates", "preflight_asset_replacements"):
+                rows = self.connection.execute(
+                    f"SELECT output_filename FROM {table} WHERE task_id IN ({task_placeholders})",
+                    existing_ids,
+                ).fetchall()
+                asset_filenames.update(Path(str(row["output_filename"])).name for row in rows)
+
+            try:
+                if operation_ids:
+                    operation_placeholders = ",".join("?" for _ in operation_ids)
+                    self.connection.execute(
+                        f"DELETE FROM draft_operation_steps WHERE operation_id IN ({operation_placeholders})",
+                        operation_ids,
+                    )
+                self.connection.execute(
+                    f"DELETE FROM draft_operations WHERE task_id IN ({task_placeholders})",
+                    existing_ids,
+                )
+                self.connection.execute(
+                    f"DELETE FROM draft_slots WHERE task_id IN ({task_placeholders})",
+                    existing_ids,
+                )
+                if revision_ids:
+                    revision_placeholders = ",".join("?" for _ in revision_ids)
+                    self.connection.execute(
+                        f"DELETE FROM publication_assets WHERE revision_id IN ({revision_placeholders})",
+                        revision_ids,
+                    )
+                self.connection.execute(
+                    f"DELETE FROM recent_article_component_summaries WHERE task_id IN ({task_placeholders})",
+                    existing_ids,
+                )
+                self.connection.execute(
+                    f"DELETE FROM publication_revisions WHERE task_id IN ({task_placeholders})",
+                    existing_ids,
+                )
+                for table in (
+                    "preflight_asset_replacements",
+                    "cover_candidates",
+                    "image_candidates",
+                    "image_slot_states",
+                    "plan_revisions",
+                    "plans",
+                    "artifacts",
+                    "audit_events",
+                ):
+                    self.connection.execute(
+                        f"DELETE FROM {table} WHERE task_id IN ({task_placeholders})",
+                        existing_ids,
+                    )
+                resource_ids = existing_ids + revision_ids + operation_ids
+                if resource_ids:
+                    resource_placeholders = ",".join("?" for _ in resource_ids)
+                    self.connection.execute(
+                        f"DELETE FROM idempotency_records WHERE resource_id IN ({resource_placeholders})",
+                        resource_ids,
+                    )
+                self.connection.execute(
+                    f"DELETE FROM tasks WHERE id IN ({task_placeholders})",
+                    existing_ids,
+                )
+                self.connection.commit()
+            except Exception:
+                self.connection.rollback()
+                raise
+
+        cleanup_warnings: list[str] = []
+        for filename in asset_filenames:
+            try:
+                (self.image_asset_dir / filename).unlink(missing_ok=True)
+            except OSError:
+                cleanup_warnings.append(filename)
+        publication_root = self.publication_asset_dir.resolve()
+        for revision_id in revision_ids:
+            revision_dir = (self.publication_asset_dir / revision_id).resolve()
+            if revision_dir.parent != publication_root:
+                cleanup_warnings.append(revision_id)
+                continue
+            try:
+                shutil.rmtree(revision_dir, ignore_errors=False)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                cleanup_warnings.append(revision_id)
+
+        return {
+            "deleted_task_ids": existing_ids,
+            "missing_task_ids": missing_ids,
+            "asset_cleanup_warnings": cleanup_warnings,
+        }
+
     def get_task(self, task_id: str) -> dict[str, Any]:
         row = self.connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:

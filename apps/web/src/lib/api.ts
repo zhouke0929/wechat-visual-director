@@ -25,10 +25,10 @@ import type {
 
 // Browser traffic stays on the workbench origin and is forwarded by the
 // runtime proxy. This keeps a production build portable across API ports and
-// avoids baking a previous machine's API address into the Next.js bundle.
-export const API_BASE = "/api/backend/api/v1";
+// avoids baking a previous machine's API address into the static workbench bundle.
+export const API_BASE = "/api/v1";
 
-const API_ORIGIN = "/api/backend";
+const API_ORIGIN = "";
 const REQUEST_TIMEOUT_MS = 12_000;
 const EXPECTED_APPLICATION_VERSION =
   process.env.NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION ?? null;
@@ -101,6 +101,21 @@ export async function listTasks(): Promise<Task[]> {
   const response = await fetch(`${API_BASE}/article-tasks`, { cache: "no-store" });
   const payload = await parseResponse<{ items: Task[] }>(response);
   return payload.items;
+}
+
+export async function deleteTasks(taskIds: string[]): Promise<{
+  schema_version: "task_batch_delete_result.v0.1";
+  deleted_count: number;
+  deleted_task_ids: string[];
+  missing_task_ids: string[];
+  asset_cleanup_warnings: string[];
+}> {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/batch-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ task_ids: taskIds }),
+  });
+  return parseResponse(response);
 }
 
 export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {

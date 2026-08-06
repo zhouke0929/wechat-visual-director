@@ -1,0 +1,52 @@
+name: cross-platform-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install API test dependencies
+        run: python -m pip install -e "apps/api[dev]"
+      - name: Run API tests
+        run: python -m pytest apps/api/tests -q
+      - name: Build static workbench
+        run: |
+          corepack pnpm@11.7.0 --dir apps/web install --frozen-lockfile
+          corepack pnpm@11.7.0 --dir apps/web build
+      - name: Validate macOS shell scripts
+        if: runner.os == 'macOS'
+        run: |
+          bash -n scripts/install.sh
+          bash -n scripts/uninstall.sh
+          bash -n scripts/bootstrap.sh
+          bash -n scripts/persistent-launcher.sh
+          bash -n scripts/visual-director.sh
+      - name: macOS isolated install smoke test
+        if: runner.os == 'macOS'
+        run: |
+          INSTALL_ROOT="$RUNNER_TEMP/wechat-visual-director"
+          HOST_HOME="$RUNNER_TEMP/host-home"
+          bash scripts/install.sh --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME"
+          "$INSTALL_ROOT/visual-director" serve --json
+          "$INSTALL_ROOT/visual-director" doctor --json
+          "$INSTALL_ROOT/visual-director" stop --json
+          "$INSTALL_ROOT/uninstall.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME"
+      - name: Windows script contract tests
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: python -m pytest apps/api/tests/test_install_scripts.py -q

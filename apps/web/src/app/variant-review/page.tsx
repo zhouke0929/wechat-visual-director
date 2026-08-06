@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/router";
 import { useEffect, useMemo, useState } from "react";
 import { BackIcon } from "@/components/icons";
 import styles from "./variant-review.module.css";

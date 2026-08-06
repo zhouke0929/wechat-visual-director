@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
+import Link from "@/lib/router";
 import { BackIcon, CheckIcon } from "@/components/icons";
 import styles from "./component-gallery.module.css";
 

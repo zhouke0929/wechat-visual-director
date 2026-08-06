@@ -120,6 +120,10 @@ class SetupPreferencesRequest(BaseModel):
     target_mode: str = Field(pattern="^(typeset_only|images|full_delivery)$")
 
 
+class BatchDeleteTasksRequest(BaseModel):
+    task_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class WechatPublisherSettingsRequest(BaseModel):
     app_id: str | None = Field(default=None, min_length=1, max_length=128)
     app_secret: str | None = Field(default=None, min_length=1, max_length=512)
@@ -1258,10 +1262,12 @@ def create_app(
             pass
         return result
 
+    @app.get("/api/health")
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {
             "status": "ok",
+            "application": "wechat_visual_director_workbench",
             "application_version": application_version(),
             "planner": "editorial_brief",
             "image_provider": app.state.image_provider.provider,
@@ -1291,6 +1297,15 @@ def create_app(
     @app.get("/api/v1/article-tasks")
     def list_tasks() -> dict[str, Any]:
         return {"items": [_public_task(task) for task in repository.list_tasks()], "next_cursor": None}
+
+    @app.post("/api/v1/article-tasks/batch-delete")
+    def batch_delete_tasks(payload: BatchDeleteTasksRequest) -> dict[str, Any]:
+        result = repository.delete_tasks(payload.task_ids)
+        return {
+            "schema_version": "task_batch_delete_result.v0.1",
+            "deleted_count": len(result["deleted_task_ids"]),
+            **result,
+        }
 
     @app.get("/api/v1/blind-reviews/{eval_set_id}")
     def get_blind_review_set(eval_set_id: str, reviewer_id: str) -> Any:
@@ -3004,6 +3019,28 @@ def create_app(
         if asset is None or not asset.is_file():
             return _error(404, "brand_asset_not_configured", "The current brand has no fixed footer asset")
         return FileResponse(asset, filename=asset.name)
+
+    web_dist = Path(
+        os.environ.get("VISUAL_DIRECTOR_WEB_DIST", str(root / "apps" / "web" / "dist"))
+    ).expanduser().resolve()
+    app.state.web_dist = web_dist
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def workbench_static(full_path: str) -> Any:
+        if full_path == "api" or full_path.startswith("api/"):
+            return _error(404, "not_found", "API endpoint not found")
+        candidate = (web_dist / full_path).resolve()
+        if candidate.is_relative_to(web_dist) and candidate.is_file():
+            return FileResponse(candidate)
+        index_file = web_dist / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file, media_type="text/html")
+        return _error(
+            503,
+            "workbench_build_missing",
+            "本地工作台静态文件尚未构建",
+            details={"expected": str(index_file)},
+        )
 
     return app
 

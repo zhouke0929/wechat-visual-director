@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link from "@/lib/router";
 import { useMemo, useState } from "react";
 import { absoluteApiUrl, getBlindReviewSet, submitBlindReview } from "@/lib/api";
 import type {

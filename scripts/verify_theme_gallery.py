@@ -19,7 +19,7 @@ THEMES = (
 
 
 def inspect_page(page, theme: str, viewport: str) -> dict[str, object]:
-    page.goto(f"http://127.0.0.1:3000/theme-gallery/{theme}", wait_until="networkidle")
+    page.goto(f"http://127.0.0.1:8000/theme-gallery/{theme}", wait_until="networkidle")
     page.locator("article").first.wait_for()
     article = page.locator("article").first
     article_metrics = article.evaluate(
