@@ -15,6 +15,23 @@ FONT_CANDIDATES = (
     "C:/Windows/Fonts/msyhbd.ttc",
     "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
     "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/System/Library/Fonts/PingFang.ttc",
+    "/System/Library/Fonts/LanguageSupport/PingFang.ttc",
+    "/System/Library/Fonts/STHeiti Light.ttc",
+    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
+)
+
+FONT_SEARCH_ROOTS = (
+    "/System/Library/Fonts",
+    "/Library/Fonts",
+)
+
+FONT_SEARCH_PATTERNS = (
+    "PingFang*.ttc",
+    "Hiragino Sans GB*.ttc",
+    "STHeiti*.ttc",
+    "Songti*.ttc",
+    "Arial Unicode*.ttf",
 )
 
 
@@ -28,6 +45,14 @@ def _font_path() -> str:
     for candidate in candidates:
         if candidate and Path(candidate).is_file():
             return candidate
+    for root_value in FONT_SEARCH_ROOTS:
+        root = Path(root_value)
+        if not root.is_dir():
+            continue
+        for pattern in FONT_SEARCH_PATTERNS:
+            match = next(root.rglob(pattern), None)
+            if match is not None and match.is_file():
+                return str(match)
     raise InfographicOverlayError("未找到可用于确定性信息图叠字的中文字体")
 
 
