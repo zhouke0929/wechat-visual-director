@@ -1,6 +1,6 @@
 ---
 name: wechat-visual-director
-description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_article.v1，调用本地视觉主编生成双方案，并打开人工评审工作台。Use when an operator asks to create, structure, visually typeset, review, or prepare a WeChat Official Account article from a topic, source material, or .md file; also use when resuming an existing visual-director task. Do not use for final mass publishing without explicit human confirmation.
+description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_article.v1，生成双视觉方案并打开人工评审与草稿交付工作台。Make sure to use this Skill whenever the user asks to write, generate, structure, visually typeset, review, continue, or deliver a WeChat Official Account article; mentions 公众号推文、公众号排版、视觉主编、公众号草稿箱; or supplies a topic, source material, or .md file for a WeChat article, even if they do not name the Skill. Do not use for final mass publishing without explicit human confirmation.
 ---
 
 # WeChat Visual Director
@@ -10,16 +10,16 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；若宿主终端更适合 CMD，也记录同目录的 `visual-director.cmd` 为 `{launcherCmd}`。不要因为进入新对话而重复安装。只有稳定入口不存在，或用户明确要求从当前 Git 仓库升级时，才运行安装器；升级前先用旧入口执行 `stop --json` 并确认没有 `refused`。若稳定入口不存在且当前注册目录也没有 `scripts/install.ps1`，说明这里只是宿主发现入口，必须从用户明确提供的 Git 仓库或本地源码重新安装，不得猜测下载地址：
+2. 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；若宿主终端更适合 CMD，也记录同目录的 `visual-director.cmd` 为 `{launcherCmd}`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
+3. 只有稳定入口不存在，或用户明确要求从其提供的 Git 仓库/本地源码升级时，才读取 [Agent 安装与恢复说明](INSTALL_FOR_AGENT.md)，并从完整仓库运行统一入口：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{baseDir}/scripts/install.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/bootstrap.ps1"
 ```
 
-3. 只解析安装器 stdout 中的 JSON，把返回的绝对 `launcher` 记为 `{launcher}`，把可选的 `launcher_cmd` 记为 `{launcherCmd}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。默认入口是 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1`；程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外，重复安装新版本不得清空它们。安装器还会把本 Skill 注册到用户级 Agent/OpenCode 发现目录，供新对话直接使用。
-4. 使用稳定入口执行 `doctor --json`，确认 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`，并记录 `installation.version`、`running_version`、`app_root` 和 `data_root`。若出现 `core_version_mismatch`、`core_contract_mismatch` 或 `workbench_version_mismatch`，不得继续创建任务；关闭占用对应端口的旧服务后，只从稳定入口重试。若出现 `host_skill_not_registered`，从当前 Git 安装源重新运行安装器后重启宿主对话。宿主 Agent 规划不依赖 `ai_text_planning`；该字段只表示独立核心是否配置了可选文本模型。`rule_text_planning=true` 表示独立模式当前使用确定性规则兜底。不得把规则模式描述为真实 AI 规划。
-5. 安装或启动失败时只报告稳定入口 JSON 给出的错误码、日志目录与修复动作。不得改用系统 Python、全局 uvicorn、临时克隆目录里的 `pnpm dev`，也不得因为网页端口能访问就把未知页面当作当前工作台；这些绕过会让 API、页面和任务数据来自不同版本。不要自行下载不明二进制。
-6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{web_base}/settings`，在本地设置页选择 Provider 并填写 Key；若页面不可用，再告知安装结果中的 `config_file` 路径和所需字段。不得读取、代填或要求用户把 API Key 粘贴进对话。图片提示词由核心自动生成，不要求用户另行配置。
+4. 只解析 bootstrap stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
+5. 确认 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`。若出现版本或契约不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。
+6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
 
 ## 创建文章任务
 

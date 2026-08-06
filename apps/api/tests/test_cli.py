@@ -5,6 +5,8 @@ import os
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from visual_director import cli
 
 
@@ -96,8 +98,47 @@ def test_windows_batch_launch_supports_path_with_spaces(tmp_path: Path) -> None:
     assert "host-shim-ok" in result.stdout
 
 
+def test_web_process_recognition_accepts_production_and_legacy_modes() -> None:
+    assert cli._command_matches_service("web", "pnpm.CMD start -H 127.0.0.1 -p 3000")
+    assert cli._command_matches_service("web", "pnpm.CMD dev -H 127.0.0.1 -p 3000")
+    assert cli._command_matches_service(
+        "web",
+        r"node C:\app\node_modules\next\dist\bin\next start -H 127.0.0.1 -p 3000",
+    )
+    assert not cli._command_matches_service("web", "pnpm.CMD build")
+
+
+def test_serve_reports_missing_production_workbench_build(
+    tmp_path: Path, monkeypatch
+) -> None:
+    web_dir = tmp_path / "apps" / "web"
+    (web_dir / "node_modules").mkdir(parents=True)
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(tmp_path))
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": cli.application_version(),
+            "image_provider_settings_schema_version": cli.IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(cli, "_pnpm_command", lambda: ["pnpm.cmd"])
+
+    with pytest.raises(cli.CliError) as raised:
+        cli._ensure_services(
+            "http://127.0.0.1:8000/api/v1",
+            "http://127.0.0.1:3000",
+        )
+
+    assert raised.value.code == "web_production_build_missing"
+
+
 def test_doctor_json_reports_missing_services(monkeypatch, capsys) -> None:
     monkeypatch.setattr(cli, "_probe_json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: False)
     monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
 

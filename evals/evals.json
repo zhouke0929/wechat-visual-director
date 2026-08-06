@@ -1,0 +1,23 @@
+{
+  "skill_name": "wechat-visual-director",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "根据我给的教育政策资料写一篇公众号分析推文，排好版后打开工作台让我确认。",
+      "expected_output": "触发 Skill；复用稳定安装入口，生成规范 Markdown 和 EditorialBrief，停在人工评审。",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "我换了一个新对话，继续打开昨天那个公众号视觉主编任务，不要重新安装。",
+      "expected_output": "触发 Skill；优先查找稳定 launcher，查询或打开已有任务，不重复安装。",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "帮我写一条朋友圈文案，不需要公众号文章，也不用打开任何本地工具。",
+      "expected_output": "不触发 Skill，因为任务不是微信公众号文章工作流。",
+      "files": []
+    }
+  ]
+}

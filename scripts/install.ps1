@@ -43,6 +43,44 @@ function Assert-ChildPath([string]$Parent, [string]$Child) {
     }
 }
 
+function Remove-OldVersionDirectories(
+    [string]$VersionsDirectory,
+    [string[]]$KeepVersions,
+    [string]$ProtectedSourceRoot
+) {
+    $Removed = @()
+    $Failed = @()
+    $VersionsFull = [IO.Path]::GetFullPath($VersionsDirectory).TrimEnd("\")
+    $SourceFull = [IO.Path]::GetFullPath($ProtectedSourceRoot).TrimEnd("\")
+    $Keep = @($KeepVersions | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+
+    if (-not (Test-Path -LiteralPath $VersionsFull -PathType Container)) {
+        return [ordered]@{ removed = $Removed; failed = $Failed }
+    }
+
+    foreach ($Directory in Get-ChildItem -LiteralPath $VersionsFull -Directory) {
+        if ($Keep -contains $Directory.Name) {
+            continue
+        }
+        $Candidate = [IO.Path]::GetFullPath($Directory.FullName).TrimEnd("\")
+        $Parent = [IO.Path]::GetFullPath($Directory.Parent.FullName).TrimEnd("\")
+        if (
+            -not $Parent.Equals($VersionsFull, [StringComparison]::OrdinalIgnoreCase) -or
+            $Candidate.Equals($SourceFull, [StringComparison]::OrdinalIgnoreCase)
+        ) {
+            $Failed += [ordered]@{ path = $Candidate; reason = "unsafe_cleanup_path" }
+            continue
+        }
+        try {
+            Remove-Item -LiteralPath $Candidate -Recurse -Force
+            $Removed += $Candidate
+        } catch {
+            $Failed += [ordered]@{ path = $Candidate; reason = $_.Exception.Message }
+        }
+    }
+    return [ordered]@{ removed = $Removed; failed = $Failed }
+}
+
 function Copy-ApplicationSource(
     [string]$CurrentSource,
     [string]$CurrentDestination,
@@ -115,6 +153,7 @@ function Copy-SkillRegistration(
     $SkillFile = Join-Path $ApplicationRoot "SKILL.md"
     $ReferencesRoot = Join-Path $ApplicationRoot "references"
     $AgentsRoot = Join-Path $ApplicationRoot "agents"
+    $InstallGuide = Join-Path $ApplicationRoot "INSTALL_FOR_AGENT.md"
     if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) {
         Write-Failure "skill_file_missing" "SKILL.md was not found in the installed application." @{
             application_root = $ApplicationRoot
@@ -128,6 +167,9 @@ function Copy-SkillRegistration(
         foreach ($Item in Get-ChildItem -Force -LiteralPath $ReferencesRoot) {
             Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $TargetReferences $Item.Name) -Recurse -Force
         }
+    }
+    if (Test-Path -LiteralPath $InstallGuide -PathType Leaf) {
+        Copy-Item -LiteralPath $InstallGuide -Destination (Join-Path $DestinationRoot "INSTALL_FOR_AGENT.md") -Force
     }
     if (Test-Path -LiteralPath $AgentsRoot -PathType Container) {
         $TargetAgents = Join-Path $DestinationRoot "agents"
@@ -221,6 +263,7 @@ $RuntimeRoot = Join-Path $InstallRoot "runtime"
 $ConfigFile = Join-Path $ConfigRoot ".env.local"
 $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
 $StableCmdLauncher = Join-Path $InstallRoot "visual-director.cmd"
+$StableUninstaller = Join-Path $InstallRoot "uninstall.ps1"
 $ManifestPath = Join-Path $InstallRoot "install.json"
 
 Assert-ChildPath $InstallRoot $VersionsRoot
@@ -308,17 +351,49 @@ if (-not $SkipDependencies) {
     }
 
     $Pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
+    $DependencyLog = Join-Path $RuntimeRoot "install-web-dependencies.log"
     if ($null -ne $Pnpm) {
-        & $Pnpm.Source --dir $WebDir install --frozen-lockfile --reporter=silent
+        & $Pnpm.Source --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
     } else {
         $Corepack = Get-Command corepack -ErrorAction SilentlyContinue
         if ($null -eq $Corepack) {
             Write-Failure "pnpm_not_found" "pnpm or corepack is required to install the workbench."
         }
-        & $Corepack.Source pnpm --dir $WebDir install --frozen-lockfile --reporter=silent
+        & $Corepack.Source pnpm --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
     }
     if ($LASTEXITCODE -ne 0) {
-        Write-Failure "web_install_failed" "Could not install the Web workbench dependencies."
+        Write-Failure "web_install_failed" "Could not install the Web workbench dependencies." @{
+            log = $DependencyLog
+        }
+    }
+
+    $PreviousPublicVersion = $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION
+    $BuildLog = Join-Path $RuntimeRoot "install-web-build.log"
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION = $Version
+        # pnpm writes normal lifecycle progress to stderr on Windows. Judge the
+        # native command by its exit code and keep that output in the build log.
+        $ErrorActionPreference = "Continue"
+        if ($null -ne $Pnpm) {
+            & $Pnpm.Source --dir $WebDir build *> $BuildLog
+        } else {
+            & $Corepack.Source pnpm --dir $WebDir build *> $BuildLog
+        }
+        $BuildExitCode = $LASTEXITCODE
+        $ErrorActionPreference = $PreviousErrorActionPreference
+        if ($BuildExitCode -ne 0) {
+            Write-Failure "web_build_failed" "Could not build the production Web workbench." @{
+                log = $BuildLog
+            }
+        }
+    } finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+        if ($null -eq $PreviousPublicVersion) {
+            Remove-Item Env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION -ErrorAction SilentlyContinue
+        } else {
+            $env:NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION = $PreviousPublicVersion
+        }
     }
 }
 
@@ -326,7 +401,11 @@ $PreviousVersion = $null
 if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
     try {
         $PreviousManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $ManifestPath | ConvertFrom-Json
-        $PreviousVersion = [string]$PreviousManifest.current_version
+        if ([string]$PreviousManifest.current_version -eq $Version) {
+            $PreviousVersion = [string]$PreviousManifest.previous_version
+        } else {
+            $PreviousVersion = [string]$PreviousManifest.current_version
+        }
     } catch {
         Write-Failure "existing_manifest_invalid" "The existing persistent install metadata is invalid." @{
             manifest = $ManifestPath
@@ -336,6 +415,7 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
 
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.cmd") -Destination $StableCmdLauncher -Force
+Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\uninstall.ps1") -Destination $StableUninstaller -Force
 $HostRegistration = Register-HostSkill -ApplicationRoot $VersionRoot -UserHomeOverride $HostHome
 $InstalledAt = [DateTimeOffset]::UtcNow.ToString("o")
 $Manifest = [ordered]@{
@@ -349,10 +429,23 @@ $Manifest = [ordered]@{
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
     launcher_cmd = $StableCmdLauncher
+    uninstaller = $StableUninstaller
     host_registration = $HostRegistration
     installed_at = $InstalledAt
 }
 $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $ManifestPath
+$VersionCleanup = Remove-OldVersionDirectories `
+    -VersionsDirectory $VersionsRoot `
+    -KeepVersions @($Version, $PreviousVersion) `
+    -ProtectedSourceRoot $SourceRoot
+$InstallWarnings = @()
+if ($VersionCleanup.failed.Count -gt 0) {
+    $InstallWarnings += "old_versions_cleanup_failed"
+}
+$RetainedVersions = @($Version)
+if (-not [string]::IsNullOrWhiteSpace($PreviousVersion) -and $PreviousVersion -ne $Version) {
+    $RetainedVersions += $PreviousVersion
+}
 
 @{
     ok = $true
@@ -367,9 +460,14 @@ $Manifest | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $M
     runtime_root = $RuntimeRoot
     launcher = $StableLauncher
     launcher_cmd = $StableCmdLauncher
+    uninstaller = $StableUninstaller
     skill_root = $HostRegistration.generic_skill_root
     host_registration = $HostRegistration
     dependencies_installed = -not $SkipDependencies
+    production_workbench_built = -not $SkipDependencies
+    retained_versions = $RetainedVersions
+    removed_versions = $VersionCleanup.removed
+    warnings = $InstallWarnings
     migrated = @{
         database = $MigratedDatabase
         image_assets = $MigratedImages

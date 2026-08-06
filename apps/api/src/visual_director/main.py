@@ -80,6 +80,14 @@ from .publication import (
     structure_hash,
 )
 from .settings import load_runtime_settings, read_env_file, update_env_file
+from .onboarding import (
+    CAPABILITY_SETTINGS_SCHEMA_VERSION,
+    PublicIpProbe,
+    WechatConnectionProbe,
+    read_setup_preferences,
+    write_probe_status,
+    write_setup_preferences,
+)
 from .delivery import (
     WenyanPublisher,
     build_clipboard_payload,
@@ -106,6 +114,17 @@ class ImageProviderSettingsRequest(BaseModel):
     model: str | None = Field(default=None, max_length=160)
     protocol: str | None = Field(default=None, pattern="^(openai|ark|ark_plan|extended)$")
     size: str | None = Field(default=None, max_length=40)
+
+
+class SetupPreferencesRequest(BaseModel):
+    target_mode: str = Field(pattern="^(typeset_only|images|full_delivery)$")
+
+
+class WechatPublisherSettingsRequest(BaseModel):
+    app_id: str | None = Field(default=None, min_length=1, max_length=128)
+    app_secret: str | None = Field(default=None, min_length=1, max_length=512)
+    clear_credentials: bool = False
+    ip_whitelist_confirmed: bool | None = None
 
 
 class SelectPlanRequest(BaseModel):
@@ -346,6 +365,8 @@ def create_app(
     text_planner_provider: TextPlannerProvider | None = None,
     blind_review_manifest_path: str | None = None,
     wenyan_publisher: WenyanPublisher | None = None,
+    wechat_connection_probe: WechatConnectionProbe | None = None,
+    public_ip_probe: PublicIpProbe | None = None,
 ) -> FastAPI:
     root = Path(__file__).resolve().parents[4]
     runtime_settings, runtime_env_path = load_runtime_settings(root)
@@ -365,7 +386,19 @@ def create_app(
     app.state.root = root
     app.state.brand_profile = load_brand_profile(root)
     app.state.brand_asset_path = brand_asset_path(root, app.state.brand_profile)
-    app.state.wenyan_publisher = wenyan_publisher or WenyanPublisher(root)
+    app.state.wenyan_publisher = wenyan_publisher or WenyanPublisher(
+        root,
+        env_file=app.state.runtime_env_path,
+    )
+    app.state.wechat_connection_probe = wechat_connection_probe or WechatConnectionProbe(
+        endpoint=runtime_settings.get(
+            "VISUAL_DIRECTOR_WECHAT_TOKEN_ENDPOINT",
+            "https://api.weixin.qq.com/cgi-bin/token",
+        )
+    )
+    app.state.public_ip_probe = public_ip_probe or PublicIpProbe()
+    app.state.setup_preferences_path = app.state.runtime_env_path.parent / "setup-preferences.json"
+    app.state.provider_status_path = app.state.runtime_env_path.parent / "provider-status.json"
     blind_manifest = Path(
         blind_review_manifest_path
         or os.environ.get(
@@ -981,6 +1014,250 @@ def create_app(
             "settings": image_provider_settings_snapshot(),
         }
 
+    def provider_probe_status() -> dict[str, Any]:
+        path: Path = app.state.provider_status_path
+        if not path.is_file():
+            return {"schema_version": "provider_probe_status.v0.1"}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            return {"schema_version": "provider_probe_status.v0.1"}
+        return payload if isinstance(payload, dict) else {"schema_version": "provider_probe_status.v0.1"}
+
+    def wechat_publisher_settings_snapshot() -> dict[str, Any]:
+        env_path: Path = app.state.runtime_env_path
+        file_values = read_env_file(env_path)
+        managed_fields = sorted(
+            key
+            for key in (
+                "WECHAT_APP_ID",
+                "WECHAT_APP_SECRET",
+                "WECHAT_IP_WHITELIST_CONFIRMED",
+            )
+            if key in os.environ
+        )
+        app_id = str(
+            os.environ.get("WECHAT_APP_ID")
+            if "WECHAT_APP_ID" in os.environ
+            else file_values.get("WECHAT_APP_ID", "")
+        ).strip()
+        app_secret = str(
+            os.environ.get("WECHAT_APP_SECRET")
+            if "WECHAT_APP_SECRET" in os.environ
+            else file_values.get("WECHAT_APP_SECRET", "")
+        ).strip()
+        whitelist_value = str(
+            os.environ.get("WECHAT_IP_WHITELIST_CONFIRMED")
+            if "WECHAT_IP_WHITELIST_CONFIRMED" in os.environ
+            else file_values.get("WECHAT_IP_WHITELIST_CONFIRMED", "")
+        ).strip().lower()
+        probe = provider_probe_status().get("wechat_connection")
+        return {
+            "schema_version": "wechat_publisher_settings.v0.1",
+            "credentials_configured": bool(app_id and app_secret),
+            "app_id_configured": bool(app_id),
+            "app_secret_configured": bool(app_secret),
+            "credential_source": (
+                "process_environment"
+                if app_id and app_secret and {
+                    "WECHAT_APP_ID",
+                    "WECHAT_APP_SECRET",
+                }.issubset(os.environ)
+                else "local_env_file"
+                if app_id and app_secret
+                else "missing"
+            ),
+            "ip_whitelist_confirmed": whitelist_value in {"1", "true", "yes"},
+            "managed_by_environment": bool(managed_fields),
+            "managed_fields": managed_fields,
+            "connection_probe": probe if isinstance(probe, dict) else None,
+            "config_file": str(env_path),
+            "secrets_returned": False,
+            "restart_required": False,
+        }
+
+    def capability_settings_snapshot() -> dict[str, Any]:
+        preferences = read_setup_preferences(app.state.setup_preferences_path)
+        image_settings = image_provider_settings_snapshot()
+        wechat_settings = wechat_publisher_settings_snapshot()
+        wenyan_status = (
+            app.state.wenyan_publisher.quick_status()
+            if hasattr(app.state.wenyan_publisher, "quick_status")
+            else app.state.wenyan_publisher.status()
+        )
+        target_mode = preferences["target_mode"]
+        image_ready = bool(image_settings["real_generation_available"])
+        wechat_probe = wechat_settings.get("connection_probe") or {}
+        publisher_ready = bool(
+            wenyan_status.get("ready_for_connection_probe", wenyan_status.get("ready", False))
+        )
+        wechat_ready = bool(publisher_ready and wechat_probe.get("ok"))
+        required = {
+            "typesetting": True,
+            "image_generation": target_mode in {"images", "full_delivery"},
+            "wechat_draft": target_mode == "full_delivery",
+        }
+        complete = (
+            (not required["image_generation"] or image_ready)
+            and (not required["wechat_draft"] or wechat_ready)
+        )
+        if required["image_generation"] and not image_ready:
+            next_action = "configure_image_provider"
+        elif required["wechat_draft"] and not wechat_settings["credentials_configured"]:
+            next_action = "configure_wechat_credentials"
+        elif required["wechat_draft"] and not wenyan_status.get("installed"):
+            next_action = "install_wenyan"
+        elif required["wechat_draft"] and not wechat_ready:
+            next_action = "test_wechat_connection"
+        else:
+            next_action = "create_article"
+        return {
+            "schema_version": CAPABILITY_SETTINGS_SCHEMA_VERSION,
+            "target_mode": target_mode,
+            "complete_for_target": complete,
+            "next_action": next_action,
+            "preferences": preferences,
+            "capabilities": {
+                "typesetting": {
+                    "state": "ready",
+                    "required": required["typesetting"],
+                },
+                "image_generation": {
+                    "state": "ready" if image_ready else "configuration",
+                    "required": required["image_generation"],
+                    "mode": image_settings["mode"],
+                },
+                "wechat_draft": {
+                    "state": (
+                        "ready"
+                        if wechat_ready
+                        else "unavailable"
+                        if not wenyan_status.get("installed")
+                        else "configuration"
+                        if not wechat_settings["credentials_configured"]
+                        else "review_required"
+                    ),
+                    "required": required["wechat_draft"],
+                    "publisher_ready": publisher_ready,
+                    "connection_tested": bool(
+                        wechat_probe.get("checked_at")
+                        and wechat_probe.get("code") != "not_checked"
+                    ),
+                    "connection_ok": bool(wechat_probe.get("ok")),
+                },
+                "rich_copy": {"state": "ready", "required": False},
+                "bundle_export": {"state": "ready", "required": False},
+            },
+        }
+
+    @app.get("/api/v1/settings/capabilities")
+    def get_capability_settings() -> dict[str, Any]:
+        return {"settings": capability_settings_snapshot()}
+
+    @app.get("/api/v1/settings/setup-preferences")
+    def get_setup_preferences() -> dict[str, Any]:
+        return {"settings": read_setup_preferences(app.state.setup_preferences_path)}
+
+    @app.put("/api/v1/settings/setup-preferences")
+    def update_setup_preferences(
+        payload: SetupPreferencesRequest,
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(403, "local_settings_required", "本机能力设置只允许从本机工作台修改。")
+        try:
+            settings = write_setup_preferences(
+                app.state.setup_preferences_path,
+                payload.target_mode,
+            )
+        except (OSError, ValueError) as error:
+            return _error(422, "setup_preferences_invalid", str(error))
+        return {"saved": True, "settings": settings, "capability_settings": capability_settings_snapshot()}
+
+    @app.get("/api/v1/settings/wechat-publisher")
+    def get_wechat_publisher_settings() -> dict[str, Any]:
+        return {"settings": wechat_publisher_settings_snapshot()}
+
+    @app.put("/api/v1/settings/wechat-publisher")
+    def update_wechat_publisher_settings(
+        payload: WechatPublisherSettingsRequest,
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(403, "local_settings_required", "微信公众号配置只允许从本机工作台修改。")
+        current = wechat_publisher_settings_snapshot()
+        if current["managed_by_environment"]:
+            return _error(
+                409,
+                "wechat_settings_environment_managed",
+                "当前微信公众号配置由进程环境变量托管，请在启动环境中修改后重启。",
+                details={"managed_fields": current["managed_fields"]},
+            )
+        if payload.clear_credentials and (payload.app_id or payload.app_secret):
+            return _error(422, "wechat_credentials_conflict", "不能同时填写新凭据和清除凭据。")
+        updates: dict[str, str] = {}
+        if payload.clear_credentials:
+            updates.update({"WECHAT_APP_ID": "", "WECHAT_APP_SECRET": ""})
+        else:
+            if payload.app_id is not None:
+                updates["WECHAT_APP_ID"] = payload.app_id.strip()
+            if payload.app_secret is not None:
+                updates["WECHAT_APP_SECRET"] = payload.app_secret.strip()
+        if payload.ip_whitelist_confirmed is not None:
+            updates["WECHAT_IP_WHITELIST_CONFIRMED"] = (
+                "true" if payload.ip_whitelist_confirmed else "false"
+            )
+        if not updates:
+            return _error(422, "wechat_settings_empty", "没有需要保存的微信公众号配置。")
+        try:
+            update_env_file(app.state.runtime_env_path, updates)
+            write_probe_status(
+                app.state.provider_status_path,
+                "wechat_connection",
+                {"ok": False, "code": "not_checked", "checked_at": None},
+            )
+        except (OSError, ValueError) as error:
+            return _error(422, "wechat_settings_invalid", str(error))
+        app.state.runtime_settings = {
+            **read_env_file(app.state.runtime_env_path),
+            **os.environ,
+        }
+        return {"saved": True, "settings": wechat_publisher_settings_snapshot()}
+
+    @app.post("/api/v1/settings/wechat-publisher/probe")
+    def probe_wechat_publisher(
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(403, "local_settings_required", "微信公众号连通性检测只允许从本机发起。")
+        values = {**read_env_file(app.state.runtime_env_path), **os.environ}
+        result = app.state.wechat_connection_probe.probe(
+            str(values.get("WECHAT_APP_ID") or "").strip(),
+            str(values.get("WECHAT_APP_SECRET") or "").strip(),
+        )
+        try:
+            write_probe_status(app.state.provider_status_path, "wechat_connection", result)
+        except OSError:
+            pass
+        return result
+
+    @app.post("/api/v1/settings/network/public-ip-probe")
+    def probe_public_ip(
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(403, "local_settings_required", "公网 IP 检测只允许从本机显式发起。")
+        result = app.state.public_ip_probe.probe()
+        try:
+            write_probe_status(app.state.provider_status_path, "public_ip", result)
+        except OSError:
+            pass
+        return result
+
     @app.get("/health")
     def health() -> dict[str, Any]:
         return {
@@ -990,6 +1267,7 @@ def create_app(
             "image_provider": app.state.image_provider.provider,
             "image_provider_configured": app.state.image_provider.configured,
             "image_provider_settings_schema_version": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+            "capability_settings_schema_version": CAPABILITY_SETTINGS_SCHEMA_VERSION,
             "image_prompt_version": IMAGE_PROMPT_VERSION,
             "text_planner_provider": app.state.text_planner_provider.provider,
             "text_planner_model": app.state.text_planner_provider.model,

@@ -503,6 +503,75 @@ export type ImageProviderSettings = {
   warnings: string[];
 };
 
+export type SetupTargetMode = "typeset_only" | "images" | "full_delivery";
+
+export type SetupPreferences = {
+  schema_version: "setup_preferences.v0.1";
+  target_mode: SetupTargetMode;
+  updated_at: string | null;
+};
+
+export type CapabilityState = "ready" | "configuration" | "review_required" | "unavailable";
+
+export type CapabilitySettings = {
+  schema_version: "capability_settings.v0.1";
+  target_mode: SetupTargetMode;
+  complete_for_target: boolean;
+  next_action: string;
+  preferences: SetupPreferences;
+  capabilities: {
+    typesetting: { state: CapabilityState; required: boolean };
+    image_generation: { state: CapabilityState; required: boolean; mode: ImageProviderMode };
+    wechat_draft: {
+      state: CapabilityState;
+      required: boolean;
+      publisher_ready: boolean;
+      connection_tested: boolean;
+      connection_ok: boolean;
+    };
+    rich_copy: { state: CapabilityState; required: boolean };
+    bundle_export: { state: CapabilityState; required: boolean };
+  };
+};
+
+export type WechatConnectionProbe = {
+  ok: boolean;
+  schema_version: "wechat_connection_probe.v0.1";
+  code: string;
+  message?: string;
+  retryable?: boolean;
+  checked_at: string | null;
+  provider_code?: number | null;
+  access_token_persisted?: false;
+  draft_created?: false;
+};
+
+export type WechatPublisherSettings = {
+  schema_version: "wechat_publisher_settings.v0.1";
+  credentials_configured: boolean;
+  app_id_configured: boolean;
+  app_secret_configured: boolean;
+  credential_source: "process_environment" | "local_env_file" | "missing";
+  ip_whitelist_confirmed: boolean;
+  managed_by_environment: boolean;
+  managed_fields: string[];
+  connection_probe: WechatConnectionProbe | null;
+  config_file: string;
+  secrets_returned: false;
+  restart_required: false;
+};
+
+export type PublicIpProbe = {
+  ok: boolean;
+  schema_version: "public_ip_probe.v0.1";
+  code: string;
+  message: string;
+  public_ip: string | null;
+  ip_version: number | null;
+  checked_at: string;
+  external_request_performed: true;
+};
+
 export type ClipboardPayload = {
   schema_version: "clipboard_payload.v0.1";
   title: string;

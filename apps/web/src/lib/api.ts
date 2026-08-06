@@ -2,6 +2,7 @@ import type {
   BlindReviewSet,
   BlindReviewSubmission,
   ClipboardPayload,
+  CapabilitySettings,
   CoverWorkspace,
   DraftOperation,
   ImageProviderMode,
@@ -11,17 +12,23 @@ import type {
   PublicationMetadata,
   PublicationReadiness,
   PublicationRevision,
+  PublicIpProbe,
+  SetupTargetMode,
   Task,
   TaskDetail,
   ThemeGalleryItem,
   VisualPlan,
+  WechatConnectionProbe,
+  WechatPublisherSettings,
   WenyanPublisherStatus,
 } from "./types";
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
+// Browser traffic stays on the workbench origin and is forwarded by the
+// runtime proxy. This keeps a production build portable across API ports and
+// avoids baking a previous machine's API address into the Next.js bundle.
+export const API_BASE = "/api/backend/api/v1";
 
-const API_ORIGIN = API_BASE.replace(/\/api\/v1\/?$/, "");
+const API_ORIGIN = "/api/backend";
 const REQUEST_TIMEOUT_MS = 12_000;
 const EXPECTED_APPLICATION_VERSION =
   process.env.NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION ?? null;
@@ -30,6 +37,7 @@ type RuntimeHealth = {
   status: string;
   application_version?: string;
   image_provider_settings_schema_version?: string;
+  capability_settings_schema_version?: string;
 };
 
 async function fetchWithTimeout(
@@ -71,6 +79,7 @@ export async function assertRuntimeCompatibility(): Promise<RuntimeHealth> {
   if (
     !payload.application_version
     || payload.image_provider_settings_schema_version !== "image_provider_settings.v0.2"
+    || payload.capability_settings_schema_version !== "capability_settings.v0.1"
     || !versionMatches
   ) {
     throw new Error(
@@ -135,6 +144,65 @@ export async function saveImageProviderSettings(payload: {
   });
   const result = await parseResponse<{ settings: ImageProviderSettings }>(response);
   return result.settings;
+}
+
+export async function getCapabilitySettings(): Promise<CapabilitySettings> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/capabilities`, { cache: "no-store" });
+  const payload = await parseResponse<{ settings: CapabilitySettings }>(response);
+  return payload.settings;
+}
+
+export async function saveSetupPreferences(targetMode: SetupTargetMode): Promise<CapabilitySettings> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/setup-preferences`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Settings-Intent": "local-operator",
+    },
+    body: JSON.stringify({ target_mode: targetMode }),
+  });
+  const payload = await parseResponse<{ capability_settings: CapabilitySettings }>(response);
+  return payload.capability_settings;
+}
+
+export async function getWechatPublisherSettings(): Promise<WechatPublisherSettings> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/wechat-publisher`, { cache: "no-store" });
+  const payload = await parseResponse<{ settings: WechatPublisherSettings }>(response);
+  return payload.settings;
+}
+
+export async function saveWechatPublisherSettings(payload: {
+  app_id?: string;
+  app_secret?: string;
+  clear_credentials?: boolean;
+  ip_whitelist_confirmed?: boolean;
+}): Promise<WechatPublisherSettings> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/wechat-publisher`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Settings-Intent": "local-operator",
+    },
+    body: JSON.stringify(payload),
+  });
+  const result = await parseResponse<{ settings: WechatPublisherSettings }>(response);
+  return result.settings;
+}
+
+export async function probeWechatPublisher(): Promise<WechatConnectionProbe> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/wechat-publisher/probe`, {
+    method: "POST",
+    headers: { "X-Settings-Intent": "local-operator" },
+  }, 20_000);
+  return parseResponse<WechatConnectionProbe>(response);
+}
+
+export async function probePublicIp(): Promise<PublicIpProbe> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/network/public-ip-probe`, {
+    method: "POST",
+    headers: { "X-Settings-Intent": "local-operator" },
+  }, 15_000);
+  return parseResponse<PublicIpProbe>(response);
 }
 
 export async function createTask(file: File, articleType: string): Promise<Task> {

@@ -1,6 +1,6 @@
 # CLI 调用契约
 
-首次从 `{baseDir}/scripts/install.ps1` 的 JSON 结果读取稳定 `launcher`；使用 CMD 的宿主还可以读取 `launcher_cmd`。后续只调用这两个稳定入口之一，不要继续调用临时下载目录，也不要手动启动系统 Python 或源码目录中的 Next.js。
+首次安装或显式升级从 `{baseDir}/scripts/bootstrap.ps1` 的最终 JSON 读取稳定 `launcher`；使用 CMD 的宿主还可以读取 `launcher_cmd`。后续只调用这两个稳定入口之一，不要继续调用临时下载目录，也不要手动启动系统 Python 或源码目录中的 Next.js。完整安装、恢复和卸载规则见 `INSTALL_FOR_AGENT.md`。
 
 ## 常用命令
 

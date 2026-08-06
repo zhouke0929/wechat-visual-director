@@ -22,7 +22,6 @@ export default function ThemeGalleryPage() {
           <strong>主题样本册</strong>
           <span>THEME KIT PROOF · ROUND 01</span>
         </div>
-        <Link href="/component-gallery">旧组件实验</Link>
       </header>
 
       <section className={styles.hero}>

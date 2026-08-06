@@ -4,7 +4,7 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 工作台。宿主 Agent 负责理解内容并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营只需在浏览器里确认方案、图片与封面，不需要让模型自由编写整段 HTML/CSS。
 
-当前版本：**v0.1.0-alpha.14**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
+当前版本：**v0.1.0-alpha.15**。项目仍处于 Alpha 阶段，不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
@@ -67,9 +67,9 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 把下面这段话发给 OpenCode、Claude Code、Trae 或其他具备终端能力的 Agent：
 
 ```text
-请从以下固定版本安装或升级 wechat-visual-director，执行项目安装器和 doctor 检查，然后用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。
+请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。
 
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.14
+https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.15
 ```
 
 安装器会把最小 Skill 入口注册到通用 Agent 目录和 OpenCode 目录。安装完成后请重启宿主对话，使新会话能够自动发现 Skill。
@@ -79,12 +79,11 @@ https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.14
 需要 Python 3.11+、Node.js，以及 pnpm 或 Corepack。
 
 ```powershell
-git clone --branch v0.1.0-alpha.14 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.15 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 Set-Location .\wechat-visual-director
 
-$install = powershell -ExecutionPolicy Bypass -File ".\scripts\install.ps1" | ConvertFrom-Json
-powershell -ExecutionPolicy Bypass -File $install.launcher doctor --json
-powershell -ExecutionPolicy Bypass -File $install.launcher task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
+$bootstrap = powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1" | ConvertFrom-Json
+powershell -NoProfile -ExecutionPolicy Bypass -File $bootstrap.launcher task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
 ```
 
 默认安装位置为 `%LOCALAPPDATA%\wechat-visual-director`：
@@ -96,7 +95,8 @@ wechat-visual-director/
 ├── config/     # 本地私有配置
 ├── runtime/    # PID 与运行日志
 ├── visual-director.ps1
-└── visual-director.cmd     # CMD/桌面 Agent 兼容入口
+├── visual-director.cmd     # CMD/桌面 Agent 兼容入口
+└── uninstall.ps1          # 安全卸载入口
 ```
 
 升级不会清空 `data/`、`config/` 或 `runtime/`。`doctor --json` 应返回：
@@ -108,6 +108,22 @@ persistent=true
 version_match=true
 host_skill_registered=true
 ```
+
+### 卸载与重新安装
+
+普通卸载会移除程序和宿主 Skill 注册，但保留任务、图片与本机私有配置，之后重新安装可以继续使用：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1"
+```
+
+只有明确不再保留任何本机数据时才使用 `-Purge`：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1" -Purge
+```
+
+两种方式都不会删除你的 Git 源码目录。
 
 ## 文本规划
 
@@ -201,7 +217,7 @@ pnpm --dir apps/web typecheck
 pnpm --dir apps/web build
 ```
 
-Alpha.13 已完成 API 全量测试、Next.js 生产构建，以及真实 Markdown → 双方案 → 图片/封面确认 → 微信公众号草稿箱的人工端到端验证。工作台与 API 现在都会校验运行版本，桌面 Agent 不应再用旧源码或系统 Python 绕过稳定入口。下一阶段优先观察真实文章中的默认主题采用率、组件修改位置、图片采纳率和人工处理时间，而不是继续无边界扩充主题。
+Alpha.15 已完成 API 全量测试、Next.js 生产构建、隔离安装/卸载/重装回归，以及真实 Markdown → 双方案 → 图片/封面确认 → 微信公众号草稿箱的人工端到端验证。工作台与 API 会校验运行版本，桌面 Agent 不应使用旧源码、系统 Python 或 `pnpm dev` 绕过稳定入口。下一阶段优先观察真实文章中的默认主题采用率、组件修改位置、图片采纳率和人工处理时间，而不是继续无边界扩充主题。
 
 运营观察模板见 [真实运营观察表](docs/真实运营观察表.md)。
 

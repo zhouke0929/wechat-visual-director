@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 
 from .version import application_version
 from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
+from .onboarding import DEFAULT_PUBLIC_IP_ENDPOINTS, PublicIpProbe
 
 
 DEFAULT_API_BASE = "http://127.0.0.1:8000/api/v1"
@@ -367,6 +368,30 @@ def _pnpm_command() -> list[str] | None:
     return None
 
 
+def _listening_process_id(port: int) -> int | None:
+    if os.name != "nt":
+        return None
+    script = (
+        f"$c = Get-NetTCPConnection -State Listen -LocalPort {int(port)} "
+        "-ErrorAction SilentlyContinue | Select-Object -First 1; "
+        "if ($null -ne $c) { [Console]::Out.Write($c.OwningProcess) }"
+    )
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=8,
+            check=False,
+        )
+        value = result.stdout.strip()
+        return int(value) if result.returncode == 0 and value.isdigit() else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
 def _wait_until(check: Any, *, timeout: float, label: str) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -426,6 +451,7 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
                 exit_code=2,
                 details={"expected": str(api_dir)},
             )
+        api_port = _port_from_url(_api_origin(api_base), 8000)
         api_command = [
             sys.executable,
             "-m",
@@ -434,7 +460,7 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
             "--host",
             "127.0.0.1",
             "--port",
-            str(_port_from_url(_api_origin(api_base), 8000)),
+            str(api_port),
         ]
         started["api"] = _spawn_detached(
             api_command,
@@ -443,6 +469,7 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
         )
         started_commands["api"] = api_command
         _wait_until(lambda: _probe_json(api_health_url) is not None, timeout=timeout, label="API")
+        started["api"] = _listening_process_id(api_port) or started["api"]
         api_health = _probe_json(api_health_url)
 
     running_version = str((api_health or {}).get("application_version") or "")
@@ -495,23 +522,31 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
                 exit_code=2,
                 details={"action": f"在 {web_dir} 执行 pnpm install"},
             )
+        if not (web_dir / ".next" / "BUILD_ID").is_file():
+            raise CliError(
+                "web_production_build_missing",
+                "The production workbench has not been built yet.",
+                exit_code=2,
+                retryable=True,
+                details={
+                    "action": f"Run pnpm --dir {web_dir} build, or rerun scripts/install.ps1",
+                    "expected": str(web_dir / ".next" / "BUILD_ID"),
+                },
+            )
         port = str(_port_from_url(web_base, 3000))
-        # Alpha uses Next development mode so the API base is resolved for the
-        # current local run. Reusing a production build can preserve an old
-        # NEXT_PUBLIC_API_BASE_URL and yield a valid page that cannot load its task.
-        command = [*pnpm_command, "dev", "-H", "127.0.0.1", "-p", port]
+        command = [*pnpm_command, "start", "-H", "127.0.0.1", "-p", port]
         started["web"] = _spawn_detached(
             command,
             cwd=web_dir,
             log_name="web.log",
             extra_env={
-                "NEXT_PUBLIC_API_BASE_URL": api_base,
-                "NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION": application_version(),
+                "VISUAL_DIRECTOR_API_BASE": api_base,
                 "VISUAL_DIRECTOR_APPLICATION_VERSION": application_version(),
             },
         )
         started_commands["web"] = command
         _wait_until(lambda: _probe_web(web_base), timeout=timeout, label="Web 工作台")
+        started["web"] = _listening_process_id(int(port)) or started["web"]
         web_ready = True
 
     if started:
@@ -584,7 +619,8 @@ def _command_matches_service(service: str, command_line: str) -> bool:
     if service == "api":
         return "uvicorn" in normalized and "visual_director.main:app" in normalized
     if service == "web":
-        return "pnpm" in normalized and " dev" in normalized
+        is_start_command = " dev" in normalized or " start" in normalized
+        return is_start_command and ("pnpm" in normalized or "next" in normalized)
     return False
 
 
@@ -698,6 +734,17 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         if api_health is not None
         else None
     )
+    preference_response = (
+        _probe_json(f"{api_base.rstrip('/')}/settings/setup-preferences", timeout=3)
+        if api_health is not None
+        else None
+    )
+    setup_preferences = (
+        preference_response.get("settings")
+        if isinstance(preference_response, dict)
+        and isinstance(preference_response.get("settings"), dict)
+        else {}
+    )
     warnings: list[str] = []
     if api_health is None:
         warnings.append("core_api_not_running")
@@ -726,6 +773,26 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("text_planning_not_configured")
     core_ready = api_health is not None and version_match
     ok = core_ready and web_ready
+    target_mode = str(setup_preferences.get("target_mode") or "typeset_only")
+    image_ready = bool(
+        (api_health or {}).get("image_provider_configured", False)
+        and image_provider not in {"none", "mock", "manual"}
+    )
+    wechat_ready = bool((wenyan_status or {}).get("ready", False))
+    setup_complete = bool(
+        api_health is not None
+        and (target_mode == "typeset_only" or image_ready)
+        and (target_mode != "full_delivery" or wechat_ready)
+    )
+    setup_next_action = (
+        "start_services"
+        if api_health is None
+        else "configure_image_provider"
+        if target_mode in {"images", "full_delivery"} and not image_ready
+        else "configure_wechat_publisher"
+        if target_mode == "full_delivery" and not wechat_ready
+        else "create_article"
+    )
     payload = {
         "ok": ok,
         "schema_version": "doctor_result.v0.1",
@@ -757,11 +824,24 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         },
         "host_integrations": {"skill": host_skill},
         "publishers": {"wenyan": wenyan_status},
+        "setup": {
+            "target_mode": target_mode,
+            "complete_for_target": setup_complete,
+            "next_action": setup_next_action,
+            "settings_url": f"{web_base.rstrip('/')}/settings",
+        },
         "warnings": warnings,
         "api_base": api_base,
         "web_base": web_base,
     }
     return payload, 0 if ok else 3
+
+
+def _network_public_ip() -> tuple[dict[str, Any], int]:
+    configured = os.environ.get("VISUAL_DIRECTOR_PUBLIC_IP_ENDPOINTS", "")
+    endpoints = tuple(item.strip() for item in configured.split(",") if item.strip())
+    result = PublicIpProbe(endpoints=endpoints or DEFAULT_PUBLIC_IP_ENDPOINTS).probe()
+    return result, 0 if result.get("ok") else 7
 
 
 def _default_task_idempotency_key(args: argparse.Namespace, markdown_path: Path) -> str:
@@ -1096,6 +1176,11 @@ def build_parser() -> argparse.ArgumentParser:
     stop = subparsers.add_parser("stop", help="Stop services started by this CLI")
     stop.add_argument("--json", action="store_true", dest="json_output")
 
+    network = subparsers.add_parser("network", help="本机网络辅助工具")
+    network_subparsers = network.add_subparsers(dest="network_command", required=True)
+    public_ip = network_subparsers.add_parser("public-ip", help="显式查询当前公网出口 IP")
+    public_ip.add_argument("--json", action="store_true", dest="json_output")
+
     task = subparsers.add_parser("task", help="管理视觉任务")
     task_subparsers = task.add_subparsers(dest="task_command", required=True)
 
@@ -1172,6 +1257,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             exit_code = 0
         elif args.command == "stop":
             payload, exit_code = _stop_services()
+        elif args.command == "network" and args.network_command == "public-ip":
+            payload, exit_code = _network_public_ip()
         elif args.command == "task" and args.task_command == "create":
             payload, exit_code = _create_task(args), 0
         elif args.command == "task" and args.task_command == "status":

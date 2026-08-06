@@ -262,11 +262,13 @@ class WenyanPublisher:
         root: Path,
         *,
         command: str | None = None,
+        env_file: Path | None = None,
         runner: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
         timeout_seconds: int = 240,
     ) -> None:
         self.root = root
         self.command_override = command or os.environ.get("VISUAL_DIRECTOR_WENYAN_COMMAND")
+        self.env_file_override = env_file
         self.runner = runner
         self.timeout_seconds = timeout_seconds
 
@@ -277,6 +279,8 @@ class WenyanPublisher:
         return shutil.which("wenyan")
 
     def _env_file(self) -> Path:
+        if self.env_file_override is not None:
+            return self.env_file_override
         configured = os.environ.get("VISUAL_DIRECTOR_WECHAT_ENV_FILE")
         return Path(configured).expanduser().resolve() if configured else self.root / ".env.local"
 
@@ -298,6 +302,22 @@ class WenyanPublisher:
             command_line = subprocess.list2cmdline([command, *args])
             return self.runner([os.environ.get("COMSPEC", "cmd.exe"), "/d", "/s", "/c", command_line], **kwargs)
         return self.runner([command, *args], **kwargs)
+
+    def quick_status(self) -> dict[str, Any]:
+        """Return a non-blocking settings snapshot without spawning Wenyan."""
+        command = self._command()
+        inherited = bool(os.environ.get("WECHAT_APP_ID") and os.environ.get("WECHAT_APP_SECRET"))
+        local_file = self._env_file()
+        file_configured = self._configured_env_file(local_file)
+        credential_source = "process_environment" if inherited else "local_env_file" if file_configured else "missing"
+        return {
+            "schema_version": "publisher_quick_status.v0.1",
+            "provider": "wenyan",
+            "installed": command is not None,
+            "credentials_configured": credential_source != "missing",
+            "credential_source": credential_source,
+            "ready_for_connection_probe": bool(command and credential_source != "missing"),
+        }
 
     def status(self) -> dict[str, Any]:
         command = self._command()
