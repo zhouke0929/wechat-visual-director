@@ -15,7 +15,9 @@ from visual_director.image_provider import (
     GeminiImageProvider,
     ImagesApiProvider,
     ImageProviderError,
+    build_cover_prompt,
     build_provider_prompt,
+    build_theme_fallback_cover,
     create_image_provider_from_env,
 )
 from visual_director.main import create_app
@@ -107,6 +109,62 @@ def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> No
     assert "节点1" not in structured
     assert "大面积米黄或黄色底" in structured
     assert "空白底板" not in structured
+
+
+def test_seedream_prompt_is_concise_provider_specific_and_rotates_scenes() -> None:
+    slot = prompt_slot(
+        purpose="atmosphere",
+        subject="民办高校进入存量竞争，学校从扩张转向质量与特色建设",
+    )
+    first = build_provider_prompt(
+        slot,
+        "viewpoint_trend",
+        prompt_profile="seedream",
+        candidate_index=1,
+    )
+    second = build_provider_prompt(
+        slot,
+        "viewpoint_trend",
+        prompt_profile="seedream",
+        candidate_index=2,
+    )
+    assert first != second
+    assert len(first) < 500
+    assert "中央80%安全区" in first
+    assert "不出现任何文字" in first
+    assert "冷白或极浅灰" not in first
+
+    infographic = build_provider_prompt(
+        prompt_slot(purpose="structured_infographic", subject="三步核验路径", item_count=3),
+        "tutorial_steps",
+        infographic_title="填报前完成三项核对",
+        infographic_items=["核对成绩和位次", "检查专业限制", "保留复核记录"],
+        prompt_profile="seedream",
+        candidate_index=1,
+    )
+    assert len(infographic) < 650
+    assert "只使用这些原文" in infographic
+    assert "禁止三列并排" in infographic
+    assert "左右留12%" in infographic
+
+
+def test_seedream_cover_prompt_and_local_theme_fallback_are_publishable() -> None:
+    brief = {
+        "title": "高校竞争从增量扩张走向质量分化",
+        "article_type": "viewpoint_trend",
+        "narrative": "从一宗流拍资产理解民办高校的新阶段",
+        "reader_task": "帮助家长识别学校质量与长期办学能力",
+        "visual_system": "youth_campus",
+    }
+    prompt = build_cover_prompt(brief, prompt_profile="seedream", candidate_index=1)
+    assert len(prompt) < 450
+    assert "5:4封面底图" in prompt
+    assert "不出现文字" in prompt
+
+    content = build_theme_fallback_cover(brief)
+    with Image.open(BytesIO(content)) as image:
+        assert image.format == "PNG"
+        assert image.size == (1080, 864)
 
 
 def test_deterministic_infographic_overlay_preserves_canvas_and_adds_copy() -> None:

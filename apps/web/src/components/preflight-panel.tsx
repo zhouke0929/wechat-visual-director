@@ -217,7 +217,7 @@ export function PreflightPanel({
           </div>
           {report.planning_allowed ? (
             <button disabled={planningBusy} onClick={onGeneratePlans} type="button">
-              {planningBusy ? "正在生成两套方案…" : report.status === "PASS" ? "生成两套视觉方案" : "进入受限规划"}
+              {planningBusy ? "正在生成推荐稿…" : report.status === "PASS" ? "生成视觉推荐稿" : "进入受限规划"}
             </button>
           ) : (
             <Link href="/">选择修改后的 Markdown</Link>

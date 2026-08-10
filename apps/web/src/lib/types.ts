@@ -161,9 +161,21 @@ export type VisualPlan = {
     | "future_tech";
   structure_fingerprint?: string;
   visual_system_metadata?: {
-    planner_recalled: false;
+    visual_system: string;
+    label: string;
+    description: string;
+    recent_use_count: number;
+    previous_visual_system: string | null;
+    recommended_visual_system: string;
+    recommended_by_history: boolean;
+    switch_requires_planner_call: false;
     shared_structure: true;
-    recent_counts: Record<string, number>;
+    available_visual_systems: Array<{
+      value: string;
+      label: string;
+      description: string;
+      recent_use_count: number;
+    }>;
   };
   planner_metadata?: {
     mode: "rule" | "intelligent";
@@ -295,7 +307,7 @@ export type ImageSlotList = {
 export type CoverCandidate = {
   id: string;
   candidate_index: number;
-  source_type: "ai_generated" | "accepted_body_image" | "controlled_source_image";
+  source_type: "ai_generated" | "accepted_body_image" | "controlled_source_image" | "theme_fallback" | "custom_crop";
   source_resource_id: string | null;
   provider: string;
   model: string;
@@ -376,6 +388,7 @@ export type PlanList = {
   comparison: {
     structural_difference_count: number;
     shared_structure?: boolean;
+    mode?: "single_recommendation";
     summary: string;
   };
 };

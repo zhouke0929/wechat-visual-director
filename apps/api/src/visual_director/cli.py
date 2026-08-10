@@ -749,7 +749,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("image_generation_mock_only")
     elif image_provider == "manual":
         warnings.append("image_generation_manual_only")
-    if text_planner_provider == "mock_text_planner":
+    rule_planners = {"mock_text_planner", "rule_text_planner"}
+    if text_planner_provider in rule_planners:
         warnings.append("text_planning_rule_fallback")
     elif text_planner_provider not in {"none", ""} and not text_planner_configured:
         warnings.append("text_planning_not_configured")
@@ -790,9 +791,9 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             "host_agent_text_planning": api_health is not None,
             "host_skill_registered": bool(host_skill["registered"]),
             "ai_text_planning": bool(
-                text_planner_configured and text_planner_provider != "mock_text_planner"
+                text_planner_configured and text_planner_provider not in rule_planners
             ),
-            "rule_text_planning": text_planner_provider == "mock_text_planner",
+            "rule_text_planning": text_planner_provider in rule_planners,
             "wechat_draft": bool((wenyan_status or {}).get("ready", False)),
             "rich_copy": api_health is not None,
             "bundle_export": api_health is not None,

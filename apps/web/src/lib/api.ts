@@ -337,6 +337,27 @@ export async function switchPlanSlot(
   return parseResponse<{ plan: VisualPlan }>(response);
 }
 
+export async function switchPlanTheme(
+  taskId: string,
+  planId: string,
+  visualSystem: string,
+  expectedPlanRevision: number,
+): Promise<{ plan: VisualPlan; planner_called: false; images_regenerated: false }> {
+  const response = await fetch(
+    `${API_BASE}/article-tasks/${taskId}/plans/${planId}/theme`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        visual_system: visualSystem,
+        expected_plan_revision: expectedPlanRevision,
+        reason: "operator_theme_switch",
+      }),
+    },
+  );
+  return parseResponse<{ plan: VisualPlan; planner_called: false; images_regenerated: false }>(response);
+}
+
 export async function restorePlanRevision(
   taskId: string,
   planId: string,
@@ -395,6 +416,16 @@ export async function generateCoverCandidate(task: Task, planId: string): Promis
   return payload.workspace;
 }
 
+export async function useThemeFallbackCover(task: Task, planId: string): Promise<CoverWorkspace> {
+  const response = await fetch(`${API_BASE}/article-tasks/${task.id}/plans/${planId}/cover-candidates/fallback`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-Operator-Id": "operator" },
+    body: JSON.stringify({ expected_task_version: task.version }),
+  });
+  const payload = await parseResponse<{ workspace: CoverWorkspace }>(response);
+  return payload.workspace;
+}
+
 export async function reuseCoverCandidate(
   task: Task,
   planId: string,
@@ -428,6 +459,29 @@ export async function selectCoverCandidate(
     },
   );
   await parseResponse(response);
+}
+
+export async function cropCoverCandidate(
+  task: Task,
+  planId: string,
+  candidateId: string,
+  transform: { scale: number; offsetX: number; offsetY: number },
+): Promise<CoverWorkspace> {
+  const response = await fetch(
+    `${API_BASE}/article-tasks/${task.id}/plans/${planId}/cover-candidates/${candidateId}/crop`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Operator-Id": "operator" },
+      body: JSON.stringify({
+        expected_task_version: task.version,
+        scale: transform.scale,
+        offset_x: transform.offsetX,
+        offset_y: transform.offsetY,
+      }),
+    },
+  );
+  const payload = await parseResponse<{ workspace: CoverWorkspace }>(response);
+  return payload.workspace;
 }
 
 export async function generateImageCandidate(

@@ -179,11 +179,12 @@ export default function EditorialDeskPage() {
           />
 
           <div className="form-row">
-            <label htmlFor="article-type">文章类型</label>
+            <label htmlFor="article-type">文章类型（可选）</label>
             <select id="article-type" value={articleType} onChange={(event) => setArticleType(event.target.value)}>
               {articleTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
+          <p className="form-hint">默认自动识别；它只影响主题、组件样式和配图方向，不会改写文章内容。</p>
 
           {error ? <p className="form-error" role="alert">{error}</p> : null}
 
@@ -296,7 +297,7 @@ export default function EditorialDeskPage() {
             <p className="eyebrow">LOCAL DATA / CLEANUP</p>
             <h2 id="delete-task-title">删除 {selectedTaskIds.size} 个历史任务？</h2>
             <p>
-              将同时清理这些任务的本地预览、生成图片和冻结交付资产，并停止将它们用于最近 5 篇参考。公众号后台已有草稿和已发布文章不会受影响。
+              将清理这些任务的本地正文、预览、生成图片和冻结交付资产。曾完成最终冻结的任务仍会保留不含正文和图片的轻量视觉记录，用于最近 5 篇主题避重。公众号后台已有草稿和已发布文章不会受影响。
             </p>
             <ul>
               {tasks.filter((task) => selectedTaskIds.has(task.id)).slice(0, 3).map((task) => <li key={task.id}>{task.title}</li>)}

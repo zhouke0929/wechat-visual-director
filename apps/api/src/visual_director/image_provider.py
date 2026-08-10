@@ -34,7 +34,7 @@ DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
 DEFAULT_AGNES_ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 DEFAULT_AGNES_MODEL = "agnes-image-2.1-flash"
 IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION = "image_provider_settings.v0.2"
-IMAGE_PROMPT_VERSION = "v5-seedream-safe-infographic"
+IMAGE_PROMPT_VERSION = "v6-seedream-concise-variety"
 ALLOWED_RATIOS = {"4:3", "16:9"}
 # OpenAI and Gemini can return the generated image inline as Base64. A 4K
 # image can make the JSON envelope much larger than a normal API response.
@@ -135,13 +135,124 @@ def _structured_layout(item_count: int) -> str:
     return "四条内容使用两段纵向序列，每段两条上下排列，禁止四列并排"
 
 
+def image_prompt_profile(provider: ImageProvider) -> str:
+    """Resolve provider-specific prompt syntax without leaking it into planning."""
+    model = str(getattr(provider, "model", "")).lower()
+    protocol = str(getattr(provider, "protocol", "")).lower()
+    if "seedream" in model or protocol in {"ark", "ark_plan"}:
+        return "seedream"
+    if str(getattr(provider, "provider", "")) == "gemini":
+        return "gemini"
+    if protocol == "openai":
+        return "openai"
+    return "generic"
+
+
+def _seedream_scene(subject: str, article_type: str, candidate_index: int) -> tuple[str, str, str]:
+    """Choose a deterministic but visibly different scene for each semantic slot."""
+    routes = {
+        "data_policy": (
+            ("一张安静的研究桌，透明资料页、放大镜与几枚证据标记形成清楚的核验路径", "俯视斜构图", "现代编辑拼贴与细腻纸艺"),
+            ("一座连接信息孤岛的桥，远近两端由清晰的光点与路径相连", "横向远景构图", "克制的建筑插画与柔和颗粒质感"),
+            ("一间小型教育观察室，光束穿过层叠数据薄片并汇聚到唯一焦点", "侧向景深构图", "精致微缩模型与低饱和材质"),
+        ),
+        "tutorial_steps": (
+            ("一条由三个清楚节点组成的行动路径，人物依次完成观察、核对与确认", "左下到右上的连续动线", "轻盈杂志插画与纸张拼贴"),
+            ("一张井然有序的工作台，工具和材料沿操作顺序自然展开", "俯视开放构图", "柔和水粉与手工纸质感"),
+            ("校园中的连续路标与台阶引导人物抵达明亮终点", "横向叙事构图", "清爽建筑插画与自然光"),
+        ),
+        "lively_growth": (
+            ("阳光校园庭院里，学生围绕一个正在生长的创意模型共同实践", "宽幅群像构图", "清新手绘与轻微拼贴质感"),
+            ("开放式创作工坊中，作品、工具和灵感线索围绕学生自然展开", "近中景构图", "温暖水粉与细腻铅笔纹理"),
+            ("一座由书页、植物与实验器材构成的小型成长花园", "层叠纵深构图", "精致纸雕与柔和日光"),
+        ),
+        "viewpoint_trend": (
+            ("新旧教育场景在同一地平线上自然交汇，人物站在分岔路径前做出选择", "电影感横向远景", "当代杂志插画与克制拼贴"),
+            ("一座校园城市从旧结构过渡到新的开放学习空间", "轴测远景构图", "建筑绘本与柔和颗粒质感"),
+            ("潮汐般的知识路径围绕一座灯塔展开，远处出现新的学习地平线", "大留白横向构图", "诗意水粉与现代编辑插画"),
+        ),
+    }
+    options = routes.get(article_type, routes["viewpoint_trend"])
+    digest = hashlib.sha256(f"{article_type}|{subject}".encode("utf-8")).digest()
+    return options[(digest[0] + max(0, candidate_index - 1)) % len(options)]
+
+
+def _seedream_provider_prompt(
+    image_slot: dict[str, Any],
+    article_type: str,
+    *,
+    infographic_title: str | None,
+    infographic_items: list[str] | None,
+    candidate_index: int,
+) -> str:
+    intent = image_slot["visual_intent"]
+    subject = sanitize_subject(str(intent.get("subject") or ""))
+    if image_slot["purpose"] == "structured_infographic":
+        title = " ".join((infographic_title or "").replace("**", "").split())
+        items = [
+            " ".join(str(item).replace("**", "").split())
+            for item in (infographic_items or [])
+            if str(item).strip()
+        ]
+        if not title or not 2 <= len(items) <= 4:
+            raise ImageProviderError(
+                "infographic_copy_missing",
+                "结构信息图缺少可锁定的原文标题或节点，已停止生成。",
+                retryable=False,
+                http_status=422,
+            )
+        locked_copy = "；".join(f'{index + 1}.“{item}”' for index, item in enumerate(items))
+        prompt = " ".join(
+            [
+                "教育类微信公众号横版4:3信息图，手机端阅读。",
+                f'顶部左对齐标题“{title}”；{_structured_layout(len(items))}。',
+                f"只使用这些原文：{locked_copy}。文字逐字准确，不改写，不新增说明或数据。",
+                "所有文字和图标位于中央安全区，左右留12%、上下留10%，字号清楚，禁止贴边和裁切。",
+                f"视觉主题是{subject}，用少量边缘插画、细线和手绘标记辅助阅读。",
+                "现代教育杂志设计，冷白背景，低饱和蓝绿为主，珊瑚橙或日光黄只作少量强调；开放式分区，不做三列小卡片，不堆圆角框。",
+                "无二维码、Logo、水印、条形码和官方印章。",
+            ]
+        )
+        validate_provider_prompt(prompt)
+        return prompt
+
+    scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
+    palette = {
+        "data_policy": "冷白、深海军蓝、低饱和青绿，少量琥珀色",
+        "tutorial_steps": "象牙白、森林绿、陶土橙，少量日光黄",
+        "lively_growth": "明亮留白、清新青绿、珊瑚粉与少量柠檬黄",
+        "viewpoint_trend": "暖白、墨蓝、雾青，少量珊瑚橙",
+    }.get(article_type, "暖白、墨蓝、雾青，少量珊瑚橙")
+    prompt = " ".join(
+        [
+            "教育类微信公众号正文横版语义插画，画面不是信息图或海报。",
+            f"文章要表达{_visual_concept(subject, article_type)}，具体线索是{subject}。",
+            f"场景：{scene}。{composition}，{medium}，{palette}，自然柔光，有明确主次和充足呼吸感。",
+            "主体完整位于中央80%安全区，不贴边、不截断。",
+            "画面不出现任何文字、数字、表格、图表、文档界面、Logo、水印、二维码、条形码或官方印章。",
+        ]
+    )
+    validate_provider_prompt(prompt)
+    return prompt
+
+
 def build_provider_prompt(
     image_slot: dict[str, Any],
     article_type: str = "viewpoint_trend",
     *,
     infographic_title: str | None = None,
     infographic_items: list[str] | None = None,
+    prompt_profile: str = "generic",
+    candidate_index: int = 1,
 ) -> str:
+    if prompt_profile == "seedream":
+        return _seedream_provider_prompt(
+            image_slot,
+            article_type,
+            infographic_title=infographic_title,
+            infographic_items=infographic_items,
+            candidate_index=candidate_index,
+        )
     intent = image_slot["visual_intent"]
     concept = _visual_concept(intent["subject"], article_type)
     style_labels = {
@@ -235,7 +346,12 @@ def build_provider_prompt(
     return prompt
 
 
-def build_cover_prompt(cover_brief: dict[str, Any]) -> str:
+def build_cover_prompt(
+    cover_brief: dict[str, Any],
+    *,
+    prompt_profile: str = "generic",
+    candidate_index: int = 1,
+) -> str:
     """Build a provider-safe, image-only prompt from the full-article editorial brief."""
     article_type = str(cover_brief.get("article_type") or "viewpoint_trend")
     subject = sanitize_subject(
@@ -250,6 +366,25 @@ def build_cover_prompt(cover_brief: dict[str, Any]) -> str:
         )
     )
     concept = _visual_concept(subject, article_type)
+    if prompt_profile == "seedream":
+        scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
+        palette = {
+            "data_policy": "冷白、深海军蓝、低饱和青绿，少量琥珀色",
+            "tutorial_steps": "象牙白、森林绿、陶土橙，少量日光黄",
+            "lively_growth": "明亮暖白、清新青绿、珊瑚粉与少量柠檬黄",
+            "viewpoint_trend": "暖白、墨蓝、雾青，少量珊瑚橙",
+        }.get(article_type, "暖白、墨蓝、雾青，少量珊瑚橙")
+        prompt = " ".join(
+            [
+                "教育类微信公众号5:4封面底图，只生成图片，不排标题。",
+                f"核心概念是{concept}，具体场景为{scene}。",
+                f"{composition}，{medium}，{palette}，有一个鲜明视觉焦点和充足呼吸感。",
+                "重要主体完整位于中央70%，左上与中央保留平静的标题安全区，不贴边、不截断。",
+                "不出现文字、字母、数字、表格、图表、文档界面、Logo、水印、二维码、条形码、印章或招牌。",
+            ]
+        )
+        validate_provider_prompt(prompt)
+        return prompt
     style, palette = {
         "data_policy": (
             "precise editorial paper-cut illustration with a clear evidence motif",
@@ -281,6 +416,70 @@ def build_cover_prompt(cover_brief: dict[str, Any]) -> str:
             "STRICT IMAGE-ONLY RULE: no text, no letters, no Chinese characters, no numbers, no tables, no charts, no document, no interface, no logo, no watermark, no QR code, no barcode, no official seal, and no signage.",
         ]
     )
+
+
+def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
+    """Create an image-only local cover so delivery never depends on a model or upload."""
+    width, height = 1080, 864
+    visual_system = str(cover_brief.get("visual_system") or "light_reading")
+    palettes = {
+        "light_reading": ("#FFFDF8", "#BDE3DD", "#2F7E78", "#E78672"),
+        "warm_humanist": ("#FFF8EE", "#E9C9A4", "#9B563F", "#D9A629"),
+        "youth_campus": ("#FFFDF6", "#BDE8F0", "#287FA1", "#F39A66"),
+        "editorial_contrast": ("#FFFDF8", "#EFCFC5", "#262B2A", "#C34D3A"),
+        "structured_grid": ("#F8FBFA", "#C9DED9", "#215F5A", "#D4A63A"),
+        "future_tech": ("#F7FAFF", "#C9D4FF", "#384D96", "#37A9A0"),
+    }
+    background, soft, primary, accent = palettes.get(visual_system, palettes["light_reading"])
+    image = Image.new("RGBA", (width, height), background)
+    draw = ImageDraw.Draw(image, "RGBA")
+    for step in range(0, height, 8):
+        opacity = int(10 + 32 * step / height)
+        draw.rectangle((0, step, width, step + 8), fill=(*Image.new("RGB", (1, 1), soft).getpixel((0, 0)), opacity))
+
+    digest = hashlib.sha256(
+        f"{cover_brief.get('title', '')}|{cover_brief.get('article_type', '')}|{visual_system}".encode("utf-8")
+    ).digest()
+    if visual_system in {"light_reading", "warm_humanist"}:
+        draw.ellipse((615, 180, 1025, 590), fill=soft, outline=primary, width=5)
+        draw.arc((535, 95, 940, 500), 205, 355, fill=accent, width=18)
+        for index in range(5):
+            x = 690 + index * 55
+            y = 585 + (digest[index] % 75)
+            draw.ellipse((x, y, x + 32, y + 18), fill=primary)
+    elif visual_system == "youth_campus":
+        draw.rounded_rectangle((610, 155, 1015, 330), radius=50, fill=soft, outline=primary, width=5)
+        draw.polygon(((650, 630), (810, 345), (995, 630)), fill=primary)
+        draw.polygon(((725, 630), (820, 465), (930, 630)), fill=accent)
+        draw.arc((560, 75, 1010, 520), 205, 332, fill=accent, width=16)
+    elif visual_system == "editorial_contrast":
+        draw.rectangle((645, 145, 1010, 610), fill=soft)
+        draw.rectangle((715, 90, 865, 700), fill=primary)
+        draw.rectangle((590, 405, 1025, 525), fill=accent)
+        draw.line((595, 690, 1015, 690), fill=primary, width=6)
+    elif visual_system == "structured_grid":
+        for x in range(620, 1040, 70):
+            draw.line((x, 135, x, 710), fill=soft, width=3)
+        for y in range(150, 720, 70):
+            draw.line((600, y, 1030, y), fill=soft, width=3)
+        draw.line((630, 620, 740, 500, 850, 535, 995, 275), fill=primary, width=18, joint="curve")
+        for x, y in ((630, 620), (740, 500), (850, 535), (995, 275)):
+            draw.ellipse((x - 22, y - 22, x + 22, y + 22), fill=accent, outline=background, width=7)
+    else:
+        center = (820, 430)
+        for radius, color, line_width in ((270, soft, 7), (195, primary, 10), (115, accent, 16)):
+            draw.ellipse(
+                (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius),
+                outline=color,
+                width=line_width,
+            )
+        draw.ellipse((782, 392, 858, 468), fill=primary)
+        draw.line((565, 680, 1015, 185), fill=accent, width=8)
+
+    draw.rectangle((60, 70, 535, 795), fill=(255, 255, 255, 72))
+    output = BytesIO()
+    image.convert("RGB").save(output, format="PNG", optimize=True)
+    return output.getvalue()
 
 
 class MockImageProvider:

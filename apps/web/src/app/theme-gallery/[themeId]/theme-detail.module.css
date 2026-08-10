@@ -88,6 +88,8 @@
 .finalReview { padding: clamp(62px, 9vw, 120px) clamp(20px, 7vw, 104px); display: grid; grid-template-columns: 1fr minmax(390px, .7fr); align-items: center; gap: 80px; background: #fffdf7; }
 .finalReview h2 { margin: 13px 0 0; font: 750 clamp(32px, 4vw, 54px)/1.25 "Noto Serif SC", "Songti SC", serif; }
 .finalReview p { max-width: 580px; margin: 18px 0 0; color: #616c68; font-size: 13px; line-height: 1.75; }
+.browseReturn { min-height: 58px; padding: 0 24px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+.browseReturn:hover { background: var(--theme-primary); border-color: var(--theme-primary); }
 .themeDecisions { margin-top: 0; }
 .themeDecisions .exportButton { grid-column: 1 / -1; min-height: 52px; border-top: 1px solid #8f9a95; border-right: 0; background: var(--theme-primary); color: #fff; }
 .statePage { min-height: 100vh; padding: 80px; background: #f3efe5; color: #17211f; }

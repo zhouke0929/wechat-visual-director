@@ -4,9 +4,9 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from visual_director.main import _fit_cover, create_app
+from visual_director.main import _crop_cover, _fit_cover, create_app
 from visual_director.delivery import WenyanPublishResult
-from visual_director.image_provider import MockImageProvider
+from visual_director.image_provider import ManualImageProvider, MockImageProvider
 from visual_director.text_planner import MockTextPlannerProvider
 
 
@@ -54,6 +54,25 @@ def test_cover_fit_preserves_both_edges_of_wide_source() -> None:
         assert cover.size == (1080, 864)
         assert cover.getpixel((0, 432))[0] > 180
         assert cover.getpixel((1079, 432))[2] > 180
+
+
+def test_cover_crop_zoom_and_offset_match_fixed_frame_editor() -> None:
+    source = Image.new("RGB", (1080, 864), "#ffffff")
+    for x in range(540):
+        for y in range(864):
+            source.putpixel((x, y), (220, 40, 40))
+            source.putpixel((1079 - x, y), (40, 70, 220))
+    buffer = BytesIO()
+    source.save(buffer, format="PNG")
+
+    left_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=0.5, offset_y=0)
+    right_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=-0.5, offset_y=0)
+
+    with Image.open(BytesIO(left_focus)) as cover:
+        assert cover.size == (1080, 864)
+        assert cover.getpixel((540, 432))[0] > 180
+    with Image.open(BytesIO(right_focus)) as cover:
+        assert cover.getpixel((540, 432))[2] > 180
 
 
 class _FailThenSucceedWenyanPublisher(_SuccessfulWenyanPublisher):
@@ -205,7 +224,6 @@ def test_batch_delete_tasks_removes_local_records_and_assets_but_keeps_other_tas
             "plans",
             "plan_revisions",
             "audit_events",
-            "recent_article_component_summaries",
             "image_slot_states",
             "image_candidates",
             "cover_candidates",
@@ -219,6 +237,10 @@ def test_batch_delete_tasks_removes_local_records_and_assets_but_keeps_other_tas
                 (task["id"],),
             ).fetchone()[0]
             assert count == 0, table
+        assert repository.connection.execute(
+            "SELECT COUNT(*) FROM recent_article_component_summaries WHERE task_id = ?",
+            (task["id"],),
+        ).fetchone()[0] == 1
 
 
 def test_batch_delete_tasks_requires_at_least_one_id(tmp_path: Path) -> None:
@@ -347,25 +369,15 @@ article_type: tutorial_steps
         assert generated.status_code == 202
 
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
-        assert detail["status"] == "plans_ready"
+        assert detail["status"] == "plan_selected"
         plans = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]
-        assert len(plans) == 2
+        assert len(plans) == 1
+        assert detail["selected_plan_id"] == plans[0]["id"]
         preview = client.get(plans[0]["preview_url"])
         assert preview.status_code == 200
         assert "width:100%" in preview.text
         assert "width:390px" not in preview.text
 
-        first = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/plans/{plans[0]["id"]}/select',
-            json={"plan_id": plans[0]["id"], "expected_task_version": detail["version"]},
-        )
-        assert first.status_code == 200
-        second = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/plans/{plans[1]["id"]}/select',
-            json={"plan_id": plans[1]["id"], "expected_task_version": first.json()["version"]},
-        )
-        assert second.status_code == 200
-        assert second.json()["selection_change_count"] == 1
         history = app.state.repository.list_recent_component_summaries("default", 5)
         assert history == []
 
@@ -723,6 +735,7 @@ def test_mock_draft_success_is_idempotent_and_occupies_explicit_slot(tmp_path: P
         assert app.state.repository.list_recent_component_summaries("default", 5) == []
         frozen = _freeze_publication(client, task)
         revision = frozen["revision"]
+        assert len(app.state.repository.list_recent_component_summaries("default", 5)) == 1
         request = {
             "expected_task_version": frozen["task"]["version"],
             "draft_slot": "primary",
@@ -754,7 +767,6 @@ def test_mock_draft_success_is_idempotent_and_occupies_explicit_slot(tmp_path: P
         )
         assert replay.status_code == 200
         assert replay.json()["operation"]["id"] == operation["id"]
-
         continued = client.post(
             f'/api/v1/publication-revisions/{revision["id"]}/continue-editing',
             json={"expected_task_version": created.json()["task"]["version"]},
@@ -762,6 +774,7 @@ def test_mock_draft_success_is_idempotent_and_occupies_explicit_slot(tmp_path: P
         reopened = continued.json()["task"]
         refrozen = _freeze_publication(client, reopened, "freeze-second")
         assert refrozen["revision"]["suggested_draft_slot"] == "draft-2"
+        assert len(app.state.repository.list_recent_component_summaries("default", 5)) == 1
         wrong_slot = client.post(
             f'/api/v1/publication-revisions/{refrozen["revision"]["id"]}/draft-operations',
             headers={"Idempotency-Key": "wrong-slot"},
@@ -772,6 +785,32 @@ def test_mock_draft_success_is_idempotent_and_occupies_explicit_slot(tmp_path: P
             },
         )
         assert wrong_slot.status_code == 409
+
+
+def test_repository_startup_backfills_missing_frozen_visual_history(tmp_path: Path) -> None:
+    database_path = tmp_path / "history-backfill.db"
+    app = create_app(str(database_path))
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task, key="freeze-for-history-backfill")
+        frozen_theme = app.state.repository.get_publication_revision(
+            frozen["revision"]["id"]
+        )["visual_plan"]["visual_system"]
+
+    repository = app.state.repository
+    repository.connection.execute(
+        "DELETE FROM recent_article_component_summaries WHERE task_id = ?",
+        (task["id"],),
+    )
+    repository.connection.commit()
+    assert repository.list_recent_component_summaries("default", 5) == []
+    repository.connection.close()
+
+    reopened_app = create_app(str(database_path))
+    history = reopened_app.state.repository.list_recent_component_summaries("default", 5)
+    assert len(history) == 1
+    assert history[0]["visual_system"] == frozen_theme
+    reopened_app.state.repository.connection.close()
 
 
 def test_mock_draft_fail_once_retry_and_unknown_resolution(tmp_path: Path, monkeypatch) -> None:
@@ -848,7 +887,7 @@ def test_mock_draft_fail_once_retry_and_unknown_resolution(tmp_path: Path, monke
         assert resolved.json()["operation"]["last_error"]["retryable"] is True
 
 
-def test_intelligent_planner_calls_once_and_returns_two_visual_systems(tmp_path: Path) -> None:
+def test_intelligent_planner_calls_once_and_returns_one_switchable_visual_system(tmp_path: Path) -> None:
     provider = MockTextPlannerProvider()
     app = create_app(str(tmp_path / "intelligent.db"), text_planner_provider=provider)
     with TestClient(app) as client:
@@ -886,11 +925,14 @@ article_type: tutorial_steps
         payload = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()
         plans = payload["plans"]
         assert payload["comparison"]["shared_structure"] is True
-        assert len(plans) == 2
-        assert {plan["visual_system"] for plan in plans} == {"light_reading", "editorial_contrast"}
+        assert len(plans) == 1
+        assert plans[0]["visual_system"] in {
+            "light_reading", "warm_humanist", "youth_campus",
+            "editorial_contrast", "structured_grid", "future_tech",
+        }
         assert len({plan["structure_fingerprint"] for plan in plans}) == 1
         assert all(plan["planner_metadata"]["planner_call_count"] == 1 for plan in plans)
-        assert all(plan["planner_metadata"]["provider"] == "mock_text_planner" for plan in plans)
+        assert all(plan["planner_metadata"]["provider"] == "rule_text_planner" for plan in plans)
 
         def semantic_slots(plan: dict) -> list[tuple]:
             return [
@@ -904,9 +946,9 @@ article_type: tutorial_steps
                 for slot in plan["slots"]
             ]
 
-        assert semantic_slots(plans[0]) == semantic_slots(plans[1])
-        assert plans[0]["image_slots"] == plans[1]["image_slots"]
-        assert plans[0]["preview_content_hash"] != plans[1]["preview_content_hash"]
+        assert semantic_slots(plans[0])
+        assert len(plans[0]["visual_system_metadata"]["available_visual_systems"]) == 6
+        assert plans[0]["visual_system_metadata"]["switch_requires_planner_call"] is False
 
 
 def test_switch_single_slot_create_revision_undo_once_and_audit(tmp_path: Path) -> None:
@@ -985,18 +1027,83 @@ article_type: tutorial_steps
         assert "plan_change_undone" in event_types
 
 
-def test_confirmed_variant_history_chooses_fresher_variant_without_removing_component(tmp_path: Path) -> None:
+def test_switch_whole_theme_preserves_structure_images_and_supports_undo(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "theme-switch.db"))
+    with TestClient(app) as client:
+        markdown = """---
+title: 主题切换测试
+article_type: tutorial_steps
+---
+# 主题切换测试
+
+## 三步行动
+
+1. 确定目标
+2. 核对依据
+3. 开始行动
+
+> 每一步都需要留下可复核证据。
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("theme.md", markdown.encode("utf-8"), "text/markdown")},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        original = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        target = next(
+            item["value"]
+            for item in original["visual_system_metadata"]["available_visual_systems"]
+            if item["value"] != original["visual_system"]
+        )
+
+        switched = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/theme',
+            json={
+                "visual_system": target,
+                "expected_plan_revision": original["revision"],
+                "reason": "operator_theme_switch",
+            },
+        )
+        assert switched.status_code == 200
+        payload = switched.json()
+        changed = payload["plan"]
+        assert payload["planner_called"] is False
+        assert payload["images_regenerated"] is False
+        assert changed["id"] == original["id"]
+        assert changed["revision"] == original["revision"] + 1
+        assert changed["visual_system"] == target
+        assert changed["structure_fingerprint"] == original["structure_fingerprint"]
+        assert changed["image_slots"] == original["image_slots"]
+
+        undone = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/undo',
+            json={"expected_plan_revision": changed["revision"]},
+        )
+        assert undone.status_code == 200
+        restored = undone.json()["plan"]
+        assert restored["visual_system"] == original["visual_system"]
+        assert restored["revision"] == changed["revision"] + 1
+        events = app.state.repository.list_audit_events(task["id"])
+        assert "visual_theme_switched" in [event["event_type"] for event in events]
+
+
+def test_confirmed_theme_history_avoids_immediately_previous_theme(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "history.db"))
     repository = app.state.repository
     repository.record_confirmed_component_summary(
         account_id="default",
         task_id="confirmed-1",
         components=[{"component_type": "logic_path", "variant": "warm_route_nodes"}],
+        visual_system="light_reading",
     )
     repository.record_confirmed_component_summary(
         account_id="default",
         task_id="confirmed-2",
         components=[{"component_type": "logic_path", "variant": "warm_route_nodes"}],
+        visual_system="light_reading",
     )
 
     with TestClient(app) as client:
@@ -1017,8 +1124,9 @@ def test_confirmed_variant_history_chooses_fresher_variant_without_removing_comp
             json={"mode": "start", "expected_task_version": task["version"]},
         )
         plans = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]
-        assert "已读取最近 2 篇确认记录" in plans[0]["difference_from_recent"][0]
-        assert "具体变体" in plans[0]["difference_from_recent"][0]
+        assert len(plans) == 1
+        assert plans[0]["visual_system"] != "light_reading"
+        assert plans[0]["visual_system_metadata"]["previous_visual_system"] == "light_reading"
         logic_slots = [
             slot
             for plan in plans
@@ -1026,10 +1134,7 @@ def test_confirmed_variant_history_chooses_fresher_variant_without_removing_comp
             if slot["component_type"] == "logic_path"
         ]
         assert logic_slots
-        assert all(slot["variant"] == "folded_stair" for slot in logic_slots)
-        assert all(slot["history_evidence"]["penalty_applied"] for slot in logic_slots)
-        assert all(slot["history_evidence"]["avoided_variant"] == "warm_route_nodes" for slot in logic_slots)
-        assert all(slot["history_evidence"]["component_use_count"] == 2 for slot in logic_slots)
+        assert all(slot["history_evidence"]["selected_variant"] == slot["variant"] for slot in logic_slots)
 
 
 def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_path: Path) -> None:
@@ -1054,16 +1159,7 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plans = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]
         selected = plans[0]
-        unselected = plans[1]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/select',
-            json={"plan_id": selected["id"], "expected_task_version": detail["version"]},
-        )
-
-        blocked = client.get(
-            f'/api/v1/article-tasks/{task["id"]}/plans/{unselected["id"]}/image-slots'
-        )
-        assert blocked.status_code == 409
+        assert detail["selected_plan_id"] == selected["id"]
 
         listed = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots'
@@ -1220,6 +1316,74 @@ def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Pa
         assert adopted.status_code == 200
         assert adopted.json()["workspace"]["selected_cover"]["width"] == 1080
         assert adopted.json()["workspace"]["candidates"][0]["selected"] is True
+
+
+def test_cover_fallback_skips_model_and_upload_but_satisfies_delivery_cover(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "cover-fallback.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 没有图片也能完成封面
+
+先理解趋势，再核对证据，最后形成行动建议。
+
+## 核心判断
+
+教育选择需要兼顾质量、特色与长期办学能力。
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("fallback.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "viewpoint_trend"},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        selected = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/select',
+            json={"plan_id": plan["id"], "expected_task_version": task["version"]},
+        ).json()
+
+        fallback = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/cover-candidates/fallback',
+            json={"expected_task_version": selected["version"]},
+        )
+        assert fallback.status_code == 200
+        payload = fallback.json()
+        assert payload["candidate"]["source_type"] == "theme_fallback"
+        assert payload["candidate"]["provider"] == "deterministic_fallback"
+        assert payload["workspace"]["selected_cover"]["output_sha256"] == payload["candidate"]["output_sha256"]
+        content = client.get(payload["candidate"]["content_url"])
+        with Image.open(BytesIO(content.content)) as image:
+            assert image.size == (1080, 864)
+        detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()
+        cover_finding = next(
+            finding
+            for finding in detail["input_summary"]["preflight_report"]["findings"]
+            if finding["code"] == "missing_cover"
+        )
+        assert cover_finding["resolved_at"] is not None
+
+        cropped = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/cover-candidates/{payload["candidate"]["id"]}/crop',
+            json={
+                "expected_task_version": payload["task"]["version"],
+                "scale": 1.5,
+                "offset_x": 0.2,
+                "offset_y": -0.1,
+            },
+        )
+        assert cropped.status_code == 200
+        cropped_payload = cropped.json()
+        assert cropped_payload["candidate"]["source_type"] == "custom_crop"
+        assert cropped_payload["candidate"]["source_resource_id"] == payload["candidate"]["id"]
+        assert cropped_payload["workspace"]["selected_cover"]["output_sha256"] == cropped_payload["candidate"]["output_sha256"]
+        assert cropped_payload["candidate"]["machine_checks"]["crop_transform"] == {
+            "scale": 1.5,
+            "offset_x": 0.2,
+            "offset_y": -0.1,
+        }
 
 
 def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: Path) -> None:

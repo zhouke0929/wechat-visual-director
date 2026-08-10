@@ -698,7 +698,7 @@ def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Pa
         assert response.status_code == 200
         payload = response.json()
         assert payload["brief"]["schema_version"] == "editorial_brief.v0.1"
-        assert payload["planner_run"]["provider"] == "mock_text_planner"
+        assert payload["planner_run"]["provider"] == "rule_text_planner"
         assert payload["experimental_plan"]["plan_name"] == "智能规划 · Editorial Brief"
         diagnostics = payload["experimental_plan"]["component_diagnostics"]
         assert diagnostics["eligible_candidate_count"] >= diagnostics["selected_component_count"]
@@ -766,7 +766,9 @@ article_type: tutorial_steps
         assert metadata["planner_call_count"] == 0
         assert metadata["fallback_used"] is False
         plans = client.get(f'/api/v1/article-tasks/{created["id"]}/plans').json()["plans"]
-        assert len(plans) == 2
+        assert len(plans) == 1
+        assert plans[0]["recommendation"] == "recommended"
+        assert plans[0]["visual_system_metadata"]["switch_requires_planner_call"] is False
         assert all(plan["planner_metadata"]["provider"] == "host_agent" for plan in plans)
 
 
@@ -801,4 +803,4 @@ def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Pa
         assert metadata["fallback_used"] is True
         assert metadata["provider_error_code"] == "host_brief_invalid"
         assert "ValidationError" in metadata["fallback_reason"]
-        assert len(client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]) == 2
+        assert len(client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]) == 1

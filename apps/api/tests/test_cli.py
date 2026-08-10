@@ -141,9 +141,9 @@ def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys
                 "status": "ok",
                 "image_provider": "mock",
                 "image_provider_configured": True,
-                "text_planner_provider": "mock_text_planner",
+                "text_planner_provider": "rule_text_planner",
                 "text_planner_model": "deterministic_editorial_brief",
-                "text_planner_configured": True,
+                "text_planner_configured": False,
             }
         return {"ready": False}
 
@@ -155,7 +155,7 @@ def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys
     payload = json.loads(capsys.readouterr().out)
     assert payload["capabilities"]["ai_text_planning"] is False
     assert payload["capabilities"]["rule_text_planning"] is True
-    assert payload["planners"]["text"]["provider"] == "mock_text_planner"
+    assert payload["planners"]["text"]["provider"] == "rule_text_planner"
     assert "text_planning_rule_fallback" in payload["warnings"]
 
 

@@ -6,7 +6,12 @@ import json
 from collections import Counter
 from typing import Any
 
-from .component_catalog import COMPONENT_CATALOG, automatic_variants
+from .component_catalog import (
+    COMPONENT_CATALOG,
+    VISUAL_SYSTEM_CATALOG,
+    VISUAL_SYSTEM_ORDER,
+    automatic_variants,
+)
 from .editorial_brief import (
     EditorialBrief,
     SectionBrief,
@@ -455,6 +460,7 @@ def compile_editorial_brief(
         "image_slots": _compile_images(contract, parsed),
         "editorial_brief_metadata": {
             "schema_version": contract.schema_version,
+            "article_type": contract.article.article_type,
             "audience": contract.article.audience,
             "reader_task": contract.article.reader_task,
             "tone": contract.art_direction.tone,
@@ -640,6 +646,207 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
     return counts
 
 
+ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
+    "data_policy": (
+        "structured_grid",
+        "editorial_contrast",
+        "future_tech",
+        "light_reading",
+        "youth_campus",
+        "warm_humanist",
+    ),
+    "tutorial_steps": (
+        "structured_grid",
+        "youth_campus",
+        "light_reading",
+        "editorial_contrast",
+        "warm_humanist",
+        "future_tech",
+    ),
+    "viewpoint_trend": (
+        "editorial_contrast",
+        "future_tech",
+        "light_reading",
+        "warm_humanist",
+        "structured_grid",
+        "youth_campus",
+    ),
+    "lively_growth": (
+        "youth_campus",
+        "warm_humanist",
+        "light_reading",
+        "future_tech",
+        "editorial_contrast",
+        "structured_grid",
+    ),
+}
+
+
+def _normalized_visual_system(summary: dict[str, Any]) -> str | None:
+    value = summary.get("visual_system") or summary.get("style_mode")
+    if value in VISUAL_SYSTEM_ORDER:
+        return str(value)
+    if value in {
+        "ink_navy_editorial",
+        "warm_coral_editorial",
+        "sage_sunlit_editorial",
+    }:
+        return "editorial_contrast"
+    return None
+
+
+def recommend_visual_system(
+    article_type: str,
+    recent_summaries: list[dict[str, Any]],
+    history_window: int,
+) -> tuple[str, Counter[str], str | None]:
+    """Pick one theme without repeating the immediately previous frozen article.
+
+    Recent usage is the primary signal. Article type only breaks ties, so a model
+    classification can never lock the operator into one visual system.
+    """
+    recent = recent_summaries[:history_window]
+    counts = _visual_system_counts(recent)
+    previous = _normalized_visual_system(recent[0]) if recent else None
+    affinity = ARTICLE_TYPE_THEME_AFFINITY.get(article_type, VISUAL_SYSTEM_ORDER)
+    affinity_rank = {value: index for index, value in enumerate(affinity)}
+    selected = min(
+        VISUAL_SYSTEM_ORDER,
+        key=lambda value: (
+            value == previous,
+            counts[value],
+            affinity_rank.get(value, len(VISUAL_SYSTEM_ORDER)),
+            VISUAL_SYSTEM_ORDER.index(value),
+        ),
+    )
+    return selected, counts, previous
+
+
+def apply_visual_system(
+    plan: dict[str, Any],
+    visual_system: str,
+    *,
+    recent_counts: Counter[str] | None = None,
+    previous_visual_system: str | None = None,
+    recommended_visual_system: str | None = None,
+    history_window: int = 5,
+) -> dict[str, Any]:
+    """Apply a complete approved theme kit while preserving semantic structure."""
+    if visual_system not in VISUAL_SYSTEM_ORDER:
+        raise EditorialBriefCompileError(f"未知视觉主题：{visual_system}")
+    revised = copy.deepcopy(plan)
+    existing_metadata = revised.get("visual_system_metadata", {})
+    existing_options = existing_metadata.get("available_visual_systems", [])
+    if recent_counts is None and existing_options:
+        recent_counts = Counter(
+            {
+                str(item["value"]): int(item.get("recent_use_count", 0))
+                for item in existing_options
+            }
+        )
+    previous_visual_system = (
+        previous_visual_system
+        if previous_visual_system is not None
+        else existing_metadata.get("previous_visual_system")
+    )
+    recommended_visual_system = (
+        recommended_visual_system
+        or existing_metadata.get("recommended_visual_system")
+        or visual_system
+    )
+    base_summary = (
+        revised.get("editorial_narrative")
+        or revised.get("editorial_brief_metadata", {}).get("narrative")
+        or revised.get("summary", "")
+    )
+    revised["editorial_narrative"] = base_summary
+    for slot in revised.get("slots", []):
+        slot["variant"] = visual_system_variant(slot["component_type"], visual_system)
+        slot["history_evidence"] = {
+            **slot.get("history_evidence", {}),
+            "selected_variant": slot["variant"],
+        }
+
+    catalog = VISUAL_SYSTEM_CATALOG[visual_system]
+    counts = recent_counts or Counter()
+    if existing_options:
+        available_order = [
+            str(item["value"])
+            for item in existing_options
+            if item.get("value") in VISUAL_SYSTEM_ORDER
+        ]
+    else:
+        alternatives = sorted(
+            (value for value in VISUAL_SYSTEM_ORDER if value != recommended_visual_system),
+            key=lambda value: (
+                value == previous_visual_system,
+                counts[value],
+                VISUAL_SYSTEM_ORDER.index(value),
+            ),
+        )
+        available_order = [recommended_visual_system, *alternatives]
+    revised["configuration"] = visual_system_configuration(visual_system)
+    revised["style_mode"] = visual_system
+    revised["visual_system"] = visual_system
+    revised["plan_name"] = f"{catalog['label']} · 智能结构"
+    revised["summary"] = f"{base_summary}；{catalog['description']}"
+    revised["visual_system_metadata"] = {
+        "visual_system": visual_system,
+        "label": catalog["label"],
+        "description": catalog["description"],
+        "recent_use_count": counts[visual_system],
+        "previous_visual_system": previous_visual_system,
+        "recommended_visual_system": recommended_visual_system,
+        "recommended_by_history": visual_system == recommended_visual_system,
+        "switch_requires_planner_call": False,
+        "shared_structure": True,
+        "available_visual_systems": [
+            {
+                "value": value,
+                "label": VISUAL_SYSTEM_CATALOG[value]["label"],
+                "description": VISUAL_SYSTEM_CATALOG[value]["description"],
+                "recent_use_count": counts[value],
+            }
+            for value in available_order
+        ],
+    }
+    revised["difference_from_recent"] = [
+        f"最近 {history_window} 篇中，{catalog['label']}使用 {counts[visual_system]} 次。",
+        "优先避开上一篇冻结稿主题，再选择最近五篇中使用较少的主题。",
+        "换主题只重渲染已批准的主题组件，不调用模型，也不改变正文、图片与组件锚点。",
+    ]
+    revised["structural_differences"] = [
+        "主题切换前后共享组件语义、锚点、正文绑定和图片意图。",
+        "仅配色、基础版式、装饰语言和主题组件变体不同。",
+    ]
+    return revised
+
+
+def compile_editorial_brief_recommended(
+    parsed: ParsedArticle,
+    brief: EditorialBrief | dict[str, Any],
+    history_window: int,
+    recent_summaries: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compile one semantic brief into one auto-selected, instantly switchable plan."""
+    recent = recent_summaries or []
+    base = compile_editorial_brief(parsed, brief, history_window, recent)
+    article_type = str(base.get("editorial_brief_metadata", {}).get("article_type", ""))
+    selected, counts, previous = recommend_visual_system(article_type, recent, history_window)
+    plan = apply_visual_system(
+        base,
+        selected,
+        recent_counts=counts,
+        previous_visual_system=previous,
+        recommended_visual_system=selected,
+        history_window=history_window,
+    )
+    plan["plan_index"] = 1
+    plan["recommendation"] = "recommended"
+    plan["structure_fingerprint"] = _structure_fingerprint(base)
+    return validate_plan_for_article(plan, parsed)
+
+
 def compile_editorial_brief_variants(
     parsed: ParsedArticle,
     brief: EditorialBrief | dict[str, Any],
@@ -663,12 +870,8 @@ def compile_editorial_brief_variants(
     plans = [copy.deepcopy(base), copy.deepcopy(base)]
 
     labels = {
-        "light_reading": ("轻盈阅读", "以浅色、低压迫感的阅读系统呈现。"),
-        "editorial_contrast": ("编辑对比", "以鲜明的杂志编辑层级呈现。"),
-        "warm_humanist": ("温暖人文", "以暖调、亲和且有叙事温度的系统呈现。"),
-        "structured_grid": ("理性网格", "以清晰网格和秩序感组织数据与流程。"),
-        "youth_campus": ("青春校园", "以贴纸切角、明快撞色和轻手账节奏呈现。"),
-        "future_tech": ("未来科技", "以极光色带、错位留白和科学杂志节奏呈现。"),
+        value: (VISUAL_SYSTEM_CATALOG[value]["label"], VISUAL_SYSTEM_CATALOG[value]["description"])
+        for value in VISUAL_SYSTEM_ORDER
     }
     for plan, visual_system in zip(plans, selected_systems, strict=True):
         for slot in plan.get("slots", []):

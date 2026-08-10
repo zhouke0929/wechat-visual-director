@@ -38,12 +38,16 @@ from .image_provider import (
     ImageProviderError,
     build_cover_prompt,
     build_provider_prompt,
+    build_theme_fallback_cover,
     create_image_provider_from_env,
+    image_prompt_profile,
 )
 from .planner import generate_plans, structural_difference_count
 from .brief_compiler import (
     EditorialBriefCompileError,
+    apply_visual_system,
     compile_editorial_brief,
+    compile_editorial_brief_recommended,
     compile_editorial_brief_variants,
 )
 from .editorial_brief import EDITORIAL_BRIEF_NORMALIZER_VERSION, EDITORIAL_BRIEF_SCHEMA_VERSION
@@ -142,6 +146,14 @@ class UpdateSlotRequest(BaseModel):
     reason: str = Field(default="operator_manual_switch", pattern="^(operator_manual_switch|product_review|compatibility_fallback)$")
 
 
+class UpdateThemeRequest(BaseModel):
+    visual_system: str = Field(
+        pattern="^(light_reading|warm_humanist|youth_campus|editorial_contrast|structured_grid|future_tech)$"
+    )
+    expected_plan_revision: int = Field(ge=1)
+    reason: str = Field(default="operator_theme_switch", pattern="^(operator_theme_switch|history_rotation|product_review)$")
+
+
 class RestoreRevisionRequest(BaseModel):
     expected_plan_revision: int = Field(ge=1)
 
@@ -167,6 +179,13 @@ class ReuseCoverRequest(BaseModel):
 
 class SelectCoverRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
+
+
+class CropCoverRequest(BaseModel):
+    expected_task_version: int = Field(ge=1)
+    scale: float = Field(ge=1.0, le=3.0)
+    offset_x: float = Field(ge=-1.0, le=1.0)
+    offset_y: float = Field(ge=-1.0, le=1.0)
 
 
 class ImageDecisionRequest(BaseModel):
@@ -296,6 +315,37 @@ def _fit_cover(content: bytes) -> bytes:
             backdrop.paste(fitted, offset)
             output = BytesIO()
             backdrop.save(output, format="PNG", optimize=True)
+            return output.getvalue()
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError("封面来源不是有效图片") from error
+
+
+def _crop_cover(content: bytes, *, scale: float, offset_x: float, offset_y: float) -> bytes:
+    """Apply the same fixed-frame transform used by the browser crop editor."""
+    try:
+        with Image.open(BytesIO(content)) as source:
+            converted = source.convert("RGB")
+            target_width, target_height = 1080, 864
+            base = ImageOps.fit(
+                converted,
+                (target_width, target_height),
+                method=Image.Resampling.LANCZOS,
+                centering=(0.5, 0.5),
+            )
+            scaled_width = max(target_width, round(target_width * scale))
+            scaled_height = max(target_height, round(target_height * scale))
+            scaled = base.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
+            max_x = max(0.0, (scale - 1.0) / 2.0)
+            max_y = max(0.0, (scale - 1.0) / 2.0)
+            safe_offset_x = max(-max_x, min(max_x, offset_x))
+            safe_offset_y = max(-max_y, min(max_y, offset_y))
+            left = round((scaled_width - target_width) / 2 - safe_offset_x * target_width)
+            top = round((scaled_height - target_height) / 2 - safe_offset_y * target_height)
+            left = max(0, min(scaled_width - target_width, left))
+            top = max(0, min(scaled_height - target_height, top))
+            cropped = scaled.crop((left, top, left + target_width, top + target_height))
+            output = BytesIO()
+            cropped.save(output, format="PNG", optimize=True)
             return output.getvalue()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("封面来源不是有效图片") from error
@@ -2048,16 +2098,16 @@ def create_app(
         analyzing = repository.start_generation(task_id, payload.expected_task_version)
         parsed = parse_markdown(analyzing["normalized_markdown"], analyzing["title"])
         recent_summaries = repository.list_recent_component_summaries(analyzing["account_id"], analyzing["history_window"])
+        brand_config = public_brand_profile(app.state.brand_profile)
+        request = TextPlannerRequest(
+            parsed=parsed,
+            article_type=analyzing["article_type"],
+            history_window=analyzing["history_window"],
+            recent_summaries=recent_summaries,
+            brand_config=brand_config,
+        )
         planner_call_count = 0
         if payload.planner in {"intelligent", "host_agent"}:
-            brand_config = public_brand_profile(app.state.brand_profile)
-            request = TextPlannerRequest(
-                parsed=parsed,
-                article_type=analyzing["article_type"],
-                history_window=analyzing["history_window"],
-                recent_summaries=recent_summaries,
-                brand_config=brand_config,
-            )
             if payload.planner == "host_agent":
                 result = adopt_host_agent_editorial_brief(
                     payload.editorial_brief,
@@ -2070,20 +2120,14 @@ def create_app(
                 planner_call_count = 1
                 prompt_version = TEXT_PLANNER_PROMPT_VERSION
             try:
-                plans = compile_editorial_brief_variants(
-                    parsed,
-                    result.brief,
-                    analyzing["history_window"],
-                    recent_summaries,
-                )
+                plans = [compile_editorial_brief_recommended(
+                    parsed, result.brief, analyzing["history_window"], recent_summaries
+                )]
             except EditorialBriefCompileError as exc:
                 fallback_brief = build_rule_based_brief(request)
-                plans = compile_editorial_brief_variants(
-                    parsed,
-                    fallback_brief,
-                    analyzing["history_window"],
-                    recent_summaries,
-                )
+                plans = [compile_editorial_brief_recommended(
+                    parsed, fallback_brief, analyzing["history_window"], recent_summaries
+                )]
                 result = TextPlannerResult(
                     brief=fallback_brief,
                     provider=result.provider,
@@ -2118,12 +2162,12 @@ def create_app(
                 "provider_error_code": result.provider_error_code,
             }
         else:
-            plans = generate_plans(
+            plans = [compile_editorial_brief_recommended(
                 parsed,
-                analyzing["article_type"],
+                build_rule_based_brief(request),
                 analyzing["history_window"],
                 recent_summaries,
-            )
+            )]
             planner_metadata = {
                 "mode": "rule",
                 "provider": "deterministic_baseline",
@@ -2135,14 +2179,6 @@ def create_app(
         for plan in plans:
             plan["planner_metadata"] = planner_metadata
         documents = [render_preview(parsed, plan, brand_profile=app.state.brand_profile) for plan in plans]
-        if payload.planner in {"intelligent", "host_agent"}:
-            fingerprints = {plan.get("structure_fingerprint") for plan in plans}
-            if None in fingerprints or len(fingerprints) != 1:
-                raise RuntimeError("双视觉系统没有共享同一份智能结构")
-            if len(set(documents)) != len(documents):
-                raise RuntimeError("双视觉系统渲染结果没有形成可见差异")
-        elif structural_difference_count(plans) < 2:
-            raise RuntimeError("候选方案结构差异不足")
         repository.save_plans(task_id, plans, documents)
         return {
             "task_id": task_id,
@@ -2294,7 +2330,7 @@ def create_app(
             for plan in plans
             if plan.get("structure_fingerprint")
         }
-        shared_structure = len(plans) == 2 and len(structure_fingerprints) == 1
+        shared_structure = len(structure_fingerprints) == 1
         return {
             "task_id": task_id,
             "selected_plan_id": task["selected_plan_id"],
@@ -2302,11 +2338,8 @@ def create_app(
             "comparison": {
                 "structural_difference_count": structural_difference_count(plans),
                 "shared_structure": shared_structure,
-                "summary": (
-                    "共享同一份智能结构，只比较轻盈阅读与编辑对比两套视觉系统。"
-                    if shared_structure
-                    else "两套方案在组件组合、出现位置、密度与基础阅读节奏上存在结构差异。"
-                ),
+                "mode": "single_recommendation",
+                "summary": "已推荐一套完整主题；可在不改变正文、图片和组件锚点的前提下即时换主题并回退。",
             },
         }
 
@@ -2367,6 +2400,53 @@ def create_app(
             "plan": plan_for_workbench(saved),
         }
 
+    @app.patch("/api/v1/article-tasks/{task_id}/plans/{plan_id}/theme")
+    def update_plan_theme(task_id: str, plan_id: str, payload: UpdateThemeRequest) -> Any:
+        repository.assert_task_editable(task_id)
+        current = repository.get_plan(task_id, plan_id)
+        if current["revision"] != payload.expected_plan_revision:
+            raise VersionConflictError("方案已被更新，请刷新后重试")
+        if payload.visual_system == (current.get("visual_system") or current.get("style_mode")):
+            return _error(409, "theme_unchanged", "当前文章已经使用该主题")
+
+        previous_visual_system = current.get("visual_system") or current.get("style_mode")
+        revised = apply_visual_system(
+            current,
+            payload.visual_system,
+            previous_visual_system=current.get("visual_system_metadata", {}).get("previous_visual_system"),
+            recommended_visual_system=current.get("visual_system_metadata", {}).get("recommended_visual_system"),
+        )
+        revised["revision"] = current["revision"] + 1
+        revised["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
+        task = repository.get_task(task_id)
+        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        revised = validate_plan_for_article(revised, parsed)
+        document = render_preview(parsed, revised, brand_profile=app.state.brand_profile)
+        saved = repository.save_plan_revision(
+            task_id=task_id,
+            plan_id=plan_id,
+            plan=revised,
+            html_document=document,
+            change_reason=payload.reason,
+            event_type="visual_theme_switched",
+            event_payload={
+                "from_visual_system": previous_visual_system,
+                "to_visual_system": payload.visual_system,
+                "planner_called": False,
+                "images_regenerated": False,
+            },
+        )
+        return {
+            "task_id": task_id,
+            "plan_id": plan_id,
+            "revision": saved["revision"],
+            "preview_url": f'/api/v1/render-artifacts/{saved["preview_artifact_id"]}/content',
+            "preview_content_hash": saved["preview_content_hash"],
+            "planner_called": False,
+            "images_regenerated": False,
+            "plan": plan_for_workbench(saved),
+        }
+
     @app.get("/api/v1/article-tasks/{task_id}/plans/{plan_id}/revisions")
     def list_plan_revisions(task_id: str, plan_id: str) -> dict[str, Any]:
         return {"items": repository.list_plan_revisions(task_id, plan_id)}
@@ -2379,7 +2459,7 @@ def create_app(
             raise VersionConflictError("方案已被更新，请刷新后重试")
         undo_stack = current.get("undo_stack", [])
         if not undo_stack:
-            return _error(409, "nothing_to_undo", "没有可撤回的局部换型")
+            return _error(409, "nothing_to_undo", "没有可撤回的主题或方案修改")
         target_revision = undo_stack[-1]
         target = repository.get_plan_revision(task_id, plan_id, target_revision)
         restored = copy.deepcopy(target)
@@ -2547,12 +2627,17 @@ def create_app(
         task = repository.get_task(task_id)
         if task["version"] != payload.expected_task_version:
             raise VersionConflictError("任务已被更新，请刷新后重试")
-        prompt = build_cover_prompt(workspace["cover_brief"])
+        candidate_index = len(workspace["candidates"]) + 1
+        prompt = build_cover_prompt(
+            workspace["cover_brief"],
+            prompt_profile=image_prompt_profile(app.state.image_provider),
+            candidate_index=candidate_index,
+        )
         try:
             generated = app.state.image_provider.generate(
                 prompt=prompt,
                 aspect_ratio="4:3",
-                candidate_index=len(workspace["candidates"]) + 1,
+                candidate_index=candidate_index,
             )
             fitted = _fit_cover(generated.content)
         except ImageProviderError as error:
@@ -2669,6 +2754,154 @@ def create_app(
         )
         return {"task": _public_task(updated), "workspace": cover_workspace(task_id, plan_id)}
 
+    @app.post("/api/v1/article-tasks/{task_id}/plans/{plan_id}/cover-candidates/fallback")
+    def use_theme_fallback_cover(
+        task_id: str,
+        plan_id: str,
+        payload: GenerateCoverRequest,
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
+    ) -> dict[str, Any]:
+        """Skip model/upload while still satisfying WeChat's required cover asset."""
+        repository.assert_task_editable(task_id)
+        workspace = cover_workspace(task_id, plan_id)
+        task = repository.get_task(task_id)
+        if task["version"] != payload.expected_task_version:
+            raise VersionConflictError("任务已被更新，请刷新后重试")
+        report = task["input_summary"].get("preflight_report") or {}
+        cover_finding = next(
+            (
+                item
+                for item in report.get("findings", [])
+                if item.get("code") in {"missing_cover", "placeholder_cover", "cover_requires_import"}
+            ),
+            None,
+        )
+        if cover_finding is None:
+            raise NotFoundError("当前任务没有可替换的封面预检项")
+        content = build_theme_fallback_cover(workspace["cover_brief"])
+        candidate = repository.add_cover_candidate(
+            task_id=task_id,
+            plan_id=plan_id,
+            source_type="theme_fallback",
+            source_resource_id=None,
+            provider="deterministic_fallback",
+            model="theme-cover-v1",
+            provider_prompt="local image-only theme fallback cover; no model request",
+            content=content,
+            content_type="image/png",
+            extension=".png",
+            width=1080,
+            height=864,
+            latency_ms=0,
+            machine_checks={
+                "file_valid": True,
+                "ratio_valid": True,
+                "qr_risk": "none",
+                "text_risk": "none",
+                "logo_risk": "none",
+                "person_risk": "none",
+                "generation_mode": "deterministic_theme_fallback",
+            },
+        )
+        updated = repository.replace_preflight_asset(
+            task_id=task_id,
+            finding_code=cover_finding["code"],
+            block_id=cover_finding.get("block_id"),
+            expected_version=payload.expected_task_version,
+            content=content,
+            content_type="image/png",
+            extension=".png",
+            width=1080,
+            height=864,
+            replaced_by=operator_id,
+        )
+        return {
+            "candidate": candidate,
+            "task": _public_task(updated),
+            "workspace": cover_workspace(task_id, plan_id),
+        }
+
+    @app.post("/api/v1/article-tasks/{task_id}/plans/{plan_id}/cover-candidates/{candidate_id}/crop")
+    def crop_cover_candidate(
+        task_id: str,
+        plan_id: str,
+        candidate_id: str,
+        payload: CropCoverRequest,
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
+    ) -> dict[str, Any]:
+        repository.assert_task_editable(task_id)
+        workspace = cover_workspace(task_id, plan_id)
+        task = repository.get_task(task_id)
+        if task["version"] != payload.expected_task_version:
+            raise VersionConflictError("任务已被更新，请刷新后重试")
+        source_candidate = repository.get_cover_candidate(candidate_id)
+        if source_candidate["task_id"] != task_id or source_candidate["plan_id"] != plan_id:
+            raise NotFoundError("封面候选不属于当前方案")
+        report = task["input_summary"].get("preflight_report") or {}
+        cover_finding = next(
+            (
+                item
+                for item in report.get("findings", [])
+                if item.get("code") in {"missing_cover", "placeholder_cover", "cover_requires_import"}
+            ),
+            None,
+        )
+        if cover_finding is None:
+            raise NotFoundError("当前任务没有可替换的封面预检项")
+        source_path, _ = repository.get_cover_candidate_asset(candidate_id)
+        content = _crop_cover(
+            source_path.read_bytes(),
+            scale=payload.scale,
+            offset_x=payload.offset_x,
+            offset_y=payload.offset_y,
+        )
+        candidate = repository.add_cover_candidate(
+            task_id=task_id,
+            plan_id=plan_id,
+            source_type="custom_crop",
+            source_resource_id=candidate_id,
+            provider="deterministic_crop",
+            model="fixed-frame-cover-crop-v1",
+            provider_prompt=(
+                f"fixed 5:4 crop; scale={payload.scale:.4f}; "
+                f"offset_x={payload.offset_x:.4f}; offset_y={payload.offset_y:.4f}"
+            ),
+            content=content,
+            content_type="image/png",
+            extension=".png",
+            width=1080,
+            height=864,
+            latency_ms=0,
+            machine_checks={
+                "file_valid": True,
+                "ratio_valid": True,
+                "generation_mode": "operator_fixed_frame_crop",
+                "source_candidate_id": candidate_id,
+                "crop_transform": {
+                    "scale": payload.scale,
+                    "offset_x": payload.offset_x,
+                    "offset_y": payload.offset_y,
+                },
+            },
+        )
+        updated = repository.replace_preflight_asset(
+            task_id=task_id,
+            finding_code=cover_finding["code"],
+            block_id=cover_finding.get("block_id"),
+            expected_version=payload.expected_task_version,
+            content=content,
+            content_type="image/png",
+            extension=".png",
+            width=1080,
+            height=864,
+            replaced_by=operator_id,
+        )
+        return {
+            "candidate": candidate,
+            "task": _public_task(updated),
+            "workspace": cover_workspace(task_id, plan_id),
+        }
+
     @app.get("/api/v1/cover-candidates/{candidate_id}/content")
     def cover_candidate_content(candidate_id: str) -> FileResponse:
         path, content_type = repository.get_cover_candidate_asset(candidate_id)
@@ -2757,16 +2990,19 @@ def create_app(
                     },
                 )
             else:
+                candidate_index = len(state["candidates"]) + 1
                 prompt = build_provider_prompt(
                     image_slot,
                     str(plan.get("article_type", "viewpoint_trend")),
                     infographic_title=infographic_title,
                     infographic_items=infographic_items,
+                    prompt_profile=image_prompt_profile(app.state.image_provider),
+                    candidate_index=candidate_index,
                 )
                 generated = app.state.image_provider.generate(
                     prompt=prompt,
                     aspect_ratio=image_slot["aspect_ratio"],
-                    candidate_index=len(state["candidates"]) + 1,
+                    candidate_index=candidate_index,
                 )
                 raw_content = generated.content
             if image_slot["purpose"] == "structured_infographic" and payload.mode != "fallback":

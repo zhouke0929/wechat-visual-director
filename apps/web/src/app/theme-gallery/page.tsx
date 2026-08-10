@@ -20,22 +20,22 @@ export default function ThemeGalleryPage() {
         <Link href="/">← 返回任务台</Link>
         <div>
           <strong>主题样本册</strong>
-          <span>THEME KIT PROOF · ROUND 01</span>
+          <span>VISUAL THEME LIBRARY · LIVE COLLECTION</span>
         </div>
       </header>
 
       <section className={styles.hero}>
-        <p>FROM COLOR SKINS TO THEME KITS</p>
-        <h1>统一设计基因，<br />拒绝统一卡片形状。</h1>
+        <p>EXPLORE THE VISUAL LANGUAGE</p>
+        <h1>每一种主题，<br />都是一套完整阅读气质。</h1>
         <div className={styles.heroFoot}>
           <p>
-            六套主题已经进入同一套正式渲染链路：每套包含六类节奏部件和八类语义组件。
-            青春校园强调参与感，未来科技强调浅色信号秩序；两者都不是简单换色。
+            这里展示当前可用于真实公众号文章的完整视觉主题。每套主题都有独立的标题、留白、图文节奏与语义组件，
+            新主题会持续加入，同一篇文章也可以在工作台即时切换。
           </p>
           <dl>
-            <div><dt>正式主题</dt><dd>06</dd></div>
+            <div><dt>当前主题</dt><dd>{String(themes.length || 6).padStart(2, "0")}</dd></div>
             <div><dt>单套部件</dt><dd>14</dd></div>
-            <div><dt>目标主题</dt><dd>10</dd></div>
+            <div><dt>更新方式</dt><dd>持续</dd></div>
           </dl>
         </div>
       </section>
@@ -48,7 +48,7 @@ export default function ThemeGalleryPage() {
           <Link className={styles.themeCard} href={`/theme-gallery/${theme.id}`} key={theme.id}>
             <div className={styles.cardTop}>
               <span>{String(index + 1).padStart(2, "0")}</span>
-              <small>{theme.status === "theme_kit_v1_review" ? "NEW KIT · " : "LEGACY · "}{theme.english}</small>
+              <small>VISUAL SYSTEM · {theme.english}</small>
             </div>
             <div className={styles.palette} aria-label={`${theme.label}色板`}>
               {theme.palette.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
@@ -59,8 +59,8 @@ export default function ThemeGalleryPage() {
               {theme.ideal_for.map((item) => <span key={item}>{item}</span>)}
             </div>
             <footer>
-              <span>{theme.status === "theme_kit_v1_review" ? "6 个节奏部件 + 8 个语义组件" : `${theme.core_component_count} 个旧版组件`}</span>
-              <strong>进入主题评审 →</strong>
+              <span>6 个节奏部件 + 8 个语义组件</span>
+              <strong>查看完整主题 →</strong>
             </footer>
           </Link>
         ))}

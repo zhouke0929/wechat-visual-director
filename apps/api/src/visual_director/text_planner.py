@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import json
-import os
 import time
-import urllib.error
-import urllib.request
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -25,15 +21,6 @@ from .planner import component_opportunity_diagnostics, generate_plans
 
 TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.6-concept-groups"
 HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.3-concept-groups"
-DEFAULT_QWEN_ENDPOINT = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-QWEN_MODEL_PRICES_CNY_PER_MILLION = {
-    "qwen3.6-flash": (1.2, 7.2),
-    "qwen3.6-flash-2026-04-16": (1.2, 7.2),
-    "qwen3.7-max": (12.0, 36.0),
-    "qwen3.7-max-2026-05-20": (12.0, 36.0),
-    "qwen3.7-max-2026-06-08": (12.0, 36.0),
-}
-MAX_TEXT_RESPONSE_BYTES = 2 * 1024 * 1024
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -175,40 +162,6 @@ class TextPlannerResult:
     diagnostics: dict[str, Any] | None = None
 
 
-@dataclass(frozen=True)
-class ProviderEditorialBrief:
-    brief: EditorialBrief
-    repair_count: int
-    input_tokens: int
-    output_tokens: int
-    estimated_cost_yuan: float
-    normalization_adjustments: list[dict[str, str]]
-    diagnostics: dict[str, Any]
-
-
-class TextPlannerProviderError(RuntimeError):
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        *,
-        retryable: bool,
-        input_tokens: int = 0,
-        output_tokens: int = 0,
-        estimated_cost_yuan: float = 0.0,
-        details: dict[str, Any] | None = None,
-        repair_count: int = 0,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.retryable = retryable
-        self.input_tokens = input_tokens
-        self.output_tokens = output_tokens
-        self.estimated_cost_yuan = estimated_cost_yuan
-        self.details = details or {}
-        self.repair_count = repair_count
-
-
 class TextPlannerProvider(Protocol):
     provider: str
     model: str
@@ -217,7 +170,7 @@ class TextPlannerProvider(Protocol):
     def generate(
         self,
         request: TextPlannerRequest,
-    ) -> EditorialBrief | dict[str, Any] | ProviderEditorialBrief: ...
+    ) -> EditorialBrief | dict[str, Any]: ...
 
 
 ARTICLE_ANALYSIS: dict[str, dict[str, Any]] = {
@@ -337,41 +290,19 @@ def build_rule_based_brief(request: TextPlannerRequest) -> EditorialBrief:
     return validate_editorial_brief_for_article(brief, request.parsed)
 
 
-class MockTextPlannerProvider:
-    provider = "mock_text_planner"
+class RuleTextPlannerProvider:
+    provider = "rule_text_planner"
     model = "deterministic_editorial_brief"
-    configured = True
+    configured = False
 
     def generate(self, request: TextPlannerRequest) -> EditorialBrief:
         return build_rule_based_brief(request)
 
 
-def build_qwen_messages(request: TextPlannerRequest, repair_error: str | None = None) -> list[dict[str, str]]:
-    context = build_host_agent_planner_context(request)
-    instruction = {
-        "task": "根据输入文章生成公众号视觉主编 EditorialBrief，并且只返回一个 JSON 对象。",
-        "input": context["planner_input"],
-        "json_schema": context["json_schema"],
-        "output_rules": context["output_rules"],
-    }
-    if repair_error:
-        instruction["repair"] = {
-            "message": "上一轮 JSON 未通过严格校验。只修复结构和引用错误，不改变原文事实。",
-            "validation_error": repair_error[:2000],
-        }
-    return [
-        {
-            "role": "system",
-            "content": (
-                "你是公众号编辑规划器。你只能基于用户提供的原文块进行判断，"
-                "必须输出符合给定 JSON Schema 的 JSON 对象。"
-            ),
-        },
-        {
-            "role": "user",
-            "content": json.dumps(instruction, ensure_ascii=False, separators=(",", ":")),
-        },
-    ]
+# Backward-compatible import name for older tests and integrations. Runtime
+# metadata uses ``rule_text_planner`` so hosts do not mistake the deterministic
+# fallback for a mocked external model.
+MockTextPlannerProvider = RuleTextPlannerProvider
 
 
 def adopt_host_agent_editorial_brief(
@@ -413,192 +344,17 @@ def adopt_host_agent_editorial_brief(
         )
 
 
-class QwenTextPlannerProvider:
-    provider = "aliyun_qwen"
-
-    def __init__(
-        self,
-        *,
-        api_key: str,
-        model: str,
-        endpoint: str = DEFAULT_QWEN_ENDPOINT,
-        timeout_seconds: int = 90,
-        urlopen: Any = urllib.request.urlopen,
-    ) -> None:
-        if model not in QWEN_MODEL_PRICES_CNY_PER_MILLION:
-            raise ValueError(f"未冻结价格的 Qwen 模型：{model}")
-        if not endpoint.startswith("https://"):
-            raise ValueError("Qwen endpoint 必须使用 HTTPS")
-        if not 30 <= timeout_seconds <= 180:
-            raise ValueError("Qwen timeout 必须在 30–180 秒之间")
-        self.api_key = api_key.strip()
-        self.model = model
-        self.endpoint = endpoint
-        self.timeout_seconds = timeout_seconds
-        self._urlopen = urlopen
-        self.configured = bool(self.api_key)
-
-    @staticmethod
-    def _usage(payload: dict[str, Any]) -> tuple[int, int]:
-        usage = payload.get("usage", {})
-        return int(usage.get("prompt_tokens", 0)), int(usage.get("completion_tokens", 0))
-
-    def _estimated_cost(self, input_tokens: int, output_tokens: int) -> float:
-        input_price, output_price = QWEN_MODEL_PRICES_CNY_PER_MILLION[self.model]
-        return round((input_tokens * input_price + output_tokens * output_price) / 1_000_000, 6)
-
-    def _call(
-        self,
-        request: TextPlannerRequest,
-        *,
-        repair_error: str | None = None,
-    ) -> tuple[str, int, int]:
-        if not self.configured:
-            raise TextPlannerProviderError("qwen_not_configured", "Qwen API Key 未配置。", retryable=False)
-        body = {
-            "model": self.model,
-            "messages": build_qwen_messages(request, repair_error),
-            "response_format": {"type": "json_object"},
-            "enable_thinking": False,
-            "temperature": 0.2,
-            "stream": False,
-        }
-        http_request = urllib.request.Request(
-            self.endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with self._urlopen(http_request, timeout=self.timeout_seconds) as response:
-                raw = response.read(MAX_TEXT_RESPONSE_BYTES + 1)
-        except urllib.error.HTTPError as exc:
-            if exc.code in {401, 403}:
-                raise TextPlannerProviderError("qwen_auth_failed", "Qwen Key 无效或没有模型权限。", retryable=False) from exc
-            if exc.code == 429:
-                raise TextPlannerProviderError("qwen_rate_limited", "Qwen 请求受到限流。", retryable=True) from exc
-            if exc.code >= 500:
-                raise TextPlannerProviderError("qwen_unavailable", "Qwen 服务暂时不可用。", retryable=True) from exc
-            raise TextPlannerProviderError(
-                "qwen_request_rejected",
-                f"Qwen 拒绝请求，状态码 {exc.code}。",
-                retryable=False,
-            ) from exc
-        except (urllib.error.URLError, TimeoutError) as exc:
-            raise TextPlannerProviderError("qwen_network_error", "Qwen 网络连接或响应超时。", retryable=True) from exc
-        if len(raw) > MAX_TEXT_RESPONSE_BYTES:
-            raise TextPlannerProviderError("qwen_response_too_large", "Qwen 响应超过安全大小限制。", retryable=False)
-        try:
-            payload = json.loads(raw.decode("utf-8"))
-            content = payload["choices"][0]["message"]["content"]
-        except (UnicodeDecodeError, json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
-            raise TextPlannerProviderError("qwen_response_invalid", "Qwen 返回结构无法解析。", retryable=False) from exc
-        input_tokens, output_tokens = self._usage(payload)
-        if not isinstance(content, str):
-            content = ""
-        return content, input_tokens, output_tokens
-
-    @staticmethod
-    def _safe_error(exc: Exception) -> dict[str, Any]:
-        if isinstance(exc, ValidationError):
-            errors = exc.errors(include_url=False, include_input=False)
-            for error in errors:
-                if "ctx" in error:
-                    error["ctx"] = {
-                        key: str(value)
-                        for key, value in error["ctx"].items()
-                    }
-            return {
-                "type": type(exc).__name__,
-                "errors": errors,
-            }
-        return {"type": type(exc).__name__, "message": str(exc)[:2000]}
-
-    @staticmethod
-    def _validate_content(
-        content: str,
-        request: TextPlannerRequest,
-    ) -> tuple[EditorialBrief, list[dict[str, str]]]:
-        decoded = json.loads(content)
-        return normalize_editorial_brief_for_article(decoded, request.parsed)
-
-    def generate(self, request: TextPlannerRequest) -> ProviderEditorialBrief:
-        total_input = 0
-        total_output = 0
-        content, input_tokens, output_tokens = self._call(request)
-        total_input += input_tokens
-        total_output += output_tokens
-        diagnostics: dict[str, Any] = {}
-        try:
-            brief, adjustments = self._validate_content(content, request)
-            repair_count = 0
-        except (json.JSONDecodeError, ValidationError, ValueError) as first_error:
-            diagnostics["first_validation_error"] = self._safe_error(first_error)
-            try:
-                repaired, input_tokens, output_tokens = self._call(
-                    request,
-                    repair_error=f"{type(first_error).__name__}: {first_error}",
-                )
-            except TextPlannerProviderError as repair_call_error:
-                raise TextPlannerProviderError(
-                    repair_call_error.code,
-                    str(repair_call_error),
-                    retryable=repair_call_error.retryable,
-                    input_tokens=total_input + repair_call_error.input_tokens,
-                    output_tokens=total_output + repair_call_error.output_tokens,
-                    estimated_cost_yuan=self._estimated_cost(
-                        total_input + repair_call_error.input_tokens,
-                        total_output + repair_call_error.output_tokens,
-                    ),
-                    details=diagnostics | repair_call_error.details,
-                    repair_count=1,
-                ) from repair_call_error
-            total_input += input_tokens
-            total_output += output_tokens
-            try:
-                brief, adjustments = self._validate_content(repaired, request)
-            except (json.JSONDecodeError, ValidationError, ValueError) as second_error:
-                diagnostics["second_validation_error"] = self._safe_error(second_error)
-                raise TextPlannerProviderError(
-                    "qwen_output_invalid_after_repair",
-                    f"Qwen 修复后仍未通过 EditorialBrief 校验：{type(second_error).__name__}",
-                    retryable=False,
-                    input_tokens=total_input,
-                    output_tokens=total_output,
-                    estimated_cost_yuan=self._estimated_cost(total_input, total_output),
-                    details=diagnostics,
-                    repair_count=1,
-                ) from second_error
-            repair_count = 1
-        return ProviderEditorialBrief(
-            brief=brief,
-            repair_count=repair_count,
-            input_tokens=total_input,
-            output_tokens=total_output,
-            estimated_cost_yuan=self._estimated_cost(total_input, total_output),
-            normalization_adjustments=adjustments,
-            diagnostics=diagnostics,
-        )
-
-
 def create_text_planner_provider_from_env(
     environ: dict[str, str] | None = None,
 ) -> TextPlannerProvider:
-    values = environ if environ is not None else os.environ
-    mode = values.get("VISUAL_DIRECTOR_TEXT_PROVIDER", "mock").strip().lower()
-    if mode in {"qwen_flash", "qwen_max"}:
-        model = "qwen3.6-flash" if mode == "qwen_flash" else "qwen3.7-max"
-        return QwenTextPlannerProvider(
-            api_key=values.get("DASHSCOPE_API_KEY", ""),
-            model=values.get("QWEN_TEXT_MODEL", model),
-            endpoint=values.get("QWEN_API_ENDPOINT", DEFAULT_QWEN_ENDPOINT),
-        )
-    if mode != "mock":
-        raise ValueError("VISUAL_DIRECTOR_TEXT_PROVIDER 只允许 mock、qwen_flash 或 qwen_max")
-    return MockTextPlannerProvider()
+    """Return the zero-configuration rule fallback.
+
+    ``environ`` remains accepted so older callers and private config files do
+    not break after the retired Qwen BYOK path is removed. No value in that
+    mapping triggers an external text-model request.
+    """
+    del environ
+    return RuleTextPlannerProvider()
 
 
 def generate_editorial_brief(
@@ -608,22 +364,13 @@ def generate_editorial_brief(
     started = time.perf_counter()
     try:
         raw = provider.generate(request)
-        if isinstance(raw, ProviderEditorialBrief):
-            brief = raw.brief
-            repair_count = raw.repair_count
-            input_tokens = raw.input_tokens
-            output_tokens = raw.output_tokens
-            estimated_cost_yuan = raw.estimated_cost_yuan
-            normalization_adjustments = raw.normalization_adjustments
-            diagnostics = raw.diagnostics
-        else:
-            brief = validate_editorial_brief_for_article(raw, request.parsed)
-            repair_count = 0
-            input_tokens = 0
-            output_tokens = 0
-            estimated_cost_yuan = 0.0
-            normalization_adjustments = []
-            diagnostics = {}
+        brief = validate_editorial_brief_for_article(raw, request.parsed)
+        repair_count = 0
+        input_tokens = 0
+        output_tokens = 0
+        estimated_cost_yuan = 0.0
+        normalization_adjustments: list[dict[str, str]] = []
+        diagnostics: dict[str, Any] = {}
         return TextPlannerResult(
             brief=brief,
             provider=provider.provider,
@@ -639,7 +386,6 @@ def generate_editorial_brief(
         )
     except Exception as exc:
         fallback = build_rule_based_brief(request)
-        provider_error = exc if isinstance(exc, TextPlannerProviderError) else None
         return TextPlannerResult(
             brief=fallback,
             provider=provider.provider,
@@ -647,11 +393,11 @@ def generate_editorial_brief(
             latency_ms=round((time.perf_counter() - started) * 1000),
             fallback_used=True,
             fallback_reason=f"{type(exc).__name__}: {exc}",
-            repair_count=provider_error.repair_count if provider_error else 0,
-            estimated_cost_yuan=provider_error.estimated_cost_yuan if provider_error else 0.0,
-            input_tokens=provider_error.input_tokens if provider_error else 0,
-            output_tokens=provider_error.output_tokens if provider_error else 0,
-            provider_error_code=provider_error.code if provider_error else None,
+            repair_count=0,
+            estimated_cost_yuan=0.0,
+            input_tokens=0,
+            output_tokens=0,
+            provider_error_code=None,
             normalization_adjustments=[],
-            diagnostics=provider_error.details if provider_error else {},
+            diagnostics={},
         )

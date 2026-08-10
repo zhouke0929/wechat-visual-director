@@ -75,7 +75,7 @@ const targetCards: Array<{
     mode: "typeset_only",
     index: "A",
     name: "只做排版",
-    description: "不配置任何外部 API，也能生成双方案、切换组件并导出全文。",
+    description: "不配置任何外部 API，也能生成推荐稿、整篇换主题并导出全文。",
     output: "复制全文 / 下载交付包",
   },
   {

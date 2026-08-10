@@ -367,6 +367,42 @@ class Repository:
             (json.dumps(DEFAULT_PUBLICATION_DRAFT_METADATA, ensure_ascii=False),),
         )
         self.connection.commit()
+        self._backfill_frozen_visual_history()
+
+    def _backfill_frozen_visual_history(self) -> None:
+        """Recover lightweight theme history for databases created before D328."""
+        rows = self.connection.execute(
+            """SELECT t.id AS task_id, t.account_id, p.id AS revision_id,
+                      p.visual_plan_json, p.frozen_at
+               FROM tasks t
+               JOIN publication_revisions p ON p.id = (
+                   SELECT p2.id FROM publication_revisions p2
+                   WHERE p2.task_id = t.id
+                   ORDER BY p2.revision_number DESC LIMIT 1
+               )
+               WHERE NOT EXISTS (
+                   SELECT 1 FROM recent_article_component_summaries h
+                   WHERE h.account_id = t.account_id AND h.task_id = t.id
+               )"""
+        ).fetchall()
+        if not rows:
+            return
+        with self.lock:
+            for row in rows:
+                plan = json.loads(row["visual_plan_json"])
+                self._record_confirmed_component_summary_locked(
+                    account_id=str(row["account_id"]),
+                    task_id=str(row["task_id"]),
+                    visual_system=plan.get("visual_system") or plan.get("style_mode"),
+                    structure_fingerprint=plan.get("structure_fingerprint"),
+                    publication_revision_id=str(row["revision_id"]),
+                    components=[
+                        {"component_type": slot["component_type"], "variant": slot["variant"]}
+                        for slot in plan.get("slots", [])
+                    ],
+                    now=str(row["frozen_at"]),
+                )
+            self.connection.commit()
 
     @staticmethod
     def _progress(status: str = "pending") -> list[dict[str, Any]]:
@@ -374,7 +410,7 @@ class Repository:
             ("parse_input", "解析 Markdown"),
             ("content_director", "识别文章类型"),
             ("load_context", "读取品牌与历史"),
-            ("visual_planner", "生成双方案"),
+            ("visual_planner", "生成推荐稿"),
             ("validate_plans", "校验结构差异"),
             ("render_plan_previews", "渲染 390px 预览"),
         )
@@ -542,10 +578,6 @@ class Repository:
                         f"DELETE FROM publication_assets WHERE revision_id IN ({revision_placeholders})",
                         revision_ids,
                     )
-                self.connection.execute(
-                    f"DELETE FROM recent_article_component_summaries WHERE task_id IN ({task_placeholders})",
-                    existing_ids,
-                )
                 self.connection.execute(
                     f"DELETE FROM publication_revisions WHERE task_id IN ({task_placeholders})",
                     existing_ids,
@@ -928,6 +960,7 @@ class Repository:
     def save_plans(self, task_id: str, plans: list[dict[str, Any]], html_documents: list[str]) -> dict[str, Any]:
         now = utc_now()
         with self.lock:
+            created_plan_ids: list[str] = []
             old_cover_assets = self.connection.execute(
                 "SELECT output_filename FROM cover_candidates WHERE task_id = ?",
                 (task_id,),
@@ -956,6 +989,7 @@ class Repository:
             self.connection.execute("DELETE FROM artifacts WHERE task_id = ?", (task_id,))
             for plan, document in zip(plans, html_documents, strict=True):
                 plan_id, artifact_id = str(uuid.uuid4()), str(uuid.uuid4())
+                created_plan_ids.append(plan_id)
                 payload = {
                     **plan,
                     "id": plan_id,
@@ -996,10 +1030,24 @@ class Repository:
             progress = task["progress"]
             for step in progress:
                 step.update(status="succeeded", finished_at=now)
-            self.connection.execute(
-                "UPDATE tasks SET status = 'plans_ready', version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?",
-                (json.dumps(progress, ensure_ascii=False), now, task_id),
-            )
+            if len(created_plan_ids) == 1:
+                selected_plan_id = created_plan_ids[0]
+                self.connection.execute(
+                    """UPDATE tasks SET status = 'plan_selected', selected_plan_id = ?,
+                    version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?""",
+                    (selected_plan_id, json.dumps(progress, ensure_ascii=False), now, task_id),
+                )
+                self._record_event_locked(
+                    task_id,
+                    "plan_auto_selected",
+                    {"plan_id": selected_plan_id, "reason": "single_recommendation"},
+                    now,
+                )
+            else:
+                self.connection.execute(
+                    "UPDATE tasks SET status = 'plans_ready', version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?",
+                    (json.dumps(progress, ensure_ascii=False), now, task_id),
+                )
             self.connection.commit()
         return self.get_task(task_id)
 
@@ -1923,6 +1971,7 @@ class Repository:
                     },
                     now,
                 )
+                self._record_publication_history_locked(task=task, revision=revision, now=now)
                 self._record_idempotency_locked(
                     scope="freeze",
                     idempotency_key=idempotency_key,
@@ -2249,8 +2298,6 @@ class Repository:
                 response=None,
                 now=now,
             )
-            if final_status == "succeeded":
-                self._record_publication_history_locked(task=task, revision=revision, now=now)
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task_id)
 
@@ -2465,8 +2512,6 @@ class Repository:
                 {"operation_id": operation_id, "revision_id": revision["id"], "media_id": media_id, "error": error},
                 now,
             )
-            if status == "succeeded":
-                self._record_publication_history_locked(task=task, revision=revision, now=now)
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 
@@ -2611,7 +2656,6 @@ class Repository:
                 response=None,
                 now=now,
             )
-            self._record_publication_history_locked(task=task, revision=revision, now=now)
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 
@@ -2711,8 +2755,6 @@ class Repository:
                 response=None,
                 now=now,
             )
-            if succeeded:
-                self._record_publication_history_locked(task=task, revision=revision, now=now)
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 

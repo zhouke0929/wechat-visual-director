@@ -14,6 +14,7 @@ import {
   acknowledgePreflightFinding,
   acceptImageCandidate,
   continueEditingPublication,
+  cropCoverCandidate,
   createWenyanDraft,
   freezePublication,
   generatePlans,
@@ -37,11 +38,11 @@ import {
   selectPlan,
   selectCoverCandidate,
   skipImageSlot,
-  switchPlanSlot,
+  switchPlanTheme,
   undoPlanChange,
+  useThemeFallbackCover,
 } from "@/lib/api";
 import type {
-  ComponentSlot,
   CoverCandidate,
   CoverReuseSource,
   CoverWorkspace,
@@ -71,27 +72,14 @@ const styleLabels: Record<string, string> = {
   future_tech: "未来科技",
 };
 
-function historyMessage(slot: ComponentSlot): string | null {
-  const history = slot.history_evidence;
-  if (history.penalty_applied && history.avoided_variant) {
-    const avoided = slot.variant_options.find((option) => option.value === history.avoided_variant)?.label ?? "默认轮廓";
-    return `最近 5 篇中「${avoided}」使用更多，已自动选择较少使用的变体`;
-  }
-  if (history.component_use_count > 0) {
-    return `已检查最近 5 篇：当前变体出现 ${history.recent_use_count} 次`;
-  }
-  return null;
-}
-
 export default function TaskReviewPage() {
   const taskId = useRouteParam("tasks");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [planList, setPlanList] = useState<PlanList | null>(null);
-  const [activeMobilePlan, setActiveMobilePlan] = useState(0);
-  const [activeEditorTab, setActiveEditorTab] = useState<"components" | "images" | "cover">("components");
+  const [activeEditorTab, setActiveEditorTab] = useState<"images" | "cover">("images");
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState("");
-  const [editingSlot, setEditingSlot] = useState("");
+  const [switchingTheme, setSwitchingTheme] = useState("");
   const [restoring, setRestoring] = useState("");
   const [imageReview, setImageReview] = useState<ImageSlotList | null>(null);
   const [coverReview, setCoverReview] = useState<CoverWorkspace | null>(null);
@@ -197,25 +185,23 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleVariantSwitch(plan: VisualPlan, slot: ComponentSlot, variant: string) {
-    if (variant === slot.variant) return;
-    const key = `${plan.id}:${slot.slot_id}`;
-    setEditingSlot(key);
+  async function handleThemeSwitch(plan: VisualPlan, visualSystem: string) {
+    if (visualSystem === (plan.visual_system ?? plan.style_mode)) return;
+    setSwitchingTheme(visualSystem);
     setError("");
     setNotice("");
     try {
-      setFocusSlotByPlan((current) => ({ ...current, [plan.id]: slot.slot_id }));
-      const result = await switchPlanSlot(taskId, plan.id, slot.slot_id, variant, plan.revision);
+      const result = await switchPlanTheme(taskId, plan.id, visualSystem, plan.revision);
       setPlanList((current) => current ? {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
-      const label = slot.variant_options.find((item) => item.value === variant)?.label ?? variant;
-      setNotice(`「${slot.component_label}」已切换为${label}；预览已定位并标出变化位置。`);
+      setFocusSlotByPlan((current) => ({ ...current, [plan.id]: "" }));
+      setNotice(`已切换为「${styleLabels[visualSystem] ?? visualSystem}」；正文、图片与结构均未重新生成。`);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "局部换型失败");
+      setError(reason instanceof Error ? reason.message : "切换主题失败");
     } finally {
-      setEditingSlot("");
+      setSwitchingTheme("");
     }
   }
 
@@ -230,7 +216,7 @@ export default function TaskReviewPage() {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
-      setNotice(`方案 ${String.fromCharCode(64 + plan.plan_index)} 已撤回上次局部换型；不会在两个修订间反复切换。`);
+      setNotice("已回到上一个主题版本；不会在两个修订间反复切换。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复修订失败");
     } finally {
@@ -431,6 +417,21 @@ export default function TaskReviewPage() {
     }
   }
 
+  async function handleCoverFallback(plan: VisualPlan) {
+    if (!detail) return;
+    setCoverBusy("fallback");
+    setError("");
+    try {
+      setCoverReview(await useThemeFallbackCover(detail.task, plan.id));
+      await load();
+      setNotice("已跳过生图并采用本地主题保底封面，可继续进入草稿交付。");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "使用主题保底封面失败");
+    } finally {
+      setCoverBusy("");
+    }
+  }
+
   async function handleCoverSelect(plan: VisualPlan, candidate: CoverCandidate) {
     if (!detail) return;
     setCoverBusy(`select:${candidate.id}`);
@@ -441,6 +442,26 @@ export default function TaskReviewPage() {
       setNotice("封面已进入受控发布资产，发布检查已同步更新。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "采用封面失败");
+    } finally {
+      setCoverBusy("");
+    }
+  }
+
+  async function handleCoverCrop(
+    plan: VisualPlan,
+    candidate: CoverCandidate,
+    transform: { scale: number; offsetX: number; offsetY: number },
+  ) {
+    if (!detail) return;
+    setCoverBusy(`crop:${candidate.id}`);
+    setError("");
+    try {
+      setCoverReview(await cropCoverCandidate(detail.task, plan.id, candidate.id, transform));
+      await load();
+      setNotice("裁切后的封面已保存为新资产并自动采用，原始候选仍然保留。");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "保存封面裁切失败");
+      throw reason;
     } finally {
       setCoverBusy("");
     }
@@ -500,7 +521,8 @@ export default function TaskReviewPage() {
       );
       setDetail(nextDetail);
       setSourceAssetRefreshToken((current) => current + 1);
-      const plan = planList?.plans[activeMobilePlan];
+      const plan = planList?.plans.find((item) => item.id === nextDetail.task.selected_plan_id)
+        ?? planList?.plans[0];
       if (finding.block_id && plan) {
         setFocusSlotByPlan((current) => ({ ...current, [plan.id]: finding.block_id! }));
       }
@@ -524,7 +546,7 @@ export default function TaskReviewPage() {
     try {
       await generatePlans(detail.task);
       await load();
-      setNotice("预检门禁已通过，双方案已生成。");
+      setNotice("预检门禁已通过，推荐稿已生成并自动选中。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "生成视觉方案失败");
     } finally {
@@ -656,7 +678,7 @@ export default function TaskReviewPage() {
   }
 
   function handleFindingLocate(blockId: string) {
-    const plan = planList?.plans[activeMobilePlan];
+    const plan = planList?.plans.find((item) => item.id === detail?.task.selected_plan_id) ?? planList?.plans[0];
     if (!plan) return;
     setFocusSlotByPlan((current) => ({ ...current, [plan.id]: blockId }));
     window.requestAnimationFrame(() => {
@@ -674,7 +696,7 @@ export default function TaskReviewPage() {
     return slotId ? `${url}${refreshQuery}#${slotId}` : `${url}${refreshQuery}`;
   }
 
-  function enterWorkbench(tab: "components" | "images" | "cover") {
+  function enterWorkbench(tab: "images" | "cover") {
     setActiveEditorTab(tab);
     window.requestAnimationFrame(() => {
       document.getElementById("editor-workbench")?.scrollIntoView({
@@ -685,7 +707,7 @@ export default function TaskReviewPage() {
   }
 
   if (loading) {
-    return <main className="review-loading" role="status">正在装订两份预览…</main>;
+    return <main className="review-loading" role="status">正在装订推荐稿…</main>;
   }
 
   if (error && !detail) {
@@ -694,7 +716,9 @@ export default function TaskReviewPage() {
 
   if (!detail) return null;
 
-  const activePlan = planList?.plans[activeMobilePlan] ?? null;
+  const activePlan = planList?.plans.find((item) => item.id === detail.task.selected_plan_id)
+    ?? planList?.plans[0]
+    ?? null;
   const activePlanSelected = Boolean(activePlan && detail.task.selected_plan_id === activePlan.id);
   const activeRevision = publicationRevisions.find(
     (item) => item.id === detail.task.active_publication_revision_id,
@@ -749,43 +773,6 @@ export default function TaskReviewPage() {
 
       {planList && !activeRevision ? (
         <>
-          <section className="plan-switcher-shell">
-            <div className="plan-switcher-heading">
-              <div>
-                <span>PLAN SWITCHBOARD</span>
-                <strong>先切换查看方案，再在同一工作台完成修改</strong>
-              </div>
-              <p>
-                {planList.comparison.shared_structure
-                  ? "共享 1 份智能结构 · 2 套视觉系统"
-                  : `两套方案结构差异 ${planList.comparison.structural_difference_count} 项`}
-              </p>
-            </div>
-            <div className="plan-switcher" role="tablist" aria-label="切换视觉方案">
-              {planList.plans.map((plan, index) => {
-                const selected = detail.task.selected_plan_id === plan.id;
-                return (
-                  <button
-                    aria-selected={activeMobilePlan === index}
-                    className={`${activeMobilePlan === index ? "active" : ""} ${selected ? "selected" : ""}`}
-                    key={plan.id}
-                    onClick={() => {
-                      setActiveMobilePlan(index);
-                      setActiveEditorTab("components");
-                    }}
-                    role="tab"
-                    type="button"
-                  >
-                    <span>方案 {String.fromCharCode(65 + index)}</span>
-                    <strong>{plan.plan_name}</strong>
-                    <small>{styleLabels[plan.style_mode] ?? plan.style_mode}</small>
-                    {selected ? <i><CheckIcon />当前已选</i> : null}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
           {publicationVisible ? (
             <div id="publication-console">
               <PublicationPanel
@@ -811,32 +798,68 @@ export default function TaskReviewPage() {
               <aside className="editor-controls">
                 <div className="active-plan-summary">
                   <div className="plan-kicker-row">
-                    <span>方案 {String.fromCharCode(65 + activeMobilePlan)}</span>
+                    <span>推荐主题</span>
                     <span>{styleLabels[activePlan.style_mode] ?? activePlan.style_mode}</span>
                   </div>
                   <h2>{activePlan.plan_name}</h2>
                   <p>{activePlan.summary}</p>
-                  <button
-                    className={activePlanSelected ? "selected-button" : "select-button"}
-                    disabled={activePlanSelected || Boolean(selecting)}
-                    onClick={() => handleSelection(activePlan)}
-                    type="button"
-                  >
-                    {activePlanSelected ? <><CheckIcon />当前已选方案</> : selecting === activePlan.id ? "保存中…" : "选定此方案"}
-                  </button>
+                  <div className="theme-switch-controls">
+                    <label>
+                      <span>整体换主题</span>
+                      <select
+                        aria-label="选择整篇文章主题"
+                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
+                        onChange={(event) => handleThemeSwitch(activePlan, event.target.value)}
+                        value={activePlan.visual_system ?? activePlan.style_mode}
+                      >
+                        {(activePlan.visual_system_metadata?.available_visual_systems ?? [
+                          { value: "light_reading", label: "轻盈阅读", description: "", recent_use_count: 0 },
+                          { value: "warm_humanist", label: "温暖人文", description: "", recent_use_count: 0 },
+                          { value: "youth_campus", label: "青春校园", description: "", recent_use_count: 0 },
+                          { value: "editorial_contrast", label: "编辑对比", description: "", recent_use_count: 0 },
+                          { value: "structured_grid", label: "理性网格", description: "", recent_use_count: 0 },
+                          { value: "future_tech", label: "未来科技", description: "", recent_use_count: 0 },
+                        ]).map((theme) => (
+                          <option key={theme.value} value={theme.value}>
+                            {theme.label}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button
+                      disabled={Boolean(switchingTheme) || Boolean(restoring)}
+                      onClick={() => {
+                        const themes = activePlan.visual_system_metadata?.available_visual_systems ?? [];
+                        const currentIndex = themes.findIndex((item) => item.value === (activePlan.visual_system ?? activePlan.style_mode));
+                        const next = themes.length ? themes[(currentIndex + 1) % themes.length] : null;
+                        if (next) void handleThemeSwitch(activePlan, next.value);
+                      }}
+                      type="button"
+                    >
+                      {switchingTheme ? "换主题中…" : "换一个主题"}
+                    </button>
+                    {(activePlan.undo_stack ?? []).length ? (
+                      <button
+                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
+                        onClick={() => handleRestore(activePlan)}
+                        type="button"
+                      >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
+                    ) : null}
+                  </div>
+                  <small className="theme-switch-note">只更换整套主题语言，不改正文、图片和文章结构；最终冻结后才计入最近五篇。</small>
+                  {!activePlanSelected ? (
+                    <button
+                      className="select-button"
+                      disabled={Boolean(selecting)}
+                      onClick={() => handleSelection(activePlan)}
+                      type="button"
+                    >
+                      {selecting === activePlan.id ? "保存中…" : "选定这篇旧任务方案"}
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="workbench-mode-tabs" role="tablist" aria-label="切换编辑内容">
-                  <button
-                    aria-selected={activeEditorTab === "components"}
-                    className={activeEditorTab === "components" ? "active" : ""}
-                    onClick={() => enterWorkbench("components")}
-                    role="tab"
-                    type="button"
-                  >
-                    <span>{String(activePlan.slots.length).padStart(2, "0")}</span>
-                    组件微调（可选）
-                  </button>
                   <button
                     aria-selected={activeEditorTab === "images"}
                     className={activeEditorTab === "images" ? "active" : ""}
@@ -844,7 +867,7 @@ export default function TaskReviewPage() {
                     role="tab"
                     type="button"
                   >
-                    <span>{String(activePlan.image_slots.length).padStart(2, "0")}</span>
+                    <span>01</span>
                     配图审核
                   </button>
                   <button
@@ -854,76 +877,17 @@ export default function TaskReviewPage() {
                     role="tab"
                     type="button"
                   >
-                    <span>{coverReview?.selected_cover ? "01" : "00"}</span>
+                    <span>02</span>
                     文章封面
                   </button>
                 </div>
 
                 <div className="editor-control-scroll">
-                  {activeEditorTab === "components" ? (
-                    <section className="component-editor workbench-component-editor" aria-label={`${activePlan.plan_name} 局部组件换型`}>
-                      <header className="component-editor-header">
-                        <div>
-                          <span>COMPONENT DECISIONS</span>
-                          <h3>局部组件 · 修订 R{String(activePlan.revision).padStart(2, "0")}</h3>
-                          <small>
-                            {activePlan.component_diagnostics
-                              ? `原稿识别 ${activePlan.component_diagnostics.eligible_component_types.length} 类候选，安全目标 ${activePlan.component_diagnostics.coverage_target ?? "—"} 个，采用 ${activePlan.component_diagnostics.selected_component_count} 个组件${activePlan.component_diagnostics.coverage_added_count ? `（兜底补齐 ${activePlan.component_diagnostics.coverage_added_count} 个）` : ""}`
-                              : "左侧切换，右侧文章内部自动定位"}
-                          </small>
-                        </div>
-                        {(activePlan.undo_stack ?? []).length ? (
-                          <button
-                            disabled={Boolean(editingSlot) || Boolean(restoring)}
-                            onClick={() => handleRestore(activePlan)}
-                            type="button"
-                          >{restoring === activePlan.id ? "撤回中…" : "撤回上次换型"}</button>
-                        ) : <span className="revision-base">初始方案</span>}
-                      </header>
-                      {activePlan.slots.length ? (
-                        <div className="component-decision-list">
-                          {activePlan.slots.map((slot, slotIndex) => {
-                            const key = `${activePlan.id}:${slot.slot_id}`;
-                            return (
-                              <div className="component-decision" key={slot.slot_id}>
-                                <div className="component-decision-copy">
-                                  <span className="component-decision-index">{String(slotIndex + 1).padStart(2, "0")}</span>
-                                  <div>
-                                    <strong>{slot.component_label}</strong>
-                                    <p>{slot.selection_reason}</p>
-                                    {historyMessage(slot) ? <small>{historyMessage(slot)}</small> : null}
-                                  </div>
-                                </div>
-                                <div className="variant-choice" role="group" aria-label={`${slot.component_label}变体`}>
-                                  {slot.variant_options.map((option) => (
-                                    <button
-                                      aria-pressed={slot.variant === option.value}
-                                      className={slot.variant === option.value ? "active" : ""}
-                                      disabled={Boolean(editingSlot) || Boolean(restoring)}
-                                      key={option.value}
-                                      onClick={() => handleVariantSwitch(activePlan, slot, option.value)}
-                                      type="button"
-                                    >
-                                      <span>{option.marker}</span>
-                                      {editingSlot === key && slot.variant !== option.value ? "切换中…" : option.label}
-                                    </button>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <p className="component-empty">
-                          当前原稿没有可安全绑定的 H3、列表、引文或真实表格，已保留普通正文；请回到源 Markdown 整理已有语义，不要为了组件补造内容。
-                        </p>
-                      )}
-                    </section>
-                  ) : !activePlanSelected ? (
+                  {!activePlanSelected ? (
                     <div className="image-locked-panel">
                       <span>EDITORIAL DESK LOCKED</span>
                       <h3>先选定方案，再处理{activeEditorTab === "cover" ? "封面" : "配图"}</h3>
-                      <p>图片与封面候选只属于最终采用的方案，避免为两套方案重复消耗额度。</p>
+                      <p>这是旧版本遗留的未选方案任务。选定后即可继续处理图片与封面。</p>
                       <button disabled={Boolean(selecting)} onClick={() => handleSelection(activePlan)} type="button">
                         {selecting === activePlan.id ? "选定中…" : `选定当前方案并进入${activeEditorTab === "cover" ? "封面" : "配图"}`}
                       </button>
@@ -946,6 +910,8 @@ export default function TaskReviewPage() {
                     <CoverReviewPanel
                       busy={coverBusy}
                       onGenerate={() => handleCoverGenerate(activePlan)}
+                      onFallback={() => handleCoverFallback(activePlan)}
+                      onCrop={(candidate, transform) => handleCoverCrop(activePlan, candidate, transform)}
                       onReuse={(source) => handleCoverReuse(activePlan, source)}
                       onSelect={(candidate) => handleCoverSelect(activePlan, candidate)}
                       onUpload={handleCoverUpload}
