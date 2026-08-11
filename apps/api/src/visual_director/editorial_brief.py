@@ -109,6 +109,26 @@ class ImageIntent(BaseModel):
     necessity: Literal["optional", "recommended"]
     aspect_ratio: Literal["4:3", "16:9"]
     visual_metaphor: str = Field(min_length=1, max_length=160)
+    visual_role: Literal[
+        "explain_sequence",
+        "compare_options",
+        "show_evolution",
+        "explain_framework",
+        "establish_context",
+        "create_emotional_pause",
+    ] | None = None
+    learning_objective: str | None = Field(default=None, min_length=1, max_length=180)
+    layout_family: Literal[
+        "semantic_scene",
+        "linear_progression",
+        "binary_comparison",
+        "comparison_matrix",
+        "hierarchical_layers",
+        "hub_spoke",
+        "structural_breakdown",
+        "timeline",
+        "pathway",
+    ] | None = None
     forbidden_elements: list[
         Literal[
             "text_in_model_image",
@@ -144,7 +164,12 @@ class ArtDirection(BaseModel):
             "soft_sky",
         ]
     ] = Field(min_length=2, max_length=5)
-    style_family: Literal["editorial_paper_cut", "soft_flat_illustration", "clean_3d_geometry"]
+    style_family: Literal[
+        "editorial_paper_cut",
+        "soft_flat_illustration",
+        "clean_3d_geometry",
+        "editorial_tech_collage",
+    ]
     avoid_recent_patterns: list[str] = Field(max_length=5)
 
 

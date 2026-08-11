@@ -243,6 +243,46 @@ def test_batch_delete_tasks_removes_local_records_and_assets_but_keeps_other_tas
         ).fetchone()[0] == 1
 
 
+def test_task_list_supports_server_side_pagination_without_breaking_legacy_clients(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "task-pages.db"))
+    with TestClient(app) as client:
+        for index in range(11):
+            response = client.post(
+                "/api/v1/article-tasks",
+                files={
+                    "markdown_file": (
+                        f"task-{index}.md",
+                        f"---\ntitle: 历史任务 {index:02d}\n---\n# 历史任务 {index:02d}\n\n正文。".encode("utf-8"),
+                        "text/markdown",
+                    )
+                },
+            )
+            assert response.status_code == 201
+
+        page = client.get("/api/v1/article-tasks", params={"page": 2, "page_size": 4})
+        assert page.status_code == 200
+        payload = page.json()
+        assert payload["schema_version"] == "article_task_page.v0.1"
+        assert len(payload["items"]) == 4
+        assert payload["page"] == 2
+        assert payload["page_size"] == 4
+        assert payload["total"] == 11
+        assert payload["total_pages"] == 3
+        assert payload["has_previous"] is True
+        assert payload["has_next"] is True
+
+        last_page = client.get("/api/v1/article-tasks", params={"page": 3, "page_size": 4}).json()
+        assert len(last_page["items"]) == 3
+        assert last_page["has_next"] is False
+
+        legacy = client.get("/api/v1/article-tasks").json()
+        assert len(legacy["items"]) == 11
+        assert legacy["next_cursor"] is None
+
+        assert client.get("/api/v1/article-tasks", params={"page": 0, "page_size": 4}).status_code == 422
+        assert client.get("/api/v1/article-tasks", params={"page": 1, "page_size": 51}).status_code == 422
+
+
 def test_batch_delete_tasks_requires_at_least_one_id(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "batch-delete-validation.db"))
     with TestClient(app) as client:
@@ -759,6 +799,9 @@ def test_mock_draft_success_is_idempotent_and_occupies_explicit_slot(tmp_path: P
             {"component_type": slot["component_type"], "variant": slot["variant"]}
             for slot in frozen_plan["slots"]
         ]
+        assert history[0]["visual_signature"]["schema_version"] == "article_visual_signature.v0.1"
+        assert history[0]["visual_signature"]["article_theme"] == frozen_plan["visual_system"]
+        assert "title" not in history[0]["visual_signature"]
 
         replay = client.post(
             f'/api/v1/publication-revisions/{revision["id"]}/draft-operations',
@@ -810,6 +853,7 @@ def test_repository_startup_backfills_missing_frozen_visual_history(tmp_path: Pa
     history = reopened_app.state.repository.list_recent_component_summaries("default", 5)
     assert len(history) == 1
     assert history[0]["visual_system"] == frozen_theme
+    assert history[0]["visual_signature"]["schema_version"] == "article_visual_signature.v0.1"
     reopened_app.state.repository.connection.close()
 
 
@@ -1053,6 +1097,17 @@ article_type: tutorial_steps
             json={"mode": "start", "expected_task_version": task["version"]},
         )
         original = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        image_list = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots'
+        ).json()
+        image_slot = image_list["items"][0]
+        generated = client.post(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots/{image_slot["image_slot_id"]}/generate',
+            json={"mode": "start", "expected_image_revision": image_slot["state"]["image_revision"]},
+        ).json()["image_slot"]
+        generated_candidate_id = generated["candidates"][0]["id"]
+        snapshot = generated["candidates"][0]["machine_checks"]["art_direction_snapshot"]
+        assert snapshot["visual_system"] == original["visual_system"]
         target = next(
             item["value"]
             for item in original["visual_system_metadata"]["available_visual_systems"]
@@ -1077,6 +1132,14 @@ article_type: tutorial_steps
         assert changed["visual_system"] == target
         assert changed["structure_fingerprint"] == original["structure_fingerprint"]
         assert changed["image_slots"] == original["image_slots"]
+        switched_images = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots'
+        ).json()
+        preserved = switched_images["items"][0]["state"]["candidates"][0]
+        assert preserved["id"] == generated_candidate_id
+        assert preserved["theme_compatibility"]["generated_visual_system"] == original["visual_system"]
+        assert preserved["theme_compatibility"]["target_visual_system"] == target
+        assert preserved["theme_compatibility"]["level"] in {"compatible", "partial", "incompatible"}
 
         undone = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/undo',
@@ -1086,6 +1149,10 @@ article_type: tutorial_steps
         restored = undone.json()["plan"]
         assert restored["visual_system"] == original["visual_system"]
         assert restored["revision"] == changed["revision"] + 1
+        restored_images = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots'
+        ).json()
+        assert restored_images["items"][0]["state"]["candidates"][0]["theme_compatibility"]["level"] == "compatible"
         events = app.state.repository.list_audit_events(task["id"])
         assert "visual_theme_switched" in [event["event_type"] for event in events]
 

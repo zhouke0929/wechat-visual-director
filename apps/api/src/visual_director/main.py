@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, File, Form, Header, Request, UploadFile
+from fastapi import FastAPI, File, Form, Header, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
@@ -69,6 +69,12 @@ from .infographic_overlay import (
     resolve_overlay_copy,
 )
 from .ocr_verifier import verify_locked_copy
+from .image_intent import (
+    apply_theme_to_image_slot,
+    build_art_direction_snapshot,
+    evaluate_theme_compatibility,
+    resolve_display_copy,
+)
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
 from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
@@ -1345,8 +1351,30 @@ def create_app(
         }
 
     @app.get("/api/v1/article-tasks")
-    def list_tasks() -> dict[str, Any]:
-        return {"items": [_public_task(task) for task in repository.list_tasks()], "next_cursor": None}
+    def list_tasks(
+        page: int | None = Query(default=None, ge=1),
+        page_size: int | None = Query(default=None, ge=1, le=50),
+    ) -> dict[str, Any]:
+        # Calls without pagination parameters retain the original full-list response.
+        if page is None and page_size is None:
+            items = [_public_task(task) for task in repository.list_tasks()]
+            return {"items": items, "next_cursor": None}
+        resolved_page = page or 1
+        resolved_page_size = page_size or 8
+        result = repository.list_tasks_page(page=resolved_page, page_size=resolved_page_size)
+        total = int(result["total"])
+        total_pages = max(1, (total + resolved_page_size - 1) // resolved_page_size)
+        return {
+            "schema_version": "article_task_page.v0.1",
+            "items": [_public_task(task) for task in result["items"]],
+            "page": resolved_page,
+            "page_size": resolved_page_size,
+            "total": total,
+            "total_pages": total_pages,
+            "has_previous": resolved_page > 1,
+            "has_next": resolved_page < total_pages,
+            "next_cursor": None,
+        }
 
     @app.post("/api/v1/article-tasks/batch-delete")
     def batch_delete_tasks(payload: BatchDeleteTasksRequest) -> dict[str, Any]:
@@ -2410,15 +2438,21 @@ def create_app(
             return _error(409, "theme_unchanged", "当前文章已经使用该主题")
 
         previous_visual_system = current.get("visual_system") or current.get("style_mode")
+        task = repository.get_task(task_id)
+        recent_summaries = repository.list_recent_component_summaries(
+            task["account_id"],
+            task["history_window"],
+        )
         revised = apply_visual_system(
             current,
             payload.visual_system,
             previous_visual_system=current.get("visual_system_metadata", {}).get("previous_visual_system"),
             recommended_visual_system=current.get("visual_system_metadata", {}).get("recommended_visual_system"),
+            history_window=task["history_window"],
+            recent_summaries=recent_summaries,
         )
         revised["revision"] = current["revision"] + 1
         revised["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
-        task = repository.get_task(task_id)
         parsed = parse_markdown(task["normalized_markdown"], task["title"])
         revised = validate_plan_for_article(revised, parsed)
         document = render_preview(parsed, revised, brand_profile=app.state.brand_profile)
@@ -2599,6 +2633,7 @@ def create_app(
             "reader_task": metadata.get("reader_task") or "帮助读者快速理解文章核心价值",
             "narrative": plan.get("summary") or "提炼文章核心判断与行动方向",
             "visual_system": plan.get("visual_system") or plan.get("style_mode"),
+            "image_art_direction": plan.get("image_art_direction"),
             "output_size": "1080x864",
             "text_policy": "image_only",
             "recommended_source": "reuse_body_image" if reuse_sources else "ai_generated",
@@ -2915,10 +2950,23 @@ def create_app(
         plan = repository.get_plan(task_id, plan_id)
         repository.ensure_image_slot_states(task_id, plan_id, plan.get("image_slots", []))
         states = {item["image_slot_id"]: item for item in repository.list_image_slot_states(task_id, plan_id)}
+        visual_system = plan.get("visual_system") or plan.get("style_mode")
+        for state in states.values():
+            state["candidates"] = [
+                {
+                    **candidate,
+                    "theme_compatibility": evaluate_theme_compatibility(
+                        candidate.get("machine_checks", {}).get("art_direction_snapshot"),
+                        visual_system,
+                    ),
+                }
+                for candidate in state.get("candidates", [])
+            ]
         return {
             "task_id": task_id,
             "plan_id": plan_id,
             "provider_mode": app.state.image_provider.provider,
+            "visual_system": visual_system,
             "items": [
                 {**slot, "state": states[slot["image_slot_id"]]}
                 for slot in plan.get("image_slots", [])
@@ -2934,6 +2982,24 @@ def create_app(
     ) -> Any:
         repository.assert_task_editable(task_id)
         plan, image_slot = image_slot_for_plan(task_id, plan_id, image_slot_id)
+        visual_system = plan.get("visual_system") or plan.get("style_mode")
+        task = repository.get_task(task_id)
+        recent_summaries = repository.list_recent_component_summaries(
+            task["account_id"],
+            task["history_window"],
+        )
+        generation_slot = apply_theme_to_image_slot(
+            image_slot,
+            visual_system,
+            article_type=str(plan.get("article_type") or "viewpoint_trend"),
+            recent_summaries=recent_summaries,
+            art_direction=plan.get("image_art_direction"),
+        )
+        art_direction_snapshot = build_art_direction_snapshot(
+            visual_system=visual_system,
+            visual_intent=generation_slot["visual_intent"],
+            plan_revision=int(plan.get("revision") or 1),
+        )
         state = repository.get_image_slot_state(task_id, plan_id, image_slot_id)
         if payload.mode == "start" and state["candidates"]:
             return _error(409, "image_already_generated", "该图片槽已有候选，请使用重生成")
@@ -2942,13 +3008,17 @@ def create_app(
             infographic_title: str | None = None
             infographic_items: list[str] | None = None
             if image_slot["purpose"] == "structured_infographic":
-                task = repository.get_task(task_id)
                 parsed = parse_markdown(task["normalized_markdown"], task["title"])
                 infographic_title, infographic_items = resolve_overlay_copy(
                     parsed,
                     image_slot["fact_bindings"],
                 )
-                locked_copy = [infographic_title, *infographic_items]
+                display_title, display_items = resolve_display_copy(
+                    generation_slot["visual_intent"],
+                    infographic_title,
+                    infographic_items,
+                )
+                locked_copy = [display_title, *display_items]
             if payload.mode == "fallback":
                 if image_slot["purpose"] != "structured_infographic":
                     return _error(422, "fallback_not_supported", "确定性保底图只适用于结构信息图")
@@ -2958,8 +3028,8 @@ def create_app(
                 raw_content = fallback_source.getvalue()
                 fallback_content = compose_structured_infographic(
                     raw_content,
-                    title=infographic_title or "关键步骤",
-                    items=infographic_items or [],
+                    title=display_title or "关键步骤",
+                    items=display_items or [],
                 )
                 generated = GeneratedImage(
                     provider="deterministic_fallback",
@@ -2992,7 +3062,7 @@ def create_app(
             else:
                 candidate_index = len(state["candidates"]) + 1
                 prompt = build_provider_prompt(
-                    image_slot,
+                    generation_slot,
                     str(plan.get("article_type", "viewpoint_trend")),
                     infographic_title=infographic_title,
                     infographic_items=infographic_items,
@@ -3019,6 +3089,7 @@ def create_app(
                     machine_checks={
                         **generated.machine_checks,
                         "generation_mode": "model_end_to_end_infographic",
+                        "art_direction_snapshot": art_direction_snapshot,
                         "locked_copy": locked_copy,
                         "text_consistency": text_consistency.as_dict(),
                     },
@@ -3036,6 +3107,7 @@ def create_app(
                     machine_checks={
                         **generated.machine_checks,
                         "generation_mode": "semantic_illustration",
+                        "art_direction_snapshot": art_direction_snapshot,
                         "text_consistency": {
                             "status": "not_applicable",
                             "human_confirmation_required": False,
@@ -3105,7 +3177,13 @@ def create_app(
             width=generated.width,
             height=generated.height,
             latency_ms=generated.latency_ms,
-            machine_checks=generated.machine_checks,
+            machine_checks={
+                **generated.machine_checks,
+                "art_direction_snapshot": generated.machine_checks.get(
+                    "art_direction_snapshot",
+                    art_direction_snapshot,
+                ),
+            },
             raw_content=raw_content,
         )
         return {"image_slot": updated, "provider_mode": app.state.image_provider.provider}

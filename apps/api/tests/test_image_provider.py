@@ -98,16 +98,16 @@ def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> No
         infographic_title="填报前完成三项核对",
         infographic_items=["核对成绩和位次", "检查专业限制", "保留复核记录"],
     )
-    assert "横版4:3编辑信息图" in structured
+    assert "横版4:3插画型信息图" in structured
     assert "填报前完成三项核对" in structured
     assert "核对成绩和位次" in structured
-    assert "锁定文字逐字呈现" in structured
+    assert "严格文字白名单" in structured
     assert "低饱和青绿" in structured
-    assert "中央区域" in structured
-    assert "左右各留12%" in structured
-    assert "禁止三列并排" in structured
+    assert "核心场景隐喻" in structured
+    assert "70%到85%" in structured
+    assert "独立圆角框" in structured
     assert "节点1" not in structured
-    assert "大面积米黄或黄色底" in structured
+    assert "配色只用" in structured
     assert "空白底板" not in structured
 
 
@@ -142,10 +142,42 @@ def test_seedream_prompt_is_concise_provider_specific_and_rotates_scenes() -> No
         prompt_profile="seedream",
         candidate_index=1,
     )
-    assert len(infographic) < 650
-    assert "只使用这些原文" in infographic
-    assert "禁止三列并排" in infographic
-    assert "左右留12%" in infographic
+    assert len(infographic) < 900
+    assert "节点脚本" in infographic
+    assert "严格文字白名单" in infographic
+    assert "同一纸面世界" in infographic
+    assert "70%到85%" in infographic
+
+
+def test_seedream_future_tech_uses_editorial_collage_without_signpost_stage() -> None:
+    slot = prompt_slot(
+        purpose="atmosphere",
+        subject="把课程作业改造成作品集的四步行动路径",
+    )
+    slot["visual_intent"].update(
+        {
+            "style_family": "editorial_tech_collage",
+            "style_treatment": "editorial_spatial_collage",
+            "article_art_direction": {
+                "style_family": "editorial_tech_collage",
+                "style_treatment": "editorial_spatial_collage",
+                "surface_treatment": "future_signal_surface",
+                "composition_family": "flowing_signal_path",
+                "palette_roles": ["warm_ivory", "deep_navy", "muted_teal", "sunlit_yellow"],
+                "tone": ["清晰", "前瞻", "有编辑感"],
+            },
+        }
+    )
+    prompt = build_provider_prompt(
+        slot,
+        "tutorial_steps",
+        prompt_profile="seedream",
+        candidate_index=1,
+    )
+    assert "科技编辑拼贴" in prompt
+    assert "磨砂半透明薄片" in prompt
+    assert "不使用路牌、站牌、塑料玩具" in prompt
+    assert "上半部不得形成大面积空白" in prompt
 
 
 def test_seedream_cover_prompt_and_local_theme_fallback_are_publishable() -> None:
@@ -155,10 +187,21 @@ def test_seedream_cover_prompt_and_local_theme_fallback_are_publishable() -> Non
         "narrative": "从一宗流拍资产理解民办高校的新阶段",
         "reader_task": "帮助家长识别学校质量与长期办学能力",
         "visual_system": "youth_campus",
+        "image_art_direction": {
+            "style_family": "editorial_tech_collage",
+            "surface_treatment": "future_signal_surface",
+            "composition_family": "flowing_signal_path",
+            "palette_roles": ["warm_ivory", "deep_navy", "muted_teal", "sunlit_yellow"],
+            "tone": ["清晰", "前瞻", "有编辑感"],
+        },
     }
     prompt = build_cover_prompt(brief, prompt_profile="seedream", candidate_index=1)
-    assert len(prompt) < 450
+    assert len(prompt) < 650
     assert "5:4封面底图" in prompt
+    assert "科技编辑拼贴" in prompt
+    assert "磨砂半透明薄片" in prompt
+    assert "禁止路牌、站牌、深色道路、塑料玩具" in prompt
+    assert "不做信息图、多面板或并排步骤卡" in prompt
     assert "不出现文字" in prompt
 
     content = build_theme_fallback_cover(brief)

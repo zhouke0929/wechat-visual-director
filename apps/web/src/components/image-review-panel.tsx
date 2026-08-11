@@ -4,11 +4,33 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { absoluteApiUrl } from "@/lib/api";
+import { ResilientImage } from "@/components/resilient-image";
 import type { ImageCandidate, ImageSlotList, ImageSlotReview, VisualPlan } from "@/lib/types";
 
 const purposeLabels = {
   atmosphere: "氛围概念图",
   structured_infographic: "轻量结构信息图",
+} as const;
+
+const roleLabels = {
+  explain_sequence: "解释顺序",
+  compare_options: "比较差异",
+  show_evolution: "展示演进",
+  explain_framework: "说明框架",
+  establish_context: "建立语境",
+  create_emotional_pause: "情绪停顿",
+} as const;
+
+const layoutLabels = {
+  semantic_scene: "语义场景",
+  linear_progression: "线性进程",
+  binary_comparison: "二元对比",
+  comparison_matrix: "比较矩阵",
+  hierarchical_layers: "层级关系",
+  hub_spoke: "中心辐射",
+  structural_breakdown: "结构拆解",
+  timeline: "时间线",
+  pathway: "连续路径",
 } as const;
 
 const providerLabels = {
@@ -28,6 +50,7 @@ type Props = {
   onAccept: (slot: ImageSlotReview, candidate: ImageCandidate, textVerified: boolean) => Promise<void>;
   onSkip: (slot: ImageSlotReview) => Promise<void>;
   onReplace: (slot: ImageSlotReview, file: File) => Promise<void>;
+  onRestoreTheme: () => Promise<void>;
 };
 
 type ReviewTarget = {
@@ -60,6 +83,7 @@ export function ImageReviewPanel({
   onAccept,
   onSkip,
   onReplace,
+  onRestoreTheme,
 }: Props) {
   const [activeTargetKey, setActiveTargetKey] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -195,6 +219,16 @@ export function ImageReviewPanel({
             const modelCandidates = slot.state.candidates.filter(
               (candidate) => candidate.provider !== "manual_upload",
             );
+            const currentVisualSystem = plan.visual_system ?? plan.style_mode;
+            const currentThemeCandidates = modelCandidates.filter((candidate) => {
+              const snapshot = candidate.machine_checks.art_direction_snapshot;
+              return !snapshot || snapshot.visual_system === currentVisualSystem;
+            });
+            const compatibilityCandidate =
+              slot.state.candidates.find(
+                (candidate) => candidate.id === slot.state.selected_candidate_id,
+              ) ?? slot.state.candidates.at(-1);
+            const compatibility = compatibilityCandidate?.theme_compatibility;
             const slotBusy =
               batchBusy || busy.startsWith(`${slot.image_slot_id}:`);
             const status = reviewStatus(slot);
@@ -217,9 +251,42 @@ export function ImageReviewPanel({
                       </span>
                     </div>
                     <p>{slot.reason}</p>
+                    <small>
+                      图片目标：{roleLabels[slot.visual_intent.visual_role]} · {layoutLabels[slot.visual_intent.layout_family]}
+                    </small>
+                    <small>{slot.visual_intent.learning_objective}</small>
+                    {slot.purpose === "structured_infographic" ? (
+                      <small>
+                        视觉脚本：{slot.visual_intent.visual_grammar?.scene_metaphor ?? "兼容版语义场景"} ·
+                        {slot.visual_intent.visual_grammar?.text_mode === "verbatim_full_copy"
+                          ? "原文短句"
+                          : "短标签插画"}
+                      </small>
+                    ) : null}
                     <small>插入位置：{slot.anchor_block_id} 之后</small>
                   </div>
                 </div>
+
+                {compatibility?.level === "incompatible" ? (
+                  <div className={`image-theme-compatibility image-theme-${compatibility.level}`} role="status">
+                    <div>
+                      <strong>图片与新主题差异较大</strong>
+                      <p>{compatibility.message} 默认继续保留，不会自动重生成或产生费用。</p>
+                    </div>
+                    <div>
+                      <button
+                        disabled={slotBusy || currentThemeCandidates.length >= 3}
+                        onClick={() => void onGenerate(slot)}
+                        type="button"
+                      >按新主题再生成</button>
+                      {(plan.undo_stack ?? []).length ? (
+                        <button disabled={slotBusy} onClick={() => void onRestoreTheme()} type="button">
+                          回到上个主题
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
 
                 {slot.state.last_error ? (
                   <div className="image-slot-error" role="status">
@@ -253,8 +320,7 @@ export function ImageReviewPanel({
                             }
                             type="button"
                           >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
+                            <ResilientImage
                               src={absoluteApiUrl(candidate.content_url)}
                               alt={`${purposeLabels[slot.purpose]}候选 ${candidate.candidate_index}`}
                             />
@@ -307,7 +373,7 @@ export function ImageReviewPanel({
                     disabled={
                       review.provider_mode === "manual" ||
                       slotBusy ||
-                      modelCandidates.length >= 3
+                      currentThemeCandidates.length >= 3
                     }
                     onClick={() => void onGenerate(slot)}
                     type="button"
@@ -317,7 +383,7 @@ export function ImageReviewPanel({
                       : busy === `${slot.image_slot_id}:generate`
                         ? "图片生成中…"
                         : modelCandidates.length
-                          ? `再生成一版（${modelCandidates.length + 1}/3）`
+                          ? `再生成一版（当前主题 ${currentThemeCandidates.length + 1}/3）`
                           : "生成图片"}
                   </button>
                   {slot.purpose === "structured_infographic" ? (
@@ -417,8 +483,7 @@ export function ImageReviewPanel({
             <div className="image-review-dialog-body">
               <div className="image-review-canvas">
                 <div className="image-review-canvas-scroll">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <ResilientImage
                     src={absoluteApiUrl(activeTarget.candidate.content_url)}
                     style={{ width: `${zoom * 100}%` }}
                     alt={`${purposeLabels[activeTarget.slot.purpose]}审核大图`}
@@ -445,6 +510,9 @@ export function ImageReviewPanel({
                 <span>EDITOR CHECK</span>
                 <h4>先看整体，再核对文字</h4>
                 <p>{activeTarget.slot.reason}</p>
+                <p>
+                  {roleLabels[activeTarget.slot.visual_intent.visual_role]} · {layoutLabels[activeTarget.slot.visual_intent.layout_family]}：{activeTarget.slot.visual_intent.learning_objective}
+                </p>
 
                 {activeTarget.slot.purpose === "structured_infographic" ? (
                   <section className="image-review-locked-copy">

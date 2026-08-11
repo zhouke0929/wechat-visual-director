@@ -114,6 +114,30 @@
         "necessity": { "enum": ["optional", "recommended"] },
         "aspect_ratio": { "enum": ["4:3", "16:9"] },
         "visual_metaphor": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "visual_role": {
+          "enum": [
+            "explain_sequence",
+            "compare_options",
+            "show_evolution",
+            "explain_framework",
+            "establish_context",
+            "create_emotional_pause"
+          ]
+        },
+        "learning_objective": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "layout_family": {
+          "enum": [
+            "semantic_scene",
+            "linear_progression",
+            "binary_comparison",
+            "comparison_matrix",
+            "hierarchical_layers",
+            "hub_spoke",
+            "structural_breakdown",
+            "timeline",
+            "pathway"
+          ]
+        },
         "forbidden_elements": {
           "type": "array",
           "minItems": 3,
@@ -158,7 +182,7 @@
           }
         },
         "style_family": {
-          "enum": ["editorial_paper_cut", "soft_flat_illustration", "clean_3d_geometry"]
+          "enum": ["editorial_paper_cut", "soft_flat_illustration", "clean_3d_geometry", "editorial_tech_collage"]
         },
         "avoid_recent_patterns": {
           "type": "array",

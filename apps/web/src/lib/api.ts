@@ -15,6 +15,7 @@ import type {
   PublicIpProbe,
   SetupTargetMode,
   Task,
+  TaskPage,
   TaskDetail,
   ThemeGalleryItem,
   VisualPlan,
@@ -31,7 +32,7 @@ export const API_BASE = "/api/v1";
 const API_ORIGIN = "";
 const REQUEST_TIMEOUT_MS = 12_000;
 const EXPECTED_APPLICATION_VERSION =
-  process.env.NEXT_PUBLIC_VISUAL_DIRECTOR_VERSION ?? null;
+  import.meta.env.VITE_VISUAL_DIRECTOR_VERSION ?? null;
 
 type RuntimeHealth = {
   status: string;
@@ -97,10 +98,28 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function listTasks(): Promise<Task[]> {
-  const response = await fetch(`${API_BASE}/article-tasks`, { cache: "no-store" });
-  const payload = await parseResponse<{ items: Task[] }>(response);
-  return payload.items;
+export async function listTasks(page = 1, pageSize = 8): Promise<TaskPage> {
+  const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  const response = await fetch(`${API_BASE}/article-tasks?${query}`, { cache: "no-store" });
+  const payload = await parseResponse<TaskPage | { items: Task[] }>(response);
+  if ("schema_version" in payload && payload.schema_version === "article_task_page.v0.1") {
+    return payload;
+  }
+  // A stale local core can ignore the pagination parameters. Keep the page usable
+  // long enough for the launcher to surface the version mismatch and upgrade path.
+  const items = payload.items ?? [];
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return {
+    schema_version: "article_task_page.v0.1",
+    items: items.slice((page - 1) * pageSize, page * pageSize),
+    page,
+    page_size: pageSize,
+    total,
+    total_pages: totalPages,
+    has_previous: page > 1,
+    has_next: page < totalPages,
+  };
 }
 
 export async function deleteTasks(taskIds: string[]): Promise<{

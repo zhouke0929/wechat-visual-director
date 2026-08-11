@@ -32,17 +32,21 @@ paths:
             type: array
             items:
               $ref: '#/components/schemas/TaskStatus'
-        - name: limit
+        - name: page
           in: query
+          required: false
+          description: 页码，从 1 开始；与 page_size 任一出现时启用服务端分页。
           schema:
             type: integer
             minimum: 1
-            maximum: 100
-            default: 20
-        - name: cursor
+        - name: page_size
           in: query
+          required: false
+          description: 每页任务数；分页模式默认 8，最大 50。
           schema:
-            type: string
+            type: integer
+            minimum: 1
+            maximum: 50
       responses:
         '200':
           description: 任务列表
@@ -609,6 +613,16 @@ components:
           items: {$ref: '#/components/schemas/TaskSummary'}
         next_cursor:
           type: [string, 'null']
+          description: 兼容旧客户端；当前固定为 null。
+        schema_version:
+          type: string
+          const: article_task_page.v0.1
+        page: {type: integer, minimum: 1}
+        page_size: {type: integer, minimum: 1, maximum: 50}
+        total: {type: integer, minimum: 0}
+        total_pages: {type: integer, minimum: 1}
+        has_previous: {type: boolean}
+        has_next: {type: boolean}
 
     InputWarning:
       type: object
@@ -742,19 +756,128 @@ components:
     ImageVisualIntent:
       type: object
       additionalProperties: false
-      required: [subject, composition, style_family, palette_role, negative_space]
+      required: [subject, visual_role, learning_objective, fact_anchors, layout_family, composition, style_family, style_treatment, palette_role, palette_intent, negative_space, visual_grammar, intent_version, article_type]
       properties:
         subject: {type: string, minLength: 1, maxLength: 160}
+        visual_role:
+          type: string
+          enum: [explain_sequence, compare_options, show_evolution, explain_framework, establish_context, create_emotional_pause]
+        learning_objective: {type: string, minLength: 1, maxLength: 180}
+        fact_anchors:
+          type: array
+          maxItems: 6
+          items: {type: string}
+        layout_family:
+          type: string
+          enum: [semantic_scene, linear_progression, binary_comparison, comparison_matrix, hierarchical_layers, hub_spoke, structural_breakdown, timeline, pathway]
         composition:
           type: string
           enum: [branching, layered, wide_scene, centered]
         style_family:
           type: string
-          enum: [editorial_paper_cut, soft_flat_illustration, clean_3d_geometry]
+          enum: [editorial_paper_cut, soft_flat_illustration, clean_3d_geometry, editorial_tech_collage]
+        style_treatment:
+          type: string
+          enum: [tactile_editorial_collage, soft_educational_illustration, clean_spatial_geometry, editorial_spatial_collage]
         palette_role: {type: string, const: plan_palette}
+        palette_roles:
+          type: array
+          maxItems: 5
+          items: {type: string}
+        palette_intent:
+          type: array
+          maxItems: 5
+          items: {type: string}
+        tone:
+          type: array
+          maxItems: 4
+          items: {type: string}
         negative_space:
           type: string
           enum: [none, lower_right, lower_third]
+        visual_grammar: {$ref: '#/components/schemas/InfographicVisualGrammar'}
+        intent_version:
+          type: string
+          enum: [image_visual_intent.v2, image_visual_intent.v3]
+        article_type:
+          type: string
+          enum: [data_policy, tutorial_steps, viewpoint_trend, lively_growth]
+        article_art_direction:
+          oneOf:
+            - {$ref: '#/components/schemas/ArticleImageArtDirection'}
+            - {type: 'null'}
+
+    ArticleImageArtDirection:
+      type: object
+      required: [schema_version, visual_dna_schema_version, visual_system, article_type, style_family, style_treatment, palette_family, palette_variant, palette_roles, surface_treatment, edge_treatment, composition_family, scene_family, visual_dna, score, score_breakdown]
+      properties:
+        schema_version: {type: string, const: article_image_art_direction.v0.1}
+        visual_dna_schema_version: {type: string, const: visual_dna.v0.1}
+        visual_system: {type: string}
+        article_type: {type: string}
+        style_family: {type: string}
+        style_treatment: {type: string}
+        palette_family: {type: string}
+        palette_variant: {type: string}
+        palette_roles:
+          type: array
+          items: {type: string}
+        surface_treatment: {type: string}
+        edge_treatment: {type: string}
+        decorative_motifs:
+          type: array
+          items: {type: string}
+        composition_family: {type: string}
+        scene_family: {type: string}
+        tone:
+          type: array
+          items: {type: string}
+        visual_dna:
+          type: object
+          additionalProperties: {type: number, minimum: 0, maximum: 1}
+        score: {type: number, minimum: 0, maximum: 1}
+        score_breakdown:
+          type: object
+          additionalProperties: {type: number, minimum: 0, maximum: 1}
+        history_window_used: {type: integer, minimum: 0, maximum: 5}
+
+    InfographicVisualGrammar:
+      type: object
+      additionalProperties: false
+      required: [grammar_version, scene_metaphor, spatial_zones, node_visuals, connector_language, label_budget, display_labels, decorative_motifs, text_mode]
+      properties:
+        grammar_version:
+          type: string
+          enum: [infographic_visual_grammar.v0.1, infographic_visual_grammar.v0.2]
+        scene_metaphor: {type: string, minLength: 1, maxLength: 120}
+        spatial_zones:
+          type: array
+          maxItems: 5
+          items: {type: string}
+        node_visuals:
+          type: array
+          maxItems: 6
+          items: {type: string}
+        connector_language: {type: string, minLength: 1, maxLength: 120}
+        label_budget: {type: integer, minimum: 6, maximum: 20}
+        display_labels:
+          type: array
+          maxItems: 6
+          items: {type: string}
+        decorative_motifs:
+          type: array
+          maxItems: 5
+          items: {type: string}
+        text_mode:
+          type: string
+          enum: [label_only, verbatim_full_copy]
+        title_mode:
+          type: string
+          enum: [semantic_suffix, none]
+        content_occupancy: {type: string, const: dense_70_85}
+        edge_treatment:
+          type: string
+          enum: [deckled_paper_frame, open_illustrated_edge, clean_spatial_edge, layered_translucent_edge]
 
     ImageFactBindings:
       type: object
@@ -821,6 +944,48 @@ components:
         text_risk: {type: string}
         logo_risk: {type: string}
         person_risk: {type: string}
+        art_direction_snapshot:
+          $ref: '#/components/schemas/ImageArtDirectionSnapshot'
+
+    ImageArtDirectionSnapshot:
+      type: object
+      required: [schema_version, visual_system, plan_revision, style_family, style_treatment, palette_family, palette_roles, surface_treatment]
+      properties:
+        schema_version:
+          type: string
+          enum: [image_art_direction_snapshot.v0.1, image_art_direction_snapshot.v0.2]
+        visual_system: {type: string}
+        plan_revision: {type: integer, minimum: 1}
+        style_family: {type: string}
+        style_treatment: {type: string}
+        palette_family: {type: string}
+        palette_roles:
+          type: array
+          items: {type: string}
+        surface_treatment: {type: string}
+        palette_variant: {type: [string, 'null']}
+        composition_family: {type: [string, 'null']}
+        edge_treatment: {type: [string, 'null']}
+        scene_family: {type: [string, 'null']}
+        visual_dna:
+          type: object
+          additionalProperties: {type: number, minimum: 0, maximum: 1}
+        score: {type: [number, 'null'], minimum: 0, maximum: 1}
+        score_breakdown:
+          type: object
+          additionalProperties: {type: number, minimum: 0, maximum: 1}
+
+    ImageThemeCompatibility:
+      type: object
+      required: [level, generated_visual_system, target_visual_system, message]
+      properties:
+        level:
+          type: string
+          enum: [compatible, partial, incompatible, unknown]
+        generated_visual_system: {type: [string, 'null']}
+        target_visual_system: {type: string}
+        message: {type: string}
+        score: {type: [number, 'null'], minimum: 0, maximum: 1}
 
     ImageCandidate:
       type: object
@@ -856,6 +1021,7 @@ components:
           type: string
           enum: [pending, accepted, rejected]
         machine_checks: {$ref: '#/components/schemas/ImageMachineChecks'}
+        theme_compatibility: {$ref: '#/components/schemas/ImageThemeCompatibility'}
 
     ImageProviderFailure:
       type: object

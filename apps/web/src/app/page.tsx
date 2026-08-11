@@ -1,11 +1,13 @@
 "use client";
 
 import Link, { useRouter } from "@/lib/router";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowIcon, UploadIcon } from "@/components/icons";
 import { StatusPill } from "@/components/status-pill";
 import { createTask, deleteTasks, getApplicationVersion, listTasks } from "@/lib/api";
 import type { Task } from "@/lib/types";
+
+const TASK_PAGE_SIZE = 8;
 
 const articleTypes = [
   ["", "自动识别"],
@@ -38,12 +40,31 @@ export default function EditorialDeskPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [taskNotice, setTaskNotice] = useState("");
+  const [taskPage, setTaskPage] = useState(1);
+  const [taskTotal, setTaskTotal] = useState(0);
+  const [taskTotalPages, setTaskTotalPages] = useState(1);
+
+  const loadTaskPage = useCallback(async (page: number) => {
+    setLoading(true);
+    try {
+      const result = await listTasks(page, TASK_PAGE_SIZE);
+      setTasks(result.items);
+      setTaskPage(result.page);
+      setTaskTotal(result.total);
+      setTaskTotalPages(result.total_pages);
+      setTaskError("");
+    } catch (reason) {
+      setTaskError(reason instanceof Error ? reason.message : "读取历史任务失败");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    listTasks()
-      .then(setTasks)
-      .catch((reason: Error) => setTaskError(reason.message))
-      .finally(() => setLoading(false));
+    void loadTaskPage(taskPage);
+  }, [loadTaskPage, taskPage]);
+
+  useEffect(() => {
     getApplicationVersion().then(setAppVersion).catch(() => undefined);
   }, []);
 
@@ -110,8 +131,9 @@ export default function EditorialDeskPage() {
     setTaskError("");
     try {
       const result = await deleteTasks(ids);
-      const deleted = new Set(result.deleted_task_ids);
-      setTasks((current) => current.filter((task) => !deleted.has(task.id)));
+      const nextTotal = Math.max(0, taskTotal - result.deleted_count);
+      const nextTotalPages = Math.max(1, Math.ceil(nextTotal / TASK_PAGE_SIZE));
+      const nextPage = Math.min(taskPage, nextTotalPages);
       setSelectedTaskIds(new Set());
       setManageTasks(false);
       setConfirmDelete(false);
@@ -120,12 +142,23 @@ export default function EditorialDeskPage() {
           ? `已删除 ${result.deleted_count} 个任务；有少量缓存素材将在维护时继续清理。`
           : `已删除 ${result.deleted_count} 个历史任务。`,
       );
+      if (nextPage === taskPage) await loadTaskPage(nextPage);
+      else setTaskPage(nextPage);
     } catch (reason) {
       setTaskError(reason instanceof Error ? reason.message : "删除历史任务失败");
       setConfirmDelete(false);
     } finally {
       setDeleting(false);
     }
+  }
+
+  function changeTaskPage(nextPage: number) {
+    if (nextPage < 1 || nextPage > taskTotalPages || nextPage === taskPage) return;
+    setSelectedTaskIds(new Set());
+    setConfirmDelete(false);
+    setTaskNotice("");
+    setTaskError("");
+    setTaskPage(nextPage);
   }
 
   return (
@@ -208,7 +241,7 @@ export default function EditorialDeskPage() {
           </div>
           <div className="task-heading-actions">
             <p>任务创建时会冻结品牌版本、历史窗口和 CTA 版本。</p>
-            {tasks.length > 0 && !manageTasks ? (
+            {taskTotal > 0 && !manageTasks ? (
               <button className="task-manage-button" type="button" onClick={() => { setManageTasks(true); setTaskNotice(""); setTaskError(""); }}>
                 管理历史任务
               </button>
@@ -228,7 +261,7 @@ export default function EditorialDeskPage() {
               <span className={selectedTaskIds.size === tasks.length ? "task-check is-selected" : "task-check"} aria-hidden="true">
                 {selectedTaskIds.size === tasks.length ? "✓" : ""}
               </span>
-              {selectedTaskIds.size === tasks.length ? "取消全选" : "全选当前任务"}
+              {selectedTaskIds.size === tasks.length ? "取消全选" : "全选本页"}
             </button>
             <span className="task-selected-count" aria-live="polite">已选 {selectedTaskIds.size} 项</span>
             <div className="task-manage-toolbar-actions">
@@ -249,7 +282,7 @@ export default function EditorialDeskPage() {
         {taskError ? <p className="task-notice task-notice-error" role="alert">{taskError}</p> : null}
 
         {loading ? <div className="loading-line" role="status">正在读取任务…</div> : null}
-        {!loading && tasks.length === 0 ? (
+        {!loading && taskTotal === 0 ? (
           <div className="empty-state">
             <span>01</span>
             <h3>还没有视觉任务</h3>
@@ -261,7 +294,7 @@ export default function EditorialDeskPage() {
             const rowContent = (
               <>
                 <span className={manageTasks ? (selectedTaskIds.has(task.id) ? "task-check is-selected" : "task-check") : "task-index"}>
-                  {manageTasks ? (selectedTaskIds.has(task.id) ? "✓" : "") : String(index + 1).padStart(2, "0")}
+                  {manageTasks ? (selectedTaskIds.has(task.id) ? "✓" : "") : String((taskPage - 1) * TASK_PAGE_SIZE + index + 1).padStart(2, "0")}
                 </span>
                 <div className="task-main">
                   <h3>{task.title}</h3>
@@ -287,6 +320,28 @@ export default function EditorialDeskPage() {
             );
           })}
         </div>
+        {!loading && taskTotal > 0 ? (
+          <nav className="task-pagination" aria-label="历史任务分页">
+            <p>共 {taskTotal} 篇 · 第 {taskPage} / {taskTotalPages} 页</p>
+            <div>
+              <button
+                type="button"
+                disabled={taskPage <= 1}
+                onClick={() => changeTaskPage(taskPage - 1)}
+              >
+                上一页
+              </button>
+              <span aria-current="page">{taskPage}</span>
+              <button
+                type="button"
+                disabled={taskPage >= taskTotalPages}
+                onClick={() => changeTaskPage(taskPage + 1)}
+              >
+                下一页
+              </button>
+            </div>
+          </nav>
+        ) : null}
       </section>
 
       {confirmDelete ? (

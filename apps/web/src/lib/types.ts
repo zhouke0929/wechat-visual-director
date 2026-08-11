@@ -31,6 +31,17 @@ export type Task = {
   updated_at: string;
 };
 
+export type TaskPage = {
+  schema_version: "article_task_page.v0.1";
+  items: Task[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+  has_previous: boolean;
+  has_next: boolean;
+};
+
 export type ThemeComponentSpecimen = {
   component_type: string;
   label: string;
@@ -221,6 +232,23 @@ export type VisualPlan = {
   component_library_version: string;
   slots: ComponentSlot[];
   image_slots: ImageSlotPlan[];
+  image_art_direction?: {
+    schema_version: "article_image_art_direction.v0.1";
+    visual_dna_schema_version: "visual_dna.v0.1";
+    visual_system: string;
+    article_type: string;
+    style_family: "editorial_paper_cut" | "soft_flat_illustration" | "clean_3d_geometry" | "editorial_tech_collage";
+    palette_family: string;
+    palette_variant: string;
+    palette_roles: string[];
+    surface_treatment: string;
+    edge_treatment: string;
+    composition_family: string;
+    scene_family: string;
+    visual_dna: Record<string, number>;
+    score: number;
+    score_breakdown: Record<string, number>;
+  };
 };
 
 export type ImagePurpose = "atmosphere" | "structured_infographic";
@@ -236,12 +264,35 @@ export type ImageSlotPlan = {
   aspect_ratio: "4:3" | "16:9";
   visual_intent: {
     subject: string;
+    visual_role: "explain_sequence" | "compare_options" | "show_evolution" | "explain_framework" | "establish_context" | "create_emotional_pause";
+    learning_objective: string;
+    fact_anchors: string[];
+    layout_family: "semantic_scene" | "linear_progression" | "binary_comparison" | "comparison_matrix" | "hierarchical_layers" | "hub_spoke" | "structural_breakdown" | "timeline" | "pathway";
     composition: "branching" | "layered" | "wide_scene" | "centered";
     style_family: "editorial_paper_cut" | "soft_flat_illustration" | "clean_3d_geometry";
+    style_treatment: "tactile_editorial_collage" | "soft_educational_illustration" | "clean_spatial_geometry";
     palette_role: "plan_palette";
     palette_roles?: string[];
+    palette_intent: string[];
     tone?: string[];
     negative_space: "none" | "lower_right" | "lower_third";
+    visual_grammar?: {
+      grammar_version: "infographic_visual_grammar.v0.1" | "infographic_visual_grammar.v0.2";
+      scene_metaphor: string;
+      spatial_zones: string[];
+      node_visuals: string[];
+      connector_language: string;
+      label_budget: number;
+      display_labels: string[];
+      decorative_motifs: string[];
+      text_mode: "label_only" | "verbatim_full_copy";
+      title_mode?: "semantic_suffix" | "none";
+      content_occupancy?: "dense_70_85";
+      edge_treatment?: "deckled_paper_frame" | "open_illustrated_edge" | "clean_spatial_edge";
+    };
+    intent_version: "image_visual_intent.v2" | "image_visual_intent.v3";
+    article_type: "data_policy" | "tutorial_steps" | "viewpoint_trend" | "lively_growth";
+    article_art_direction?: VisualPlan["image_art_direction"];
   };
 };
 
@@ -276,6 +327,30 @@ export type ImageCandidate = {
       human_confirmation_required: boolean;
       reason?: string | null;
     };
+    art_direction_snapshot?: {
+      schema_version: "image_art_direction_snapshot.v0.1" | "image_art_direction_snapshot.v0.2";
+      visual_system: string;
+      plan_revision: number;
+      style_family: string;
+      style_treatment: string;
+      palette_family: string;
+      palette_roles: string[];
+      surface_treatment: string;
+      palette_variant?: string | null;
+      composition_family?: string | null;
+      edge_treatment?: string | null;
+      scene_family?: string | null;
+      visual_dna?: Record<string, number>;
+      score?: number | null;
+      score_breakdown?: Record<string, number>;
+    };
+  };
+  theme_compatibility?: {
+    level: "compatible" | "partial" | "incompatible" | "unknown";
+    generated_visual_system: string | null;
+    target_visual_system: string;
+    message: string;
+    score?: number | null;
   };
 };
 
@@ -301,6 +376,7 @@ export type ImageSlotList = {
   task_id: string;
   plan_id: string;
   provider_mode: ImageProviderMode;
+  visual_system?: string;
   items: ImageSlotReview[];
 };
 

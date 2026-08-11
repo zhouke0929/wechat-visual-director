@@ -7,6 +7,7 @@ import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { PublicationPanel } from "@/components/publication-panel";
+import { ResilientPreviewFrame } from "@/components/resilient-preview-frame";
 import { StatusPill } from "@/components/status-pill";
 import {
   absoluteApiUrl,
@@ -99,6 +100,7 @@ export default function TaskReviewPage() {
   const [error, setError] = useState("");
   const [workspaceWarning, setWorkspaceWarning] = useState("");
   const initialWorkspaceResolved = useRef(false);
+  const imageWorkspaceRequestRef = useRef(0);
 
   const loadSupplementalWorkspace = useCallback(async (nextDetail: TaskDetail) => {
     const warnings: string[] = [];
@@ -111,21 +113,27 @@ export default function TaskReviewPage() {
 
     const selectedPlanId = nextDetail.task.selected_plan_id;
     if (selectedPlanId) {
+      const requestId = ++imageWorkspaceRequestRef.current;
       if (!initialWorkspaceResolved.current) {
         setActiveEditorTab("images");
         initialWorkspaceResolved.current = true;
       }
       try {
-        // Keep SQLite-backed reads ordered. They are supplemental and must not
-        // keep the article preview behind the full-page loading state.
-        setImageReview(await getImageSlots(taskId, selectedPlanId));
-        setCoverReview(await getCoverWorkspace(taskId, selectedPlanId));
+        const nextImageReview = await getImageSlots(taskId, selectedPlanId);
+        const nextCoverReview = await getCoverWorkspace(taskId, selectedPlanId);
+        if (requestId === imageWorkspaceRequestRef.current) {
+          setImageReview(nextImageReview);
+          setCoverReview(nextCoverReview);
+        }
       } catch {
-        setImageReview(null);
-        setCoverReview(null);
-        warnings.push("图片与封面工作区暂时未加载，可稍后重试");
+        if (requestId === imageWorkspaceRequestRef.current) {
+          setImageReview(null);
+          setCoverReview(null);
+          warnings.push("图片与封面工作区暂时未加载，可稍后重试");
+        }
       }
     } else {
+      imageWorkspaceRequestRef.current += 1;
       setImageReview(null);
       setCoverReview(null);
     }
@@ -196,8 +204,11 @@ export default function TaskReviewPage() {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
+      if (detail?.task.selected_plan_id === plan.id) {
+        await refreshImageReview(plan.id);
+      }
       setFocusSlotByPlan((current) => ({ ...current, [plan.id]: "" }));
-      setNotice(`已切换为「${styleLabels[visualSystem] ?? visualSystem}」；正文、图片与结构均未重新生成。`);
+      setNotice(`已切换为「${styleLabels[visualSystem] ?? visualSystem}」；正文、结构和已有图片均已保留，新生成图片会采用当前主题。`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "切换主题失败");
     } finally {
@@ -216,6 +227,9 @@ export default function TaskReviewPage() {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
+      if (detail?.task.selected_plan_id === plan.id) {
+        await refreshImageReview(plan.id);
+      }
       setNotice("已回到上一个主题版本；不会在两个修订间反复切换。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复修订失败");
@@ -225,8 +239,12 @@ export default function TaskReviewPage() {
   }
 
   async function refreshImageReview(planId: string) {
-    setImageReview(await getImageSlots(taskId, planId));
-    setCoverReview(await getCoverWorkspace(taskId, planId));
+    const requestId = ++imageWorkspaceRequestRef.current;
+    const nextImageReview = await getImageSlots(taskId, planId);
+    const nextCoverReview = await getCoverWorkspace(taskId, planId);
+    if (requestId !== imageWorkspaceRequestRef.current) return;
+    setImageReview(nextImageReview);
+    setCoverReview(nextCoverReview);
     setImageRefreshToken((current) => current + 1);
   }
 
@@ -846,7 +864,7 @@ export default function TaskReviewPage() {
                       >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
                     ) : null}
                   </div>
-                  <small className="theme-switch-note">只更换整套主题语言，不改正文、图片和文章结构；最终冻结后才计入最近五篇。</small>
+                  <small className="theme-switch-note">换主题不改正文、图片和文章结构；已有图片始终保留，新生图跟随当前主题，最终冻结后才计入最近五篇。</small>
                   {!activePlanSelected ? (
                     <button
                       className="select-button"
@@ -902,6 +920,7 @@ export default function TaskReviewPage() {
                       onGenerate={(slot) => handleImageGenerate(activePlan, slot)}
                       onGenerateAll={() => handleImageGenerateAll(activePlan)}
                       onReplace={(slot, file) => handleImageReplace(activePlan, slot, file)}
+                      onRestoreTheme={() => handleRestore(activePlan)}
                       onSkip={(slot) => handleImageSkip(activePlan, slot)}
                       plan={activePlan}
                       review={imageReview}
@@ -931,8 +950,7 @@ export default function TaskReviewPage() {
                 </header>
                 <div className="phone-stage">
                   <div className="phone-label"><span>390</span><i />MOBILE CONTENT WIDTH</div>
-                  <iframe
-                    className="preview-frame"
+                  <ResilientPreviewFrame
                     src={focusedPreviewUrl(activePlan)}
                     title={`${activePlan.plan_name} 公众号移动端预览`}
                   />

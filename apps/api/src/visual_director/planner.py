@@ -19,6 +19,7 @@ from .editorial_brief import (
     adjacent_concept_pairs,
     is_concept_pair,
 )
+from .image_intent import build_visual_intent
 
 
 STYLE_LABELS = {
@@ -594,6 +595,8 @@ def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
                     "reason": "将 2–4 个原文节点转为轻量结构图，文字和顺序继续由原文事实锁定。",
                     "aspect_ratio": "4:3",
                     "subject": subject,
+                    "title": str(previous.content) if title_ref and previous else subject,
+                    "fact_anchors": [str(item) for item in block.content[:4]],
                     "fact_bindings": {
                         "title_ref": title_ref,
                         "item_refs": _list_refs(block),
@@ -614,6 +617,8 @@ def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
                         "reason": "为章节建立语义氛围和阅读停顿，不承载新的事实。",
                         "aspect_ratio": "16:9",
                         "subject": str(block.content),
+                        "title": str(block.content),
+                        "fact_anchors": [],
                         "fact_bindings": {
                             "title_ref": None,
                             "item_refs": [],
@@ -639,6 +644,8 @@ def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
                         "reason": "为长篇叙事建立视觉停顿；图片只表达章节氛围，不新增或改写事实。",
                         "aspect_ratio": "16:9",
                         "subject": paragraph,
+                        "title": None,
+                        "fact_anchors": [],
                         "fact_bindings": {
                             "title_ref": None,
                             "item_refs": [],
@@ -655,8 +662,8 @@ def _select_image_slots(
     preferred_purpose: str,
     limit: int,
     style_family: str,
-    composition: str,
     negative_space: str,
+    article_type: str,
 ) -> list[dict[str, Any]]:
     ordered = sorted(
         candidates,
@@ -681,13 +688,22 @@ def _select_image_slots(
                 "required": False,
                 "reason": candidate["reason"],
                 "aspect_ratio": candidate["aspect_ratio"],
-                "visual_intent": {
-                    "subject": candidate["subject"][:160],
-                    "composition": composition if candidate["purpose"] == preferred_purpose else "wide_scene",
-                    "style_family": style_family,
-                    "palette_role": "plan_palette",
-                    "negative_space": negative_space,
-                },
+                "visual_intent": build_visual_intent(
+                    purpose=candidate["purpose"],
+                    subject=candidate["subject"],
+                    article_type=article_type,
+                    title=candidate.get("title"),
+                    fact_anchors=candidate.get("fact_anchors", []),
+                    style_family=style_family,
+                    palette_roles={
+                        "data_policy": ["warm_ivory", "deep_navy", "muted_teal", "sunlit_yellow"],
+                        "tutorial_steps": ["warm_ivory", "muted_teal", "coral_accent", "sunlit_yellow"],
+                        "lively_growth": ["warm_ivory", "soft_sky", "coral_accent", "sunlit_yellow"],
+                        "viewpoint_trend": ["warm_ivory", "deep_navy", "soft_sky", "coral_accent"],
+                    }.get(article_type, ["warm_ivory", "deep_navy", "soft_sky"]),
+                    tone=["清晰", "可信", "克制"],
+                    negative_space=negative_space,
+                ),
                 "fact_bindings": candidate["fact_bindings"],
                 "history_evidence": {
                     "recent_use_count": 0,
@@ -821,16 +837,16 @@ def generate_plans(
         preferred_purpose="structured_infographic",
         limit=2,
         style_family="editorial_paper_cut",
-        composition="branching",
         negative_space="lower_right",
+        article_type=article_type,
     )
     second_image_slots = _select_image_slots(
         image_candidates,
         preferred_purpose="atmosphere",
         limit=1,
         style_family="soft_flat_illustration",
-        composition="wide_scene",
         negative_space="lower_third",
+        article_type=article_type,
     )
     first_image_slots = _align_images_after_component_content(
         first_image_slots,

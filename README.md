@@ -10,7 +10,7 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营在浏览器中确认整篇主题、图片与封面，模型不直接自由生成整段 HTML/CSS。
 
-当前版本：**v0.1.0-alpha.17**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
+当前版本：**v0.1.0-alpha.18**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
@@ -81,8 +81,11 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 六套完整主题可即时切换和回退，不重新调用文本模型或图片模型；
 - 最终冻结稿进入最近五篇主题历史，优先避免连续重复；
 - 正文配图、结构信息图、人工上传与封面候选；
+- `image_visual_intent.v3` 插画型信息图、文章级 Visual DNA 与短标签事实锁定；
+- 正文配图与 AI 封面共享整篇美术方向，换主题时保留既有候选并只对明显冲突做轻提示；
 - 人工、Mock、OpenAI/Ark/兼容 Images API、Gemini Nano Banana 图片 Provider；
 - 本地任务、历史方案、图片选择与冻结版本持久化；
+- 历史任务服务端分页（默认每页 8 篇）与当前页批量清理；
 - 富文本复制、Markdown/HTML/图片交付包；
 - 可选 Wenyan 适配器写入微信公众号草稿箱；
 - OpenClaw、OpenCode、Claude Code、Trae 等宿主复用现有文本模型，无需重复配置文本模型 Key；
@@ -136,7 +139,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 
 ```text
 请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。注意：基础安装不会自动安装 Wenyan；如果我要直接写入微信公众号草稿箱，请先检查 Node.js 与 Wenyan CLI，并把缺失的人工安装步骤和本地设置地址告诉我。
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.17
+https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.18
 ```
 
 安装完成后，请重启宿主 Agent 或新开对话，使它重新扫描本机 Skill 目录。进入新对话不等于重新安装；Agent 应先执行 `doctor --json`。
@@ -146,7 +149,7 @@ https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.17
 基础安装只需要 Git 与 Python 3.11+。发行包已经包含构建后的工作台，正常使用不需要 `pnpm dev`。
 
 ```powershell
-git clone --branch v0.1.0-alpha.17 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.18 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 Set-Location .\wechat-visual-director
 
 $bootstrap = powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1" | ConvertFrom-Json
@@ -205,6 +208,10 @@ Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“
 
 封面候选支持 5:4 可视化裁切。原图完整展示，裁切框可以拖到画面边缘，并可通过滑条或鼠标滚轮缩放；保存后生成新的受控候选，不会覆盖原图。
 
+同一篇文章的正文插图与 AI 封面会复用一份文章级 Visual DNA：文章决定“画什么、解释什么关系”，当前主题只影响推荐画材、色板、表面语言和构图气质。换主题不会删除已生成或已采用的图片，也不会自动再次扣费；尚未生成的新候选才按当前主题编译。
+
+结构信息图只允许绘制来自原文的标题与短标签，完整事实锚点仍保存在任务中用于核对。系统会把场景隐喻、连接关系和装饰语法作为“只画不写”的视觉脚本，减少长句卡片和提示词说明被误画进图片。
+
 ![可拖动的公众号封面裁切](docs/assets/readme/cover-crop.png)
 
 ### 微信公众号草稿箱
@@ -251,7 +258,7 @@ Visual Director 负责冻结文章和生成微信兼容内联 HTML；Wenyan 负�
 ### macOS 技术预览
 
 ```bash
-git clone --branch v0.1.0-alpha.17 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.18 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 cd wechat-visual-director
 bash scripts/bootstrap.sh
 ```

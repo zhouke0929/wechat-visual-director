@@ -19,8 +19,8 @@ from .parser import ParsedArticle
 from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.6-concept-groups"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.3-concept-groups"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.7-image-intent-v2"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.4-image-intent-v2"
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -42,6 +42,8 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",
     "图片意图只能为 optional 或 recommended；不得把品牌 CTA 送入图片生成。",
     "structured_infographic 只能引用含 2–4 项的原文列表，不得从普通段落编造列表。",
+    "每个图片意图先说明 visual_role 与 learning_objective，再选择 layout_family；信息结构必须来自原文关系，不能为了好看虚构时间、对比或层级。",
+    "atmosphere 使用 semantic_scene；结构信息图可使用 linear_progression、binary_comparison、comparison_matrix、hierarchical_layers、hub_spoke、structural_breakdown、timeline 或 pathway。",
     "若原文只有 OCR 长段落，应优先使用 plain、evidence_callout 或 atmosphere，不要伪造列表结构。",
     "brand.forbidden_patterns 是永久品牌硬约束，不得复制到 art_direction.avoid_recent_patterns。",
     "art_direction.avoid_recent_patterns 只能总结 recent_history 中实际出现的重复模式。",
@@ -263,6 +265,9 @@ def build_rule_based_brief(request: TextPlannerRequest) -> EditorialBrief:
             necessity="recommended" if index == 0 else "optional",
             aspect_ratio=slot["aspect_ratio"],
             visual_metaphor=slot["visual_intent"]["subject"],
+            visual_role=slot["visual_intent"].get("visual_role"),
+            learning_objective=slot["visual_intent"].get("learning_objective"),
+            layout_family=slot["visual_intent"].get("layout_family"),
             forbidden_elements=["text_in_model_image", "qr_code", "logo", "fabricated_data", "brand_cta"],
         )
         for index, slot in enumerate(plan.get("image_slots", [])[:3])

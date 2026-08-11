@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .visual_dna import build_visual_signature
+
 
 DEFAULT_PUBLICATION_DRAFT_METADATA = {
     "author": "",
@@ -385,7 +387,12 @@ class Repository:
                    WHERE h.account_id = t.account_id AND h.task_id = t.id
                )"""
         ).fetchall()
-        if not rows:
+        existing_rows = self.connection.execute(
+            """SELECT h.id, h.summary_json, p.visual_plan_json
+               FROM recent_article_component_summaries h
+               JOIN publication_revisions p ON p.id = h.publication_revision_id"""
+        ).fetchall()
+        if not rows and not existing_rows:
             return
         with self.lock:
             for row in rows:
@@ -401,6 +408,17 @@ class Repository:
                         for slot in plan.get("slots", [])
                     ],
                     now=str(row["frozen_at"]),
+                    visual_signature=build_visual_signature(plan),
+                )
+            for row in existing_rows:
+                summary = json.loads(row["summary_json"])
+                if isinstance(summary.get("visual_signature"), dict):
+                    continue
+                plan = json.loads(row["visual_plan_json"])
+                summary["visual_signature"] = build_visual_signature(plan)
+                self.connection.execute(
+                    "UPDATE recent_article_component_summaries SET summary_json = ? WHERE id = ?",
+                    (json.dumps(summary, ensure_ascii=False), str(row["id"])),
                 )
             self.connection.commit()
 
@@ -497,8 +515,25 @@ class Repository:
         return self.get_task(task_id), False
 
     def list_tasks(self) -> list[dict[str, Any]]:
-        rows = self.connection.execute("SELECT * FROM tasks ORDER BY updated_at DESC").fetchall()
+        rows = self.connection.execute("SELECT * FROM tasks ORDER BY updated_at DESC, id DESC").fetchall()
         return [self._task_from_row(row) for row in rows]
+
+    def list_tasks_page(self, *, page: int, page_size: int) -> dict[str, Any]:
+        """Return a stable page of task summaries without loading the full history."""
+        if page < 1:
+            raise ValueError("页码必须从 1 开始")
+        if page_size < 1 or page_size > 50:
+            raise ValueError("每页任务数必须在 1 到 50 之间")
+        total = int(self.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0])
+        offset = (page - 1) * page_size
+        rows = self.connection.execute(
+            "SELECT * FROM tasks ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+            (page_size, offset),
+        ).fetchall()
+        return {
+            "items": [self._task_from_row(row) for row in rows],
+            "total": total,
+        }
 
     def delete_tasks(self, task_ids: list[str]) -> dict[str, Any]:
         """Delete local task records and their generated assets as one database operation."""
@@ -1182,6 +1217,7 @@ class Repository:
         structure_fingerprint: str | None,
         publication_revision_id: str,
         now: str,
+        visual_signature: dict[str, Any] | None = None,
     ) -> None:
         self.connection.execute(
             "DELETE FROM recent_article_component_summaries WHERE account_id = ? AND task_id = ?",
@@ -1201,6 +1237,7 @@ class Repository:
                         "components": components,
                         "visual_system": visual_system,
                         "structure_fingerprint": structure_fingerprint,
+                        "visual_signature": visual_signature,
                     },
                     ensure_ascii=False,
                 ),
@@ -1216,6 +1253,20 @@ class Repository:
         now: str,
     ) -> None:
         plan = revision["visual_plan"]
+        snapshot_rows = self.connection.execute(
+            """SELECT c.machine_checks_json
+               FROM image_slot_states s
+               JOIN image_candidates c ON c.id = s.selected_candidate_id
+               WHERE s.task_id = ? AND s.plan_id = ?
+                 AND s.decision IN ('accepted', 'replaced')""",
+            (task["id"], revision["plan_id"]),
+        ).fetchall()
+        selected_snapshots = []
+        for row in snapshot_rows:
+            checks = json.loads(row["machine_checks_json"])
+            snapshot = checks.get("art_direction_snapshot")
+            if isinstance(snapshot, dict):
+                selected_snapshots.append(snapshot)
         self._record_confirmed_component_summary_locked(
             account_id=task["account_id"],
             task_id=task["id"],
@@ -1227,6 +1278,10 @@ class Repository:
                 for slot in plan.get("slots", [])
             ],
             now=now,
+            visual_signature=build_visual_signature(
+                plan,
+                selected_snapshots=selected_snapshots,
+            ),
         )
 
     def list_recent_component_summaries(self, account_id: str, limit: int) -> list[dict[str, Any]]:

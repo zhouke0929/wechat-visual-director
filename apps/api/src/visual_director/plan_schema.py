@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .component_catalog import COMPONENT_CATALOG, PLAN_SCHEMA_VERSION, allowed_variants
+from .image_intent import build_visual_grammar, normalize_source_copy
 from .parser import ParsedArticle
 
 
@@ -58,16 +59,95 @@ class ComponentSlot(BaseModel):
         return self
 
 
+class InfographicVisualGrammar(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    grammar_version: str = Field(
+        default="infographic_visual_grammar.v0.1",
+        pattern=r"^infographic_visual_grammar\.v0\.[12]$",
+    )
+    scene_metaphor: str = Field(default="单一语义场景", min_length=1, max_length=120)
+    spatial_zones: list[str] = Field(default_factory=lambda: ["中央主场景", "四周留白"], max_length=5)
+    node_visuals: list[str] = Field(default_factory=list, max_length=6)
+    connector_language: str = Field(default="只保留一条主要视觉动线", min_length=1, max_length=120)
+    label_budget: int = Field(default=14, ge=6, le=20)
+    display_labels: list[str] = Field(default_factory=list, max_length=6)
+    decorative_motifs: list[str] = Field(default_factory=list, max_length=5)
+    text_mode: str = Field(default="label_only", pattern=r"^(label_only|verbatim_full_copy)$")
+    title_mode: str = Field(default="semantic_suffix", pattern=r"^(semantic_suffix|none)$")
+    content_occupancy: str = Field(default="dense_70_85", pattern=r"^dense_70_85$")
+    edge_treatment: str = Field(
+        default="open_illustrated_edge",
+        pattern=r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge)$",
+    )
+
+
+class ArticleImageArtDirection(BaseModel):
+    """Article-level visual direction shared by every image slot."""
+
+    model_config = ConfigDict(extra="allow")
+
+    schema_version: str = Field(default="article_image_art_direction.v0.1")
+    visual_dna_schema_version: str = Field(default="visual_dna.v0.1")
+    visual_system: str
+    article_type: str
+    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage)$")
+    style_treatment: str = Field(
+        pattern=r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|editorial_spatial_collage)$"
+    )
+    palette_family: str
+    palette_variant: str
+    palette_roles: list[str] = Field(default_factory=list, max_length=5)
+    surface_treatment: str
+    edge_treatment: str = Field(
+        pattern=r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge)$"
+    )
+    decorative_motifs: list[str] = Field(default_factory=list, max_length=5)
+    composition_family: str
+    scene_family: str
+    tone: list[str] = Field(default_factory=list, max_length=4)
+    visual_dna: dict[str, float] = Field(default_factory=dict)
+    score: float = Field(default=0.0, ge=0.0, le=1.0)
+    score_breakdown: dict[str, float] = Field(default_factory=dict)
+    history_window_used: int = Field(default=0, ge=0, le=5)
+
+
 class ImageVisualIntent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     subject: str = Field(min_length=1, max_length=160)
+    visual_role: str = Field(
+        default="establish_context",
+        pattern=r"^(explain_sequence|compare_options|show_evolution|explain_framework|establish_context|create_emotional_pause)$",
+    )
+    learning_objective: str = Field(
+        default="帮助读者理解当前章节的核心关系",
+        min_length=1,
+        max_length=180,
+    )
+    fact_anchors: list[str] = Field(default_factory=list, max_length=6)
+    layout_family: str = Field(
+        default="semantic_scene",
+        pattern=r"^(semantic_scene|linear_progression|binary_comparison|comparison_matrix|hierarchical_layers|hub_spoke|structural_breakdown|timeline|pathway)$",
+    )
     composition: str = Field(pattern=r"^(branching|layered|wide_scene|centered)$")
-    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry)$")
+    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage)$")
+    style_treatment: str = Field(
+        default="tactile_editorial_collage",
+        pattern=r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|editorial_spatial_collage)$",
+    )
     palette_role: str = Field(default="plan_palette", pattern=r"^plan_palette$")
     palette_roles: list[str] = Field(default_factory=list, max_length=5)
+    palette_intent: list[str] = Field(default_factory=list, max_length=5)
     tone: list[str] = Field(default_factory=list, max_length=4)
     negative_space: str = Field(pattern=r"^(none|lower_right|lower_third)$")
+    visual_grammar: InfographicVisualGrammar = Field(default_factory=InfographicVisualGrammar)
+    intent_version: str = Field(default="image_visual_intent.v2", pattern=r"^image_visual_intent\.v[23]$")
+    article_type: str = Field(
+        default="viewpoint_trend",
+        pattern=r"^(data_policy|tutorial_steps|viewpoint_trend|lively_growth)$",
+    )
+    article_art_direction: ArticleImageArtDirection | None = None
 
 
 class ImageFactBindings(BaseModel):
@@ -112,8 +192,23 @@ class ImageSlotPlan(BaseModel):
         if self.purpose == "structured_infographic":
             if not 2 <= len(self.fact_bindings.item_refs) <= 4:
                 raise ValueError("结构信息图必须绑定 2–4 个原文节点")
+            if self.visual_intent.layout_family == "semantic_scene":
+                self.visual_intent.layout_family = "linear_progression"
+            if self.visual_intent.visual_role in {"establish_context", "create_emotional_pause"}:
+                self.visual_intent.visual_role = "explain_sequence"
+            if not self.visual_intent.visual_grammar.display_labels and self.visual_intent.fact_anchors:
+                self.visual_intent.visual_grammar = InfographicVisualGrammar.model_validate(
+                    build_visual_grammar(
+                        layout_family=self.visual_intent.layout_family,
+                        fact_anchors=self.visual_intent.fact_anchors,
+                        style_family=self.visual_intent.style_family,
+                        article_type=self.visual_intent.article_type,
+                    )
+                )
         elif self.fact_bindings.item_refs or self.fact_bindings.title_ref:
             raise ValueError("氛围图不得绑定需要叠加的关键事实")
+        elif self.visual_intent.fact_anchors:
+            raise ValueError("氛围图不得携带需要模型绘制的事实锚点")
         return self
 
 
@@ -220,4 +315,44 @@ def validate_plan_for_article(plan: dict[str, Any], parsed: ParsedArticle) -> di
                     raise ValueError(f"图片非列表内容不能使用 item 引用：{reference}")
                 if int(item_index) >= len(block.content):
                     raise ValueError(f"图片列表项不存在：{reference}")
+        if image_slot.purpose == "structured_infographic" and not image_slot.visual_intent.fact_anchors:
+            recovered_anchors: list[str] = []
+            for reference in image_slot.fact_bindings.item_refs:
+                match = BLOCK_REF_RE.fullmatch(reference)
+                if not match:
+                    continue
+                block_id, item_index = match.groups()
+                block = blocks[block_id]
+                if item_index is not None and isinstance(block.content, list):
+                    recovered_anchors.append(
+                        re.sub(r"\s+", " ", str(block.content[int(item_index)])).strip()[:120]
+                    )
+            image_slot.visual_intent.fact_anchors = recovered_anchors
+            image_slot.visual_intent.visual_grammar = InfographicVisualGrammar.model_validate(
+                build_visual_grammar(
+                    layout_family=image_slot.visual_intent.layout_family,
+                    fact_anchors=recovered_anchors,
+                    style_family=image_slot.visual_intent.style_family,
+                    article_type=image_slot.visual_intent.article_type,
+                )
+            )
+        allowed_fact_anchors: set[str] = set()
+        for block_id in image_slot.source_block_ids:
+            block = blocks[block_id]
+            values = block.content if isinstance(block.content, list) else [block.content]
+            allowed_fact_anchors.update(
+                re.sub(r"\s+", " ", str(value)).strip()[:120]
+                for value in values
+                if str(value).strip()
+            )
+        for fact_anchor in image_slot.visual_intent.fact_anchors:
+            if fact_anchor not in allowed_fact_anchors:
+                raise ValueError(f"图片事实锚点未逐字绑定原文：{fact_anchor}")
+        normalized_anchors = [
+            normalize_source_copy(value)
+            for value in image_slot.visual_intent.fact_anchors
+        ]
+        for display_label in image_slot.visual_intent.visual_grammar.display_labels:
+            if not any(display_label in anchor for anchor in normalized_anchors):
+                raise ValueError(f"图片短标签未逐字绑定事实锚点：{display_label}")
     return contract.model_dump(mode="json")

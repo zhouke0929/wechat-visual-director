@@ -20,7 +20,9 @@ from .editorial_brief import (
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
+from .image_intent import build_visual_intent
 from .plan_schema import validate_plan_for_article
+from .visual_dna import resolve_article_image_direction
 from .planner import (
     component_diversity_target,
     component_opportunity_diagnostics,
@@ -128,7 +130,7 @@ def _art_direction_profile(brief: EditorialBrief) -> tuple[str, dict[str, Any]]:
             "list_variant": "compact_checklist",
             "table_variant": "highlighted_column",
         }
-    elif brief.art_direction.style_family == "clean_3d_geometry":
+    elif brief.art_direction.style_family in {"clean_3d_geometry", "editorial_tech_collage"}:
         layout = {
             "heading_variant": "numbered_marker",
             "key_point_variant": "concise_rule",
@@ -374,6 +376,8 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
     for intent in brief.image_intents:
         blocks = _ordered_blocks(parsed, intent.source_block_ids)
         fact_bindings: dict[str, Any] = {"title_ref": None, "item_refs": [], "facts_locked": True}
+        fact_anchors: list[str] = []
+        heading_text: str | None = None
         if intent.purpose == "structured_infographic":
             list_block = next(
                 (block for block in blocks if block.type in {"ordered_list", "unordered_list"} and len(block.content) >= 2),
@@ -382,6 +386,8 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
             if list_block is None:
                 raise EditorialBriefCompileError("结构信息图必须引用至少包含两个条目的原文列表")
             heading = next((block for block in blocks if block.type == "heading"), None)
+            heading_text = str(heading.content) if heading else intent.visual_metaphor
+            fact_anchors = [str(item) for item in list_block.content[:4]]
             fact_bindings = {
                 "title_ref": heading.id if heading else None,
                 "item_refs": _item_refs(list_block, 4),
@@ -397,15 +403,20 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
                 "required": False,
                 "reason": f"{intent.necessity}：{intent.visual_metaphor}",
                 "aspect_ratio": intent.aspect_ratio,
-                "visual_intent": {
-                    "subject": intent.visual_metaphor,
-                    "composition": "branching" if intent.purpose == "structured_infographic" else "wide_scene",
-                    "style_family": brief.art_direction.style_family,
-                    "palette_role": "plan_palette",
-                    "palette_roles": list(brief.art_direction.palette_roles),
-                    "tone": list(brief.art_direction.tone),
-                    "negative_space": "lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
-                },
+                "visual_intent": build_visual_intent(
+                    purpose=intent.purpose,
+                    subject=intent.visual_metaphor,
+                    article_type=brief.article.article_type,
+                    title=heading_text,
+                    fact_anchors=fact_anchors,
+                    style_family=brief.art_direction.style_family,
+                    palette_roles=list(brief.art_direction.palette_roles),
+                    tone=list(brief.art_direction.tone),
+                    negative_space="lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
+                    requested_visual_role=intent.visual_role,
+                    requested_learning_objective=intent.learning_objective,
+                    requested_layout_family=intent.layout_family,
+                ),
                 "fact_bindings": fact_bindings,
                 "history_evidence": {
                     "recent_use_count": 0,
@@ -730,6 +741,7 @@ def apply_visual_system(
     previous_visual_system: str | None = None,
     recommended_visual_system: str | None = None,
     history_window: int = 5,
+    recent_summaries: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Apply a complete approved theme kit while preserving semantic structure."""
     if visual_system not in VISUAL_SYSTEM_ORDER:
@@ -788,6 +800,16 @@ def apply_visual_system(
     revised["configuration"] = visual_system_configuration(visual_system)
     revised["style_mode"] = visual_system
     revised["visual_system"] = visual_system
+    article_type = str(
+        revised.get("article_type")
+        or revised.get("editorial_brief_metadata", {}).get("article_type")
+        or "viewpoint_trend"
+    )
+    revised["image_art_direction"] = resolve_article_image_direction(
+        visual_system=visual_system,
+        article_type=article_type,
+        recent_summaries=recent_summaries,
+    )
     revised["plan_name"] = f"{catalog['label']} · 智能结构"
     revised["summary"] = f"{base_summary}；{catalog['description']}"
     revised["visual_system_metadata"] = {
@@ -840,6 +862,7 @@ def compile_editorial_brief_recommended(
         previous_visual_system=previous,
         recommended_visual_system=selected,
         history_window=history_window,
+        recent_summaries=recent,
     )
     plan["plan_index"] = 1
     plan["recommendation"] = "recommended"

@@ -18,6 +18,8 @@ from urllib.parse import urlparse
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
+from .image_intent import build_visual_grammar, resolve_display_copy
+
 
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
 PHONE_RE = re.compile(r"(?<!\d)(?:\+?86[- ]?)?1[3-9]\d{9}(?!\d)")
@@ -34,7 +36,7 @@ DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
 DEFAULT_AGNES_ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 DEFAULT_AGNES_MODEL = "agnes-image-2.1-flash"
 IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION = "image_provider_settings.v0.2"
-IMAGE_PROMPT_VERSION = "v6-seedream-concise-variety"
+IMAGE_PROMPT_VERSION = "v10-visual-dna-article-direction"
 ALLOWED_RATIOS = {"4:3", "16:9"}
 # OpenAI and Gemini can return the generated image inline as Base64. A 4K
 # image can make the JSON envelope much larger than a normal API response.
@@ -127,14 +129,6 @@ def _visual_concept(subject: str, article_type: str) -> str:
     }.get(article_type, "关于学习与未来选择的编辑视角")
 
 
-def _structured_layout(item_count: int) -> str:
-    if item_count == 2:
-        return "两条内容上下排列，形成一条清楚的纵向对照动线，不使用左右分栏"
-    if item_count == 3:
-        return "三条内容上下排列成纵向编辑序列，一行一个观点，禁止三列并排"
-    return "四条内容使用两段纵向序列，每段两条上下排列，禁止四列并排"
-
-
 def image_prompt_profile(provider: ImageProvider) -> str:
     """Resolve provider-specific prompt syntax without leaking it into planning."""
     model = str(getattr(provider, "model", "")).lower()
@@ -146,6 +140,133 @@ def image_prompt_profile(provider: ImageProvider) -> str:
     if protocol == "openai":
         return "openai"
     return "generic"
+
+
+def _structured_style_direction(style_family: str, candidate_index: int) -> str:
+    variant = max(0, candidate_index - 1) % 3
+    if style_family == "soft_flat_illustration":
+        edges = (
+            "开放式手绘边缘",
+            "局部越出浅色形状的自由边缘",
+            "柔和弧形与少量贴纸式切边",
+        )
+        return f"清爽教育绘本插画，柔和扁平色块配铅笔细节，{edges[variant]}，不做规则卡片"
+    if style_family == "clean_3d_geometry":
+        edges = (
+            "低矮连续地台",
+            "一条贯穿画面的空间轨道",
+            "错落但统一材质的微缩场景",
+        )
+        return f"轻量三维教育微缩模型，统一哑光材质与柔和投影，{edges[variant]}，不做界面面板"
+    if style_family == "editorial_tech_collage":
+        edges = (
+            "半透明信息薄片与连续信号曲线形成不对称编辑场",
+            "两三层磨砂薄片沿一条流动轨迹向前展开",
+            "前景语义物件与背景数据轨迹形成开放式科技杂志跨页",
+        )
+        return (
+            f"科技编辑拼贴与克制2.5D空间，纸张和磨砂半透明材质并存，{edges[variant]}；"
+            "每个节点使用不同的语义物件，禁止路牌、站牌、塑料玩具和重复小图标"
+        )
+    edges = (
+        "一整张带自然毛边的手工纸作为统一场景",
+        "两三层错位撕纸边缘形成连续纵深",
+        "纸张角部轻微卷起并带装订线细节",
+    )
+    return f"现代编辑纸艺绘本，水彩与彩铅细节，{edges[variant]}，所有节点处在同一纸面世界"
+
+
+def _structured_density_direction(candidate_index: int, style_family: str = "") -> str:
+    paths = (
+        "用一条大幅S形路径贯穿画面",
+        "用左下到右上的对角阅读路径贯穿画面",
+        "用中央枢纽与两侧展开的宽路径填满主体区",
+    )
+    base = (
+        f"{paths[max(0, candidate_index - 1) % len(paths)]}；核心内容占画布70%到85%，"
+        "主场景横向铺开，顶部标题区不超过画面12%，上下空白带各不超过8%。"
+        "节点必须画成可辨认的小场景或物体组合，不能缩成一排小图标。"
+    )
+    if style_family == "editorial_tech_collage":
+        return (
+            f"{base} 画面上半部也必须有信号轨迹、半透明层或主体延伸，不得留下超过画面15%的连续空白；"
+            "禁止深色道路横贯整幅画面，禁止把流程做成四块等宽站牌。"
+        )
+    return base
+
+
+def _cover_style_direction(style_family: str, candidate_index: int) -> str:
+    """Compile article Visual DNA into a cover-specific, single-focus art direction."""
+    variant = max(0, candidate_index - 1) % 3
+    if style_family == "soft_flat_illustration":
+        edges = ("开放手绘边缘", "浅色形状自然越出局部轮廓", "柔和弧线与少量贴纸切边")
+        return f"柔和教育编辑插画，扁平色块配铅笔细节，{edges[variant]}"
+    if style_family == "clean_3d_geometry":
+        spaces = ("连续低矮地台", "一条贯穿画面的空间轨道", "错落但统一材质的微缩场景")
+        return f"干净哑光三维教育几何，统一材质与柔和投影，{spaces[variant]}；禁止仪表盘和塑料玩具感"
+    if style_family == "editorial_tech_collage":
+        layouts = ("不对称信息场", "沿信号曲线展开的两三层薄片", "前景物件与背景数据轨迹形成开放跨页")
+        return (
+            f"科技编辑拼贴，磨砂半透明薄片、纸张纤维与克制2.5D并存，{layouts[variant]}；"
+            "禁止路牌、站牌、深色道路、塑料玩具和重复小图标"
+        )
+    edges = ("自然毛边", "错位撕纸边缘", "轻微卷起的装订纸边")
+    return f"现代编辑纸艺插画，水彩和彩铅细节，以一整张{edges[variant]}纸面形成统一场景"
+
+
+PALETTE_ROLE_LABELS = {
+    "deep_navy": "深海军蓝",
+    "muted_teal": "低饱和青绿",
+    "warm_ivory": "暖象牙白",
+    "coral_accent": "珊瑚橙点缀",
+    "sunlit_yellow": "日光黄点缀",
+    "soft_sky": "柔和天蓝",
+}
+
+SURFACE_LABELS = {
+    "airy_open_page": "轻盈开放的书页底",
+    "soft_margin_paper": "带柔和页边的浅色纸面",
+    "warm_tactile_paper": "可见细腻纤维的暖调手工纸",
+    "watercolor_note_paper": "带淡水彩晕染的笔记纸",
+    "campus_bulletin_paper": "轻微错位装订的校园公告纸",
+    "sketchbook_paper": "带铅笔痕迹的素描本纸页",
+    "independent_magazine_paper": "对比清楚的独立杂志纸面",
+    "annotated_report_paper": "带克制编辑批注的报告纸",
+    "structured_spatial_surface": "统一哑光材质的结构化空间",
+    "precision_grid_surface": "弱网格衬底上的精密哑光结构",
+    "future_signal_surface": "带柔和信号光的未来空间表面",
+    "quiet_technology_surface": "低反光、安静克制的科技材质",
+}
+
+COMPOSITION_FAMILY_LABELS = {
+    "editorial_storyline": "连续编辑叙事",
+    "open_diagonal": "开放对角动线",
+    "layered_spread": "层叠跨页",
+    "open_scene": "开放单场景",
+    "gentle_path": "柔和连续路径",
+    "balanced_focus": "均衡单焦点",
+    "spatial_route": "连续空间轨道",
+    "miniature_stage": "微缩叙事地台",
+    "axial_system": "清晰轴线系统",
+    "asymmetric_editorial_field": "不对称科技编辑场",
+    "flowing_signal_path": "连续流动的信号路径",
+    "layered_horizon": "层叠展开的未来地平线",
+}
+
+
+def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
+    direction = intent.get("article_art_direction") or {}
+    roles = direction.get("palette_roles") or intent.get("palette_roles") or []
+    palette = "、".join(PALETTE_ROLE_LABELS.get(str(role), str(role)) for role in roles)
+    surface_key = str(direction.get("surface_treatment") or "")
+    composition_key = str(direction.get("composition_family") or "")
+    tone = "、".join(str(value) for value in direction.get("tone") or intent.get("tone") or [])
+    return (
+        palette or "暖白、墨蓝与少量克制强调色",
+        SURFACE_LABELS.get(surface_key, surface_key or "统一、克制的编辑表面"),
+        COMPOSITION_FAMILY_LABELS.get(composition_key, composition_key or "连续单一阅读动线"),
+        tone or "清晰、可信、克制",
+    )
 
 
 def _seedream_scene(subject: str, article_type: str, candidate_index: int) -> tuple[str, str, str]:
@@ -187,6 +308,11 @@ def _seedream_provider_prompt(
 ) -> str:
     intent = image_slot["visual_intent"]
     subject = sanitize_subject(str(intent.get("subject") or ""))
+    learning_objective = sanitize_subject(str(intent.get("learning_objective") or ""))
+    layout_family = str(intent.get("layout_family") or "semantic_scene")
+    palette, surface, article_composition, tone = _resolved_art_labels(intent)
+    direction = intent.get("article_art_direction") or {}
+    style_family = str(direction.get("style_family") or intent.get("style_family") or "editorial_paper_cut")
     if image_slot["purpose"] == "structured_infographic":
         title = " ".join((infographic_title or "").replace("**", "").split())
         items = [
@@ -201,15 +327,33 @@ def _seedream_provider_prompt(
                 retryable=False,
                 http_status=422,
             )
-        locked_copy = "；".join(f'{index + 1}.“{item}”' for index, item in enumerate(items))
+        title, labels = resolve_display_copy(intent, title, items)
+        grammar = intent.get("visual_grammar") or build_visual_grammar(
+            layout_family=layout_family,
+            fact_anchors=items,
+            style_family=str(intent.get("style_family") or "editorial_paper_cut"),
+            article_type=article_type,
+        )
+        node_visuals = list(grammar.get("node_visuals") or [])
+        nodes = "；".join(
+            f'{index + 1}.“{label}”配{node_visuals[index] if index < len(node_visuals) else "对应的具象物体"}'
+            for index, label in enumerate(labels)
+        )
+        zones = "、".join(str(value) for value in grammar.get("spatial_zones") or [])
+        motifs = "、".join(str(value) for value in grammar.get("decorative_motifs") or [])
+        style_direction = _structured_style_direction(
+            style_family,
+            candidate_index,
+        )
         prompt = " ".join(
             [
-                "教育类微信公众号横版4:3信息图，手机端阅读。",
-                f'顶部左对齐标题“{title}”；{_structured_layout(len(items))}。',
-                f"只使用这些原文：{locked_copy}。文字逐字准确，不改写，不新增说明或数据。",
-                "所有文字和图标位于中央安全区，左右留12%、上下留10%，字号清楚，禁止贴边和裁切。",
-                f"视觉主题是{subject}，用少量边缘插画、细线和手绘标记辅助阅读。",
-                "现代教育杂志设计，冷白背景，低饱和蓝绿为主，珊瑚橙或日光黄只作少量强调；开放式分区，不做三列小卡片，不堆圆角框。",
+                "教育类微信公众号横版4:3插画型信息图，像一本现代教育绘本的跨页，不是PPT、表格或卡片模板。",
+                f'顶部只放左对齐标题“{title}”。核心场景隐喻：{grammar.get("scene_metaphor")}。空间分区：{zones}。',
+                f'节点脚本：{nodes}。连接方式：{grammar.get("connector_language")}。图像承担主要解释，短标签贴近对应物体。',
+                f"阅读目标：{learning_objective or '帮助读者看懂节点关系'}。严格文字白名单：只允许标题和上述引号中的标签；场景隐喻、连接词和装饰要求只画不写，不补充句子、数据或结论。",
+                f"美术方向：{style_direction}；整篇统一采用{surface}、{article_composition}，气质{tone}。装饰仅用{motifs or '细线和少量手绘标记'}。",
+                _structured_density_direction(candidate_index, style_family),
+                f"配色只用{palette}；关键内容不贴边、不裁切。",
                 "无二维码、Logo、水印、条形码和官方印章。",
             ]
         )
@@ -217,17 +361,15 @@ def _seedream_provider_prompt(
         return prompt
 
     scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
-    palette = {
-        "data_policy": "冷白、深海军蓝、低饱和青绿，少量琥珀色",
-        "tutorial_steps": "象牙白、森林绿、陶土橙，少量日光黄",
-        "lively_growth": "明亮留白、清新青绿、珊瑚粉与少量柠檬黄",
-        "viewpoint_trend": "暖白、墨蓝、雾青，少量珊瑚橙",
-    }.get(article_type, "暖白、墨蓝、雾青，少量珊瑚橙")
+    if style_family == "editorial_tech_collage":
+        composition = "不对称横向编辑构图，主体与信号动线占据画面75%到85%"
+        medium = "科技编辑拼贴、磨砂半透明薄片、细腻纸张纤维与克制的2.5D空间"
     prompt = " ".join(
         [
             "教育类微信公众号正文横版语义插画，画面不是信息图或海报。",
-            f"文章要表达{_visual_concept(subject, article_type)}，具体线索是{subject}。",
-            f"场景：{scene}。{composition}，{medium}，{palette}，自然柔光，有明确主次和充足呼吸感。",
+            f"图片作用是{learning_objective or '建立章节语境'}；文章要表达{_visual_concept(subject, article_type)}，具体线索是{subject}。",
+            f"场景：{scene}。{composition}，并服从整篇的{article_composition}；{medium}，{surface}，配色只用{palette}，气质{tone}，自然柔光。",
+            "不同信息使用不同的真实语义物件，不使用路牌、站牌、塑料玩具或重复小图标；不使用深色大底，画面上半部不得形成大面积空白。" if style_family == "editorial_tech_collage" else "保持一个清晰主体和连贯阅读动线。",
             "主体完整位于中央80%安全区，不贴边、不截断。",
             "画面不出现任何文字、数字、表格、图表、文档界面、Logo、水印、二维码、条形码或官方印章。",
         ]
@@ -255,18 +397,13 @@ def build_provider_prompt(
         )
     intent = image_slot["visual_intent"]
     concept = _visual_concept(intent["subject"], article_type)
+    learning_objective = sanitize_subject(str(intent.get("learning_objective") or ""))
+    layout_family = str(intent.get("layout_family") or "semantic_scene")
     style_labels = {
         "editorial_paper_cut": "精致的编辑纸雕拼贴风，具有杂志感、轻微纸张层次和克制的装饰细节",
         "soft_flat_illustration": "柔和扁平编辑插画风，图形简洁但不幼稚，边缘清晰",
         "clean_3d_geometry": "干净的轻量三维几何插画风，材质统一，空间层次清楚",
-    }
-    palette_labels = {
-        "deep_navy": "深海军蓝",
-        "muted_teal": "低饱和青绿",
-        "warm_ivory": "暖象牙白",
-        "coral_accent": "珊瑚橙点缀",
-        "sunlit_yellow": "日光黄点缀",
-        "soft_sky": "柔和天蓝",
+        "editorial_tech_collage": "科技编辑拼贴风，磨砂半透明薄片、纸张纤维和克制2.5D空间形成开放叙事",
     }
     fallback_palettes = {
         "data_policy": ["warm_ivory", "deep_navy", "muted_teal", "sunlit_yellow"],
@@ -282,7 +419,7 @@ def build_provider_prompt(
         article_type,
         fallback_palettes["viewpoint_trend"],
     )
-    palette = "、".join(palette_labels.get(str(role), str(role)) for role in palette_roles)
+    palette = "、".join(PALETTE_ROLE_LABELS.get(str(role), str(role)) for role in palette_roles)
     tone = "、".join(str(value) for value in intent.get("tone") or ["清晰", "可信", "克制"])
     composition_labels = {
         "branching": "用清楚的阅读动线连接各信息节点，节点之间有充分留白",
@@ -314,30 +451,47 @@ def build_provider_prompt(
                 retryable=False,
                 http_status=422,
             )
-        locked_copy = "；".join(f'{index + 1}. “{item}”' for index, item in enumerate(items))
-        layout = _structured_layout(len(items))
+        title, labels = resolve_display_copy(intent, title, items)
+        grammar = intent.get("visual_grammar") or build_visual_grammar(
+            layout_family=layout_family,
+            fact_anchors=items,
+            style_family=str(intent.get("style_family") or "editorial_paper_cut"),
+            article_type=article_type,
+        )
+        node_visuals = list(grammar.get("node_visuals") or [])
+        nodes = "；".join(
+            f'{index + 1}.“{label}”配{node_visuals[index] if index < len(node_visuals) else "对应的具象物体"}'
+            for index, label in enumerate(labels)
+        )
+        zones = "、".join(str(value) for value in grammar.get("spatial_zones") or [])
+        motifs = "、".join(str(value) for value in grammar.get("decorative_motifs") or [])
+        style_direction = _structured_style_direction(
+            str(intent.get("style_family") or "editorial_paper_cut"),
+            candidate_index,
+        )
+        direction_palette, surface, article_composition, direction_tone = _resolved_art_labels(intent)
         prompt = " ".join(
             [
-                "设计一张教育类微信公众号使用的横版4:3编辑信息图，像一页有呼吸感的现代教育杂志，不是PPT、后台界面或卡片模板。",
-                "画布安全区是中央区域：左右各留12%，上下各留10%；所有标题、正文、编号和图标必须完整位于安全区内，不得贴边、越界或被裁切。",
-                f"版式：标题左对齐置于顶部；{layout}；正文使用适合手机阅读的清晰中文字体。",
-                f'只呈现以下锁定文字。标题：“{title}”。内容：{locked_copy}。',
-                "锁定文字逐字呈现，不改写、不省略；不要添加系统字段名、副标题、说明或虚构数据。",
-                f"视觉隐喻只作为小型边缘插画，不占用文字区：{sanitize_subject(str(intent.get('subject') or ''))}。",
-                f"风格：{style}；气质：{tone}；配色：{palette}。背景以冷白或极浅灰为主，暖色只做局部点缀，不要大面积米黄或黄色底。",
-                "用开放式分区、细线、手绘标记和少量图标建立阅读节奏；避免三列小卡片、重复圆角框、粗重阴影和大面积装饰。",
+                "设计一张教育类微信公众号横版4:3插画型信息图，像一页有呼吸感的教育绘本，不是PPT、后台界面、表格或卡片模板。",
+                f'顶部只放左对齐标题“{title}”。核心场景隐喻：{grammar.get("scene_metaphor")}。空间分区：{zones}。',
+                f'节点脚本：{nodes}。连接方式：{grammar.get("connector_language")}。让物体、人物动作与空间关系承担主要解释。',
+                f"阅读目标：{learning_objective or '帮助读者理解原文节点关系'}。严格文字白名单：只允许标题和上述引号中的标签；场景隐喻、连接词和装饰要求只画不写，不增加说明、数据或结论。",
+                f"美术方向：{style_direction}；整篇统一采用{surface}、{article_composition}。气质：{direction_tone or tone}；配色只用：{direction_palette or palette}。",
+                f"装饰仅用{motifs or '细线和少量手绘标记'}；避免独立圆角框、机械多列和粗重阴影。{_structured_density_direction(candidate_index, str(intent.get('style_family') or ''))}关键内容不贴边、不裁切。",
                 "不得出现二维码、Logo、水印、条形码或官方印章。",
             ]
         )
         validate_provider_prompt(prompt)
         return prompt
+    _, surface, article_composition, direction_tone = _resolved_art_labels(intent)
     prompt = " ".join(
         [
             "为教育类微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
             f"文章语义：{concept}。",
+            f"图片作用：{learning_objective or '建立章节语境与阅读停顿'}。",
             f"具体视觉隐喻：{sanitize_subject(str(intent.get('subject') or ''))}。",
-            f"构图：{composition}；{negative_space}。",
-            f"美术方向：{style}。整体气质：{tone}。配色：{palette}；背景以冷白或极浅灰为主，暖色只作局部点缀。",
+            f"构图：{composition}；{negative_space}；整篇采用{article_composition}。",
+            f"美术方向：{style}，表面语言为{surface}。整体气质：{direction_tone or tone}。配色：{palette}。",
             "使用一个明确、具体的主要场景，不使用没有信息目的的装饰几何形状，画面有层次但不过度堆砌。",
             "画面中不要出现文字、字母、汉字、数字、表格、图表、文档、界面、Logo、水印、二维码、条形码、官方印章或招牌。",
         ]
@@ -366,26 +520,27 @@ def build_cover_prompt(
         )
     )
     concept = _visual_concept(subject, article_type)
+    direction = cover_brief.get("image_art_direction") or {}
+    palette, surface, article_composition, tone = _resolved_art_labels(
+        {"article_art_direction": direction}
+    )
     if prompt_profile == "seedream":
-        scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
-        palette = {
-            "data_policy": "冷白、深海军蓝、低饱和青绿，少量琥珀色",
-            "tutorial_steps": "象牙白、森林绿、陶土橙，少量日光黄",
-            "lively_growth": "明亮暖白、清新青绿、珊瑚粉与少量柠檬黄",
-            "viewpoint_trend": "暖白、墨蓝、雾青，少量珊瑚橙",
-        }.get(article_type, "暖白、墨蓝、雾青，少量珊瑚橙")
+        scene, composition, _ = _seedream_scene(subject, article_type, candidate_index)
+        style_family = str(direction.get("style_family") or "editorial_paper_cut")
+        style_direction = _cover_style_direction(style_family, candidate_index)
         prompt = " ".join(
             [
                 "教育类微信公众号5:4封面底图，只生成图片，不排标题。",
                 f"核心概念是{concept}，具体场景为{scene}。",
-                f"{composition}，{medium}，{palette}，有一个鲜明视觉焦点和充足呼吸感。",
+                f"{composition}，并服从整篇的{article_composition}；{style_direction}，表面语言为{surface}，配色只用{palette}，气质{tone}。",
+                "只保留一个鲜明视觉隐喻，不做信息图、多面板或并排步骤卡。",
                 "重要主体完整位于中央70%，左上与中央保留平静的标题安全区，不贴边、不截断。",
                 "不出现文字、字母、数字、表格、图表、文档界面、Logo、水印、二维码、条形码、印章或招牌。",
             ]
         )
         validate_provider_prompt(prompt)
         return prompt
-    style, palette = {
+    fallback_style, fallback_palette = {
         "data_policy": (
             "precise editorial paper-cut illustration with a clear evidence motif",
             "warm ivory, deep navy, muted teal, and one amber accent",
@@ -406,11 +561,19 @@ def build_cover_prompt(
         "thoughtful magazine cover illustration with one strong visual metaphor",
         "warm ivory, ink blue, muted cyan, and a small coral accent",
     ))
+    style_labels = {
+        "editorial_paper_cut": "tactile editorial paper-cut illustration with subtle handmade fibers",
+        "soft_flat_illustration": "soft flat educational illustration with open hand-drawn edges",
+        "clean_3d_geometry": "clean matte three-dimensional educational geometry",
+        "editorial_tech_collage": "editorial technology collage with frosted translucent layers, tactile paper fibers, and restrained 2.5D depth",
+    }
+    style = style_labels.get(str(direction.get("style_family") or ""), fallback_style)
+    direction_palette = ", ".join(str(value) for value in direction.get("palette_roles") or [])
     return " ".join(
         [
             "Create a premium editorial cover background for an education-focused WeChat article.",
             f"Editorial concept: {concept}.",
-            f"Art direction: {style}. Palette: {palette}.",
+            f"Art direction: {style}. Surface and composition: {surface}; {article_composition}. Palette: {direction_palette or fallback_palette}.",
             "Use one dominant scene, strong silhouette, restrained detail, and generous breathing room.",
             "Keep the upper-left and central area visually calm as a safe title zone; important subjects stay inside the middle 70 percent.",
             "STRICT IMAGE-ONLY RULE: no text, no letters, no Chinese characters, no numbers, no tables, no charts, no document, no interface, no logo, no watermark, no QR code, no barcode, no official seal, and no signage.",
