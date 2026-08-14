@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -847,7 +848,13 @@ def render_preview(
     brand_profile: dict[str, Any] | None = None,
 ) -> str:
     validated = validate_plan_for_article(plan, parsed)
-    profile = brand_profile if brand_profile is not None else load_brand_profile(Path(__file__).resolve().parents[4])
+    configured_root = os.environ.get("VISUAL_DIRECTOR_PROJECT_ROOT")
+    project_root = (
+        Path(configured_root).expanduser().resolve()
+        if configured_root
+        else Path(__file__).resolve().parents[4]
+    )
+    profile = brand_profile if brand_profile is not None else load_brand_profile(project_root)
     config = validated["configuration"]
     accent = config["accent"]
     palette = config.get("palette", {"primary": accent})

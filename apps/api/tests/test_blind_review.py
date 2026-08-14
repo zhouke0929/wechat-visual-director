@@ -23,6 +23,21 @@ def complete_submission(reviewer_id: str, assignment_token: str) -> dict:
     }
 
 
+def test_blind_review_fixture_is_optional_for_portable_runtime(tmp_path: Path) -> None:
+    app = create_app(
+        str(tmp_path / "portable.db"),
+        blind_review_manifest_path=str(tmp_path / "not-packaged.json"),
+    )
+    assert app.state.blind_review_dataset is None
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/v1/blind-reviews/not-packaged",
+            params={"reviewer_id": "product_owner"},
+        )
+    assert response.status_code == 404
+    assert "未包含盲评实验样本" in response.json()["error"]["message"]
+
+
 def test_blind_review_hides_sources_randomizes_and_locks_submission(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "blind.db"))
     eval_set_id = app.state.blind_review_dataset.eval_set_id

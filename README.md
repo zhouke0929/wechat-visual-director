@@ -10,15 +10,15 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营在浏览器中确认整篇主题、图片与封面，模型不直接自由生成整段 HTML/CSS。
 
-当前开发版本：**v0.1.0-alpha.19**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
+当前开发版本：**v0.1.0-alpha.20**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
 ![Visual Director 本地任务台](docs/assets/readme/workbench-home.png)
 
-## 安装不再依赖 Node.js 或 Wenyan
+## Windows 安装不再依赖 Git、Python、Node.js 或 Wenyan
 
-发行包已经包含构建后的工作台，正常安装与使用只需要 Git 和 Python 3.11+。公众号草稿交付由项目内置的微信官方 API 发布器完成，不会安装全局 npm 工具，也不会修改用户的 Node.js 环境。
+Windows x64 Release 已包含 Python 3.11.9、后端依赖和构建后的工作台。普通用户把固定 Release 链接交给 Agent 后，不需要预先安装 Git、系统 Python、Node.js、pnpm 或 Wenyan。安装器会校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
 
 - 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
 - 生成图片：按需配置图片 Provider，或直接人工上传；
@@ -28,11 +28,11 @@ AppSecret 和访问令牌不会写入任务数据库；访问令牌只保存在�
 
 ## 能力分层
 
-| 使用目标 | Visual Director | Python 3.11+ | 图片模型 Key | 公众号 AppID / AppSecret | IP 白名单 |
+| 使用目标 | Visual Director | 额外运行环境 | 图片模型 Key | 公众号 AppID / AppSecret | IP 白名单 |
 |---|---:|---:|---:|---:|---:|
-| 只做排版与预览 | 必需 | 必需 | 不需要 | 不需要 | 不需要 |
-| 排版 + AI 生图 | 必需 | 必需 | 可选，人工上传可替代 | 不需要 | 不需要 |
-| 完整写入公众号草稿箱 | 必需 | 必需 | 可选 | **必需** | **必需** |
+| 只做排版与预览 | 必需 | Windows 无 | 不需要 | 不需要 | 不需要 |
+| 排版 + AI 生图 | 必需 | Windows 无 | 可选，人工上传可替代 | 不需要 | 不需要 |
+| 完整写入公众号草稿箱 | 必需 | Windows 无 | 可选 | **必需** | **必需** |
 
 无论选择哪一层，最终群发都必须由用户在微信公众号后台人工完成。
 
@@ -54,11 +54,11 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 ## 当前能力
 
 - 4 类文章：数据政策、教程步骤、观点趋势、活力成长；
-- 6 套视觉系统：轻盈阅读、温暖人文、编辑对比、理性网格、青春校园、未来科技；
+- 12 套视觉系统：轻盈阅读、温暖人文、编辑对比、理性网格、青春校园、未来科技、新中式雅集、复古报刊、波普海报、自然图鉴、商业画报、电影叙事；
 - 12 类语义组件，由当前整篇主题统一决定视觉形态；
 - 连续概念词条组、长清单、真实对比段和长文节奏识别；
-- 一份自动选中的视觉推荐稿与 390px 移动端预览；
-- 六套完整主题可即时切换和回退，不重新调用文本模型或图片模型；
+- 一份自动选中的视觉推荐稿、390px 内容校对视图与拟真手机预览；
+- 12 套完整主题可即时切换和回退，不重新调用文本模型或图片模型；
 - 最终冻结稿进入最近五篇主题历史，优先避免连续重复；
 - 正文配图、结构信息图、人工上传与封面候选；
 - `image_visual_intent.v3` 插画型信息图、文章级 Visual DNA 与短标签事实锁定；
@@ -118,24 +118,24 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Trae、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。发送下面这段话：
 
 ```text
-请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。正常安装不得调用 npm 或 pnpm；如果我要直接写入微信公众号草稿箱，请把本地设置地址和 AppID、AppSecret、公网 IP 白名单的人工配置步骤告诉我。
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.19
+请安装或升级 wechat-visual-director v0.1.0-alpha.20。先阅读固定版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 GitHub Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。
+https://github.com/zhouke0929/wechat-visual-director/releases/tag/v0.1.0-alpha.20
 ```
 
 安装完成后，请重启宿主 Agent 或新开对话，使它重新扫描本机 Skill 目录。进入新对话不等于重新安装；Agent 应先执行 `doctor --json`。
 
-### 方式二：Windows PowerShell
+### 方式二：Windows PowerShell 一行安装
 
-基础安装只需要 Git 与 Python 3.11+。发行包已经包含构建后的工作台，正常使用不需要 `pnpm dev`。
+下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-git clone --branch v0.1.0-alpha.19 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
-Set-Location .\wechat-visual-director
-
-$bootstrap = powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1" | ConvertFrom-Json
-powershell -NoProfile -ExecutionPolicy Bypass -File $bootstrap.launcher doctor --json
-powershell -NoProfile -ExecutionPolicy Bypass -File $bootstrap.launcher task create --file ".\samples\skill-alpha\canonical-article.md" --open --json
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha20.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.20/install-release.ps1" -OutFile $installer
+$result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
+powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
+
+源码克隆只用于开发、审计或 macOS 技术预览，不是 Windows 普通用户的默认安装路径。
 
 默认安装位置：
 
@@ -217,15 +217,16 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 
 主题不是简单换色。每套主题拥有统一的设计基因、章节装饰和语义组件，规划器会参考最近 5 篇历史视觉摘要，减少连续文章重复使用同一套表达。
 
-![六套主题样册](docs/assets/readme/theme-gallery.png)
+![主题样册](docs/assets/readme/theme-gallery.png)
 
 ## 系统要求
 
 ### 基础排版
 
-- Windows 10/11；
-- Git；
-- Python 3.11 或更高版本；
+- Windows 10/11 x64；
+- PowerShell 5.1 或更高版本；
+- 能访问 GitHub Release 和本机 `127.0.0.1` 地址的网络与浏览器；
+- 不要求预装 Git、Python、Node.js、pnpm 或 Wenyan。
 - 可打开本机 `127.0.0.1` 地址的浏览器。
 
 ### 公众号草稿交付附加要求
@@ -237,7 +238,7 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 ### macOS 技术预览
 
 ```bash
-git clone --branch v0.1.0-alpha.19 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.20 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 cd wechat-visual-director
 bash scripts/bootstrap.sh
 ```

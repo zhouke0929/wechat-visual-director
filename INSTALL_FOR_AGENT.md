@@ -21,7 +21,25 @@ invoke npm, pnpm, or install a global Node.js package.
 1. If `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` exists and the
    user did not ask to upgrade, run `doctor --json` first. A new conversation is
    not a reason to reinstall.
-2. When installing or explicitly upgrading from this repository, use the platform entry:
+2. On Windows x64, prefer the fixed GitHub Release package. It already contains
+   Python 3.11.9, backend dependencies, and the built workbench. Do not clone the
+   repository and do not install Git, Python, Node.js, pnpm, or Wenyan for a normal
+   user installation.
+
+```powershell
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha20.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.20/install-release.ps1" -OutFile $installer
+powershell -NoProfile -ExecutionPolicy Bypass -File $installer
+```
+
+   Parse the final JSON. The release installer downloads both the x64 ZIP and its
+   checksum, verifies SHA-256, extracts to a temporary directory, and then runs the
+   same persistent bootstrap contract. Success additionally reports
+   `runtime_mode=bundled_python` and `bundled_runtime=true`.
+
+3. Only use the source bootstrap when the user explicitly requests source
+   development/audit, supplies a local source checkout, or is using the macOS
+   Technical Preview:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
@@ -31,20 +49,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
 bash scripts/bootstrap.sh
 ```
 
-3. Parse only the final JSON written to stdout. Progress text is written to
+4. Parse only the final JSON written to stdout. Progress text is written to
    stderr. Do not infer readiness merely because a port or browser page opens.
-4. Success requires all of the following:
+5. Success requires all of the following:
    - `ok=true`;
    - `installation.persistent=true`;
    - `installation.version_match=true`;
    - `capabilities.host_skill_registered=true`.
-5. Follow `next_action`:
+6. Follow `next_action`:
    - `create_article`: accept the user's topic, sources, or Markdown and use the
      registered `wechat-visual-director` Skill;
    - `configure_image_provider` or `configure_wechat_publisher`: give the user
      `settings_url`. The user enters private credentials in the local page;
      never ask them to paste those values into the conversation.
-6. After first installation, tell the user to start a new host conversation if
+7. After first installation, tell the user to start a new host conversation if
    the host only discovers Skills at startup.
 
 ## Built-in WeChat publisher

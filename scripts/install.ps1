@@ -338,11 +338,31 @@ if (-not (Test-Path -LiteralPath $ConfigFile)) {
 
 $ApiDir = Join-Path $VersionRoot "apps\api"
 $WebDir = Join-Path $VersionRoot "apps\web"
+$BundledPython = Join-Path $VersionRoot "runtime\python\python.exe"
 $VenvDir = Join-Path $ApiDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $PythonVersion = $null
+$RuntimeMode = "unresolved"
+$DependenciesInstalled = $false
 
-if (-not $SkipDependencies) {
+if (Test-Path -LiteralPath $BundledPython -PathType Leaf) {
+    try {
+        $PythonVersion = (& $BundledPython -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')").Trim()
+        & $BundledPython -c "import fastapi, PIL, uvicorn, visual_director, yaml"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Failure "bundled_runtime_invalid" "The bundled Python runtime is incomplete." @{
+                runtime = $BundledPython
+            }
+        }
+    } catch {
+        Write-Failure "bundled_runtime_invalid" "The bundled Python runtime could not be started." @{
+            runtime = $BundledPython
+            reason = $_.Exception.Message
+        }
+    }
+    $RuntimeMode = "bundled_python"
+    $DependenciesInstalled = $true
+} elseif (-not $SkipDependencies) {
     if (-not (Test-Path -LiteralPath (Join-Path $ApiDir "pyproject.toml") -PathType Leaf)) {
         Write-Failure "project_layout_missing" "apps/api/pyproject.toml was not found." @{ root = $VersionRoot }
     }
@@ -370,7 +390,10 @@ if (-not $SkipDependencies) {
     if ($LASTEXITCODE -ne 0) {
         Write-Failure "python_install_failed" "Could not install the Visual Director API package."
     }
-
+    $RuntimeMode = "system_python_venv"
+    $DependenciesInstalled = $true
+} else {
+    $RuntimeMode = "dependencies_skipped"
 }
 
 $StaticWorkbench = Join-Path $WebDir "dist\index.html"
@@ -462,7 +485,10 @@ if (-not [string]::IsNullOrWhiteSpace($PreviousVersion) -and $PreviousVersion -n
     uninstaller = $StableUninstaller
     skill_root = $HostRegistration.generic_skill_root
     host_registration = $HostRegistration
-    dependencies_installed = -not $SkipDependencies
+    dependencies_installed = $DependenciesInstalled
+    runtime_mode = $RuntimeMode
+    python_version = $PythonVersion
+    bundled_runtime = ($RuntimeMode -eq "bundled_python")
     production_workbench_built = (Test-Path -LiteralPath (Join-Path $WebDir "dist\index.html") -PathType Leaf)
     retained_versions = $RetainedVersions
     removed_versions = $VersionCleanup.removed

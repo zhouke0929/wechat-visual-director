@@ -141,6 +141,9 @@ if ([string]::IsNullOrWhiteSpace($NextAction)) {
     background = $true
     process_mode = "detached"
     command_completed = $true
+    runtime_mode = [string]$InstallResult.runtime_mode
+    python_version = [string]$InstallResult.python_version
+    bundled_runtime = [bool]$InstallResult.bundled_runtime
     installation = $DoctorResult.installation
     capabilities = $DoctorResult.capabilities
     setup = $DoctorResult.setup

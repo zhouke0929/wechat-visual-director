@@ -428,7 +428,12 @@ def create_app(
     wechat_connection_probe: WechatConnectionProbe | None = None,
     public_ip_probe: PublicIpProbe | None = None,
 ) -> FastAPI:
-    root = Path(__file__).resolve().parents[4]
+    configured_root = os.environ.get("VISUAL_DIRECTOR_PROJECT_ROOT")
+    root = (
+        Path(configured_root).expanduser().resolve()
+        if configured_root
+        else Path(__file__).resolve().parents[4]
+    )
     runtime_settings, runtime_env_path = load_runtime_settings(root)
     db_path = database_path or os.environ.get("VISUAL_DIRECTOR_DB", str(root / "apps" / "api" / "data" / "visual-director.db"))
     repository = Repository(db_path)
@@ -472,7 +477,13 @@ def create_app(
             str(root / "samples" / "evaluation" / "v0.6-public-blind-manifest.json"),
         )
     )
-    app.state.blind_review_dataset = load_blind_review_dataset(str(root), str(blind_manifest))
+    # Blind review is a development/evaluation fixture, not a runtime dependency.
+    # Portable releases intentionally omit the historical evaluation corpus.
+    app.state.blind_review_dataset = (
+        load_blind_review_dataset(str(root), str(blind_manifest))
+        if blind_manifest.is_file()
+        else None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[
@@ -1434,7 +1445,9 @@ def create_app(
 
     @app.get("/api/v1/blind-reviews/{eval_set_id}")
     def get_blind_review_set(eval_set_id: str, reviewer_id: str) -> Any:
-        dataset: BlindReviewDataset = app.state.blind_review_dataset
+        dataset: BlindReviewDataset | None = app.state.blind_review_dataset
+        if dataset is None:
+            raise NotFoundError("当前发行包未包含盲评实验样本")
         if eval_set_id != dataset.eval_set_id:
             raise NotFoundError("盲评集合不存在")
         if reviewer_id not in dataset.reviewers:
@@ -1455,7 +1468,9 @@ def create_app(
         sample_id: str,
         position: str,
     ) -> Any:
-        dataset: BlindReviewDataset = app.state.blind_review_dataset
+        dataset: BlindReviewDataset | None = app.state.blind_review_dataset
+        if dataset is None:
+            raise NotFoundError("当前发行包未包含盲评实验样本")
         if eval_set_id != dataset.eval_set_id:
             raise NotFoundError("盲评集合不存在")
         try:
@@ -1472,7 +1487,9 @@ def create_app(
         sample_id: str,
         payload: BlindReviewSubmissionRequest,
     ) -> Any:
-        dataset: BlindReviewDataset = app.state.blind_review_dataset
+        dataset: BlindReviewDataset | None = app.state.blind_review_dataset
+        if dataset is None:
+            raise NotFoundError("当前发行包未包含盲评实验样本")
         if eval_set_id != dataset.eval_set_id or sample_id not in dataset.samples_by_id:
             raise NotFoundError("盲评样本不存在")
         if payload.reviewer_id not in dataset.reviewers:
@@ -1498,7 +1515,9 @@ def create_app(
 
     @app.get("/api/v1/blind-reviews/{eval_set_id}/results")
     def get_blind_review_results(eval_set_id: str) -> Any:
-        dataset: BlindReviewDataset = app.state.blind_review_dataset
+        dataset: BlindReviewDataset | None = app.state.blind_review_dataset
+        if dataset is None:
+            raise NotFoundError("当前发行包未包含盲评实验样本")
         if eval_set_id != dataset.eval_set_id:
             raise NotFoundError("盲评集合不存在")
         submissions = repository.list_blind_review_submissions(eval_set_id)

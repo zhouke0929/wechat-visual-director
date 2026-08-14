@@ -1,0 +1,50 @@
+name: build-release-assets
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows-portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Activate pinned pnpm
+        shell: pwsh
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - name: Build Windows x64 portable package
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-package.ps1
+      - name: Smoke test packaged install without system Python
+        shell: pwsh
+        run: |
+          $asset = Get-ChildItem artifacts/release/wechat-visual-director-windows-x64-*.zip | Select-Object -First 1
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-package.ps1 -ArchivePath $asset.FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wechat-visual-director-windows-x64
+          path: |
+            artifacts/release/*.zip
+            artifacts/release/*.sha256
+          if-no-files-found: error
+      - name: Publish prerelease assets
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: true
+          body_path: docs/releases/${{ github.ref_name }}.md
+          files: |
+            artifacts/release/*.zip
+            artifacts/release/*.sha256
+            scripts/install-release.ps1

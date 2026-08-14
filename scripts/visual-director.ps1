@@ -9,9 +9,15 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [Console]::OutputEncoding = $Utf8NoBom
 $OutputEncoding = $Utf8NoBom
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$BundledPython = Join-Path $Root "runtime\python\python.exe"
 $VenvPython = Join-Path $Root "apps\api\.venv\Scripts\python.exe"
+$Python = if (Test-Path -LiteralPath $BundledPython -PathType Leaf) {
+    $BundledPython
+} else {
+    $VenvPython
+}
 
-if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
     $payload = @{
         ok = $false
         schema_version = "skill_launcher.v0.1"
@@ -27,5 +33,5 @@ if (-not (Test-Path -LiteralPath $VenvPython -PathType Leaf)) {
 }
 
 $env:VISUAL_DIRECTOR_PROJECT_ROOT = $Root
-& $VenvPython -m visual_director.cli @CliArgs
+& $Python -m visual_director.cli @CliArgs
 exit $LASTEXITCODE

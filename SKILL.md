@@ -11,7 +11,7 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
 2. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，直接使用它。Windows CMD 还可记录同目录的 `visual-director.cmd`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
-3. 只有稳定入口不存在，或用户明确要求从其提供的 Git 仓库/本地源码升级时，才读取 [Agent 安装与恢复说明](INSTALL_FOR_AGENT.md)，并从完整仓库运行统一入口：
+3. 只有稳定入口不存在，或用户明确要求升级时，才读取 [Agent 安装与恢复说明](INSTALL_FOR_AGENT.md)。Windows x64 普通安装优先使用固定 GitHub Release 的便携包；它已内置 Python、后端依赖和生产工作台，不得为普通用户 clone 源码或安装 Git、Python、Node.js、pnpm、Wenyan。仅当用户明确要求源码开发/审计，或已经提供完整本地源码时，才从源码运行统一入口：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/bootstrap.ps1"
@@ -23,7 +23,7 @@ macOS 使用：
 bash "{baseDir}/scripts/bootstrap.sh"
 ```
 
-4. 只解析 bootstrap stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行；立即停止等待，不得轮询或等待 API 进程退出。
+4. Release 安装器或源码 bootstrap 都只解析 stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。Windows Release 安装还必须确认 `runtime_mode=bundled_python` 与 `bundled_runtime=true`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行；立即停止等待，不得轮询或等待 API 进程退出。
 5. 确认 `installation.persistent=true`、`installation.version_match=true`、`installation.runtime_match=true` 和 `capabilities.host_skill_registered=true`。`runtime_match` 会校验正式安装模式与实际数据库路径，避免误连源码/测试库。若出现版本、契约或运行身份不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。正式启动器会把 API 作为无控制台后台进程运行；不要另开一个持续占用终端的前台服务。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
 7. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
