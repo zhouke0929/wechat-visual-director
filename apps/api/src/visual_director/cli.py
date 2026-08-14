@@ -443,7 +443,9 @@ def _service_python_executable(
     *,
     platform_name: str | None = None,
 ) -> str:
-    current = Path(executable or sys.executable).expanduser().resolve()
+    current = Path(executable or sys.executable).expanduser()
+    if not current.is_absolute():
+        current = Path.cwd() / current
     if (platform_name or os.name) == "nt":
         no_console = current.with_name("pythonw.exe")
         if no_console.is_file():

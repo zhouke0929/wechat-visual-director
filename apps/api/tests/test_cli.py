@@ -94,6 +94,21 @@ def test_service_python_prefers_no_console_executable(tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX virtualenv symlink behavior")
+def test_service_python_keeps_virtualenv_symlink_on_posix(tmp_path: Path) -> None:
+    system_python = tmp_path / "system" / "python3"
+    virtualenv_python = tmp_path / "venv" / "bin" / "python"
+    system_python.parent.mkdir(parents=True)
+    virtualenv_python.parent.mkdir(parents=True)
+    system_python.write_bytes(b"")
+    virtualenv_python.symlink_to(system_python)
+
+    assert cli._service_python_executable(
+        virtualenv_python,
+        platform_name="posix",
+    ) == str(virtualenv_python)
+
+
 def test_serve_reports_missing_static_workbench_build(
     tmp_path: Path, monkeypatch
 ) -> None:
