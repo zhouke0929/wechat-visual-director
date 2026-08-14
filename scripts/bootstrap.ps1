@@ -138,6 +138,9 @@ if ([string]::IsNullOrWhiteSpace($NextAction)) {
     web_base = [string]$ServeResult.web_base
     settings_url = [string]$DoctorResult.setup.settings_url
     next_action = $NextAction
+    background = $true
+    process_mode = "detached"
+    command_completed = $true
     installation = $DoctorResult.installation
     capabilities = $DoctorResult.capabilities
     setup = $DoctorResult.setup

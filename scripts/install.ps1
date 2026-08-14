@@ -2,7 +2,8 @@
 param(
     [string]$InstallRoot = "",
     [string]$HostHome = "",
-    [switch]$SkipDependencies
+    [switch]$SkipDependencies,
+    [switch]$MigrateLegacyData
 )
 
 $ErrorActionPreference = "Stop"
@@ -100,6 +101,7 @@ function Copy-ApplicationSource(
         $ExcludedDirectoryPaths += $script:InstallSourceExclusion
     }
     $ExcludedDirectoryNames = @(
+        ".runtime",
         "__pycache__",
         ".pytest_cache",
         ".mypy_cache",
@@ -273,6 +275,16 @@ Assert-ChildPath $InstallRoot $DataRoot
 Assert-ChildPath $InstallRoot $ConfigRoot
 Assert-ChildPath $InstallRoot $RuntimeRoot
 
+if (Test-Path -LiteralPath $VersionRoot) {
+    try {
+        Remove-Item -LiteralPath $VersionRoot -Recurse -Force
+    } catch {
+        Write-Failure "version_root_cleanup_failed" "Could not refresh the existing installed version directory." @{
+            version_root = $VersionRoot
+            reason = $_.Exception.Message
+        }
+    }
+}
 New-Item -ItemType Directory -Force -Path $VersionRoot, $DataRoot, $ConfigRoot, $RuntimeRoot | Out-Null
 
 try {
@@ -291,21 +303,21 @@ $MigratedPublicationAssets = $false
 $MigratedConfig = $false
 $TargetDatabase = Join-Path $DataRoot "visual-director.db"
 $LegacyDatabase = Join-Path $SourceRoot "apps\api\data\visual-director.db"
-if (-not (Test-Path -LiteralPath $TargetDatabase) -and (Test-Path -LiteralPath $LegacyDatabase -PathType Leaf)) {
+if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $TargetDatabase) -and (Test-Path -LiteralPath $LegacyDatabase -PathType Leaf)) {
     Copy-Item -LiteralPath $LegacyDatabase -Destination $TargetDatabase
     $MigratedDatabase = $true
 }
 
 $TargetImages = Join-Path $DataRoot "image-assets"
 $LegacyImages = Join-Path $SourceRoot "apps\api\data\image-assets"
-if (-not (Test-Path -LiteralPath $TargetImages) -and (Test-Path -LiteralPath $LegacyImages -PathType Container)) {
+if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $TargetImages) -and (Test-Path -LiteralPath $LegacyImages -PathType Container)) {
     Copy-Item -LiteralPath $LegacyImages -Destination $TargetImages -Recurse
     $MigratedImages = $true
 }
 
 $TargetPublicationAssets = Join-Path $DataRoot "publication-assets"
 $LegacyPublicationAssets = Join-Path $SourceRoot "apps\api\data\publication-assets"
-if (-not (Test-Path -LiteralPath $TargetPublicationAssets) -and (Test-Path -LiteralPath $LegacyPublicationAssets -PathType Container)) {
+if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $TargetPublicationAssets) -and (Test-Path -LiteralPath $LegacyPublicationAssets -PathType Container)) {
     Copy-Item -LiteralPath $LegacyPublicationAssets -Destination $TargetPublicationAssets -Recurse
     $MigratedPublicationAssets = $true
 }
@@ -359,54 +371,13 @@ if (-not $SkipDependencies) {
         Write-Failure "python_install_failed" "Could not install the Visual Director API package."
     }
 
-    $StaticWorkbench = Join-Path $WebDir "dist\index.html"
-    if (-not (Test-Path -LiteralPath $StaticWorkbench -PathType Leaf)) {
-        $RequiredPnpmVersion = "11.7.0"
-        $Corepack = Get-Command corepack -ErrorAction SilentlyContinue
-        $PnpmCommand = $null
-        $PnpmPrefix = @()
-        if ($null -ne $Corepack) {
-            $PnpmCommand = $Corepack.Source
-            $PnpmPrefix = @("pnpm@$RequiredPnpmVersion")
-        } else {
-            $Pnpm = Get-Command pnpm -ErrorAction SilentlyContinue
-            if ($null -ne $Pnpm) {
-                $DetectedPnpmVersion = (& $Pnpm.Source --version).Trim()
-                if ($DetectedPnpmVersion -ne $RequiredPnpmVersion) {
-                    Write-Failure "pnpm_version_unsupported" "The source workbench requires pnpm $RequiredPnpmVersion." @{
-                        detected = $DetectedPnpmVersion
-                        required = $RequiredPnpmVersion
-                        action = "Install or enable Corepack, or use a prebuilt release package."
-                    }
-                }
-                $PnpmCommand = $Pnpm.Source
-            }
-        }
-        if ($null -eq $PnpmCommand) {
-            Write-Failure "web_build_tool_missing" "The source checkout has no prebuilt workbench and Corepack was not found." @{
-                expected = $StaticWorkbench
-                action = "Use a prebuilt release package, or install Node.js with Corepack."
-            }
-        }
+}
 
-        $DependencyLog = Join-Path $RuntimeRoot "install-web-dependencies.log"
-        & $PnpmCommand @PnpmPrefix --dir $WebDir install --frozen-lockfile --reporter=silent *> $DependencyLog
-        if ($LASTEXITCODE -ne 0) {
-            Write-Failure "web_install_failed" "Could not install the Web workbench dependencies." @{ log = $DependencyLog }
-        }
-        $BuildLog = Join-Path $RuntimeRoot "install-web-build.log"
-        $PreviousErrorActionPreference = $ErrorActionPreference
-        try {
-            $ErrorActionPreference = "Continue"
-            & $PnpmCommand @PnpmPrefix --dir $WebDir build *> $BuildLog
-            $BuildExitCode = $LASTEXITCODE
-            $ErrorActionPreference = $PreviousErrorActionPreference
-            if ($BuildExitCode -ne 0) {
-                Write-Failure "web_build_failed" "Could not build the static Web workbench." @{ log = $BuildLog }
-            }
-        } finally {
-            $ErrorActionPreference = $PreviousErrorActionPreference
-        }
+$StaticWorkbench = Join-Path $WebDir "dist\index.html"
+if (-not (Test-Path -LiteralPath $StaticWorkbench -PathType Leaf)) {
+    Write-Failure "prebuilt_workbench_missing" "The release package does not contain the prebuilt workbench." @{
+        expected = $StaticWorkbench
+        action = "Download a complete tagged release or rebuild the workbench in CI. Normal installation never invokes npm or pnpm."
     }
 }
 
@@ -502,5 +473,6 @@ if (-not [string]::IsNullOrWhiteSpace($PreviousVersion) -and $PreviousVersion -n
         publication_assets = $MigratedPublicationAssets
         config = $MigratedConfig
     }
+    legacy_data_migration_requested = [bool]$MigrateLegacyData
     next_action = "run_doctor"
 } | ConvertTo-Json -Depth 6 -Compress

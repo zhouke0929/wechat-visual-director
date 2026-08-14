@@ -426,7 +426,7 @@ class Repository:
     def _progress(status: str = "pending") -> list[dict[str, Any]]:
         labels = (
             ("parse_input", "解析 Markdown"),
-            ("content_director", "识别文章类型"),
+            ("content_director", "识别内容结构"),
             ("load_context", "读取品牌与历史"),
             ("visual_planner", "生成推荐稿"),
             ("validate_plans", "校验结构差异"),
@@ -2356,7 +2356,7 @@ class Repository:
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task_id)
 
-    def begin_wenyan_draft_operation(
+    def begin_wechat_draft_operation(
         self,
         *,
         revision_id: str,
@@ -2367,7 +2367,7 @@ class Repository:
         confirmed_by: str,
     ) -> tuple[dict[str, Any], dict[str, Any], bool]:
         replay = self._idempotent_resource(
-            scope="create_wenyan_draft",
+            scope="create_wechat_draft",
             idempotency_key=idempotency_key,
             request_hash=request_hash,
         )
@@ -2398,7 +2398,7 @@ class Repository:
             now = utc_now()
             with self.lock:
                 self._record_idempotency_locked(
-                    scope="create_wenyan_draft",
+                    scope="create_wechat_draft",
                     idempotency_key=idempotency_key,
                     request_hash=request_hash,
                     resource_type="draft_operation",
@@ -2438,7 +2438,7 @@ class Repository:
                 (id, task_id, revision_id, draft_slot_id, provider, idempotency_key, status,
                  version, simulation_mode, media_id, confirmation_json, last_error_json,
                  resolution_json, confirmed_by, confirmed_at, created_at, updated_at)
-                VALUES (?, ?, ?, ?, 'wenyan', ?, 'running', 1, 'real', NULL, ?, NULL, NULL, ?, ?, ?, ?)""",
+                VALUES (?, ?, ?, ?, 'wechat_api', ?, 'running', 1, 'real', NULL, ?, NULL, NULL, ?, ?, ?, ?)""",
                 (
                     operation_id,
                     task_id,
@@ -2469,7 +2469,7 @@ class Repository:
                         sequence_no,
                         status,
                         revision["frozen_html_hash"],
-                        json.dumps({"provider": "wenyan"}, ensure_ascii=False) if status == "succeeded" else None,
+                        json.dumps({"provider": "wechat_api"}, ensure_ascii=False) if status == "succeeded" else None,
                         now,
                         now,
                     ),
@@ -2484,12 +2484,12 @@ class Repository:
                 raise VersionConflictError("任务已被更新，请刷新后重试")
             self._record_event_locked(
                 task_id,
-                "wenyan_draft_started",
+                "wechat_draft_started",
                 {"operation_id": operation_id, "revision_id": revision_id, "draft_slot": draft_slot},
                 now,
             )
             self._record_idempotency_locked(
-                scope="create_wenyan_draft",
+                scope="create_wechat_draft",
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 resource_type="draft_operation",
@@ -2500,7 +2500,7 @@ class Repository:
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task_id), False
 
-    def finish_wenyan_draft_operation(
+    def finish_wechat_draft_operation(
         self,
         *,
         operation_id: str,
@@ -2510,9 +2510,9 @@ class Repository:
         error: dict[str, Any] | None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         if status not in {"succeeded", "failed", "unknown"}:
-            raise ValueError("不支持的 Wenyan 草稿结果")
+            raise ValueError("不支持的微信草稿结果")
         operation = self.get_draft_operation(operation_id)
-        if operation["provider"] != "wenyan" or operation["status"] != "running":
+        if operation["provider"] != "wechat_api" or operation["status"] != "running":
             raise VersionConflictError("草稿操作当前不能完成")
         task = self.get_task(operation["task_id"])
         if task["version"] != expected_task_version:
@@ -2542,7 +2542,7 @@ class Repository:
                 WHERE operation_id = ? AND step_key = 'create_draft'""",
                 (
                     status,
-                    json.dumps({"provider": "wenyan", "media_id": media_id}, ensure_ascii=False) if media_id else None,
+                    json.dumps({"provider": "wechat_api", "media_id": media_id}, ensure_ascii=False) if media_id else None,
                     json.dumps(error, ensure_ascii=False) if error else None,
                     now,
                     operation_id,
@@ -2563,14 +2563,14 @@ class Repository:
                 raise VersionConflictError("任务已被更新，请刷新后核对草稿状态")
             self._record_event_locked(
                 task["id"],
-                f"wenyan_draft_{status}",
+                f"wechat_draft_{status}",
                 {"operation_id": operation_id, "revision_id": revision["id"], "media_id": media_id, "error": error},
                 now,
             )
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 
-    def retry_wenyan_draft_operation(
+    def retry_wechat_draft_operation(
         self,
         *,
         operation_id: str,
@@ -2581,7 +2581,7 @@ class Repository:
         operator_id: str,
     ) -> tuple[dict[str, Any], dict[str, Any], bool]:
         replay = self._idempotent_resource(
-            scope="retry_wenyan_draft",
+            scope="retry_wechat_draft",
             idempotency_key=idempotency_key,
             request_hash=request_hash,
         )
@@ -2590,8 +2590,8 @@ class Repository:
             return operation, self.get_task(operation["task_id"]), True
         operation = self.get_draft_operation(operation_id)
         task = self.get_task(operation["task_id"])
-        if operation["provider"] != "wenyan" or operation["status"] != "failed":
-            raise VersionConflictError("只有明确失败的 Wenyan 草稿操作可以重试")
+        if operation["provider"] != "wechat_api" or operation["status"] != "failed":
+            raise VersionConflictError("只有明确失败的微信草稿操作可以重试")
         if task["version"] != expected_task_version or operation["version"] != expected_operation_version:
             raise VersionConflictError("草稿操作已更新，请刷新后重试")
         if task.get("active_publication_revision_id") != operation["revision_id"]:
@@ -2622,12 +2622,12 @@ class Repository:
                 raise VersionConflictError("任务已被更新，请刷新后重试")
             self._record_event_locked(
                 task["id"],
-                "wenyan_draft_retry_started",
+                "wechat_draft_retry_started",
                 {"operation_id": operation_id, "operator_id": operator_id},
                 now,
             )
             self._record_idempotency_locked(
-                scope="retry_wenyan_draft",
+                scope="retry_wechat_draft",
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 resource_type="draft_operation",
@@ -2714,7 +2714,7 @@ class Repository:
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 
-    def resolve_unknown_mock_draft_operation(
+    def resolve_unknown_draft_operation(
         self,
         *,
         operation_id: str,
@@ -2727,7 +2727,7 @@ class Repository:
         operator_id: str,
     ) -> tuple[dict[str, Any], dict[str, Any]]:
         replay = self._idempotent_resource(
-            scope="resolve_mock_unknown",
+            scope="resolve_unknown_draft",
             idempotency_key=idempotency_key,
             request_hash=request_hash,
         )
@@ -2741,18 +2741,30 @@ class Repository:
             raise VersionConflictError("草稿操作已更新，请刷新后重试")
         if operation["status"] != "unknown":
             raise VersionConflictError("当前草稿操作不是结果未知状态")
+        if outcome not in {"confirmed_succeeded", "confirmed_not_created"}:
+            raise ValueError("不支持的人工核对结果")
         if task.get("active_publication_revision_id") != operation["revision_id"]:
             raise VersionConflictError("草稿操作绑定的冻结版本已失效")
         now = utc_now()
         succeeded = outcome == "confirmed_succeeded"
         status = "succeeded" if succeeded else "failed"
-        media_id = f"MOCK_MEDIA_{operation_id.replace('-', '')[:12].upper()}" if succeeded else None
-        task_status = "mock_draft_created" if succeeded else "mock_draft_failed"
+        is_mock = operation["provider"] == "mock"
+        media_id = (
+            f"MOCK_MEDIA_{operation_id.replace('-', '')[:12].upper()}"
+            if succeeded and is_mock
+            else None
+        )
+        task_status = (
+            "mock_draft_created" if succeeded else "mock_draft_failed"
+        ) if is_mock else (
+            "wechat_draft_created" if succeeded else "wechat_draft_failed"
+        )
+        confirmed_slot_marker = media_id or f"CONFIRMED_BACKEND_{operation_id.replace('-', '')[:12].upper()}"
         resolution = {"outcome": outcome, "evidence": evidence, "resolved_by": operator_id, "resolved_at": now}
         with self.lock:
             updated_op = self.connection.execute(
                 """UPDATE draft_operations SET status = ?, version = version + 1,
-                simulation_mode = CASE WHEN ? = 'failed' THEN 'fail_once' ELSE simulation_mode END,
+                simulation_mode = CASE WHEN provider = 'mock' AND ? = 'failed' THEN 'fail_once' ELSE simulation_mode END,
                 media_id = ?, last_error_json = ?, resolution_json = ?, updated_at = ?
                 WHERE id = ? AND version = ? AND status = 'unknown'""",
                 (
@@ -2775,7 +2787,15 @@ class Repository:
                 WHERE operation_id = ? AND step_key = 'create_draft'""",
                 (
                     status,
-                    json.dumps({"is_mock": True, "media_id": media_id}, ensure_ascii=False) if succeeded else None,
+                    json.dumps(
+                        {
+                            "provider": operation["provider"],
+                            "is_mock": is_mock,
+                            "media_id": media_id,
+                            "confirmed_in_backend": succeeded and not bool(media_id),
+                        },
+                        ensure_ascii=False,
+                    ) if succeeded else None,
                     None if succeeded else json.dumps({"code": "confirmed_not_created", "message": "已确认未创建草稿", "retryable": True}, ensure_ascii=False),
                     now,
                     operation_id,
@@ -2785,7 +2805,7 @@ class Repository:
                 self.connection.execute(
                     """UPDATE draft_slots SET successful_media_id = ?
                     WHERE id = (SELECT draft_slot_id FROM draft_operations WHERE id = ?)""",
-                    (media_id, operation_id),
+                    (confirmed_slot_marker, operation_id),
                 )
             updated_task = self.connection.execute(
                 """UPDATE tasks SET status = ?, version = version + 1, updated_at = ?
@@ -2797,12 +2817,18 @@ class Repository:
                 raise VersionConflictError("任务已被更新，请刷新后重试")
             self._record_event_locked(
                 task["id"],
-                "mock_draft_unknown_resolved",
-                {"operation_id": operation_id, **resolution, "media_id": media_id},
+                "draft_unknown_resolved",
+                {
+                    "operation_id": operation_id,
+                    "provider": operation["provider"],
+                    **resolution,
+                    "media_id": media_id,
+                    "confirmed_in_backend": succeeded and not bool(media_id),
+                },
                 now,
             )
             self._record_idempotency_locked(
-                scope="resolve_mock_unknown",
+                scope="resolve_unknown_draft",
                 idempotency_key=idempotency_key,
                 request_hash=request_hash,
                 resource_type="draft_operation",

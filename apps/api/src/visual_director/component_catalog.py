@@ -2,9 +2,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from .theme_extensions import (
+    EXTENDED_THEME_IDS,
+    EXTENDED_THEME_KITS,
+    extended_component_label,
+    extended_variant_name,
+)
 
-COMPONENT_LIBRARY_VERSION = "wechat_components.v0.12.0"
-RENDERER_VERSION = "preview_renderer.v0.17.0-concept-groups"
+
+COMPONENT_LIBRARY_VERSION = "wechat_components.v0.13.0"
+RENDERER_VERSION = "preview_renderer.v0.18.0-theme-expansion"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 
@@ -15,7 +22,19 @@ VISUAL_SYSTEM_ORDER = (
     "editorial_contrast",
     "structured_grid",
     "future_tech",
+) + EXTENDED_THEME_IDS
+
+# Candidate themes remain visible in the gallery and manual theme switcher, but
+# they must not enter an operator's draft automatically before visual approval.
+PRODUCTION_VISUAL_SYSTEMS = (
+    "light_reading",
+    "warm_humanist",
+    "youth_campus",
+    "editorial_contrast",
+    "structured_grid",
+    "future_tech",
 )
+AUTO_RECOMMENDABLE_VISUAL_SYSTEMS = PRODUCTION_VISUAL_SYSTEMS + ("pop_poster",)
 
 VISUAL_SYSTEM_MARKERS = {
     "light_reading": "A",
@@ -24,6 +43,10 @@ VISUAL_SYSTEM_MARKERS = {
     "editorial_contrast": "D",
     "structured_grid": "E",
     "future_tech": "F",
+    **{
+        theme_id: marker
+        for theme_id, marker in zip(EXTENDED_THEME_IDS, ("G", "H", "I", "J", "K", "L"), strict=True)
+    },
 }
 
 VISUAL_SYSTEM_CATALOG: dict[str, dict[str, Any]] = {
@@ -82,6 +105,18 @@ VISUAL_SYSTEM_CATALOG: dict[str, dict[str, Any]] = {
         "status": "theme_kit_v1_review",
     },
 }
+
+for _theme_id, _theme_kit in EXTENDED_THEME_KITS.items():
+    VISUAL_SYSTEM_CATALOG[_theme_id] = {
+        "label": _theme_kit["label"],
+        "english": _theme_kit["english"],
+        "description": _theme_kit["description"],
+        "ideal_for": list(_theme_kit["ideal_for"]),
+        "personality": list(_theme_kit["personality"]),
+        "palette": list(_theme_kit["palette"]),
+        "status": "candidate_approved" if _theme_id == "pop_poster" else "candidate_theme_lab",
+        "auto_recommendable": _theme_id in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
+    }
 
 CORE_THEME_COMPONENTS = (
     "numbered_insight",
@@ -426,6 +461,21 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
     },
 }
 
+# New themes register their own deterministic morphology without adding more
+# component-specific conditionals to this catalog. The renderer resolves these
+# names through theme_extensions.py, while legacy themes keep their reviewed
+# variants untouched.
+for _component_type, _definition in COMPONENT_CATALOG.items():
+    _system_variants = _definition.setdefault("system_variants", {})
+    _variant_statuses = _definition.setdefault("variant_statuses", {})
+    for _theme_id in EXTENDED_THEME_IDS:
+        _variant = extended_variant_name(_theme_id, _component_type)
+        _system_variants[_theme_id] = {
+            "value": _variant,
+            "label": extended_component_label(_theme_id, _component_type),
+        }
+        _variant_statuses[_variant] = "candidate_theme_lab"
+
 
 def allowed_variants(component_type: str) -> set[str]:
     definition = COMPONENT_CATALOG[component_type]
@@ -474,7 +524,7 @@ def component_options(component_type: str) -> list[dict[str, str]]:
                 "value": fallback,
                 "label": definition["fallback_label"],
                 "kind": "fallback",
-                "marker": "G",
+                "marker": "Z",
                 "status": statuses.get(fallback, definition["status"]),
             }
         )

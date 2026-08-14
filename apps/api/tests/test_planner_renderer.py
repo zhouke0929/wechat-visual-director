@@ -4,18 +4,25 @@ from pathlib import Path
 import pytest
 
 from visual_director.component_catalog import (
+    AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
     COMPONENT_CATALOG,
     CORE_THEME_COMPONENTS,
     VISUAL_SYSTEM_ORDER,
+    VISUAL_SYSTEM_MARKERS,
     component_options,
 )
-from visual_director.brief_compiler import visual_system_configuration, visual_system_variant
+from visual_director.brief_compiler import (
+    recommend_visual_system,
+    visual_system_configuration,
+    visual_system_variant,
+)
 from visual_director.components import render_component
 from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans, structural_difference_count
 from visual_director.plan_schema import validate_plan_for_article
 from visual_director.renderer import render_preview
 from visual_director.theme_gallery import build_theme_gallery
+from visual_director.theme_assets import referenced_theme_assets, theme_asset_metadata
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -90,7 +97,7 @@ def test_visual_plan_v05_limits_component_and_image_density_and_is_deterministic
     assert len(plans[0]["slots"]) <= 4
     assert len(plans[1]["slots"]) <= 3
     assert all(plan["schema_version"] == "visual_plan.v0.5" for plan in plans)
-    assert all(plan["component_library_version"] == "wechat_components.v0.12.0" for plan in plans)
+    assert all(plan["component_library_version"] == "wechat_components.v0.13.0" for plan in plans)
     assert all(0 <= len(plan["image_slots"]) <= 3 for plan in plans)
     assert plans[0]["image_slots"]
     assert all(slot["required"] is False for plan in plans for slot in plan["image_slots"])
@@ -247,7 +254,10 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
     rendered = []
     for component_type, candidate_variant in target_variants.items():
         options = component_options(component_type)
-        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E", "F", "G"]
+        assert [option["marker"] for option in options] == [
+            *(VISUAL_SYSTEM_MARKERS[system] for system in VISUAL_SYSTEM_ORDER),
+            "Z",
+        ]
         candidate = next(option for option in options if option["value"] == candidate_variant)
         assert candidate["status"] == "wechat_verified"
         bindings = {
@@ -263,7 +273,7 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
     assert all("核对信息，再做决定" not in document for document in rendered)
 
 
-def test_first_batch_components_have_six_distinct_system_morphologies() -> None:
+def test_first_batch_components_have_distinct_system_morphologies() -> None:
     article = parse_markdown(
         """# 四系统组件测试
 
@@ -298,10 +308,13 @@ def test_first_batch_components_have_six_distinct_system_morphologies() -> None:
 
     for component_type, content_bindings in bindings.items():
         variants = [visual_system_variant(component_type, system) for system in systems]
-        assert len(set(variants)) == 6
+        assert len(set(variants)) == len(VISUAL_SYSTEM_ORDER)
         options = component_options(component_type)
-        assert [option["marker"] for option in options] == ["A", "B", "C", "D", "E", "F", "G"]
-        assert [option["value"] for option in options[:6]] == variants
+        assert [option["marker"] for option in options] == [
+            *(VISUAL_SYSTEM_MARKERS[system] for system in VISUAL_SYSTEM_ORDER),
+            "Z",
+        ]
+        assert [option["value"] for option in options[:len(VISUAL_SYSTEM_ORDER)]] == variants
         documents = [
             render_component(
                 {
@@ -313,7 +326,7 @@ def test_first_batch_components_have_six_distinct_system_morphologies() -> None:
             )
             for variant in variants
         ]
-        assert len(set(documents)) == 6
+        assert len(set(documents)) == len(VISUAL_SYSTEM_ORDER)
         assert all("<table" not in document.lower() for document in documents)
         assert all("display:flex" not in document.lower() for document in documents)
         assert all("display:grid" not in document.lower() for document in documents)
@@ -429,7 +442,7 @@ def test_consecutive_concepts_render_as_one_theme_specific_glossary() -> None:
         assert "院校专业组" in document
         assert "等级赋分制" in document
         assert "选科要求与专业绑定" in document
-    assert len(set(documents)) == 6
+    assert len(set(documents)) == len(VISUAL_SYSTEM_ORDER)
     assert all("<table" not in document.lower() for document in documents)
     assert all("display:flex" not in document.lower() for document in documents)
     assert all("display:grid" not in document.lower() for document in documents)
@@ -620,7 +633,7 @@ def test_long_article_uses_semantic_components_with_plain_text_buffers() -> None
     assert "<table" not in document.lower()
 
 
-def test_six_themes_cover_all_eight_core_components_without_cross_theme_fallbacks() -> None:
+def test_all_themes_cover_all_core_components_without_cross_theme_fallbacks() -> None:
     for component_type in CORE_THEME_COMPONENTS:
         definition = COMPONENT_CATALOG[component_type]
         system_variants = definition.get("system_variants", {})
@@ -629,13 +642,17 @@ def test_six_themes_cover_all_eight_core_components_without_cross_theme_fallback
             visual_system_variant(component_type, visual_system)
             for visual_system in VISUAL_SYSTEM_ORDER
         ]
-        assert len(set(variants)) == 6
+        assert len(set(variants)) == len(VISUAL_SYSTEM_ORDER)
         assert definition["fallback_variant"] not in variants
 
 
 def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> None:
     themes = {item["id"]: item for item in build_theme_gallery()}
-    assert {theme["status"] for theme in themes.values()} == {"theme_kit_v1_review"}
+    assert {theme["status"] for theme in themes.values()} == {
+        "theme_kit_v1_review",
+        "candidate_approved",
+        "candidate_theme_lab",
+    }
     for theme_id in VISUAL_SYSTEM_ORDER:
         theme = themes[theme_id]
         assert len(theme["rhythm_primitives"]) == 6
@@ -673,6 +690,176 @@ def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> 
             "comparison_register",
             "summary_register",
         } for component in theme["components"])
+
+
+def test_candidate_themes_have_distinct_reading_grammars_and_recommendation_gate() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    markers = {
+        "oriental_archive": "bound-folio",
+        "vintage_press": "clipping-stack",
+        "natural_atlas": "field-log",
+        "business_review": "signal-orbit",
+        "cinematic_story": "storyboard-track",
+    }
+    for theme_id, marker in markers.items():
+        assert marker in themes[theme_id]["full_preview_html"]
+
+
+def test_candidate_theme_stickers_are_first_party_publication_assets() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    expected = {
+        "oriental-branch.png",
+        "press-tape.png",
+        "pop-star.png",
+        "atlas-leaf.png",
+        "business-orbit.png",
+        "cinema-clapper.png",
+        "cinema-reel.png",
+    }
+    discovered: set[str] = set()
+    for theme_id in {
+        "oriental_archive",
+        "vintage_press",
+        "pop_poster",
+        "natural_atlas",
+        "business_review",
+        "cinematic_story",
+    }:
+        discovered.update(name for _, name in referenced_theme_assets(themes[theme_id]["full_preview_html"]))
+    assert expected <= discovered
+    assert all(theme_asset_metadata(ROOT, name) is not None for name in discovered)
+
+
+def test_stickers_overlay_components_without_creating_blank_flow_space() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    for theme_id in {
+        "oriental_archive",
+        "vintage_press",
+        "pop_poster",
+        "natural_atlas",
+        "business_review",
+        "cinematic_story",
+    }:
+        document = themes[theme_id]["full_preview_html"]
+        assert 'data-decoration-layer="overlay" style="height:0;' in document
+        assert 'data-theme-decoration=' in document
+
+    business = themes["business_review"]["full_preview_html"]
+    assert 'data-theme-decoration="business-diagram"' not in business
+    assert 'width:75%;vertical-align:top' not in business
+
+
+def test_cinematic_story_uses_distinct_film_narrative_grammar() -> None:
+    document = {item["id"]: item for item in build_theme_gallery()}["cinematic_story"]["full_preview_html"]
+    for marker in {
+        "opening-credit",
+        "storyboard-track",
+        "screenplay-cue",
+        "subtitle-cue",
+        "shot-reverse-shot",
+        "ticket-perforation",
+    }:
+        assert marker in document
+    assert "border-top:18px solid" not in document
+    assert "border-bottom:18px solid" not in document
+    recent = [
+        {"visual_system": theme_id}
+        for theme_id in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS
+    ]
+    selected, _, _ = recommend_visual_system(
+        "viewpoint_trend",
+        recent,
+        history_window=len(recent),
+        article_features={"paragraph_count": 12, "quote_count": 2},
+    )
+    assert selected in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS
+    assert selected not in {
+        "oriental_archive",
+        "vintage_press",
+        "natural_atlas",
+        "business_review",
+        "cinematic_story",
+    }
+
+
+def test_reference_lists_remain_subdued_metadata_in_cinematic_theme() -> None:
+    article = parse_markdown(
+        """# 专业调整观察
+
+高校专业调整需要结合具体培养条件判断。
+
+## 可靠来源
+
+- [教育部：本科专业目录](https://www.moe.gov.cn/example)
+- [高校：专业培养方案](https://www.example.edu.cn/plan)
+"""
+    )
+    plan = generate_plans(article, "data_policy", 5)[0]
+    plan["visual_system"] = "cinematic_story"
+    plan["configuration"] = visual_system_configuration("cinematic_story")
+    document = render_preview(article, plan)
+    assert 'data-content-role="reference-list"' in document
+    assert "教育部：本科专业目录" in document
+    assert "www.moe.gov.cn" in document
+    assert "SHOT LIST / 行动清单" not in document
+    assert 'data-theme-grammar="storyboard-track"' not in document
+
+
+def test_case_detail_lists_keep_case_semantics_across_all_themes() -> None:
+    article = parse_markdown(
+        """# 同名专业观察
+
+## 同一个专业名，为什么可能通向不同方向
+
+### “低空技术与工程”就是一个现实样本
+
+北航和北邮的官方介绍呈现出清晰差异。
+
+- 北航依托航空宇航学科，强调飞行器全链条和系统工程能力。
+- 北邮依托信息通信学科，强调通信网络与信息基础设施能力。
+"""
+    )
+    plan = generate_plans(article, "data_policy", 5)[0]
+
+    for theme_id in {
+        "light_reading",
+        "warm_humanities",
+        "editorial_contrast",
+        "structured_analysis",
+        "youth_campus",
+        "future_tech",
+        "oriental_archive",
+        "vintage_press",
+        "pop_poster",
+        "natural_atlas",
+        "business_review",
+        "cinematic_story",
+    }:
+        themed_plan = copy.deepcopy(plan)
+        themed_plan["visual_system"] = theme_id
+        themed_plan["configuration"] = visual_system_configuration(theme_id)
+        document = render_preview(article, themed_plan)
+        assert "行动清单" not in document
+        assert "CHK" not in document
+        assert "✓" not in document
+
+        if theme_id in {
+            "oriental_archive",
+            "vintage_press",
+            "pop_poster",
+            "natural_atlas",
+            "business_review",
+            "cinematic_story",
+        }:
+            assert 'data-list-role="case_points"' in document, theme_id
+            assert "案例差异" in document, theme_id
+
+    cinematic_plan = copy.deepcopy(plan)
+    cinematic_plan["visual_system"] = "cinematic_story"
+    cinematic_plan["configuration"] = visual_system_configuration("cinematic_story")
+    cinematic = render_preview(article, cinematic_plan)
+    assert "CASE NOTES / 案例差异" in cinematic
+    assert "SHOT LIST / 行动清单" not in cinematic
 
 
 def test_new_themes_use_distinct_composition_grammars_not_recolors() -> None:
@@ -784,6 +971,12 @@ def test_all_theme_rhythm_primitives_are_wired_to_production_markdown() -> None:
         "editorial_contrast": "editorial_masthead",
         "structured_grid": "structured_ledger",
         "future_tech": "future_signal",
+        "oriental_archive": "extended_oriental",
+        "vintage_press": "extended_press",
+        "pop_poster": "extended_pop",
+        "natural_atlas": "extended_atlas",
+        "business_review": "extended_business",
+        "cinematic_story": "extended_cinema",
     }
     rendered: dict[str, str] = {}
     for visual_system in VISUAL_SYSTEM_ORDER:

@@ -56,10 +56,14 @@ _LABEL_PHRASE_RE = re.compile(
 
 _STRUCTURAL_TITLE_PREFIX_RE = re.compile(
     r"^\s*(?:"
+    r"(?:"
     r"第[一二三四五六七八九十百0-9]+(?:层|章|节|部分|步|阶段)|"
     r"(?:PART|CHAPTER)\s*0*\d+|"
     r"(?:章节|层级|步骤)\s*0*\d+"
-    r")\s*(?:[：:｜|·.、\-—]+\s*|\s+)",
+    r")\s*(?:[：:｜|·.．、/\-—]+\s*|\s+)|"
+    r"[（(](?:[一二三四五六七八九十百]+|0*\d+)[）)]\s*(?:[：:｜|·.．、/\-—]+\s*)?|"
+    r"(?:[一二三四五六七八九十百]+|0*\d+)\s*[：:｜|·.．、/\-—]+\s*"
+    r")",
     re.IGNORECASE,
 )
 
@@ -68,6 +72,12 @@ _STYLE_TREATMENT_BY_FAMILY = {
     "soft_flat_illustration": "soft_educational_illustration",
     "clean_3d_geometry": "clean_spatial_geometry",
     "editorial_tech_collage": "editorial_spatial_collage",
+    "oriental_ink_folio": "oriental_ink_folio_illustration",
+    "archival_halftone_collage": "archival_halftone_collage",
+    "graphic_poster_collage": "graphic_poster_collage",
+    "botanical_field_illustration": "botanical_field_illustration",
+    "executive_signal_editorial": "executive_signal_editorial",
+    "cinematic_storyboard_collage": "cinematic_storyboard_collage",
 }
 
 _ROLE_LABELS = {
@@ -264,6 +274,12 @@ def _decorative_motifs(style_family: str) -> list[str]:
         "soft_flat_illustration": ["手绘弧线", "微小星点", "轻盈植物或书页"],
         "clean_3d_geometry": ["统一材质小模型", "柔和投影", "细小坐标点"],
         "editorial_tech_collage": ["半透明信息薄片", "连续信号曲线", "克制的数据光晕"],
+        "oriental_ink_folio": ["册页折线", "淡墨晕染", "克制朱砂印记"],
+        "archival_halftone_collage": ["网点油墨", "剪报毛边", "窄版新闻索引"],
+        "graphic_poster_collage": ["错位套印", "异形贴纸", "手绘速度线"],
+        "botanical_field_illustration": ["植物线稿", "观察编号", "自然生长曲线"],
+        "executive_signal_editorial": ["信号轨道", "指标圆盘", "克制方向箭头"],
+        "cinematic_storyboard_collage": ["分镜框线", "电影票根", "细腻胶片颗粒"],
     }.get(style_family, ["细线", "少量手绘标记"])
 
 
@@ -273,6 +289,12 @@ def _edge_treatment(style_family: str) -> str:
         "soft_flat_illustration": "open_illustrated_edge",
         "clean_3d_geometry": "clean_spatial_edge",
         "editorial_tech_collage": "layered_translucent_edge",
+        "oriental_ink_folio": "bound_folio_edge",
+        "archival_halftone_collage": "clipped_newsprint_edge",
+        "graphic_poster_collage": "misregistered_poster_edge",
+        "botanical_field_illustration": "organic_specimen_edge",
+        "executive_signal_editorial": "clean_signal_edge",
+        "cinematic_storyboard_collage": "film_program_edge",
     }.get(style_family, "open_illustrated_edge")
 
 

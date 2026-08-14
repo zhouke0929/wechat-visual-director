@@ -177,30 +177,30 @@ class TextPlannerProvider(Protocol):
 
 ARTICLE_ANALYSIS: dict[str, dict[str, Any]] = {
     "data_policy": {
-        "audience": ["考生", "家长"],
-        "reader_task": "核对官方数据并形成可执行的升学判断",
-        "narrative": "从事实依据进入判断条件，再落到行动核对",
+        "audience": ["需要核验信息的读者", "相关决策者"],
+        "reader_task": "核对公开数据、规则与依据，并形成谨慎判断",
+        "narrative": "从事实依据进入判断条件，再落到影响与行动",
         "tone": ["可信", "清晰", "克制"],
         "palette": ["muted_teal", "warm_ivory", "sunlit_yellow"],
     },
     "tutorial_steps": {
-        "audience": ["考生", "家长"],
+        "audience": ["需要完成具体任务的读者", "一线执行者"],
         "reader_task": "按顺序完成操作并避免关键遗漏",
         "narrative": "从任务目标进入步骤路径，最后完成复核",
         "tone": ["清晰", "有行动指引", "可信"],
         "palette": ["muted_teal", "warm_ivory", "coral_accent"],
     },
     "viewpoint_trend": {
-        "audience": ["学生", "家长", "教育关注者"],
+        "audience": ["关注该议题的读者", "行业从业者"],
         "reader_task": "理解核心观点、证据与现实影响",
         "narrative": "从读者疑问进入观点解释，再回到现实选择",
         "tone": ["理性", "有洞察", "克制"],
         "palette": ["deep_navy", "warm_ivory", "coral_accent"],
     },
     "lively_growth": {
-        "audience": ["学生", "家长"],
-        "reader_task": "理解成长价值并获得可尝试的行动启发",
-        "narrative": "从真实体验进入成长变化，再给出行动邀请",
+        "audience": ["关注人物、品牌或真实案例的读者"],
+        "reader_task": "理解故事中的变化、经验与可迁移启发",
+        "narrative": "从真实场景进入关键转折，再提炼经验与启发",
         "tone": ["亲和", "轻松", "有行动指引"],
         "palette": ["soft_sky", "warm_ivory", "sunlit_yellow"],
     },

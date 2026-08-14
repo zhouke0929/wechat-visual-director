@@ -2,7 +2,8 @@
 
 Use this file when a user gives you this repository and asks you to install,
 upgrade, diagnose, or open WeChat Visual Director. The user should not need to
-know the Python, pnpm, or process-management details.
+know the Python or process-management details. Normal installation must not
+invoke npm, pnpm, or install a global Node.js package.
 
 ## Safety boundary
 
@@ -46,36 +47,24 @@ bash scripts/bootstrap.sh
 6. After first installation, tell the user to start a new host conversation if
    the host only discovers Skills at startup.
 
-## Optional Wenyan publisher
+## Built-in WeChat publisher
 
-The base installer does not install Node.js or a global npm package. This is an
-intentional boundary: layout, preview, rich copy, and bundle export work without
-Wenyan. Direct WeChat draft delivery requires the user to opt in to a separate
-third-party publisher.
+The release contains a prebuilt workbench and a built-in publisher that calls
+the official WeChat API directly. Do not install Node.js, Wenyan, or any global
+npm package on the user's machine.
 
 When the user asks for full WeChat draft delivery:
 
-1. Run `doctor --json` and inspect `publishers.wenyan` and
+1. Run `doctor --json` and inspect `publishers.wechat` and
    `capabilities.wechat_draft`.
-2. If Wenyan is missing, tell the user that it is not part of the base install.
-   Ask them to approve the global npm install, or have them run it themselves:
-
-```powershell
-node --version
-npm --version
-npm install -g @wenyan-md/cli@2.0.11
-wenyan --version
-```
-
-3. Never claim that the publisher is ready merely because npm exited with code
-   zero. Reopen the terminal if needed and confirm `wenyan --version`, then run
-   `doctor --json` again.
-4. Give the user `settings_url`. The user must enter AppID and AppSecret in the
+2. Give the user `settings_url`. The user must enter AppID and AppSecret in the
    local page and confirm the current public egress IP is on the WeChat
    developer allowlist. Never request those credentials in chat.
-5. Readiness requires `publishers.wenyan.ready=true` and a successful local
-   connection probe. Creating the final draft still requires explicit approval
-   in the workbench.
+3. Readiness requires `publishers.wechat.ready=true` and a successful local
+   connection probe. Access tokens are memory-only. Creating the final draft
+   still requires explicit approval in the workbench.
+4. A `wechat_draft_result_unknown` response must not be retried automatically.
+   Ask the user to inspect the WeChat draft box first.
 
 ## Diagnose an existing installation
 

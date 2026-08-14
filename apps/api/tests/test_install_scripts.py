@@ -10,6 +10,7 @@ import pytest
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+INSTALLER = REPOSITORY_ROOT / "scripts" / "install.ps1"
 UNINSTALLER = REPOSITORY_ROOT / "scripts" / "uninstall.ps1"
 
 
@@ -56,6 +57,65 @@ def _run_uninstaller(script: Path, *args: str) -> tuple[subprocess.CompletedProc
     return completed, json.loads(completed.stdout)
 
 
+def _run_installer(*args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
+    completed = subprocess.run(
+        [
+            "powershell",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(INSTALLER),
+            *args,
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=120,
+        check=False,
+    )
+    return completed, json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
+def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
+    tmp_path: Path,
+) -> None:
+    install_root = tmp_path / "installed"
+    host_home = tmp_path / "host"
+
+    first_completed, first = _run_installer(
+        "-InstallRoot",
+        str(install_root),
+        "-HostHome",
+        str(host_home),
+        "-SkipDependencies",
+    )
+    assert first_completed.returncode == 0, first_completed.stderr
+    assert first["ok"] is True
+    assert first["legacy_data_migration_requested"] is False
+    assert first["migrated"]["database"] is False
+    assert not (install_root / "data" / "visual-director.db").exists()
+    version_root = Path(first["app_root"])
+    assert not (version_root / ".runtime").exists()
+
+    stale_marker = version_root / ".runtime" / "stale-marker.txt"
+    stale_marker.parent.mkdir()
+    stale_marker.write_text("stale", encoding="utf-8")
+    second_completed, second = _run_installer(
+        "-InstallRoot",
+        str(install_root),
+        "-HostHome",
+        str(host_home),
+        "-SkipDependencies",
+    )
+    assert second_completed.returncode == 0, second_completed.stderr
+    assert second["ok"] is True
+    assert not stale_marker.exists()
+    assert not (version_root / ".runtime").exists()
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
 def test_uninstall_preserves_data_and_removes_host_registration(tmp_path: Path) -> None:
     install_root = tmp_path / "installed"
@@ -90,6 +150,13 @@ def test_macos_scripts_are_present_and_do_not_depend_on_powershell() -> None:
         content = (REPOSITORY_ROOT / "scripts" / name).read_text(encoding="utf-8")
         assert content.startswith("#!/usr/bin/env bash")
         assert "powershell" not in content.lower()
+
+
+def test_user_installers_never_invoke_node_package_managers() -> None:
+    for name in ("install.ps1", "install.sh"):
+        content = (REPOSITORY_ROOT / "scripts" / name).read_text(encoding="utf-8")
+        assert "corepack pnpm@" not in content
+        assert "npm install" not in content
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")

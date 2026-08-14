@@ -45,10 +45,27 @@ SOURCE_PREFIX_RE = re.compile(
     r"^(?:[📊📚🔗]\s*)?(?:\*\*)?(?:(?:数据|资料|规则|政策|核验|信息)\s*)?来源\s*[:：]",
     flags=re.IGNORECASE,
 )
+REFERENCE_HEADING_RE = re.compile(
+    r"^(?:可靠来源|参考来源|资料来源|数据来源|信息来源|政策来源|规则来源|参考资料|参考文献|来源)$",
+    flags=re.IGNORECASE,
+)
+REFERENCE_ITEM_RE = re.compile(r"^(?:\[[^\]]+\]\(https?://[^)]+\)|https?://\S+)$", flags=re.IGNORECASE)
 
 
 def _is_source_text(value: str) -> bool:
     return bool(SOURCE_PREFIX_RE.match(value.strip()))
+
+
+def _is_reference_list(blocks: list[ContentBlock], items: list[str]) -> bool:
+    """Keep citations and further-reading links out of action-list semantics."""
+    previous = blocks[-1] if blocks else None
+    under_reference_heading = bool(
+        previous
+        and previous.type == "heading"
+        and REFERENCE_HEADING_RE.fullmatch(str(previous.content).strip())
+    )
+    link_only = bool(items) and all(REFERENCE_ITEM_RE.fullmatch(item.strip()) for item in items)
+    return under_reference_heading or link_only
 
 
 def _split_frontmatter(markdown: str) -> tuple[dict[str, Any], str]:
@@ -178,7 +195,11 @@ def parse_markdown(markdown: str, title_override: str | None = None) -> ParsedAr
             blocks.append(
                 ContentBlock(
                     f"block-{len(blocks) + 1:03d}",
-                    "ordered_list" if ordered_list else "unordered_list",
+                    (
+                        "reference_list"
+                        if not ordered_list and _is_reference_list(blocks, items)
+                        else "ordered_list" if ordered_list else "unordered_list"
+                    ),
                     items,
                 )
             )
@@ -252,9 +273,21 @@ def classify_article(parsed: ParsedArticle, requested_type: str | None = None) -
 
     corpus = f"{parsed.title}\n{parsed.body}"
     scores = {
-        "data_policy": sum(corpus.count(word) for word in ("数据", "政策", "分数", "位次", "招生", "官方")),
-        "tutorial_steps": sum(corpus.count(word) for word in ("步骤", "第一步", "第二步", "如何", "教程", "清单")),
-        "lively_growth": sum(corpus.count(word) for word in ("成长", "体验", "活动", "学生", "游戏", "好玩")),
-        "viewpoint_trend": sum(corpus.count(word) for word in ("趋势", "观点", "意味着", "时代", "为什么", "焦虑")),
+        "data_policy": sum(
+            corpus.count(word)
+            for word in ("数据", "政策", "规则", "指标", "报告", "调研", "统计", "监管", "标准", "官方", "成本", "增速")
+        ),
+        "tutorial_steps": sum(
+            corpus.count(word)
+            for word in ("步骤", "第一步", "第二步", "如何", "教程", "清单", "操作", "方法", "流程", "指南", "实操", "配置")
+        ),
+        "lively_growth": sum(
+            corpus.count(word)
+            for word in ("故事", "案例", "人物", "经历", "现场", "访谈", "品牌", "体验", "活动", "成长", "实践")
+        ),
+        "viewpoint_trend": sum(
+            corpus.count(word)
+            for word in ("趋势", "观点", "意味着", "时代", "为什么", "变化", "行业", "未来", "判断", "观察", "争议")
+        ),
     }
     return max(scores, key=scores.get) if max(scores.values()) > 0 else "viewpoint_trend"

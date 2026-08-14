@@ -35,6 +35,8 @@
 
 ## 关键输出
 
+- `command_completed=true`：当前 CLI 命令已经完成；后台服务是独立进程，不得继续等待其退出。
+- `background=true`、`process_mode=detached`：`serve`/`bootstrap` 已在无控制台后台模式启动或复用服务，宿主终端可以立即结束。
 - `status=plans_ready`：双方案已经生成，可以评审。
 - `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题；`source_structure_too_flat` 只允许整理原稿已有关系。
 - `next_action=generate_editorial_brief`：读取 `task context`，由当前宿主 Agent 或可选子智能体生成 Brief。
@@ -48,7 +50,7 @@
 - `doctor.capabilities.host_agent_text_planning=true`：核心支持接收宿主 Agent Brief，不代表当前任务已成功采用。
 - `doctor.capabilities.host_skill_registered=true`：用户级 Skill 已注册；同时可从 `doctor.host_integrations.skill` 检查通用目录、OpenCode 目录与斜杠命令。
 - `doctor.capabilities.rule_text_planning=true`：当前使用确定性规则兜底；可以排版，但不得宣称调用了 AI 文本规划。
-- `doctor.capabilities.wechat_draft=true`：本机 Wenyan 与公众号凭据已就绪，但仍需人工确认公网出口 IP 已加入白名单。
+- `doctor.capabilities.wechat_draft=true`：内置微信官方 API 发布器与公众号凭据已就绪，但仍需人工确认公网出口 IP 已加入白名单。
 - `doctor.capabilities.rich_copy=true`：工作台提供实验性富文本复制；粘贴后必须保存、重开并在手机端检查图片。
 - `doctor.capabilities.bundle_export=true`：冻结版本可以下载为本地交付包。
 - `doctor.installation.persistent=true`：当前使用固定安装目录；同时核对 `version`、`app_root` 和 `data_root`。

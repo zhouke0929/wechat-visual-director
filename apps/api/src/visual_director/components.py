@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from .parser import ParsedArticle
+from .theme_extensions import render_extended_component
 
 
 REF_RE = re.compile(r"^(block-\d{3})(?::item:(\d+))?$")
@@ -228,6 +229,10 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
     surface = colors["surface"]
     ink = colors["ink"]
 
+    extended = render_extended_component(slot, parsed, colors)
+    if extended is not None:
+        return extended
+
     if component_type == "question_hook":
         title = _inline(_one(parsed, bindings, "title"))
         if variant == "plain_question":
@@ -297,7 +302,7 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 )
             return (
                 f'<section style="margin:28px 0;padding:3px 0 1px 8px;border-left:3px solid {primary};">'
-                f'<p style="margin:-9px 0 18px -13px;white-space:nowrap;">'
+                f'<p style="margin:-9px 0 18px -8px;white-space:nowrap;">'
                 f'<span style="display:inline-block;width:16px;height:9px;border-radius:12px 2px 12px 2px;background-color:{primary};transform:rotate(-18deg);"></span>'
                 f'<span style="display:inline-block;width:34px;height:1px;margin:0 0 4px 7px;background-color:{secondary};"></span></p>'
                 f'{"".join(rows)}</section>'
@@ -452,7 +457,7 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         if variant == "megaphone_quote":
             return (
                 f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
-                f'<span style="display:inline-block;width:66px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                f'<span style="box-sizing:border-box;display:inline-block;width:66px;margin-left:4px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
                 f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
             )
@@ -504,10 +509,10 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
             return (
                 f'<section style="margin:30px 0;padding-left:19px;border-left:2px solid {primary};">'
                 f'<section style="margin:0 0 20px;white-space:normal;">'
-                f'<span style="display:inline-block;width:62px;margin-left:-24px;padding:6px 5px;background-color:{accent};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">基线</span>'
+                f'<span style="display:inline-block;width:62px;margin-left:-16px;padding:6px 5px;background-color:{accent};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">基线</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:74%;margin:0;padding:0 0 13px 15px;border-bottom:1px solid #BCC6C1;color:{ink};font-size:14px;line-height:1.76;vertical-align:top;">{before}</p></section>'
                 f'<section style="margin:0 0 0 31px;white-space:normal;">'
-                f'<span style="display:inline-block;width:62px;margin-left:-24px;padding:6px 5px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">变化</span>'
+                f'<span style="display:inline-block;width:62px;margin-left:-16px;padding:6px 5px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">变化</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:0 0 13px 15px;border-bottom:4px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.76;vertical-align:top;">{after}</p></section>'
                 f'</section>'
             )
@@ -537,11 +542,11 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
             return (
                 f'<section style="margin:31px 0;padding:4px 0 2px 18px;border-left:1px dashed #D7B995;">'
                 f'<section style="width:88%;padding:0 0 14px;border-bottom:1px solid #E1CDB2;white-space:normal;">'
-                f'<span style="display:inline-block;width:48px;margin-left:-23px;padding:5px 7px;background-color:{accent_pale};color:{accent};font-size:11px;font-weight:800;text-align:center;transform:rotate(-3deg);vertical-align:top;">从前</span>'
+                f'<span style="display:inline-block;width:48px;margin-left:-14px;padding:5px 7px;background-color:{accent_pale};color:{accent};font-size:11px;font-weight:800;text-align:center;transform:rotate(-3deg);vertical-align:top;">从前</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:1px 0 0 13px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:14px;line-height:1.82;vertical-align:top;">{before}</p></section>'
                 f'<p style="height:27px;margin:0 0 0 47%;border-left:2px dotted {secondary};"></p>'
                 f'<section style="width:88%;margin-left:8%;padding:0 0 14px;border-bottom:4px solid {primary};white-space:normal;">'
-                f'<span style="display:inline-block;width:48px;margin-left:-23px;padding:5px 7px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;transform:rotate(2deg);vertical-align:top;">后来</span>'
+                f'<span style="display:inline-block;width:48px;margin-left:-14px;padding:5px 7px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;transform:rotate(2deg);vertical-align:top;">后来</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:1px 0 0 13px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:14px;font-weight:650;line-height:1.82;vertical-align:top;">{after}</p></section></section>'
             )
         if variant == "editorial_before_after":
@@ -863,7 +868,7 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         if variant == "taped_caution":
             return (
                 f'<section style="margin:31px 0;padding:3px 0 13px 17px;border-left:6px solid {accent};border-bottom:1px solid #D7B995;white-space:normal;">'
-                f'<span style="display:inline-block;width:20%;margin-left:-28px;padding:10px 6px 19px;background-color:{secondary};color:{primary};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;text-align:center;transform:rotate(-4deg);vertical-align:top;">!</span>'
+                f'<span style="display:inline-block;width:20%;margin-left:-17px;padding:10px 6px 19px;background-color:{secondary};color:{primary};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;text-align:center;transform:rotate(-4deg);vertical-align:top;">!</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:80%;margin:0;padding:5px 0 8px 15px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:15px;font-weight:650;line-height:1.84;vertical-align:top;">{body}</p></section>'
             )
         if variant == "margin_caution":
@@ -957,7 +962,7 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 )
             return (
                 f'<section style="margin:29px 0;padding:6px 0 1px 17px;border-left:3px dotted {secondary};">'
-                f'<p style="width:68px;height:11px;margin:-12px 0 18px -25px;background-color:{accent_pale};transform:rotate(-3deg);"></p>'
+                f'<p style="width:68px;height:11px;margin:-12px 0 18px -15px;background-color:{accent_pale};transform:rotate(-3deg);"></p>'
                 f'{"".join(rows)}</section>'
             )
         if variant == "proofing_checklist":
@@ -1197,7 +1202,7 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         if variant == "letter_takeaway":
             return (
                 f'<section style="margin:33px 0;padding:3px 3px 14px 19px;border-left:5px solid {accent};border-bottom:1px solid #D7B995;">'
-                f'<p style="margin:-10px 0 17px -27px;"><span style="display:inline-block;width:72px;height:12px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
+                f'<p style="margin:-10px 0 17px -18px;"><span style="display:inline-block;width:72px;height:12px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
                 f'{"".join(rows)}'
                 f'<p style="margin:15px 0 0;text-align:right;"><span style="display:inline-block;width:54px;height:1px;background-color:{primary};"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{accent};"></span></p></section>'
             )

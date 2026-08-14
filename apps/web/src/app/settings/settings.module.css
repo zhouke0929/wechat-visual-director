@@ -547,8 +547,6 @@
 .wechatInputs label { display: grid; gap: 7px; }
 .wechatInputs span { font-size: 11px; font-weight: 800; }
 .wechatInputs input { min-height: 50px; width: 100%; padding: 11px 13px; border: 1px solid rgba(20, 33, 31, .3); border-radius: 0; background: #fffefb; color: var(--settings-ink); font: 11px/1.4 ui-monospace, Consolas, monospace; }
-.whitelistCheck { margin-top: 16px; display: flex; align-items: center; gap: 9px; font-size: 12px; font-weight: 750; }
-.whitelistCheck input { accent-color: var(--settings-teal); }
 .wechatActions { margin-top: 20px; display: flex; gap: 10px; }
 .wechatActions button { min-height: 46px; padding: 0 17px; border: 1px solid var(--settings-teal); background: var(--settings-teal); color: white; font-weight: 850; }
 .wechatActions .secondaryAction { background: transparent; color: var(--settings-teal); }

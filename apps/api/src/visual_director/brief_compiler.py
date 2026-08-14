@@ -7,6 +7,7 @@ from collections import Counter
 from typing import Any
 
 from .component_catalog import (
+    AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
     COMPONENT_CATALOG,
     VISUAL_SYSTEM_CATALOG,
     VISUAL_SYSTEM_ORDER,
@@ -23,6 +24,7 @@ from .parser import ContentBlock, ParsedArticle
 from .image_intent import build_visual_intent
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
+from .theme_extensions import EXTENDED_THEME_KITS
 from .planner import (
     component_diversity_target,
     component_opportunity_diagnostics,
@@ -561,6 +563,11 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
 
 
 def visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    if visual_system in EXTENDED_THEME_KITS:
+        configuration = copy.deepcopy(EXTENDED_THEME_KITS[visual_system]["configuration"])
+        configuration["visual_system"] = visual_system
+        configuration["theme_id"] = visual_system
+        return configuration
     if visual_system == "light_reading":
         return {
             "heading_variant": "botanical_section",
@@ -643,14 +650,7 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
     }
     for summary in recent_summaries:
         value = summary.get("visual_system") or summary.get("style_mode")
-        if value == "light_reading":
-            counts["light_reading"] += 1
-        elif value in {
-            "warm_humanist",
-            "youth_campus",
-            "structured_grid",
-            "future_tech",
-        }:
+        if value in VISUAL_SYSTEM_ORDER:
             counts[str(value)] += 1
         elif value in editorial_modes:
             counts["editorial_contrast"] += 1
@@ -660,34 +660,58 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
 ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     "data_policy": (
         "structured_grid",
+        "business_review",
+        "vintage_press",
         "editorial_contrast",
         "future_tech",
+        "oriental_archive",
         "light_reading",
+        "natural_atlas",
+        "cinematic_story",
+        "pop_poster",
         "youth_campus",
         "warm_humanist",
     ),
     "tutorial_steps": (
         "structured_grid",
+        "pop_poster",
+        "natural_atlas",
         "youth_campus",
         "light_reading",
-        "editorial_contrast",
-        "warm_humanist",
+        "business_review",
         "future_tech",
+        "oriental_archive",
+        "warm_humanist",
+        "editorial_contrast",
+        "vintage_press",
+        "cinematic_story",
     ),
     "viewpoint_trend": (
         "editorial_contrast",
+        "business_review",
+        "vintage_press",
         "future_tech",
+        "cinematic_story",
+        "oriental_archive",
         "light_reading",
+        "pop_poster",
+        "natural_atlas",
         "warm_humanist",
         "structured_grid",
         "youth_campus",
     ),
     "lively_growth": (
-        "youth_campus",
+        "natural_atlas",
+        "cinematic_story",
         "warm_humanist",
+        "youth_campus",
+        "pop_poster",
+        "oriental_archive",
         "light_reading",
-        "future_tech",
+        "vintage_press",
         "editorial_contrast",
+        "future_tech",
+        "business_review",
         "structured_grid",
     ),
 }
@@ -710,6 +734,7 @@ def recommend_visual_system(
     article_type: str,
     recent_summaries: list[dict[str, Any]],
     history_window: int,
+    article_features: dict[str, int] | None = None,
 ) -> tuple[str, Counter[str], str | None]:
     """Pick one theme without repeating the immediately previous frozen article.
 
@@ -721,12 +746,26 @@ def recommend_visual_system(
     previous = _normalized_visual_system(recent[0]) if recent else None
     affinity = ARTICLE_TYPE_THEME_AFFINITY.get(article_type, VISUAL_SYSTEM_ORDER)
     affinity_rank = {value: index for index, value in enumerate(affinity)}
+    features = article_features or {}
+    fit_adjustment: Counter[str] = Counter()
+    if features.get("table_count", 0):
+        fit_adjustment.update({"structured_grid": -3, "future_tech": -1, "business_review": -2})
+    if features.get("list_count", 0) >= 2:
+        fit_adjustment.update({"structured_grid": -2, "youth_campus": -1, "pop_poster": -1})
+    if features.get("quote_count", 0) >= 2:
+        fit_adjustment.update({"editorial_contrast": -2, "warm_humanist": -1, "vintage_press": -2})
+    if features.get("source_count", 0) >= 2:
+        fit_adjustment.update({"editorial_contrast": -1, "structured_grid": -1, "vintage_press": -2})
+    if features.get("section_count", 0) >= 5:
+        fit_adjustment.update({"light_reading": -1, "structured_grid": -1})
+    if features.get("paragraph_count", 0) >= 10 and features.get("list_count", 0) <= 1:
+        fit_adjustment.update({"warm_humanist": -2, "editorial_contrast": -1, "cinematic_story": -2})
     selected = min(
-        VISUAL_SYSTEM_ORDER,
+        AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
         key=lambda value: (
             value == previous,
             counts[value],
-            affinity_rank.get(value, len(VISUAL_SYSTEM_ORDER)),
+            affinity_rank.get(value, len(VISUAL_SYSTEM_ORDER)) + fit_adjustment[value],
             VISUAL_SYSTEM_ORDER.index(value),
         ),
     )
@@ -854,7 +893,20 @@ def compile_editorial_brief_recommended(
     recent = recent_summaries or []
     base = compile_editorial_brief(parsed, brief, history_window, recent)
     article_type = str(base.get("editorial_brief_metadata", {}).get("article_type", ""))
-    selected, counts, previous = recommend_visual_system(article_type, recent, history_window)
+    article_features = {
+        "section_count": parsed.section_count,
+        "table_count": sum(1 for block in parsed.blocks if block.type == "table"),
+        "list_count": sum(1 for block in parsed.blocks if block.type in {"ordered_list", "unordered_list"}),
+        "quote_count": sum(1 for block in parsed.blocks if block.type == "quote"),
+        "source_count": sum(1 for block in parsed.blocks if block.type == "source"),
+        "paragraph_count": sum(1 for block in parsed.blocks if block.type == "paragraph"),
+    }
+    selected, counts, previous = recommend_visual_system(
+        article_type,
+        recent,
+        history_window,
+        article_features=article_features,
+    )
     plan = apply_visual_system(
         base,
         selected,
@@ -884,8 +936,17 @@ def compile_editorial_brief_variants(
     recent = recent_summaries or []
     base = compile_editorial_brief(parsed, brief, history_window, recent)
     counts = _visual_system_counts(recent[-history_window:])
-    soft_systems = ("light_reading", "warm_humanist", "youth_campus")
-    structural_systems = ("editorial_contrast", "structured_grid", "future_tech")
+    soft_systems = (
+        "light_reading",
+        "warm_humanist",
+        "youth_campus",
+        "pop_poster",
+    )
+    structural_systems = (
+        "editorial_contrast",
+        "structured_grid",
+        "future_tech",
+    )
     selected_systems = (
         min(soft_systems, key=lambda value: (counts[value], soft_systems.index(value))),
         min(structural_systems, key=lambda value: (counts[value], structural_systems.index(value))),

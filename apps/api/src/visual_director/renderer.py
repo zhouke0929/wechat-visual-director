@@ -9,6 +9,17 @@ from .brand import load_brand_profile
 from .components import render_component
 from .parser import ContentBlock, ParsedArticle
 from .plan_schema import validate_plan_for_article
+from .theme_extensions import (
+    extended_image_frame_variant,
+    extended_image_placeholder_style,
+    extended_inline_emphasis_style,
+    render_extended_break,
+    render_extended_heading,
+    render_extended_hero,
+    render_extended_list,
+    render_extended_quote,
+    render_extended_table,
+)
 
 
 EXPLICIT_HEADING_NUMBER_RE = re.compile(
@@ -20,6 +31,13 @@ EXPLICIT_HEADING_NUMBER_RE = re.compile(
 )
 CONCLUSION_CUE_RE = re.compile(r"结论(?:是|：|:)|核心判断|答案是|最重要的是|建议是|这意味着")
 GUIDE_CUE_RE = re.compile(r"本文|这篇|今天|接下来|逐个|一次性|直接回答|告诉你|梳理")
+CASE_LIST_CONTEXT_RE = re.compile(r"案例|样本|实例|两校|两种学校|同名专业|现实样本|对比|差异")
+ACTION_LIST_CONTEXT_RE = re.compile(
+    r"行动清单|核验清单|检查清单|操作清单|准备清单|办理清单|"
+    r"(?:怎么|如何)(?:做|选|办|核验|检查|准备)|"
+    r"(?:提交|申请|填报|办理|操作|执行|核验|检查|准备)(?:前|时|步骤|事项)|"
+    r"建议|下一步|注意事项"
+)
 
 
 def _inline(value: str) -> str:
@@ -33,7 +51,10 @@ def _body_inline(value: str, config: dict[str, Any]) -> str:
     palette = config.get("palette", {})
     accent = config["accent"]
     heading_variant = config.get("heading_variant")
-    if heading_variant == "botanical_section":
+    extended_style = extended_inline_emphasis_style(config)
+    if extended_style is not None:
+        style = extended_style
+    elif heading_variant == "botanical_section":
         style = (
             f"padding:0 3px;border-bottom:5px solid {palette.get('accent', accent)};"
             f"color:{palette.get('primary', accent)};font-weight:800;"
@@ -74,6 +95,9 @@ def _body_inline(value: str, config: dict[str, Any]) -> str:
 
 
 def _image_frame_variant(config: dict[str, Any]) -> str:
+    extended_variant = extended_image_frame_variant(config)
+    if extended_variant is not None:
+        return extended_variant
     return {
         "botanical_section": "airy_organic",
         "story_chapter": "warm_storybook",
@@ -91,6 +115,9 @@ def _reliable_image_caption(alt: str) -> str:
 
 
 def _render_thematic_break(config: dict[str, Any]) -> str:
+    extended = render_extended_break(config)
+    if extended is not None:
+        return extended
     palette = config.get("palette", {})
     accent = config["accent"]
     heading_variant = config.get("heading_variant")
@@ -173,6 +200,10 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
     content = str(block.content).strip()
     level = block.level or 2
 
+    extended = render_extended_heading(content, level, section_index, config)
+    if extended is not None:
+        return extended
+
     if level == 2 and config["heading_variant"] == "botanical_section":
         section_label = "SECTION" if _has_explicit_heading_number(content) else f"SECTION {section_index:02d}"
         return (
@@ -199,7 +230,7 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
         return (
             f'<section data-heading-level="2" data-auto-numbered="{str(not _has_explicit_heading_number(content)).lower()}" '
             f'style="margin:44px 0 22px;padding:3px 0 12px 17px;border-left:5px solid {secondary};border-bottom:1px solid #D7B995;">'
-            f'<p style="margin:-9px 0 11px -25px;"><span style="display:inline-block;padding:5px 10px;background-color:{palette.get("accent_pale", "#FBE9E2")};color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;transform:rotate(-2deg);">{section_label}</span></p>'
+            f'<p style="margin:-9px 0 11px -18px;"><span style="display:inline-block;padding:5px 10px;background-color:{palette.get("accent_pale", "#FBE9E2")};color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;transform:rotate(-2deg);">{section_label}</span></p>'
             f'<strong style="display:block;color:#342B28;font-family:Georgia,\'Noto Serif SC\',serif;font-size:22px;line-height:1.52;">{_inline(content)}</strong>'
             f'<p style="margin:9px 0 -17px;text-align:right;"><span style="display:inline-block;width:46px;height:9px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
             "</section>"
@@ -337,6 +368,9 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
 def _render_table(rows: list[list[str]], config: dict[str, Any]) -> str:
     if not rows:
         return ""
+    extended = render_extended_table(rows, config)
+    if extended is not None:
+        return extended
     accent = config["accent"]
     header, *body = rows
     if config.get("table_variant") == "ledger_grid":
@@ -455,7 +489,56 @@ def _render_table(rows: list[list[str]], config: dict[str, Any]) -> str:
     )
 
 
-def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str:
+def _list_semantic_role(parsed: ParsedArticle, block_index: int, ordered: bool) -> str:
+    if ordered:
+        return "numbered_insight"
+
+    context: list[str] = []
+    nearest_subheading = ""
+    for previous in reversed(parsed.blocks[:block_index]):
+        if previous.type == "heading":
+            context.append(str(previous.content))
+            if (previous.level or 0) >= 3 and not nearest_subheading:
+                nearest_subheading = str(previous.content)
+            if (previous.level or 0) <= 2:
+                break
+        elif len(context) < 3 and previous.type in {"paragraph", "quote"}:
+            context.append(str(previous.content))
+
+    combined = " ".join(context[:4])
+    if nearest_subheading and CASE_LIST_CONTEXT_RE.search(nearest_subheading):
+        return "case_points"
+    if ACTION_LIST_CONTEXT_RE.search(combined):
+        return "action_checklist"
+    return "key_points"
+
+
+def _list_marker(
+    index: int,
+    *,
+    ordered: bool,
+    semantic_role: str,
+    action_marker: str = "✓",
+    neutral_marker: str = "•",
+) -> str:
+    if ordered:
+        return f"{index:02d}"
+    if semantic_role == "action_checklist":
+        return action_marker
+    if semantic_role == "case_points" and index <= 26:
+        return chr(64 + index)
+    return neutral_marker
+
+
+def _render_list(
+    items: list[str],
+    ordered: bool,
+    config: dict[str, Any],
+    semantic_role: str = "key_points",
+) -> str:
+    extended = render_extended_list(items, ordered, config, semantic_role)
+    if extended is not None:
+        return extended
     accent = config["accent"]
     palette = config.get("palette", {})
     secondary = palette.get("secondary", accent)
@@ -463,7 +546,7 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "leaf_path":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = str(index) if ordered else "✓"
+            marker = str(index) if ordered else _list_marker(index, ordered=False, semantic_role=semantic_role)
             marker_color = (accent, sky, secondary)[(index - 1) % 3]
             rendered.append(
                 '<section style="margin:0 0 14px;white-space:normal;">'
@@ -474,12 +557,20 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "audit_track":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = f"{index:02d}" if ordered else "CHK"
+            marker = _list_marker(
+                index,
+                ordered=ordered,
+                semantic_role=semantic_role,
+                action_marker="CHK",
+                neutral_marker="NOTE",
+            )
+            if semantic_role == "case_points" and not ordered:
+                marker = f"C{index}"
             rendered.append(
                 '<section style="border-bottom:1px solid #C7D0CC;white-space:normal;">'
                 f'<span style="display:inline-block;width:18%;padding:12px 5px;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;vertical-align:top;">{marker}</span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 9px;border-left:1px solid #C7D0CC;color:#34403E;font-size:15px;line-height:1.7;vertical-align:top;">{_body_inline(item, config)}</p>'
-                f'<span style="display:inline-block;width:12%;padding:12px 0;color:{secondary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">□</span></section>'
+                f'<span style="display:inline-block;width:12%;padding:12px 0;color:{secondary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">{"□" if semantic_role == "action_checklist" else "·"}</span></section>'
             )
         return (
             f'<section style="margin:22px 0 25px;border-top:4px solid {accent};">'
@@ -489,7 +580,7 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "stitched_path":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = f"{index:02d}" if ordered else "✓"
+            marker = _list_marker(index, ordered=ordered, semantic_role=semantic_role)
             rendered.append(
                 '<section style="margin:0 0 14px;white-space:normal;">'
                 f'<span style="display:inline-block;width:28px;height:28px;margin-left:-16px;border:1px solid {accent};border-radius:50%;background-color:#FFFCF7;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;line-height:28px;text-align:center;vertical-align:top;">{marker}</span>'
@@ -502,7 +593,13 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "proof_list":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = f"{index:02d}" if ordered else "■"
+            marker = _list_marker(
+                index,
+                ordered=ordered,
+                semantic_role=semantic_role,
+                action_marker="■",
+                neutral_marker="■",
+            )
             rendered.append(
                 '<section style="border-top:1px solid #202B33;white-space:normal;">'
                 f'<span style="display:inline-block;width:20%;padding:12px 7px 11px 0;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:18px;font-weight:800;vertical-align:top;">{marker}</span>'
@@ -515,7 +612,7 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "campus_steps":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = f"{index:02d}" if ordered else "✓"
+            marker = _list_marker(index, ordered=ordered, semantic_role=semantic_role)
             marker_color = (
                 accent,
                 palette.get("accent", accent),
@@ -531,7 +628,12 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     if config["list_variant"] == "signal_track":
         rendered = []
         for index, item in enumerate(items, 1):
-            marker = f"{index:02d}" if ordered else "•"
+            marker = _list_marker(
+                index,
+                ordered=ordered,
+                semantic_role=semantic_role,
+                action_marker="•",
+            )
             item_background = (
                 palette.get("pale", "#F3F5FC"),
                 palette.get("secondary_pale", "#EAF9F6"),
@@ -548,7 +650,11 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
         )
     rendered = []
     for index, item in enumerate(items, 1):
-        marker = str(index) if ordered or config["list_variant"] == "vertical_numbered" else "✓"
+        marker = (
+            str(index)
+            if ordered or config["list_variant"] == "vertical_numbered"
+            else _list_marker(index, ordered=False, semantic_role=semantic_role)
+        )
         rendered.append(
             '<p style="margin:0 0 12px;color:#34403E;font-size:16px;line-height:1.72;">'
             f'<span style="display:inline-block;width:25px;height:25px;margin-right:9px;border-radius:8px;background-color:{accent};color:#fff;font:700 12px/25px Arial;text-align:center;vertical-align:top;">{marker}</span>'
@@ -557,7 +663,42 @@ def _render_list(items: list[str], ordered: bool, config: dict[str, Any]) -> str
     return f'<section style="margin:20px 0 24px;">{"".join(rendered)}</section>'
 
 
+REFERENCE_LINK_RE = re.compile(r"^\[([^\]]+)]\((https?://[^)]+)\)$", flags=re.IGNORECASE)
+
+
+def _render_reference_list(items: list[str], config: dict[str, Any]) -> str:
+    """Render citations as subdued metadata, never as steps or checklists."""
+    palette = config.get("palette", {})
+    primary = palette.get("primary", config["accent"])
+    rows: list[str] = []
+    for item in items:
+        match = REFERENCE_LINK_RE.fullmatch(str(item).strip())
+        if match:
+            label = html.escape(match.group(1).strip())
+            url = match.group(2).strip()
+            domain_match = re.match(r"https?://([^/]+)", url, flags=re.IGNORECASE)
+            domain = html.escape(domain_match.group(1) if domain_match else url)
+            content = (
+                f'<span style="display:block;color:#4F5B58;font-size:12px;line-height:1.65;">{label}</span>'
+                f'<span style="display:block;margin-top:2px;color:#929A97;font:400 9px/1.45 Arial;word-break:break-all;">{domain}</span>'
+            )
+        else:
+            content = f'<span style="color:#4F5B58;font-size:12px;line-height:1.65;">{_inline(str(item))}</span>'
+        rows.append(
+            '<section data-content-role="reference-item" style="margin:0;padding:9px 0;border-bottom:1px solid #E3E7E4;white-space:normal;">'
+            f'<span style="display:inline-block;width:5%;padding-top:7px;color:{primary};font-size:8px;vertical-align:top;">●</span>'
+            f'<span style="box-sizing:border-box;display:inline-block;width:95%;vertical-align:top;">{content}</span></section>'
+        )
+    return (
+        '<section data-content-role="reference-list" style="margin:18px 0 25px;padding:4px 0 0;">'
+        f'{"".join(rows)}</section>'
+    )
+
+
 def _image_placeholder_style(config: dict[str, Any]) -> str:
+    extended = extended_image_placeholder_style(config)
+    if extended is not None:
+        return extended
     palette = config.get("palette", {})
     variant = _image_frame_variant(config)
     if variant == "airy_organic":
@@ -725,7 +866,7 @@ def render_preview(
     section_index = 0
     opening_highlight_id, opening_highlight_label = _opening_highlight(parsed)
 
-    for block in parsed.blocks:
+    for block_index, block in enumerate(parsed.blocks):
         if block.id in slots_by_anchor:
             slot = slots_by_anchor[block.id]
             body.append(
@@ -813,7 +954,10 @@ def render_preview(
             else:
                 body.append(f'<p style="margin:0 0 18px;color:#34403E;font-size:16px;line-height:1.85;text-align:justify;">{_body_inline(str(block.content), config)}</p>')
         elif block.type == "quote":
-            if config.get("quote_variant") == "floating_quote":
+            extended_quote = render_extended_quote(str(block.content), config)
+            if extended_quote is not None:
+                body.append(extended_quote)
+            elif config.get("quote_variant") == "floating_quote":
                 body.append(
                     f'<blockquote style="margin:31px 3px 34px;padding:0 8px 13px 0;border-bottom:1px solid {palette.get("sky", accent)};white-space:normal;">'
                     f'<span style="display:inline-block;width:46px;margin-top:-7px;color:{palette.get("secondary", accent)};font-family:Georgia,serif;font-size:72px;font-weight:700;line-height:.72;vertical-align:top;">“</span>'
@@ -843,7 +987,7 @@ def render_preview(
             elif config.get("quote_variant") == "campus_quote":
                 body.append(
                     f'<blockquote style="margin:32px 0;padding:7px 0 17px;border-bottom:2px dashed {palette.get("sky", accent)};white-space:normal;">'
-                    f'<span style="display:inline-block;width:65px;padding:14px 5px;background-color:{palette.get("accent", accent)};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:65px;margin-left:4px;padding:14px 5px;background-color:{palette.get("accent", accent)};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
                     f'<span style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{palette.get("secondary_pale", "#FFF6D9")};box-shadow:6px 6px 0 {palette.get("sky_pale", "#EEF4FF")};color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:700;line-height:1.85;vertical-align:top;">{_body_inline(str(block.content), config)}</span></blockquote>'
                 )
             elif config.get("quote_variant") == "_legacy_campus_quote":
@@ -878,7 +1022,17 @@ def render_preview(
                     f'<blockquote style="margin:24px 0;padding:4px 0 4px 17px;border-left:4px solid {accent};color:#41514E;font-size:17px;line-height:1.75;">{_body_inline(str(block.content), config)}</blockquote>'
                 )
         elif block.type in {"ordered_list", "unordered_list"}:
-            body.append(_render_list(list(block.content), block.type == "ordered_list", config))
+            ordered = block.type == "ordered_list"
+            body.append(
+                _render_list(
+                    list(block.content),
+                    ordered,
+                    config,
+                    _list_semantic_role(parsed, block_index, ordered),
+                )
+            )
+        elif block.type == "reference_list":
+            body.append(_render_reference_list(list(block.content), config))
         elif block.type == "table":
             body.append(_render_table(list(block.content), config))
         elif block.type == "source":
@@ -896,7 +1050,16 @@ def render_preview(
         profile.get("editorial_kicker" if editorial else "standard_kicker")
         or ("WECHAT · CONTENT BRIEF" if editorial else "公众号 · 阅读指南")
     )
-    if airy:
+    extended_hero = render_extended_hero(
+        parsed.title,
+        validated["plan_name"],
+        validated["component_library_version"],
+        kicker,
+        config,
+    )
+    if extended_hero is not None:
+        hero = extended_hero
+    elif airy:
         hero = (
             f'<header data-content-role="article-metadata-preview" style="padding:34px 0 23px;border-bottom:1px solid {palette.get("sky", accent)};">'
             f'<p style="margin:0 0 13px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.16em;">{kicker}</p>'

@@ -18,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
-from .version import application_version
+from .version import application_version, runtime_identity
 from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
 from .onboarding import DEFAULT_PUBLIC_IP_ENDPOINTS, PublicIpProbe
 from .data_recovery import DataRecoveryError, recover_dataset, scan_datasets
@@ -110,6 +110,65 @@ def _installation_summary() -> dict[str, Any]:
         "config_file": str(config_file),
         "runtime_root": str(_runtime_home().resolve()),
     }
+
+
+def _expected_runtime_identity(
+    installation: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    current = installation or _installation_summary()
+    return runtime_identity(
+        project_root=current["app_root"],
+        database_path=Path(current["data_root"]) / "visual-director.db",
+    )
+
+
+def _runtime_identity_match(
+    api_health: dict[str, Any] | None,
+    installation: dict[str, Any] | None = None,
+) -> tuple[bool, dict[str, Any], dict[str, Any] | None]:
+    current = installation or _installation_summary()
+    expected = _expected_runtime_identity(current)
+    running = (
+        api_health.get("runtime_identity")
+        if isinstance(api_health, dict)
+        and isinstance(api_health.get("runtime_identity"), dict)
+        else None
+    )
+    if api_health is None:
+        return False, expected, running
+    if not current["persistent"]:
+        return True, expected, running
+    matches = bool(
+        running
+        and running.get("schema_version") == expected["schema_version"]
+        and running.get("mode") == "persistent"
+        and running.get("fingerprint") == expected["fingerprint"]
+    )
+    return matches, expected, running
+
+
+def _raise_runtime_mismatch(
+    *,
+    api_base: str,
+    expected: dict[str, Any],
+    running: dict[str, Any] | None,
+) -> None:
+    raise CliError(
+        "core_runtime_mismatch",
+        "Port 8000 is occupied by another Visual Director runtime. Stop the source/test service, then retry the installed launcher.",
+        exit_code=3,
+        retryable=True,
+        details={
+            "api_base": api_base,
+            "expected_mode": expected.get("mode"),
+            "expected_data_root": expected.get("data_root"),
+            "expected_database_path": expected.get("database_path"),
+            "running_mode": (running or {}).get("mode"),
+            "running_data_root": (running or {}).get("data_root"),
+            "running_database_path": (running or {}).get("database_path"),
+            "action": "stop_foreign_runtime",
+        },
+    )
 
 
 def _install_history_path(installation: dict[str, Any]) -> Path:
@@ -348,20 +407,20 @@ def _spawn_detached(
     command: list[str],
     *,
     cwd: Path,
-    log_name: str,
+    log_name: str | None,
     extra_env: dict[str, str] | None = None,
 ) -> int:
     runtime = _runtime_home()
-    log_path = runtime / "logs" / log_name
     launch_command = _platform_launch_command(command)
-    with log_path.open("ab") as log:
+    log = (runtime / "logs" / log_name).open("ab") if log_name else None
+    try:
         child_env = os.environ.copy()
         child_env.update(extra_env or {})
         kwargs: dict[str, Any] = {
             "cwd": str(cwd),
             "stdin": subprocess.DEVNULL,
-            "stdout": log,
-            "stderr": subprocess.STDOUT,
+            "stdout": log or subprocess.DEVNULL,
+            "stderr": subprocess.STDOUT if log else subprocess.DEVNULL,
             "env": child_env,
         }
         if os.name == "nt":
@@ -373,7 +432,23 @@ def _spawn_detached(
         else:
             kwargs["start_new_session"] = True
         process = subprocess.Popen(launch_command, **kwargs)
+    finally:
+        if log is not None:
+            log.close()
     return process.pid
+
+
+def _service_python_executable(
+    executable: str | Path | None = None,
+    *,
+    platform_name: str | None = None,
+) -> str:
+    current = Path(executable or sys.executable).expanduser().resolve()
+    if (platform_name or os.name) == "nt":
+        no_console = current.with_name("pythonw.exe")
+        if no_console.is_file():
+            return str(no_console)
+    return str(current)
 
 
 def _platform_launch_command(command: list[str]) -> list[str] | str:
@@ -437,6 +512,7 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
     started: dict[str, int] = {}
     started_commands: dict[str, list[str]] = {}
     root = _project_root()
+    installation = _installation_summary()
 
     running_version = str((api_health or {}).get("application_version") or "")
     running_settings_schema = str(
@@ -464,6 +540,16 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
             },
         )
 
+    runtime_match, expected_runtime, running_runtime = _runtime_identity_match(
+        api_health, installation
+    )
+    if api_health is not None and installation["persistent"] and not runtime_match:
+        _raise_runtime_mismatch(
+            api_base=api_base,
+            expected=expected_runtime,
+            running=running_runtime,
+        )
+
     if api_health is None:
         api_dir = root / "apps" / "api"
         if not (api_dir / "pyproject.toml").exists():
@@ -475,24 +561,35 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
             )
         api_port = _port_from_url(_api_origin(api_base), 8000)
         api_command = [
-            sys.executable,
+            _service_python_executable(),
             "-m",
-            "uvicorn",
-            "visual_director.main:app",
+            "visual_director.service_host",
             "--host",
             "127.0.0.1",
             "--port",
             str(api_port),
+            "--log-file",
+            str(_runtime_home() / "logs" / "api.log"),
         ]
         started["api"] = _spawn_detached(
             api_command,
             cwd=api_dir,
-            log_name="api.log",
+            log_name=None,
         )
         started_commands["api"] = api_command
         _wait_until(lambda: _probe_json(api_health_url) is not None, timeout=timeout, label="API")
         started["api"] = _listening_process_id(api_port) or started["api"]
         api_health = _probe_json(api_health_url)
+
+    runtime_match, expected_runtime, running_runtime = _runtime_identity_match(
+        api_health, installation
+    )
+    if installation["persistent"] and not runtime_match:
+        _raise_runtime_mismatch(
+            api_base=api_base,
+            expected=expected_runtime,
+            running=running_runtime,
+        )
 
     # Alpha.16 serves the static workbench from the same FastAPI process.
     web_reachable = _probe_http(web_base)
@@ -601,7 +698,9 @@ def _process_command_line(pid: int) -> str | None:
 def _command_matches_service(service: str, command_line: str) -> bool:
     normalized = command_line.lower().replace("\\", "/")
     if service == "api":
-        return "uvicorn" in normalized and "visual_director.main:app" in normalized
+        legacy = "uvicorn" in normalized and "visual_director.main:app" in normalized
+        silent_host = "visual_director.service_host" in normalized
+        return legacy or silent_host
     if service == "web":
         is_start_command = " dev" in normalized or " start" in normalized
         return is_start_command and ("pnpm" in normalized or "next" in normalized)
@@ -708,19 +807,28 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         if api_health is not None and installation["persistent"]
         else api_health is not None
     )
+    runtime_match, expected_runtime, running_runtime = _runtime_identity_match(
+        api_health, installation
+    )
     installation["running_version"] = running_version
     installation["version_match"] = version_match
+    installation["runtime_match"] = runtime_match
+    installation["expected_runtime_fingerprint"] = expected_runtime.get("fingerprint")
+    installation["running_runtime_fingerprint"] = (running_runtime or {}).get("fingerprint")
+    installation["running_mode"] = (running_runtime or {}).get("mode")
+    installation["running_data_root"] = (running_runtime or {}).get("data_root")
+    installation["running_database_path"] = (running_runtime or {}).get("database_path")
+    installation["running_task_count"] = (running_runtime or {}).get("task_count")
+    trusted_core = api_health is not None and version_match and runtime_match
     host_skill = _host_skill_registration_summary()
-    wenyan_status = (
-        # Wenyan's first version probe can take several seconds on Windows,
-        # especially when the executable is a global npm .cmd shim.
-        _probe_json(f"{api_base.rstrip('/')}/publishers/wenyan/status", timeout=10)
-        if api_health is not None
+    wechat_publisher_status = (
+        _probe_json(f"{api_base.rstrip('/')}/publishers/wechat/status", timeout=10)
+        if trusted_core
         else None
     )
     preference_response = (
         _probe_json(f"{api_base.rstrip('/')}/settings/setup-preferences", timeout=3)
-        if api_health is not None
+        if trusted_core
         else None
     )
     setup_preferences = (
@@ -732,7 +840,9 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     warnings: list[str] = []
     if api_health is None:
         warnings.append("core_api_not_running")
-    elif installation["persistent"] and not version_match:
+    elif installation["persistent"] and not runtime_match:
+        warnings.append("core_runtime_mismatch")
+    if api_health is not None and installation["persistent"] and not version_match:
         warnings.append("core_version_mismatch")
         if not contract_match:
             warnings.append("core_contract_mismatch")
@@ -754,14 +864,14 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("text_planning_rule_fallback")
     elif text_planner_provider not in {"none", ""} and not text_planner_configured:
         warnings.append("text_planning_not_configured")
-    core_ready = api_health is not None and version_match
+    core_ready = trusted_core
     ok = core_ready and web_ready
     target_mode = str(setup_preferences.get("target_mode") or "typeset_only")
     image_ready = bool(
         (api_health or {}).get("image_provider_configured", False)
         and image_provider not in {"none", "mock", "manual"}
     )
-    wechat_ready = bool((wenyan_status or {}).get("ready", False))
+    wechat_ready = bool((wechat_publisher_status or {}).get("ready", False))
     setup_complete = bool(
         api_health is not None
         and (target_mode == "typeset_only" or image_ready)
@@ -788,15 +898,15 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
                 and image_provider not in {"none", "mock"}
             ),
             "mock_image_candidates": image_provider == "mock",
-            "host_agent_text_planning": api_health is not None,
+            "host_agent_text_planning": core_ready,
             "host_skill_registered": bool(host_skill["registered"]),
             "ai_text_planning": bool(
                 text_planner_configured and text_planner_provider not in rule_planners
             ),
             "rule_text_planning": text_planner_provider in rule_planners,
-            "wechat_draft": bool((wenyan_status or {}).get("ready", False)),
-            "rich_copy": api_health is not None,
-            "bundle_export": api_health is not None,
+            "wechat_draft": bool((wechat_publisher_status or {}).get("ready", False)),
+            "rich_copy": core_ready,
+            "bundle_export": core_ready,
         },
         "planners": {
             "text": {
@@ -806,7 +916,7 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             }
         },
         "host_integrations": {"skill": host_skill},
-        "publishers": {"wenyan": wenyan_status},
+        "publishers": {"wechat": wechat_publisher_status},
         "setup": {
             "target_mode": target_mode,
             "complete_for_target": setup_complete,
@@ -998,6 +1108,8 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
         "review_url": review_url,
         "opened": opened,
         "next_action": next_action,
+        "command_completed": True,
+        "background_service": True,
     }
 
 
@@ -1092,6 +1204,8 @@ def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
         "review_url": review_url,
         "opened": opened,
         "next_action": "human_review",
+        "command_completed": True,
+        "background_service": True,
     }
 
 
@@ -1248,6 +1362,9 @@ def run(argv: Sequence[str] | None = None) -> int:
                 "web_base": args.web_base,
                 "started": services["started"],
                 "reused": not bool(services["started"]),
+                "background": True,
+                "process_mode": "detached",
+                "command_completed": True,
             }
             exit_code = 0
         elif args.command == "stop":

@@ -10,49 +10,29 @@
 
 `wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营在浏览器中确认整篇主题、图片与封面，模型不直接自由生成整段 HTML/CSS。
 
-当前版本：**v0.1.0-alpha.18**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
+当前开发版本：**v0.1.0-alpha.19**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
 
 本项目与腾讯、微信官方无隶属或背书关系。
 
 ![Visual Director 本地任务台](docs/assets/readme/workbench-home.png)
 
-## 先看这件事：Wenyan 不会随本项目自动安装
+## 安装不再依赖 Node.js 或 Wenyan
 
-Visual Director 的基础安装器**不会自动安装全局 npm 工具**。因此：
+发行包已经包含构建后的工作台，正常安装与使用只需要 Git 和 Python 3.11+。公众号草稿交付由项目内置的微信官方 API 发布器完成，不会安装全局 npm 工具，也不会修改用户的 Node.js 环境。
 
-- 只做排版、单稿推荐、整篇换主题、富文本复制和交付包下载：**不需要 Wenyan，也不需要 Node.js**；
+- 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
 - 生成图片：按需配置图片 Provider，或直接人工上传；
-- 点击“保存到微信公众号草稿箱”：**必须额外安装 Node.js 与 Wenyan CLI**，并配置公众号凭据和公网 IP 白名单。
+- 保存到微信公众号草稿箱：只需在本地设置中配置 AppID、AppSecret，并把当前公网出口 IP 加入白名单。
 
-这是刻意的产品边界，不是安装失败。Wenyan 是可选的第三方发布适配器，全局安装会修改用户的 npm 环境，所以项目不会在用户不知情时静默安装。
-
-需要完整草稿交付时，请先执行：
-
-```powershell
-node --version
-npm --version
-npm install -g @wenyan-md/cli@2.0.11
-wenyan --version
-```
-
-建议使用 Node.js 20 或更高版本。当前最低兼容 Wenyan 版本为 `2.0.1`，项目已审计并推荐 `2.0.11`。Wenyan 的源码与许可见 [caol64/wenyan-cli](https://github.com/caol64/wenyan-cli)。
-
-如果 `npm install` 成功但终端仍提示找不到 `wenyan`，请关闭并重新打开终端，然后检查：
-
-```powershell
-npm config get prefix
-where.exe wenyan
-```
-
-macOS 使用 `which wenyan`。确保 npm 全局可执行目录已经加入 `PATH`。
+AppSecret 和访问令牌不会写入任务数据库；访问令牌只保存在当前后台进程内存中。
 
 ## 能力分层
 
-| 使用目标 | Visual Director | Python 3.11+ | 图片模型 Key | Node.js + Wenyan | 公众号 AppID / AppSecret | IP 白名单 |
-|---|---:|---:|---:|---:|---:|---:|
-| 只做排版与预览 | 必需 | 必需 | 不需要 | 不需要 | 不需要 | 不需要 |
-| 排版 + AI 生图 | 必需 | 必需 | 可选，人工上传可替代 | 不需要 | 不需要 | 不需要 |
-| 完整写入公众号草稿箱 | 必需 | 必需 | 可选 | **必需** | **必需** | **必需** |
+| 使用目标 | Visual Director | Python 3.11+ | 图片模型 Key | 公众号 AppID / AppSecret | IP 白名单 |
+|---|---:|---:|---:|---:|---:|
+| 只做排版与预览 | 必需 | 必需 | 不需要 | 不需要 | 不需要 |
+| 排版 + AI 生图 | 必需 | 必需 | 可选，人工上传可替代 | 不需要 | 不需要 |
+| 完整写入公众号草稿箱 | 必需 | 必需 | 可选 | **必需** | **必需** |
 
 无论选择哪一层，最终群发都必须由用户在微信公众号后台人工完成。
 
@@ -87,7 +67,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 本地任务、历史方案、图片选择与冻结版本持久化；
 - 历史任务服务端分页（默认每页 8 篇）与当前页批量清理；
 - 富文本复制、Markdown/HTML/图片交付包；
-- 可选 Wenyan 适配器写入微信公众号草稿箱；
+- 内置微信官方 API 发布器写入微信公众号草稿箱；
 - OpenClaw、OpenCode、Claude Code、Trae 等宿主复用现有文本模型，无需重复配置文本模型 Key；
 - Windows 持久安装与升级，macOS 技术预览安装；
 - 历史数据扫描、完整备份、显式恢复与批量任务清理。
@@ -138,8 +118,8 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Trae、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。发送下面这段话：
 
 ```text
-请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。注意：基础安装不会自动安装 Wenyan；如果我要直接写入微信公众号草稿箱，请先检查 Node.js 与 Wenyan CLI，并把缺失的人工安装步骤和本地设置地址告诉我。
-https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.18
+请从以下固定版本安装或升级 wechat-visual-director。先阅读仓库根目录 INSTALL_FOR_AGENT.md，再执行统一 bootstrap 和健康检查；成功后使用仓库样例创建任务并打开本地评审工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie。正常安装不得调用 npm 或 pnpm；如果我要直接写入微信公众号草稿箱，请把本地设置地址和 AppID、AppSecret、公网 IP 白名单的人工配置步骤告诉我。
+https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.19
 ```
 
 安装完成后，请重启宿主 Agent 或新开对话，使它重新扫描本机 Skill 目录。进入新对话不等于重新安装；Agent 应先执行 `doctor --json`。
@@ -149,7 +129,7 @@ https://github.com/zhouke0929/wechat-visual-director/tree/v0.1.0-alpha.18
 基础安装只需要 Git 与 Python 3.11+。发行包已经包含构建后的工作台，正常使用不需要 `pnpm dev`。
 
 ```powershell
-git clone --branch v0.1.0-alpha.18 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.19 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 Set-Location .\wechat-visual-director
 
 $bootstrap = powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1" | ConvertFrom-Json
@@ -178,6 +158,7 @@ core_ready=true
 workbench_ready=true
 persistent=true
 version_match=true
+runtime_match=true
 host_skill_registered=true
 ```
 
@@ -187,7 +168,7 @@ host_skill_registered=true
 
 - **只做排版**：零外部服务配置，可以立即创建任务；
 - **排版 + 生图**：配置图片 Provider，或保留人工上传；
-- **完整交付**：在图片能力之外，再连接微信公众号与 Wenyan。
+- **完整交付**：在图片能力之外，再连接微信公众号官方 API。
 
 设置属于本机，不属于某个对话。换一个 Agent 窗口后不需要重新填写。
 
@@ -216,10 +197,10 @@ Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“
 
 ### 微信公众号草稿箱
 
-完成 [Wenyan 安装](#先看这件事wenyan-不会随本项目自动安装) 后，在本地设置页选择“完整交付”，按页面引导完成：
+在本地设置页选择“完整交付”，按页面引导完成：
 
 1. 在微信开发者后台的“开发接口管理 / 账号开发信息”中取得 AppID，并生成或重置 AppSecret；栏目名称以微信当前页面为准；
-2. 点击“检测当前公网 IP”，把结果加入微信开发者后台的 IP 白名单；`192.168.x.x` 等局域网地址不能作为公网出口 IP；
+2. 点击“检测当前公网 IP”，把结果加入微信开发者后台的 IP 白名单；`192.168.x.x` 等局域网地址不能作为公网出口 IP。设置页不再要求人工勾选“已加入白名单”，后续连接检测会直接调用微信接口验证凭据与当前出口 IP；
 3. 只在本地设置页填写 AppID 与 AppSecret，不要粘贴到 Agent 对话；
 4. 保存后点击“检测连接（不建草稿）”；
 5. 只有连接检测通过，冻结页才会启用“保存到微信公众号草稿箱”。
@@ -228,7 +209,7 @@ Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“
 
 ![微信公众号草稿交付配置](docs/assets/readme/wechat-publisher-setup.png)
 
-Visual Director 负责冻结文章和生成微信兼容内联 HTML；Wenyan 负责图片上传与草稿传输。只有界面返回真实 Media ID，才表示草稿已写入公众号后台。
+Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内置微信官方 API 发布器上传图片与创建草稿。只有界面返回真实 Media ID，才表示草稿已写入公众号后台。
 
 如果结果显示“未知”，先去公众号草稿箱核对，不要立即重复点击，以免创建重复草稿。无论草稿交付成功、失败还是未知，冻结页仍会保留“复制全文”和“下载交付包”，这两个操作不会再次调用微信接口。
 
@@ -249,8 +230,6 @@ Visual Director 负责冻结文章和生成微信兼容内联 HTML；Wenyan 负�
 
 ### 公众号草稿交付附加要求
 
-- Node.js 20 或更高版本；
-- `@wenyan-md/cli@2.0.11`；
 - 具有相应开发接口权限的微信公众号；
 - AppID、AppSecret；
 - 当前公网出口 IP 已加入白名单。
@@ -258,12 +237,12 @@ Visual Director 负责冻结文章和生成微信兼容内联 HTML；Wenyan 负�
 ### macOS 技术预览
 
 ```bash
-git clone --branch v0.1.0-alpha.18 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.19 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 cd wechat-visual-director
 bash scripts/bootstrap.sh
 ```
 
-稳定入口位于 `~/Library/Application Support/wechat-visual-director/visual-director`。基础排版、人工图片和交付包不需要 Node.js；使用 Wenyan 创建公众号草稿时才需要另行安装 Node.js 与 Wenyan。macOS 在真实设备完成完整人工验收前标记为 **Technical Preview**。
+稳定入口位于 `~/Library/Application Support/wechat-visual-director/visual-director`。正常安装与公众号草稿交付均不需要 Node.js。macOS 在真实设备完成完整人工验收前标记为 **Technical Preview**。
 
 ## 常见问题
 
@@ -279,9 +258,9 @@ bash scripts/bootstrap.sh
 
 ```text
 capabilities.wechat_draft
-publishers.wenyan.installed
-publishers.wenyan.ready
-publishers.wenyan.install_command
+publishers.wechat.provider
+publishers.wechat.transport
+publishers.wechat.ready
 next_action
 ```
 
@@ -289,11 +268,10 @@ next_action
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `wenyan.installed=false` | 没有安装 Wenyan，或 npm 全局目录不在 PATH | 安装 `@wenyan-md/cli@2.0.11`，重开终端 |
-| Wenyan 已安装但 `ready=false` | AppID / AppSecret 未配置 | 打开本地设置，选择“完整交付”并填写凭据 |
+| `publishers.wechat.ready=false` | AppID / AppSecret 未配置 | 打开本地设置，选择“完整交付”并填写凭据 |
 | 连接检测提示 IP 错误 | 当前公网出口 IP 未加白名单 | 复制设置页检测到的公网 IP，加入微信开发者后台 |
-| 草稿结果为 `unknown` | Wenyan 已执行，但未返回可确认 Media ID | 先人工检查公众号草稿箱，不要自动重试 |
-| 复制全文缺少部分图片 | 浏览器剪贴板与微信编辑器对外链图片有额外限制 | 优先使用 Wenyan 草稿交付或下载交付包 |
+| 草稿结果为 `unknown` | 创建草稿时网络中断，结果无法确认 | 先人工检查公众号草稿箱；找到草稿就点“后台已找到草稿”，确认没有则点“后台确认无草稿，解除锁定”，之后才可重新保存 |
+| 复制全文缺少部分图片 | 浏览器剪贴板与微信编辑器对外链图片有额外限制 | 优先使用内置官方 API 草稿交付或下载交付包 |
 
 ### 新对话找不到 Skill
 
@@ -307,7 +285,11 @@ next_action
 & "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
 ```
 
-不要手工同时启动多个 API / Web 服务。当前版本使用单个本地 FastAPI 服务托管 API 和静态工作台，正常运行不依赖 3000 端口。
+不要手工同时启动多个 API / Web 服务。当前版本使用单个本地 FastAPI 服务托管 API 和静态工作台，正常运行不依赖 3000 端口。`doctor --json` 还会校验 `runtime_match=true`；若同版本源码服务占用了 8000 端口，它会明确返回 `core_runtime_mismatch`，不会把源码测试库误认成正式数据。
+
+日常启动会在 Windows 使用无控制台后台进程，不需要保留空白终端窗口。任务规划完成后，Agent 应使用 `--open` 自动打开默认浏览器，并始终把 `review_url` 返回给用户作为兜底。后台日志写入 `runtime/logs/api.log`，单文件上限 5 MB，保留 3 份备份，总量约不超过 20 MB；日志不记录 API Key、AppSecret 或完整文章正文。
+
+安装器默认不会把源码目录 `apps/api/data/` 中的测试任务静默复制到正式数据目录。确需迁移旧源码数据时，应先用 `data scan --json` 核对来源，再使用数据恢复命令；只有人工确认的安装场景才可显式传入 `-MigrateLegacyData`（macOS 为 `--migrate-legacy-data`）。
 
 ### 重装后看不到旧任务
 

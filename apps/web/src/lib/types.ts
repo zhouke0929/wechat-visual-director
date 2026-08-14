@@ -189,7 +189,7 @@ export type VisualPlan = {
     }>;
   };
   planner_metadata?: {
-    mode: "rule" | "intelligent";
+    mode: "rule" | "intelligent" | "host_agent";
     provider: string;
     model: string;
     planner_call_count: number;
@@ -529,7 +529,7 @@ export type DraftOperation = {
   task_id: string;
   revision_id: string;
   draft_slot: string;
-  provider: "mock" | "wenyan";
+  provider: "mock" | "wechat_api";
   status: "pending" | "running" | "succeeded" | "failed" | "unknown" | "superseded";
   version: number;
   simulation_mode: "success" | "fail_once" | "unknown" | "real";
@@ -541,19 +541,14 @@ export type DraftOperation = {
   steps: DraftOperationStep[];
 };
 
-export type WenyanPublisherStatus = {
-  schema_version: "publisher_status.v0.1";
-  provider: "wenyan";
-  installed: boolean;
-  version: string | null;
-  minimum_version: string;
-  recommended_version: string;
+export type WechatPublisherStatus = {
+  schema_version: "publisher_status.v0.3";
+  provider: "wechat_api";
+  transport: "built_in";
   credentials_configured: boolean;
   credential_source: "process_environment" | "local_env_file" | "missing";
-  ip_whitelist: "operator_confirmation_required";
   ready: boolean;
   warnings: string[];
-  install_command: string;
 };
 
 export type ImageProviderMode = "manual" | "mock" | "images_api" | "gemini";
@@ -636,12 +631,11 @@ export type WechatConnectionProbe = {
 };
 
 export type WechatPublisherSettings = {
-  schema_version: "wechat_publisher_settings.v0.1";
+  schema_version: "wechat_publisher_settings.v0.2";
   credentials_configured: boolean;
   app_id_configured: boolean;
   app_secret_configured: boolean;
   credential_source: "process_environment" | "local_env_file" | "missing";
-  ip_whitelist_confirmed: boolean;
   managed_by_environment: boolean;
   managed_fields: string[];
   connection_probe: WechatConnectionProbe | null;

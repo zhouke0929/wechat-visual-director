@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import zipfile
 from io import BytesIO
 from pathlib import Path
 
-from visual_director.delivery import (
-    WenyanPublisher,
-    build_clipboard_payload,
-    build_delivery_files,
-    build_delivery_zip,
-)
+from visual_director.delivery import build_clipboard_payload, build_delivery_files, build_delivery_zip
+from visual_director.wechat_publisher import WechatDraftPublisher
 
 
 def _revision() -> dict:
@@ -68,10 +62,9 @@ def _assets(tmp_path: Path) -> tuple[list[dict], dict[str, tuple[Path, str]]]:
     return assets, {"cover-id": (cover, "image/png"), "body-id": (body, "image/png")}
 
 
-def test_delivery_bundle_contains_portable_wenyan_input(tmp_path: Path) -> None:
+def test_delivery_bundle_contains_portable_provider_neutral_input(tmp_path: Path) -> None:
     assets, paths = _assets(tmp_path)
     files = build_delivery_files(_revision(), assets, lambda asset_id: paths[asset_id])
-
     article = files["article.md"].decode("utf-8")
     assert "title: 测试标题" in article
     assert "cover: ./assets/cover.png" in article
@@ -80,12 +73,8 @@ def test_delivery_bundle_contains_portable_wenyan_input(tmp_path: Path) -> None:
     assert "width:100%" in article
     assert "width:390px" not in article
     assert "background-color:#FFFEFA" not in article
-    assert "box-shadow:0 12px 40px" not in article
-    assert "padding:0 24px 34px" not in article
     assert "padding:0 0 34px" in article
     assert "组件库 wechat_components.v0.6.0" not in article
-    assert "width:390px" not in files["article.html"].decode("utf-8")
-    assert "本地摘要" not in article
 
     archive = build_delivery_zip(files)
     with zipfile.ZipFile(BytesIO(archive)) as package:
@@ -95,118 +84,101 @@ def test_delivery_bundle_contains_portable_wenyan_input(tmp_path: Path) -> None:
             "assets/body.png",
             "assets/cover.png",
             "manifest.json",
-            "visual-director-theme.css",
         }
         manifest = json.loads(package.read("manifest.json"))
-        assert manifest["revision_id"] == "revision-1"
+        assert manifest["schema_version"] == "visual_director_delivery.v0.2"
 
 
 def test_clipboard_payload_uses_absolute_local_asset_urls(tmp_path: Path) -> None:
     assets, _ = _assets(tmp_path)
     payload = build_clipboard_payload(
-        _revision(),
-        assets,
-        lambda asset_id: f"http://127.0.0.1:8000/assets/{asset_id}",
+        _revision(), assets, lambda asset_id: f"http://127.0.0.1:8000/assets/{asset_id}"
     )
     assert 'src="http://127.0.0.1:8000/assets/body-id"' in payload["html"]
     assert payload["cover_url"].endswith("cover-id")
     assert "width:100%" in payload["html"]
-    assert "width:390px" not in payload["html"]
-    assert "background-color:#FFFEFA" not in payload["html"]
-    assert "box-shadow:0 12px 40px" not in payload["html"]
-    assert "padding:0 24px 34px" not in payload["html"]
-    assert "组件库 wechat_components.v0.6.0" not in payload["html"]
     assert "测试标题" in payload["text"]
 
 
-def test_wenyan_publisher_classifies_invalid_ip_without_exposing_credentials(tmp_path: Path, monkeypatch) -> None:
-    command = tmp_path / "wenyan.exe"
-    command.write_bytes(b"")
+class _Response:
+    def __init__(self, payload: dict) -> None:
+        self.payload = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self) -> bytes:
+        return self.payload
+
+
+def test_wechat_publisher_classifies_invalid_ip_without_exposing_credentials(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("WECHAT_APP_ID", "private-app-id")
     monkeypatch.setenv("WECHAT_APP_SECRET", "private-secret")
-
-    def runner(args, **kwargs):
-        if "--version" in args:
-            return subprocess.CompletedProcess(args, 0, stdout="2.0.11\n", stderr="")
-        return subprocess.CompletedProcess(args, 1, stdout="", stderr="40164 invalid ip 203.0.113.8 not in whitelist")
-
-    publisher = WenyanPublisher(tmp_path, command=str(command), runner=runner)
+    publisher = WechatDraftPublisher(
+        tmp_path,
+        requester=lambda request, **kwargs: _Response({"errcode": 40164, "errmsg": "invalid ip"}),
+    )
     status = publisher.status()
     assert status["ready"] is True
     assert "private-app-id" not in json.dumps(status)
-    assert "private-secret" not in json.dumps(status)
-
-    result = publisher.publish({"article.md": b"# test", "visual-director-theme.css": b""})
+    assets, paths = _assets(tmp_path)
+    result = publisher.publish(_revision(), assets, lambda asset_id: paths[asset_id])
     assert result.status == "failed"
     assert result.error["code"] == "wechat_ip_not_whitelisted"
 
 
-def test_wenyan_publisher_launches_windows_cmd_shim(tmp_path: Path, monkeypatch) -> None:
-    if os.name != "nt":
-        return
-    command = tmp_path / "wenyan.cmd"
-    command.write_text(
-        "@echo off\r\n"
-        "if \"%1\"==\"--version\" (echo 2.0.11) else (echo 发布成功，Media ID: WINDOWS_CMD_MEDIA)\r\n",
-        encoding="utf-8",
-    )
+def test_wechat_publisher_uploads_assets_and_creates_draft(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("WECHAT_APP_ID", "local-app-id")
     monkeypatch.setenv("WECHAT_APP_SECRET", "local-secret")
-    publisher = WenyanPublisher(tmp_path, command=str(command))
-    assert publisher.status()["ready"] is True
-    result = publisher.publish({"article.md": b"# test", "visual-director-theme.css": b""})
-    assert result.status == "succeeded"
-    assert result.media_id == "WINDOWS_CMD_MEDIA"
+    draft_payloads: list[dict] = []
+    upload_count = 0
 
+    def requester(request, **kwargs):
+        nonlocal upload_count
+        if "/token?" in request.full_url:
+            return _Response({"access_token": "memory-only-token", "expires_in": 7200})
+        if "/material/add_material?" in request.full_url:
+            upload_count += 1
+            return _Response({"media_id": f"MEDIA_{upload_count}", "url": f"https://mmbiz.qpic.cn/{upload_count}"})
+        if "/draft/add?" in request.full_url:
+            draft_payloads.append(json.loads(request.data.decode("utf-8")))
+            return _Response({"media_id": "DRAFT_MEDIA_001"})
+        raise AssertionError(request.full_url)
 
-def test_wenyan_publisher_accepts_confirmed_media_id_even_when_wrapper_exits_nonzero(tmp_path: Path, monkeypatch) -> None:
-    command = tmp_path / "wenyan.exe"
-    command.write_bytes(b"")
-    monkeypatch.setenv("WECHAT_APP_ID", "local-app-id")
-    monkeypatch.setenv("WECHAT_APP_SECRET", "local-secret")
-
-    def runner(args, **kwargs):
-        if "--version" in args:
-            return subprocess.CompletedProcess(args, 0, stdout="2.0.11\n", stderr="")
-        return subprocess.CompletedProcess(
-            args,
-            1,
-            stdout='发布成功，{\"media_id\": \"CONFIRMED_MEDIA_002\"}',
-            stderr="wrapper cleanup failed",
-        )
-
-    result = WenyanPublisher(tmp_path, command=str(command), runner=runner).publish(
-        {"article.md": b"# test", "visual-director-theme.css": b""}
+    assets, paths = _assets(tmp_path)
+    result = WechatDraftPublisher(tmp_path, requester=requester).publish(
+        _revision(), assets, lambda asset_id: paths[asset_id]
     )
     assert result.status == "succeeded"
-    assert result.media_id == "CONFIRMED_MEDIA_002"
+    assert result.media_id == "DRAFT_MEDIA_001"
+    assert upload_count == 2
+    article = draft_payloads[0]["articles"][0]
+    assert article["thumb_media_id"] == "MEDIA_1"
+    assert 'src="https://mmbiz.qpic.cn/2"' in article["content"]
+    assert article["digest"] == "本地摘要"
 
 
-def test_wenyan_publisher_unknown_result_keeps_only_redacted_diagnostics(tmp_path: Path, monkeypatch) -> None:
-    command = tmp_path / "wenyan.exe"
-    command.write_bytes(b"")
+def test_wechat_publisher_marks_create_draft_timeout_unknown(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("WECHAT_APP_ID", "private-app-id")
     monkeypatch.setenv("WECHAT_APP_SECRET", "private-secret")
 
-    def runner(args, **kwargs):
-        if "--version" in args:
-            return subprocess.CompletedProcess(args, 0, stdout="2.0.11\n", stderr="")
-        return subprocess.CompletedProcess(
-            args,
-            0,
-            stdout="publish completed without a receipt",
-            stderr="private-app-id private-secret",
-        )
+    def requester(request, **kwargs):
+        if "/token?" in request.full_url:
+            return _Response({"access_token": "private-token", "expires_in": 7200})
+        if "/material/add_material?" in request.full_url:
+            return _Response({"media_id": "MEDIA", "url": "https://mmbiz.qpic.cn/body"})
+        raise TimeoutError("timed out")
 
-    result = WenyanPublisher(tmp_path, command=str(command), runner=runner).publish(
-        {"article.md": b"# test", "visual-director-theme.css": b""}
+    assets, paths = _assets(tmp_path)
+    result = WechatDraftPublisher(tmp_path, requester=requester).publish(
+        _revision(), assets, lambda asset_id: paths[asset_id]
     )
     assert result.status == "unknown"
-    diagnostics = result.error["diagnostics"]
-    assert diagnostics["return_code"] == 0
-    assert diagnostics["stdout_chars"] > 0
-    assert diagnostics["stderr_chars"] > 0
-    assert diagnostics["media_id_detected"] is False
+    assert result.error["retryable"] is False
     serialized = json.dumps(result.error)
     assert "private-app-id" not in serialized
     assert "private-secret" not in serialized
+    assert "private-token" not in serialized

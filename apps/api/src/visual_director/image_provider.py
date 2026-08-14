@@ -168,6 +168,24 @@ def _structured_style_direction(style_family: str, candidate_index: int) -> str:
             f"科技编辑拼贴与克制2.5D空间，纸张和磨砂半透明材质并存，{edges[variant]}；"
             "每个节点使用不同的语义物件，禁止路牌、站牌、塑料玩具和重复小图标"
         )
+    if style_family == "oriental_ink_folio":
+        layouts = ("横向展开的册页折线", "由淡墨远景串联的连续卷轴", "以一枚朱砂印记锚定的留白跨页")
+        return f"当代东方册页插画，宣纸纤维、淡墨与少量朱砂，{layouts[variant]}；不画古装海报、金色宫廷边框或仿公文底纹"
+    if style_family == "archival_halftone_collage":
+        layouts = ("剪报沿一条事件线错落衔接", "粗细新闻版线切分连续证据路径", "标题栏与材料碎片形成不对称跨页")
+        return f"复古新闻剪报插画，网点油墨、纸张毛边和克制红色套印，{layouts[variant]}；不做整齐PPT栏框"
+    if style_family == "graphic_poster_collage":
+        layouts = ("一枚超大符号带动节点爆发", "异形贴纸沿对角线跳跃展开", "错位套印色块形成高能量阅读动线")
+        return f"当代波普丝网海报插画，粗轮廓、异形贴纸和错位套印，{layouts[variant]}；不做规则卡片墙"
+    if style_family == "botanical_field_illustration":
+        layouts = ("观察路径像枝叶一样自然生长", "标本与注记沿田野笔记跨页展开", "节点围绕中央自然对象形成有机星座")
+        return f"自然观察图鉴插画，水彩、植物线稿与细腻铅笔纹理，{layouts[variant]}；不做机械网格或医疗宣传页"
+    if style_family == "executive_signal_editorial":
+        layouts = ("指标圆盘与信号轨道构成决策地图", "关键证据沿锐利对角线递进", "一个核心判断向外展开行动路径")
+        return f"当代商业画报插画，清晰信号图形、编辑印刷质感与少量高亮色，{layouts[variant]}；不做仪表盘、后台界面或规则报表"
+    if style_family == "cinematic_storyboard_collage":
+        layouts = ("连续分镜像电影节画册一样推进", "一个宽银幕主场景串联少量镜头切片", "正反打镜头围绕同一叙事焦点展开")
+        return f"明亮电影节画册插画，分镜纸页、票根切片和细腻胶片颗粒，{layouts[variant]}；不使用大面积黑底或监控画面"
     edges = (
         "一整张带自然毛边的手工纸作为统一场景",
         "两三层错位撕纸边缘形成连续纵深",
@@ -185,12 +203,21 @@ def _structured_density_direction(candidate_index: int, style_family: str = "") 
     base = (
         f"{paths[max(0, candidate_index - 1) % len(paths)]}；核心内容占画布70%到85%，"
         "主场景横向铺开，顶部标题区不超过画面12%，上下空白带各不超过8%。"
-        "节点必须画成可辨认的小场景或物体组合，不能缩成一排小图标。"
+        "节点必须画成可辨认的小场景或物体组合，不能缩成一排小图标；"
+        "短标签按390px宽手机预览设计，使用清晰大字，不能缩成注释小字。"
     )
     if style_family == "editorial_tech_collage":
         return (
             f"{base} 画面上半部也必须有信号轨迹、半透明层或主体延伸，不得留下超过画面15%的连续空白；"
             "禁止深色道路横贯整幅画面，禁止把流程做成四块等宽站牌。"
+        )
+    if style_family in {"archival_halftone_collage", "graphic_poster_collage", "executive_signal_editorial"}:
+        return f"{base} 图形、材料和主体必须共同填充主要阅读区，不得用空白分隔出彼此孤立的模板卡片。"
+    if style_family == "oriental_ink_folio":
+        return (
+            f"{base} 东方留白只能保留在画面边缘和节点之间作为呼吸，不能占据中央主体阅读区；"
+            "主体、连接路径和标签共同占画布78%到88%，最大连续空白区域不得超过画面18%。"
+            "每个节点的语义物件与标签都要明显放大、沿横向册页连续展开，不得散落成远处小人物或微型注记。"
         )
     return base
 
@@ -210,6 +237,24 @@ def _cover_style_direction(style_family: str, candidate_index: int) -> str:
             f"科技编辑拼贴，磨砂半透明薄片、纸张纤维与克制2.5D并存，{layouts[variant]}；"
             "禁止路牌、站牌、深色道路、塑料玩具和重复小图标"
         )
+    if style_family == "oriental_ink_folio":
+        layouts = ("横向册页", "淡墨远景", "朱砂锚点留白")
+        return f"当代东方册页插画，宣纸纤维、淡墨层次与少量朱砂，采用{layouts[variant]}；禁止仿古公文和宫廷边框"
+    if style_family == "archival_halftone_collage":
+        layouts = ("不对称剪报焦点", "新闻版线构图", "材料碎片叙事")
+        return f"复古新闻剪报插画，网点油墨、纸张毛边与克制红色套印，采用{layouts[variant]}"
+    if style_family == "graphic_poster_collage":
+        layouts = ("超大单一符号", "对角贴纸动线", "错位套印主场景")
+        return f"当代波普丝网海报插画，粗轮廓、异形贴纸与高能量撞色，采用{layouts[variant]}；禁止卡片墙"
+    if style_family == "botanical_field_illustration":
+        layouts = ("中央自然标本", "枝叶生长动线", "田野笔记跨页")
+        return f"自然观察图鉴插画，水彩、植物线稿和铅笔纹理，采用{layouts[variant]}，安静但不空洞"
+    if style_family == "executive_signal_editorial":
+        layouts = ("单一指标圆盘", "决策信号轨道", "锐利对角主场景")
+        return f"当代商业画报插画，清晰信号图形、编辑印刷质感与少量高亮色，采用{layouts[variant]}；禁止仪表盘和后台界面"
+    if style_family == "cinematic_storyboard_collage":
+        layouts = ("宽银幕单焦点", "电影节画册切片", "明亮分镜主场景")
+        return f"明亮电影节画册插画，票根纸片、分镜边缘与细腻胶片颗粒，采用{layouts[variant]}；禁止大面积黑底"
     edges = ("自然毛边", "错位撕纸边缘", "轻微卷起的装订纸边")
     return f"现代编辑纸艺插画，水彩和彩铅细节，以一整张{edges[variant]}纸面形成统一场景"
 
@@ -221,6 +266,22 @@ PALETTE_ROLE_LABELS = {
     "coral_accent": "珊瑚橙点缀",
     "sunlit_yellow": "日光黄点缀",
     "soft_sky": "柔和天蓝",
+    "paper_white": "自然纸白",
+    "cinnabar": "克制朱砂红",
+    "aged_gold": "旧金色点缀",
+    "sage_ink": "鼠尾草灰绿墨色",
+    "newsprint": "暖调新闻纸色",
+    "carbon_ink": "碳黑油墨",
+    "editorial_red": "编辑红点缀",
+    "signal_yellow": "高亮信号黄",
+    "hot_pink": "少量亮粉点缀",
+    "fern_green": "蕨类深绿",
+    "ochre": "自然赭黄",
+    "clay": "陶土橙",
+    "lime_signal": "清亮青柠绿",
+    "muted_plum": "低饱和梅紫",
+    "apricot": "温暖杏橙",
+    "brick_red": "克制砖红",
 }
 
 SURFACE_LABELS = {
@@ -236,6 +297,18 @@ SURFACE_LABELS = {
     "precision_grid_surface": "弱网格衬底上的精密哑光结构",
     "future_signal_surface": "带柔和信号光的未来空间表面",
     "quiet_technology_surface": "低反光、安静克制的科技材质",
+    "rice_paper_folio": "带细腻纤维与册页折痕的浅色宣纸",
+    "bound_archive_page": "装订克制的东方档案册页",
+    "aged_newsprint": "带自然旧化与网点油墨的新闻纸",
+    "clipped_press_page": "层叠剪报毛边形成的材料页面",
+    "offset_poster": "具有轻微错位套印的海报纸面",
+    "layered_sticker_wall": "异形贴纸与色块自然叠压的纸面",
+    "field_notebook": "带铅笔观察痕迹的田野笔记纸",
+    "botanical_specimen_page": "植物标本与水彩纹理共存的图鉴纸页",
+    "clean_editorial_stock": "清爽厚实的当代画报纸面",
+    "signal_map_page": "信号轨道与编辑图形自然融合的画报页面",
+    "film_festival_program": "明亮温暖的电影节节目册纸面",
+    "light_storyboard_page": "带细腻胶片颗粒的浅色分镜纸页",
 }
 
 COMPOSITION_FAMILY_LABELS = {
@@ -251,6 +324,24 @@ COMPOSITION_FAMILY_LABELS = {
     "asymmetric_editorial_field": "不对称科技编辑场",
     "flowing_signal_path": "连续流动的信号路径",
     "layered_horizon": "层叠展开的未来地平线",
+    "scrolling_folio": "横向舒展的册页阅读动线",
+    "ink_landscape_path": "淡墨远景串联的连续路径",
+    "seal_anchor_spread": "以朱砂锚点平衡留白的跨页",
+    "clipping_storyline": "沿事件线推进的剪报叙事",
+    "column_break_spread": "粗细版线切分的新闻跨页",
+    "headline_evidence_path": "标题与证据材料递进的阅读路径",
+    "poster_burst": "由超大符号向外爆发的海报构图",
+    "sticker_diagonal": "异形贴纸沿对角线跳跃的动线",
+    "oversized_symbol_field": "单一大符号主导的开放画面",
+    "specimen_growth_path": "像枝叶一样自然生长的观察路径",
+    "field_note_spread": "田野笔记式横向展开",
+    "organic_constellation": "自然对象组成的有机星座",
+    "signal_orbit": "围绕核心判断展开的信号轨道",
+    "executive_diagonal": "清晰锐利的商业对角动线",
+    "decision_map": "证据通向行动的决策地图",
+    "storyboard_sequence": "连续镜头推进的分镜序列",
+    "widescreen_scene": "单一焦点的宽银幕场景",
+    "shot_reverse_shot": "围绕同一焦点展开的正反打叙事",
 }
 
 
@@ -364,12 +455,31 @@ def _seedream_provider_prompt(
     if style_family == "editorial_tech_collage":
         composition = "不对称横向编辑构图，主体与信号动线占据画面75%到85%"
         medium = "科技编辑拼贴、磨砂半透明薄片、细腻纸张纤维与克制的2.5D空间"
+    elif style_family in {
+        "oriental_ink_folio",
+        "archival_halftone_collage",
+        "graphic_poster_collage",
+        "botanical_field_illustration",
+        "executive_signal_editorial",
+        "cinematic_storyboard_collage",
+    }:
+        composition = article_composition
+        medium = _cover_style_direction(style_family, candidate_index)
+    special_negative = {
+        "editorial_tech_collage": "不同信息使用不同的真实语义物件，不使用路牌、站牌、塑料玩具或重复小图标；不使用深色大底，画面上半部不得形成大面积空白。",
+        "oriental_ink_folio": "不使用仿古公文底纹、金色宫廷边框、书法文字或传统文化符号堆砌。",
+        "archival_halftone_collage": "不做整齐多栏模板、PPT信息框或满版密集小字。",
+        "graphic_poster_collage": "不做规则卡片墙，不把每个信息都塞进相同矩形。",
+        "botanical_field_illustration": "不做机械网格、医疗宣传页或无关植物装饰堆砌。",
+        "executive_signal_editorial": "不做仪表盘、后台界面、金融K线或规则报表。",
+        "cinematic_storyboard_collage": "不使用大面积黑底、监控画面、胶片孔满框或沉重悬疑滤镜。",
+    }.get(style_family, "保持一个清晰主体和连贯阅读动线。")
     prompt = " ".join(
         [
             "教育类微信公众号正文横版语义插画，画面不是信息图或海报。",
             f"图片作用是{learning_objective or '建立章节语境'}；文章要表达{_visual_concept(subject, article_type)}，具体线索是{subject}。",
             f"场景：{scene}。{composition}，并服从整篇的{article_composition}；{medium}，{surface}，配色只用{palette}，气质{tone}，自然柔光。",
-            "不同信息使用不同的真实语义物件，不使用路牌、站牌、塑料玩具或重复小图标；不使用深色大底，画面上半部不得形成大面积空白。" if style_family == "editorial_tech_collage" else "保持一个清晰主体和连贯阅读动线。",
+            special_negative,
             "主体完整位于中央80%安全区，不贴边、不截断。",
             "画面不出现任何文字、数字、表格、图表、文档界面、Logo、水印、二维码、条形码或官方印章。",
         ]
@@ -404,6 +514,12 @@ def build_provider_prompt(
         "soft_flat_illustration": "柔和扁平编辑插画风，图形简洁但不幼稚，边缘清晰",
         "clean_3d_geometry": "干净的轻量三维几何插画风，材质统一，空间层次清楚",
         "editorial_tech_collage": "科技编辑拼贴风，磨砂半透明薄片、纸张纤维和克制2.5D空间形成开放叙事",
+        "oriental_ink_folio": "当代东方册页插画，以宣纸纤维、淡墨层次和少量朱砂建立雅致叙事",
+        "archival_halftone_collage": "复古新闻剪报插画，以网点油墨、纸张毛边和编辑红套印组织材料",
+        "graphic_poster_collage": "当代波普丝网海报插画，以粗轮廓、异形贴纸和错位套印制造节奏",
+        "botanical_field_illustration": "自然观察图鉴插画，以水彩、植物线稿和铅笔纹理组织知识",
+        "executive_signal_editorial": "当代商业画报插画，以信号轨道、指标图形和编辑印刷质感呈现判断",
+        "cinematic_storyboard_collage": "明亮电影节画册插画，以分镜纸页、票根切片和胶片颗粒推进叙事",
     }
     fallback_palettes = {
         "data_policy": ["warm_ivory", "deep_navy", "muted_teal", "sunlit_yellow"],
@@ -566,6 +682,12 @@ def build_cover_prompt(
         "soft_flat_illustration": "soft flat educational illustration with open hand-drawn edges",
         "clean_3d_geometry": "clean matte three-dimensional educational geometry",
         "editorial_tech_collage": "editorial technology collage with frosted translucent layers, tactile paper fibers, and restrained 2.5D depth",
+        "oriental_ink_folio": "contemporary oriental ink folio illustration on tactile rice paper with restrained cinnabar accents",
+        "archival_halftone_collage": "archival newsprint collage with halftone ink, clipped paper edges, and restrained editorial red",
+        "graphic_poster_collage": "contemporary screen-print poster collage with bold cut stickers and misregistered color layers",
+        "botanical_field_illustration": "botanical field-note illustration with watercolor specimens, pencil lines, and organic growth paths",
+        "executive_signal_editorial": "executive editorial illustration with signal routes, index discs, and crisp print graphics",
+        "cinematic_storyboard_collage": "bright film-festival storyboard collage with ticket-paper details and subtle film grain",
     }
     style = style_labels.get(str(direction.get("style_family") or ""), fallback_style)
     direction_palette = ", ".join(str(value) for value in direction.get("palette_roles") or [])
@@ -592,6 +714,12 @@ def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
         "editorial_contrast": ("#FFFDF8", "#EFCFC5", "#262B2A", "#C34D3A"),
         "structured_grid": ("#F8FBFA", "#C9DED9", "#215F5A", "#D4A63A"),
         "future_tech": ("#F7FAFF", "#C9D4FF", "#384D96", "#37A9A0"),
+        "oriental_archive": ("#FBF7EF", "#D8C6A5", "#4B6258", "#A34F3C"),
+        "vintage_press": ("#F4EAD8", "#D2B98C", "#2D2924", "#9A3F32"),
+        "pop_poster": ("#FFF7E8", "#FFD84D", "#25306B", "#F05243"),
+        "natural_atlas": ("#F6F5E9", "#C9D8B5", "#456A55", "#C8794C"),
+        "business_review": ("#F5F3EE", "#CED8D9", "#1F414A", "#C49645"),
+        "cinematic_story": ("#F1EDE4", "#D3C6AE", "#272B31", "#A84B3E"),
     }
     background, soft, primary, accent = palettes.get(visual_system, palettes["light_reading"])
     image = Image.new("RGBA", (width, height), background)
@@ -603,24 +731,24 @@ def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
     digest = hashlib.sha256(
         f"{cover_brief.get('title', '')}|{cover_brief.get('article_type', '')}|{visual_system}".encode("utf-8")
     ).digest()
-    if visual_system in {"light_reading", "warm_humanist"}:
+    if visual_system in {"light_reading", "warm_humanist", "oriental_archive", "natural_atlas"}:
         draw.ellipse((615, 180, 1025, 590), fill=soft, outline=primary, width=5)
         draw.arc((535, 95, 940, 500), 205, 355, fill=accent, width=18)
         for index in range(5):
             x = 690 + index * 55
             y = 585 + (digest[index] % 75)
             draw.ellipse((x, y, x + 32, y + 18), fill=primary)
-    elif visual_system == "youth_campus":
+    elif visual_system in {"youth_campus", "pop_poster"}:
         draw.rounded_rectangle((610, 155, 1015, 330), radius=50, fill=soft, outline=primary, width=5)
         draw.polygon(((650, 630), (810, 345), (995, 630)), fill=primary)
         draw.polygon(((725, 630), (820, 465), (930, 630)), fill=accent)
         draw.arc((560, 75, 1010, 520), 205, 332, fill=accent, width=16)
-    elif visual_system == "editorial_contrast":
+    elif visual_system in {"editorial_contrast", "vintage_press", "cinematic_story"}:
         draw.rectangle((645, 145, 1010, 610), fill=soft)
         draw.rectangle((715, 90, 865, 700), fill=primary)
         draw.rectangle((590, 405, 1025, 525), fill=accent)
         draw.line((595, 690, 1015, 690), fill=primary, width=6)
-    elif visual_system == "structured_grid":
+    elif visual_system in {"structured_grid", "business_review"}:
         for x in range(620, 1040, 70):
             draw.line((x, 135, x, 710), fill=soft, width=3)
         for y in range(150, 720, 70):

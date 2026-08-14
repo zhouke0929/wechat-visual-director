@@ -4,6 +4,8 @@ import copy
 from collections import Counter
 from typing import Any
 
+from .theme_extensions import EXTENDED_THEME_VISUAL_DNA
+
 
 VISUAL_DNA_SCHEMA_VERSION = "visual_dna.v0.1"
 ARTICLE_IMAGE_DIRECTION_SCHEMA_VERSION = "article_image_art_direction.v0.1"
@@ -154,6 +156,8 @@ ARTICLE_THEME_MANIFESTS: dict[str, dict[str, Any]] = {
     },
 }
 
+ARTICLE_THEME_MANIFESTS.update(copy.deepcopy(EXTENDED_THEME_VISUAL_DNA))
+
 
 # Image styles are independent capability manifests. They describe what a
 # medium is good at, not which article theme it is allowed to pair with.
@@ -257,6 +261,156 @@ IMAGE_STYLE_MANIFESTS: dict[str, dict[str, Any]] = {
             "lively_growth": 0.78,
         },
         "provider_reliability": {"seedream": 0.93, "gemini": 0.91, "openai": 0.92, "generic": 0.92},
+    },
+    "oriental_ink_folio": {
+        "dna": {
+            "warmth": 0.72,
+            "saturation": 0.30,
+            "contrast": 0.58,
+            "geometry": 0.26,
+            "tactility": 0.90,
+            "dimensionality": 0.10,
+            "energy": 0.34,
+            "information_density": 0.50,
+            "brand_formality": 0.78,
+        },
+        "material_tags": ["rice_paper", "ink_rule", "seal_mark", "folio_page", "watercolor"],
+        "style_treatment": "oriental_ink_folio_illustration",
+        "edge_treatment": "bound_folio_edge",
+        "decorative_motifs": ["册页折线", "淡墨晕染", "克制朱砂印记"],
+        "composition_families": ["scrolling_folio", "ink_landscape_path", "seal_anchor_spread"],
+        "content_fit": {
+            "data_policy": 0.78,
+            "tutorial_steps": 0.76,
+            "viewpoint_trend": 0.94,
+            "lively_growth": 0.88,
+        },
+        "provider_reliability": {"seedream": 0.91, "gemini": 0.92, "openai": 0.89, "generic": 0.90},
+    },
+    "archival_halftone_collage": {
+        "dna": {
+            "warmth": 0.56,
+            "saturation": 0.28,
+            "contrast": 0.88,
+            "geometry": 0.52,
+            "tactility": 0.80,
+            "dimensionality": 0.08,
+            "energy": 0.70,
+            "information_density": 0.78,
+            "brand_formality": 0.72,
+        },
+        "material_tags": ["newsprint", "ink_rule", "date_stamp", "paper_clipping", "offset_print"],
+        "style_treatment": "archival_halftone_collage",
+        "edge_treatment": "clipped_newsprint_edge",
+        "decorative_motifs": ["网点油墨", "剪报毛边", "窄版新闻索引"],
+        "composition_families": ["clipping_storyline", "column_break_spread", "headline_evidence_path"],
+        "content_fit": {
+            "data_policy": 0.84,
+            "tutorial_steps": 0.72,
+            "viewpoint_trend": 0.96,
+            "lively_growth": 0.70,
+        },
+        "provider_reliability": {"seedream": 0.92, "gemini": 0.89, "openai": 0.91, "generic": 0.90},
+    },
+    "graphic_poster_collage": {
+        "dna": {
+            "warmth": 0.48,
+            "saturation": 0.88,
+            "contrast": 0.94,
+            "geometry": 0.68,
+            "tactility": 0.48,
+            "dimensionality": 0.14,
+            "energy": 0.96,
+            "information_density": 0.62,
+            "brand_formality": 0.28,
+        },
+        "material_tags": ["poster_paper", "sticker_cut", "marker_ink", "offset_print", "screen_print"],
+        "style_treatment": "graphic_poster_collage",
+        "edge_treatment": "misregistered_poster_edge",
+        "decorative_motifs": ["错位套印", "异形贴纸", "手绘速度线"],
+        "composition_families": ["poster_burst", "sticker_diagonal", "oversized_symbol_field"],
+        "content_fit": {
+            "data_policy": 0.72,
+            "tutorial_steps": 0.90,
+            "viewpoint_trend": 0.88,
+            "lively_growth": 0.94,
+        },
+        "provider_reliability": {"seedream": 0.93, "gemini": 0.91, "openai": 0.92, "generic": 0.92},
+    },
+    "botanical_field_illustration": {
+        "dna": {
+            "warmth": 0.68,
+            "saturation": 0.30,
+            "contrast": 0.42,
+            "geometry": 0.18,
+            "tactility": 0.78,
+            "dimensionality": 0.12,
+            "energy": 0.30,
+            "information_density": 0.48,
+            "brand_formality": 0.52,
+        },
+        "material_tags": ["botanical_paper", "specimen_label", "pencil_line", "organic_curve", "watercolor"],
+        "style_treatment": "botanical_field_illustration",
+        "edge_treatment": "organic_specimen_edge",
+        "decorative_motifs": ["植物线稿", "观察编号", "自然生长曲线"],
+        "composition_families": ["specimen_growth_path", "field_note_spread", "organic_constellation"],
+        "content_fit": {
+            "data_policy": 0.72,
+            "tutorial_steps": 0.84,
+            "viewpoint_trend": 0.88,
+            "lively_growth": 0.88,
+        },
+        "provider_reliability": {"seedream": 0.91, "gemini": 0.94, "openai": 0.92, "generic": 0.92},
+    },
+    "executive_signal_editorial": {
+        "dna": {
+            "warmth": 0.40,
+            "saturation": 0.54,
+            "contrast": 0.82,
+            "geometry": 0.72,
+            "tactility": 0.30,
+            "dimensionality": 0.24,
+            "energy": 0.70,
+            "information_density": 0.80,
+            "brand_formality": 0.90,
+        },
+        "material_tags": ["editorial_print", "signal_diagram", "orbit_mark", "index_disc", "data_surface"],
+        "style_treatment": "executive_signal_editorial",
+        "edge_treatment": "clean_signal_edge",
+        "decorative_motifs": ["信号轨道", "指标圆盘", "克制方向箭头"],
+        "composition_families": ["signal_orbit", "executive_diagonal", "decision_map"],
+        "content_fit": {
+            "data_policy": 0.82,
+            "tutorial_steps": 0.86,
+            "viewpoint_trend": 0.94,
+            "lively_growth": 0.70,
+        },
+        "provider_reliability": {"seedream": 0.93, "gemini": 0.90, "openai": 0.93, "generic": 0.92},
+    },
+    "cinematic_storyboard_collage": {
+        "dna": {
+            "warmth": 0.60,
+            "saturation": 0.44,
+            "contrast": 0.68,
+            "geometry": 0.44,
+            "tactility": 0.74,
+            "dimensionality": 0.16,
+            "energy": 0.58,
+            "information_density": 0.56,
+            "brand_formality": 0.68,
+        },
+        "material_tags": ["festival_program", "film_frame", "storyboard_strip", "paper_ticket", "matte_paper"],
+        "style_treatment": "cinematic_storyboard_collage",
+        "edge_treatment": "film_program_edge",
+        "decorative_motifs": ["分镜框线", "电影票根", "细腻胶片颗粒"],
+        "composition_families": ["storyboard_sequence", "widescreen_scene", "shot_reverse_shot"],
+        "content_fit": {
+            "data_policy": 0.66,
+            "tutorial_steps": 0.78,
+            "viewpoint_trend": 0.94,
+            "lively_growth": 0.90,
+        },
+        "provider_reliability": {"seedream": 0.92, "gemini": 0.93, "openai": 0.91, "generic": 0.92},
     },
 }
 

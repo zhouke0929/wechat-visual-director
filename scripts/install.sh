@@ -5,11 +5,13 @@ SOURCE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALL_ROOT="${HOME}/Library/Application Support/wechat-visual-director"
 HOST_HOME="$HOME"
 SKIP_DEPENDENCIES=0
+MIGRATE_LEGACY_DATA=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install-root) INSTALL_ROOT="$2"; shift 2 ;;
     --host-home) HOST_HOME="$2"; shift 2 ;;
     --skip-dependencies) SKIP_DEPENDENCIES=1; shift ;;
+    --migrate-legacy-data) MIGRATE_LEGACY_DATA=1; shift ;;
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
 done
@@ -30,18 +32,19 @@ mkdir -p "$VERSION_ROOT" "$DATA_ROOT" "$CONFIG_ROOT" "$RUNTIME_ROOT" "$INSTALL_R
 
 rsync -a --delete \
   --exclude '.git' --exclude '.tmp' --exclude '.pnpm-store' --exclude 'artifacts' \
+  --exclude '.runtime' \
   --exclude 'apps/api/.venv' --exclude 'apps/api/data' --exclude 'apps/web/node_modules' \
   --exclude 'apps/web/.next' --exclude '.env' --exclude '.env.local' --exclude '*.pyc' --exclude '*.log' \
   "$SOURCE_ROOT/" "$VERSION_ROOT/"
 
 MIGRATED_DB=false; MIGRATED_IMAGES=false; MIGRATED_PUBLICATION=false; MIGRATED_CONFIG=false
-if [[ ! -f "$DATA_ROOT/visual-director.db" && -f "$SOURCE_ROOT/apps/api/data/visual-director.db" ]]; then
+if [[ "$MIGRATE_LEGACY_DATA" -eq 1 && ! -f "$DATA_ROOT/visual-director.db" && -f "$SOURCE_ROOT/apps/api/data/visual-director.db" ]]; then
   cp "$SOURCE_ROOT/apps/api/data/visual-director.db" "$DATA_ROOT/visual-director.db"; MIGRATED_DB=true
 fi
-if [[ ! -d "$DATA_ROOT/image-assets" && -d "$SOURCE_ROOT/apps/api/data/image-assets" ]]; then
+if [[ "$MIGRATE_LEGACY_DATA" -eq 1 && ! -d "$DATA_ROOT/image-assets" && -d "$SOURCE_ROOT/apps/api/data/image-assets" ]]; then
   cp -R "$SOURCE_ROOT/apps/api/data/image-assets" "$DATA_ROOT/image-assets"; MIGRATED_IMAGES=true
 fi
-if [[ ! -d "$DATA_ROOT/publication-assets" && -d "$SOURCE_ROOT/apps/api/data/publication-assets" ]]; then
+if [[ "$MIGRATE_LEGACY_DATA" -eq 1 && ! -d "$DATA_ROOT/publication-assets" && -d "$SOURCE_ROOT/apps/api/data/publication-assets" ]]; then
   cp -R "$SOURCE_ROOT/apps/api/data/publication-assets" "$DATA_ROOT/publication-assets"; MIGRATED_PUBLICATION=true
 fi
 if [[ ! -f "$CONFIG_FILE" && -f "$SOURCE_ROOT/.env.local" ]]; then
@@ -58,13 +61,8 @@ if [[ "$SKIP_DEPENDENCIES" -eq 0 ]]; then
   "$PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3,11) else 2)' || { echo 'Python 3.11 or newer is required.' >&2; exit 2; }
   [[ -x "$API_DIR/.venv/bin/python" ]] || "$PYTHON" -m venv "$API_DIR/.venv"
   "$API_DIR/.venv/bin/python" -m pip install --quiet --disable-pip-version-check -e "$API_DIR"
-  if [[ ! -f "$WEB_DIR/dist/index.html" ]]; then
-    command -v corepack >/dev/null 2>&1 || { echo 'Prebuilt workbench missing; Node.js with Corepack is required for source builds.' >&2; exit 2; }
-    corepack pnpm@11.7.0 --dir "$WEB_DIR" install --frozen-lockfile --reporter=silent
-    corepack pnpm@11.7.0 --dir "$WEB_DIR" build
-  fi
 fi
-[[ -f "$WEB_DIR/dist/index.html" ]] || { echo 'Static workbench build is missing.' >&2; exit 2; }
+[[ -f "$WEB_DIR/dist/index.html" ]] || { echo 'Release package is incomplete: prebuilt workbench is missing. Normal installation never invokes npm or pnpm.' >&2; exit 2; }
 
 PREVIOUS_VERSION=""
 if [[ -f "$MANIFEST" ]]; then

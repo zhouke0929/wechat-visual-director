@@ -143,7 +143,6 @@ export default function ImageProviderSettingsPage() {
   const [publicIpLoading, setPublicIpLoading] = useState(false);
   const [wechatAppId, setWechatAppId] = useState("");
   const [wechatSecret, setWechatSecret] = useState("");
-  const [whitelistConfirmed, setWhitelistConfirmed] = useState(false);
   const [publicIp, setPublicIp] = useState("");
   const [ipCopied, setIpCopied] = useState(false);
   const [wechatNotice, setWechatNotice] = useState("");
@@ -161,7 +160,6 @@ export default function ImageProviderSettingsPage() {
         setCapabilities(capabilityResult);
         setSettings(imageResult);
         setWechatSettings(wechatResult);
-        setWhitelistConfirmed(wechatResult.ip_whitelist_confirmed);
         setMode(imageResult.mode);
         if (imageResult.mode === "images_api") {
           setEndpoint(imageResult.providers.images_api.endpoint);
@@ -273,7 +271,6 @@ export default function ImageProviderSettingsPage() {
       const saved = await saveWechatPublisherSettings({
         ...(wechatAppId.trim() ? { app_id: wechatAppId.trim() } : {}),
         ...(wechatSecret.trim() ? { app_secret: wechatSecret.trim() } : {}),
-        ip_whitelist_confirmed: whitelistConfirmed,
       });
       setWechatSettings(saved);
       setWechatAppId("");
@@ -667,7 +664,7 @@ export default function ImageProviderSettingsPage() {
                 <ol>
                   <li><span>1</span><div><strong>在微信开发者后台获取凭据</strong><p>进入“开发接口管理”，在账号开发信息中复制 AppID，并生成或重置 AppSecret。具体栏目名称以微信当前页面为准。</p></div></li>
                   <li><span>2</span><div><strong>加入当前公网 IP</strong><p>点击下方检测按钮，将结果加入微信开发者后台的 IP 白名单。</p></div></li>
-                  <li><span>3</span><div><strong>保存后检测连接</strong><p>检测通过后，文章冻结页才会把 Wenyan 草稿交付标记为可用。</p></div></li>
+                  <li><span>3</span><div><strong>保存后检测连接</strong><p>检测通过后，文章冻结页才会启用微信官方 API 草稿交付。</p></div></li>
                 </ol>
                 <div className={styles.ipProbe}>
                   <button disabled={publicIpLoading} onClick={handlePublicIpProbe} type="button">
@@ -726,13 +723,6 @@ export default function ImageProviderSettingsPage() {
                   /></label>
                 </div>
 
-                <label className={styles.whitelistCheck}><input
-                  checked={whitelistConfirmed}
-                  disabled={wechatSettings.managed_by_environment}
-                  onChange={(event) => setWhitelistConfirmed(event.target.checked)}
-                  type="checkbox"
-                /><span>我已将当前公网 IP 加入微信公众号后台白名单</span></label>
-
                 {wechatSettings.managed_by_environment ? (
                   <div className={styles.managedNotice}><strong>当前由启动环境管理</strong><p>工作台不会覆盖：{wechatSettings.managed_fields.join("、")}。</p></div>
                 ) : null}
@@ -748,7 +738,7 @@ export default function ImageProviderSettingsPage() {
                     disabled={wechatTesting || !wechatSettings.credentials_configured}
                     onClick={handleWechatProbe}
                     type="button"
-                  >{wechatTesting ? "正在检测…" : "检测连接（不建草稿）"}</button>
+                  >{wechatTesting ? "正在检测…" : "检测凭据与 IP 白名单（不建草稿）"}</button>
                 </div>
                 <div aria-live="polite" className={styles.wechatFeedback}>
                   {wechatError ? <p className={styles.error} role="alert">{wechatError}</p> : null}

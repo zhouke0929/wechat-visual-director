@@ -25,11 +25,12 @@ class _Response:
         return self.payload
 
 
-class _WenyanReady:
+class _WechatPublisherReady:
     def status(self) -> dict:
         return {
-            "schema_version": "publisher_status.v0.1",
-            "installed": True,
+            "schema_version": "publisher_status.v0.3",
+            "provider": "wechat_api",
+            "transport": "built_in",
             "credentials_configured": True,
             "ready": True,
             "warnings": [],
@@ -79,7 +80,6 @@ def _app(monkeypatch, tmp_path: Path):
     for key in (
         "WECHAT_APP_ID",
         "WECHAT_APP_SECRET",
-        "WECHAT_IP_WHITELIST_CONFIRMED",
         "VISUAL_DIRECTOR_IMAGE_PROVIDER",
     ):
         monkeypatch.delenv(key, raising=False)
@@ -89,7 +89,7 @@ def _app(monkeypatch, tmp_path: Path):
     public_ip_probe = _PublicIpReady()
     app = create_app(
         str(tmp_path / "onboarding.db"),
-        wenyan_publisher=_WenyanReady(),
+        wechat_publisher=_WechatPublisherReady(),
         wechat_connection_probe=wechat_probe,
         public_ip_probe=public_ip_probe,
     )
@@ -132,12 +132,12 @@ def test_wechat_credentials_are_write_only_and_probe_creates_no_draft(monkeypatc
             json={
                 "app_id": "fake-app-id",
                 "app_secret": secret,
-                "ip_whitelist_confirmed": True,
             },
         )
         assert saved.status_code == 200
         assert saved.json()["settings"]["credentials_configured"] is True
         assert saved.json()["settings"]["secrets_returned"] is False
+        assert "ip_whitelist_confirmed" not in saved.json()["settings"]
         assert secret not in saved.text
         assert "fake-app-id" not in saved.text
 

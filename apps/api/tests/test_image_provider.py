@@ -22,6 +22,7 @@ from visual_director.image_provider import (
 )
 from visual_director.main import create_app
 from visual_director.infographic_overlay import compose_structured_infographic
+from visual_director.visual_dna import resolve_article_image_direction
 
 
 class FakeResponse:
@@ -178,6 +179,78 @@ def test_seedream_future_tech_uses_editorial_collage_without_signpost_stage() ->
     assert "磨砂半透明薄片" in prompt
     assert "不使用路牌、站牌、塑料玩具" in prompt
     assert "上半部不得形成大面积空白" in prompt
+
+
+def test_seedream_oriental_infographic_strips_section_number_and_enforces_mobile_density() -> None:
+    direction = resolve_article_image_direction(
+        visual_system="oriental_archive",
+        article_type="tutorial_steps",
+        provider_profile="seedream",
+    )
+    slot = prompt_slot(
+        purpose="structured_infographic",
+        subject="先完成四步改造，再考虑视觉包装",
+        item_count=4,
+    )
+    slot["visual_intent"].update(
+        {
+            "style_family": "oriental_ink_folio",
+            "style_treatment": "oriental_ink_folio_illustration",
+            "article_art_direction": direction,
+        }
+    )
+    prompt = build_provider_prompt(
+        slot,
+        "tutorial_steps",
+        infographic_title="二、先完成四步改造，再考虑视觉包装",
+        infographic_items=["重新定义问题", "保留关键决策", "补充真实验证", "沉淀结果证据"],
+        prompt_profile="seedream",
+        candidate_index=2,
+    )
+    assert '标题“先完成四步改造，再考虑视觉包装”' in prompt
+    assert "二、先完成四步改造" not in prompt
+    assert "390px宽手机预览" in prompt
+    assert "东方留白只能保留在画面边缘" in prompt
+    assert "主体、连接路径和标签共同占画布78%到88%" in prompt
+    assert "最大连续空白区域不得超过画面18%" in prompt
+
+
+def test_seedream_compiles_extended_visual_dna_to_human_art_language() -> None:
+    cases = {
+        "oriental_archive": ("viewpoint_trend", "当代东方册页插画", "rice_paper_folio"),
+        "vintage_press": ("data_policy", "复古新闻剪报插画", "aged_newsprint"),
+        "pop_poster": ("tutorial_steps", "当代波普丝网海报插画", "offset_poster"),
+        "natural_atlas": ("lively_growth", "自然观察图鉴插画", "field_notebook"),
+        "business_review": ("data_policy", "当代商业画报插画", "clean_editorial_stock"),
+        "cinematic_story": ("viewpoint_trend", "明亮电影节画册插画", "film_festival_program"),
+    }
+    for visual_system, (article_type, expected_phrase, internal_surface) in cases.items():
+        direction = resolve_article_image_direction(
+            visual_system=visual_system,
+            article_type=article_type,
+            provider_profile="seedream",
+        )
+        slot = prompt_slot(
+            purpose="atmosphere",
+            subject="一个具体场景帮助读者理解文章的核心变化",
+        )
+        slot["visual_intent"].update(
+            {
+                "style_family": direction["style_family"],
+                "style_treatment": direction["style_treatment"],
+                "palette_roles": direction["palette_roles"],
+                "tone": direction["tone"],
+                "article_art_direction": direction,
+            }
+        )
+        prompt = build_provider_prompt(
+            slot,
+            article_type,
+            prompt_profile="seedream",
+        )
+        assert expected_phrase in prompt
+        assert internal_surface not in prompt
+        assert "paper_white" not in prompt
 
 
 def test_seedream_cover_prompt_and_local_theme_fallback_are_publishable() -> None:

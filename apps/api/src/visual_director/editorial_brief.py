@@ -169,6 +169,12 @@ class ArtDirection(BaseModel):
         "soft_flat_illustration",
         "clean_3d_geometry",
         "editorial_tech_collage",
+        "oriental_ink_folio",
+        "archival_halftone_collage",
+        "graphic_poster_collage",
+        "botanical_field_illustration",
+        "executive_signal_editorial",
+        "cinematic_storyboard_collage",
     ]
     avoid_recent_patterns: list[str] = Field(max_length=5)
 

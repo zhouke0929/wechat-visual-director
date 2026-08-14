@@ -68,6 +68,32 @@ def test_web_process_recognition_accepts_production_and_legacy_modes() -> None:
     assert not cli._command_matches_service("web", "pnpm.CMD build")
 
 
+def test_api_process_recognition_accepts_silent_and_legacy_hosts() -> None:
+    assert cli._command_matches_service(
+        "api",
+        r"C:\app\pythonw.exe -m visual_director.service_host --port 8000",
+    )
+    assert cli._command_matches_service(
+        "api",
+        r"C:\app\python.exe -m uvicorn visual_director.main:app --port 8000",
+    )
+    assert not cli._command_matches_service("api", "python.exe unrelated.py")
+
+
+def test_service_python_prefers_no_console_executable(tmp_path: Path) -> None:
+    python = tmp_path / "python.exe"
+    pythonw = tmp_path / "pythonw.exe"
+    python.write_bytes(b"")
+    pythonw.write_bytes(b"")
+
+    assert cli._service_python_executable(python, platform_name="nt") == str(
+        pythonw.resolve()
+    )
+    assert cli._service_python_executable(python, platform_name="posix") == str(
+        python.resolve()
+    )
+
+
 def test_serve_reports_missing_static_workbench_build(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -212,6 +238,10 @@ def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, ca
             "image_provider_settings_schema_version": "image_provider_settings.v0.2",
             "image_provider": "mock",
             "image_provider_configured": True,
+            "runtime_identity": {
+                **cli._expected_runtime_identity(),
+                "task_count": 0,
+            },
         },
     )
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
@@ -230,7 +260,97 @@ def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, ca
         "runtime_root": str(runtime_root.resolve()),
         "running_version": "0.1.0-alpha.5",
         "version_match": True,
+        "runtime_match": True,
+        "expected_runtime_fingerprint": cli._expected_runtime_identity()["fingerprint"],
+        "running_runtime_fingerprint": cli._expected_runtime_identity()["fingerprint"],
+        "running_mode": "persistent",
+        "running_data_root": str(data_root.resolve()),
+        "running_database_path": str((data_root / "visual-director.db").resolve()),
+        "running_task_count": 0,
     }
+
+
+def test_doctor_rejects_same_version_api_with_wrong_runtime_data_root(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.19"
+    data_root = tmp_path / "data"
+    project_root.mkdir(parents=True)
+    data_root.mkdir()
+    (project_root / "VERSION").write_text("0.1.0-alpha.19\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DB", str(data_root / "visual-director.db"))
+    source_database = tmp_path / "source" / "apps" / "api" / "data" / "visual-director.db"
+    running_identity = cli.runtime_identity(
+        project_root=tmp_path / "source",
+        database_path=source_database,
+    )
+    running_identity["mode"] = "source"
+    running_identity["fingerprint"] = "foreign-source-runtime"
+    running_identity["task_count"] = 63
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.19",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "runtime_identity": running_identity,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli.shutil, "which", lambda _name: "pnpm.cmd")
+
+    assert cli.run(["doctor", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["core_ready"] is False
+    assert payload["installation"]["version_match"] is True
+    assert payload["installation"]["runtime_match"] is False
+    assert payload["installation"]["running_mode"] == "source"
+    assert payload["installation"]["running_task_count"] == 63
+    assert "core_runtime_mismatch" in payload["warnings"]
+
+
+def test_serve_refuses_same_version_api_with_wrong_runtime_data_root(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    project_root = tmp_path / "versions" / "0.1.0-alpha.19"
+    data_root = tmp_path / "data"
+    project_root.mkdir(parents=True)
+    data_root.mkdir()
+    (project_root / "VERSION").write_text("0.1.0-alpha.19\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_PROJECT_ROOT", str(project_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_INSTALL_ROOT", str(tmp_path))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DATA_ROOT", str(data_root))
+    monkeypatch.setenv("VISUAL_DIRECTOR_DB", str(data_root / "visual-director.db"))
+    running_identity = {
+        **cli._expected_runtime_identity(),
+        "mode": "source",
+        "data_root": str((tmp_path / "source-data").resolve()),
+        "database_path": str((tmp_path / "source-data" / "visual-director.db").resolve()),
+        "fingerprint": "foreign-source-runtime",
+        "task_count": 63,
+    }
+    monkeypatch.setattr(
+        cli,
+        "_probe_json",
+        lambda *_args, **_kwargs: {
+            "status": "ok",
+            "application_version": "0.1.0-alpha.19",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "runtime_identity": running_identity,
+        },
+    )
+    monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)
+
+    assert cli.run(["serve", "--json"]) == 3
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["error"]["code"] == "core_runtime_mismatch"
+    assert payload["error"]["details"]["expected_mode"] == "persistent"
+    assert payload["error"]["details"]["running_mode"] == "source"
 
 
 def test_doctor_rejects_stale_api_after_persistent_upgrade(
@@ -445,6 +565,8 @@ article_type: tutorial_steps
         "review_url": "http://127.0.0.1:8000/tasks/task-123",
         "opened": True,
         "next_action": "human_review",
+        "command_completed": True,
+        "background_service": True,
     }
 
 

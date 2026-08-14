@@ -78,6 +78,7 @@ from .image_intent import (
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
 from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
+from .theme_assets import referenced_theme_assets, theme_asset_metadata, theme_asset_path
 from .publication import (
     PUBLICATION_SCHEMA_VERSION,
     canonical_json,
@@ -99,13 +100,13 @@ from .onboarding import (
     write_setup_preferences,
 )
 from .delivery import (
-    WenyanPublisher,
     build_clipboard_payload,
     build_delivery_files,
     build_delivery_zip,
 )
+from .wechat_publisher import WechatDraftPublisher
 from .repository import NotFoundError, PublicationLockedError, Repository, VersionConflictError
-from .version import application_version
+from .version import application_version, runtime_identity
 
 
 class GeneratePlansRequest(BaseModel):
@@ -138,7 +139,6 @@ class WechatPublisherSettingsRequest(BaseModel):
     app_id: str | None = Field(default=None, min_length=1, max_length=128)
     app_secret: str | None = Field(default=None, min_length=1, max_length=512)
     clear_credentials: bool = False
-    ip_whitelist_confirmed: bool | None = None
 
 
 class SelectPlanRequest(BaseModel):
@@ -154,7 +154,7 @@ class UpdateSlotRequest(BaseModel):
 
 class UpdateThemeRequest(BaseModel):
     visual_system: str = Field(
-        pattern="^(light_reading|warm_humanist|youth_campus|editorial_contrast|structured_grid|future_tech)$"
+        pattern="^(light_reading|warm_humanist|youth_campus|editorial_contrast|structured_grid|future_tech|oriental_archive|vintage_press|pop_poster|natural_atlas|business_review|cinematic_story)$"
     )
     expected_plan_revision: int = Field(ge=1)
     reason: str = Field(default="operator_theme_switch", pattern="^(operator_theme_switch|history_rotation|product_review)$")
@@ -230,7 +230,7 @@ class CreateMockDraftRequest(BaseModel):
     simulation_mode: str = Field(default="success", pattern="^(success|fail_once|unknown)$")
 
 
-class CreateWenyanDraftRequest(BaseModel):
+class CreateWechatDraftRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
     draft_slot: str = Field(pattern=r"^(primary|draft-[2-9][0-9]*)$")
 
@@ -424,7 +424,7 @@ def create_app(
     image_provider: ImageProvider | None = None,
     text_planner_provider: TextPlannerProvider | None = None,
     blind_review_manifest_path: str | None = None,
-    wenyan_publisher: WenyanPublisher | None = None,
+    wechat_publisher: WechatDraftPublisher | None = None,
     wechat_connection_probe: WechatConnectionProbe | None = None,
     public_ip_probe: PublicIpProbe | None = None,
 ) -> FastAPI:
@@ -434,6 +434,10 @@ def create_app(
     repository = Repository(db_path)
     app = FastAPI(title="公众号视觉主编 API", version="0.1.0")
     app.state.repository = repository
+    app.state.runtime_identity = runtime_identity(
+        project_root=root,
+        database_path=db_path,
+    )
     app.state.image_provider = image_provider or create_image_provider_from_env(runtime_settings)
     app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env(runtime_settings)
     configured_env_path = os.environ.get("VISUAL_DIRECTOR_ENV_FILE")
@@ -446,9 +450,11 @@ def create_app(
     app.state.root = root
     app.state.brand_profile = load_brand_profile(root)
     app.state.brand_asset_path = brand_asset_path(root, app.state.brand_profile)
-    app.state.wenyan_publisher = wenyan_publisher or WenyanPublisher(
+    app.state.wechat_publisher = wechat_publisher or WechatDraftPublisher(
         root,
         env_file=app.state.runtime_env_path,
+        token_endpoint=runtime_settings.get("VISUAL_DIRECTOR_WECHAT_TOKEN_ENDPOINT"),
+        api_base=runtime_settings.get("VISUAL_DIRECTOR_WECHAT_API_BASE"),
     )
     app.state.wechat_connection_probe = wechat_connection_probe or WechatConnectionProbe(
         endpoint=runtime_settings.get(
@@ -534,15 +540,42 @@ def create_app(
             plan = repository.get_plan(task_id, task["selected_plan_id"])
 
         report = task["input_summary"].get("preflight_report") or {}
+        unresolved_preflight_findings = [
+            item
+            for item in report.get("findings") or []
+            if not item.get("resolved_at")
+        ]
+        asset_preflight_codes = {
+            "missing_cover",
+            "placeholder_cover",
+            "cover_requires_import",
+            "placeholder_image",
+            "source_image_requires_import",
+        }
         if not report.get("draft_creation_allowed"):
             checks["preflight_resolved"] = "blocking"
-            block(
-                "preflight_not_ready",
-                "仍有未处理的预检发布阻断项",
-                "preflight_report",
-                task_id,
-                "resolve_preflight",
-            )
+            unresolved_non_asset_findings = [
+                item
+                for item in unresolved_preflight_findings
+                if item.get("code") not in asset_preflight_codes
+            ]
+            for finding in unresolved_non_asset_findings:
+                policy = str(finding.get("resolution_policy") or "")
+                block(
+                    "preflight_finding_unresolved",
+                    str(finding.get("message") or "存在未处理的内容检查项"),
+                    "preflight_finding",
+                    str(finding.get("block_id") or finding.get("code") or "root"),
+                    "acknowledge_preflight" if policy == "ACKNOWLEDGE" else "edit_source",
+                )
+            if not unresolved_preflight_findings:
+                block(
+                    "preflight_not_ready",
+                    "输入检查状态尚未就绪，请刷新任务后重试",
+                    "preflight_report",
+                    task_id,
+                    "refresh_preflight",
+                )
         else:
             checks["preflight_resolved"] = "pass"
 
@@ -783,6 +816,30 @@ def create_app(
                     width=cta_width,
                     height=cta_height,
                     source_url="/api/v1/brand-assets/current/content",
+                )
+            for source_url, asset_name in referenced_theme_assets(document):
+                metadata = theme_asset_metadata(root, asset_name)
+                if metadata is None:
+                    block(
+                        "theme_asset_missing",
+                        f"主题装饰资产不存在：{asset_name}",
+                        "theme_asset",
+                        asset_name,
+                        "restore_theme_asset",
+                    )
+                    checks["assets_complete"] = "blocking"
+                    continue
+                asset_path, asset_width, asset_height, asset_content_type = metadata
+                add_path_asset(
+                    token=f"theme-{asset_name.removesuffix('.png')}",
+                    role="theme_decoration",
+                    resource_type="theme_asset",
+                    resource_id=asset_name,
+                    path=asset_path,
+                    content_type=asset_content_type,
+                    width=asset_width,
+                    height=asset_height,
+                    source_url=source_url,
                 )
             url_to_token = {
                 item["source_url"]: item["asset_token"]
@@ -1092,7 +1149,6 @@ def create_app(
             for key in (
                 "WECHAT_APP_ID",
                 "WECHAT_APP_SECRET",
-                "WECHAT_IP_WHITELIST_CONFIRMED",
             )
             if key in os.environ
         )
@@ -1106,14 +1162,9 @@ def create_app(
             if "WECHAT_APP_SECRET" in os.environ
             else file_values.get("WECHAT_APP_SECRET", "")
         ).strip()
-        whitelist_value = str(
-            os.environ.get("WECHAT_IP_WHITELIST_CONFIRMED")
-            if "WECHAT_IP_WHITELIST_CONFIRMED" in os.environ
-            else file_values.get("WECHAT_IP_WHITELIST_CONFIRMED", "")
-        ).strip().lower()
         probe = provider_probe_status().get("wechat_connection")
         return {
-            "schema_version": "wechat_publisher_settings.v0.1",
+            "schema_version": "wechat_publisher_settings.v0.2",
             "credentials_configured": bool(app_id and app_secret),
             "app_id_configured": bool(app_id),
             "app_secret_configured": bool(app_secret),
@@ -1127,7 +1178,6 @@ def create_app(
                 if app_id and app_secret
                 else "missing"
             ),
-            "ip_whitelist_confirmed": whitelist_value in {"1", "true", "yes"},
             "managed_by_environment": bool(managed_fields),
             "managed_fields": managed_fields,
             "connection_probe": probe if isinstance(probe, dict) else None,
@@ -1140,16 +1190,16 @@ def create_app(
         preferences = read_setup_preferences(app.state.setup_preferences_path)
         image_settings = image_provider_settings_snapshot()
         wechat_settings = wechat_publisher_settings_snapshot()
-        wenyan_status = (
-            app.state.wenyan_publisher.quick_status()
-            if hasattr(app.state.wenyan_publisher, "quick_status")
-            else app.state.wenyan_publisher.status()
+        publisher_status = (
+            app.state.wechat_publisher.quick_status()
+            if hasattr(app.state.wechat_publisher, "quick_status")
+            else app.state.wechat_publisher.status()
         )
         target_mode = preferences["target_mode"]
         image_ready = bool(image_settings["real_generation_available"])
         wechat_probe = wechat_settings.get("connection_probe") or {}
         publisher_ready = bool(
-            wenyan_status.get("ready_for_connection_probe", wenyan_status.get("ready", False))
+            publisher_status.get("ready_for_connection_probe", publisher_status.get("ready", False))
         )
         wechat_ready = bool(publisher_ready and wechat_probe.get("ok"))
         required = {
@@ -1165,8 +1215,6 @@ def create_app(
             next_action = "configure_image_provider"
         elif required["wechat_draft"] and not wechat_settings["credentials_configured"]:
             next_action = "configure_wechat_credentials"
-        elif required["wechat_draft"] and not wenyan_status.get("installed"):
-            next_action = "install_wenyan"
         elif required["wechat_draft"] and not wechat_ready:
             next_action = "test_wechat_connection"
         else:
@@ -1191,8 +1239,6 @@ def create_app(
                     "state": (
                         "ready"
                         if wechat_ready
-                        else "unavailable"
-                        if not wenyan_status.get("installed")
                         else "configuration"
                         if not wechat_settings["credentials_configured"]
                         else "review_required"
@@ -1265,10 +1311,6 @@ def create_app(
                 updates["WECHAT_APP_ID"] = payload.app_id.strip()
             if payload.app_secret is not None:
                 updates["WECHAT_APP_SECRET"] = payload.app_secret.strip()
-        if payload.ip_whitelist_confirmed is not None:
-            updates["WECHAT_IP_WHITELIST_CONFIRMED"] = (
-                "true" if payload.ip_whitelist_confirmed else "false"
-            )
         if not updates:
             return _error(422, "wechat_settings_empty", "没有需要保存的微信公众号配置。")
         try:
@@ -1321,6 +1363,10 @@ def create_app(
     @app.get("/api/health")
     @app.get("/health")
     def health() -> dict[str, Any]:
+        runtime = {
+            **app.state.runtime_identity,
+            "task_count": int(repository.list_tasks_page(page=1, page_size=1)["total"]),
+        }
         return {
             "status": "ok",
             "application": "wechat_visual_director_workbench",
@@ -1341,6 +1387,7 @@ def create_app(
             "preflight_ruleset_version": PREFLIGHT_RULESET_VERSION,
             "publication_schema_version": PUBLICATION_SCHEMA_VERSION,
             "publication_mode": "local",
+            "runtime_identity": runtime,
         }
 
     @app.get("/api/v1/theme-gallery")
@@ -1767,9 +1814,9 @@ def create_app(
             },
         )
 
-    @app.get("/api/v1/publishers/wenyan/status")
-    def wenyan_publisher_status() -> dict[str, Any]:
-        return app.state.wenyan_publisher.status()
+    @app.get("/api/v1/publishers/wechat/status")
+    def wechat_publisher_status() -> dict[str, Any]:
+        return app.state.wechat_publisher.status()
 
     @app.get("/api/v1/publication-revisions/{revision_id}/clipboard")
     def publication_clipboard_payload(revision_id: str, request: Request) -> dict[str, Any]:
@@ -1842,28 +1889,28 @@ def create_app(
         )
         return {"operation": operation, "task": _public_task(task)}
 
-    @app.post("/api/v1/publication-revisions/{revision_id}/wenyan-draft")
-    def create_wenyan_draft_operation(
+    @app.post("/api/v1/publication-revisions/{revision_id}/wechat-draft")
+    def create_wechat_draft_operation(
         revision_id: str,
-        payload: CreateWenyanDraftRequest,
+        payload: CreateWechatDraftRequest,
         idempotency_key: str = Header(..., alias="Idempotency-Key"),
         operator_id: str = Header("operator", alias="X-Operator-Id"),
     ) -> Any:
         if operator_id not in {"operator", "product_owner"}:
             return _error(422, "invalid_operator", "请选择有效的操作身份")
-        publisher_status = app.state.wenyan_publisher.status()
+        publisher_status = app.state.wechat_publisher.status()
         if not publisher_status["ready"]:
             return _error(
                 409,
-                "wenyan_not_ready",
-                "Wenyan 发布器尚未完成本机配置",
+                "wechat_publisher_not_ready",
+                "请先在本地设置中配置微信公众号 AppID 和 AppSecret，并检测连接。",
                 retryable=True,
                 details={"publisher": publisher_status},
             )
         request_hash = hash_json(
             {"revision_id": revision_id, **payload.model_dump(mode="json"), "operator_id": operator_id}
         )
-        operation, started_task, replayed = repository.begin_wenyan_draft_operation(
+        operation, started_task, replayed = repository.begin_wechat_draft_operation(
             revision_id=revision_id,
             draft_slot=payload.draft_slot,
             expected_task_version=payload.expected_task_version,
@@ -1876,12 +1923,11 @@ def create_app(
 
         revision = repository.get_publication_revision(revision_id)
         try:
-            files = build_delivery_files(
+            result = app.state.wechat_publisher.publish(
                 revision,
                 repository.list_publication_assets(revision_id),
                 repository.get_publication_asset,
             )
-            result = app.state.wenyan_publisher.publish(files)
         except (OSError, ValueError) as error:
             result_status = "failed"
             result_media_id = None
@@ -1894,7 +1940,7 @@ def create_app(
             result_status = result.status
             result_media_id = result.media_id
             result_error = result.error
-        operation, finished_task = repository.finish_wenyan_draft_operation(
+        operation, finished_task = repository.finish_wechat_draft_operation(
             operation_id=operation["id"],
             expected_task_version=started_task["version"],
             status=result_status,
@@ -1912,8 +1958,8 @@ def create_app(
         repository.get_task(task_id)
         return {"items": repository.list_draft_operations(task_id)}
 
-    @app.post("/api/v1/draft-operations/{operation_id}/wenyan-retry")
-    def retry_wenyan_draft_operation(
+    @app.post("/api/v1/draft-operations/{operation_id}/wechat-retry")
+    def retry_wechat_draft_operation(
         operation_id: str,
         payload: RetryMockDraftRequest,
         idempotency_key: str = Header(..., alias="Idempotency-Key"),
@@ -1921,19 +1967,19 @@ def create_app(
     ) -> Any:
         if operator_id not in {"operator", "product_owner"}:
             return _error(422, "invalid_operator", "请选择有效的操作身份")
-        publisher_status = app.state.wenyan_publisher.status()
+        publisher_status = app.state.wechat_publisher.status()
         if not publisher_status["ready"]:
             return _error(
                 409,
-                "wenyan_not_ready",
-                "Wenyan 发布器尚未完成本机配置",
+                "wechat_publisher_not_ready",
+                "请先完成微信公众号 AppID、AppSecret 与 IP 白名单配置。",
                 retryable=True,
                 details={"publisher": publisher_status},
             )
         request_hash = hash_json(
             {"operation_id": operation_id, **payload.model_dump(mode="json"), "operator_id": operator_id}
         )
-        operation, started_task, replayed = repository.retry_wenyan_draft_operation(
+        operation, started_task, replayed = repository.retry_wechat_draft_operation(
             operation_id=operation_id,
             expected_task_version=payload.expected_task_version,
             expected_operation_version=payload.expected_operation_version,
@@ -1946,12 +1992,11 @@ def create_app(
 
         revision = repository.get_publication_revision(operation["revision_id"])
         try:
-            files = build_delivery_files(
+            result = app.state.wechat_publisher.publish(
                 revision,
                 repository.list_publication_assets(revision["id"]),
                 repository.get_publication_asset,
             )
-            result = app.state.wenyan_publisher.publish(files)
         except (OSError, ValueError) as error:
             result_status = "failed"
             result_media_id = None
@@ -1964,7 +2009,7 @@ def create_app(
             result_status = result.status
             result_media_id = result.media_id
             result_error = result.error
-        operation, finished_task = repository.finish_wenyan_draft_operation(
+        operation, finished_task = repository.finish_wechat_draft_operation(
             operation_id=operation["id"],
             expected_task_version=started_task["version"],
             status=result_status,
@@ -1994,18 +2039,18 @@ def create_app(
         return {"operation": operation, "task": _public_task(task)}
 
     @app.post("/api/v1/draft-operations/{operation_id}/resolve-unknown")
-    def resolve_unknown_mock_draft_operation(
+    def resolve_unknown_draft_operation(
         operation_id: str,
         payload: ResolveUnknownDraftRequest,
         idempotency_key: str = Header(..., alias="Idempotency-Key"),
-        operator_id: str = Header("product_owner", alias="X-Operator-Id"),
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
     ) -> Any:
-        if operator_id != "product_owner":
-            return _error(403, "product_owner_required", "只有产品负责人可以处置结果未知状态")
+        if operator_id not in {"operator", "product_owner"}:
+            return _error(422, "invalid_operator", "请选择有效的核对身份")
         request_hash = hash_json(
             {"operation_id": operation_id, **payload.model_dump(mode="json"), "operator_id": operator_id}
         )
-        operation, task = repository.resolve_unknown_mock_draft_operation(
+        operation, task = repository.resolve_unknown_draft_operation(
             operation_id=operation_id,
             expected_task_version=payload.expected_task_version,
             expected_operation_version=payload.expected_operation_version,
@@ -3333,6 +3378,13 @@ def create_app(
         if asset is None or not asset.is_file():
             return _error(404, "brand_asset_not_configured", "The current brand has no fixed footer asset")
         return FileResponse(asset, filename=asset.name)
+
+    @app.get("/api/v1/theme-assets/{asset_name}")
+    def current_theme_asset(asset_name: str) -> Any:
+        asset = theme_asset_path(root, asset_name)
+        if asset is None:
+            return _error(404, "theme_asset_not_found", "Theme decoration asset not found")
+        return FileResponse(asset, media_type="image/png", filename=asset.name)
 
     web_dist = Path(
         os.environ.get("VISUAL_DIRECTOR_WEB_DIST", str(root / "apps" / "web" / "dist"))

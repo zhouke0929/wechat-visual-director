@@ -11,9 +11,10 @@ from .component_catalog import (
 )
 from .components import render_component
 from .parser import ContentBlock, ParsedArticle, parse_markdown
+from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives
 
 
-THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.3"
+THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.4"
 
 THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 
@@ -115,6 +116,8 @@ def _rhythm_primitives(
     visual_system: str,
     palette: dict[str, str],
 ) -> list[dict[str, str]]:
+    if visual_system in EXTENDED_THEME_IDS:
+        return extended_rhythm_primitives(visual_system, palette)
     primary = palette["primary"]
     secondary = palette["secondary"]
     accent = palette["accent"]
@@ -187,7 +190,7 @@ def _rhythm_primitives(
                 "label": "手札章节标题",
                 "html": (
                     f'<section style="margin:40px 0 20px;padding:3px 0 12px 17px;border-left:5px solid {secondary};border-bottom:1px solid #D7B995;">'
-                    f'<p style="margin:-9px 0 11px -25px;"><span style="display:inline-block;padding:5px 10px;background-color:{palette["accent_pale"]};color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;transform:rotate(-2deg);">CHAPTER</span></p>'
+                    f'<p style="margin:-9px 0 11px -18px;"><span style="display:inline-block;padding:5px 10px;background-color:{palette["accent_pale"]};color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;transform:rotate(-2deg);">CHAPTER</span></p>'
                     f'<strong style="display:block;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:21px;line-height:1.52;">让故事成为判断的入口</strong>'
                     f'<p style="margin:9px 0 -17px;text-align:right;"><span style="display:inline-block;width:46px;height:9px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p></section>'
                 ),
@@ -233,7 +236,7 @@ def _rhythm_primitives(
                 "label": "落款行动区",
                 "html": (
                     f'<section style="margin:35px 0 0;padding:4px 3px 15px 19px;border-left:5px solid {accent};border-bottom:1px solid #D7B995;">'
-                    f'<p style="margin:-10px 0 15px -27px;"><span style="display:inline-block;width:72px;height:12px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
+                    f'<p style="margin:-10px 0 15px -18px;"><span style="display:inline-block;width:72px;height:12px;background-color:{secondary};opacity:.72;transform:rotate(-3deg);"></span></p>'
                     f'<p style="margin:0 0 7px;color:{primary};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:800;line-height:1.65;">把这份经验，带回下一次真实选择</p>'
                     f'<p style="margin:0;color:{ink};font-size:13px;line-height:1.76;">保存文章，并在行动中继续验证。</p></section>'
                 ),

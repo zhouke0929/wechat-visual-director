@@ -11,6 +11,17 @@ from .parser import ParsedArticle
 
 
 BLOCK_REF_RE = re.compile(r"^(block-\d{3})(?::item:(\d+))?$")
+STYLE_TREATMENT_PATTERN = (
+    r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|"
+    r"editorial_spatial_collage|oriental_ink_folio_illustration|archival_halftone_collage|"
+    r"graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|"
+    r"cinematic_storyboard_collage)$"
+)
+EDGE_TREATMENT_PATTERN = (
+    r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge|"
+    r"bound_folio_edge|clipped_newsprint_edge|misregistered_poster_edge|organic_specimen_edge|"
+    r"clean_signal_edge|film_program_edge)$"
+)
 
 
 class HistoryEvidence(BaseModel):
@@ -78,7 +89,7 @@ class InfographicVisualGrammar(BaseModel):
     content_occupancy: str = Field(default="dense_70_85", pattern=r"^dense_70_85$")
     edge_treatment: str = Field(
         default="open_illustrated_edge",
-        pattern=r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge)$",
+        pattern=EDGE_TREATMENT_PATTERN,
     )
 
 
@@ -91,16 +102,16 @@ class ArticleImageArtDirection(BaseModel):
     visual_dna_schema_version: str = Field(default="visual_dna.v0.1")
     visual_system: str
     article_type: str
-    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage)$")
+    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage|oriental_ink_folio|archival_halftone_collage|graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|cinematic_storyboard_collage)$")
     style_treatment: str = Field(
-        pattern=r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|editorial_spatial_collage)$"
+        pattern=STYLE_TREATMENT_PATTERN,
     )
     palette_family: str
     palette_variant: str
     palette_roles: list[str] = Field(default_factory=list, max_length=5)
     surface_treatment: str
     edge_treatment: str = Field(
-        pattern=r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge)$"
+        pattern=EDGE_TREATMENT_PATTERN,
     )
     decorative_motifs: list[str] = Field(default_factory=list, max_length=5)
     composition_family: str
@@ -131,10 +142,10 @@ class ImageVisualIntent(BaseModel):
         pattern=r"^(semantic_scene|linear_progression|binary_comparison|comparison_matrix|hierarchical_layers|hub_spoke|structural_breakdown|timeline|pathway)$",
     )
     composition: str = Field(pattern=r"^(branching|layered|wide_scene|centered)$")
-    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage)$")
+    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage|oriental_ink_folio|archival_halftone_collage|graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|cinematic_storyboard_collage)$")
     style_treatment: str = Field(
         default="tactile_editorial_collage",
-        pattern=r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|editorial_spatial_collage)$",
+        pattern=STYLE_TREATMENT_PATTERN,
     )
     palette_role: str = Field(default="plan_palette", pattern=r"^plan_palette$")
     palette_roles: list[str] = Field(default_factory=list, max_length=5)

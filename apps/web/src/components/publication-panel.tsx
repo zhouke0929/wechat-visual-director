@@ -8,14 +8,14 @@ import type {
   PublicationReadiness,
   PublicationRevision,
   Task,
-  WenyanPublisherStatus,
+  WechatPublisherStatus,
 } from "@/lib/types";
 
 type PublicationPanelProps = {
   busy: string;
   bundleUrl: string | null;
   operation: DraftOperation | null;
-  publisher: WenyanPublisherStatus | null;
+  publisher: WechatPublisherStatus | null;
   readiness: PublicationReadiness | null;
   revision: PublicationRevision | null;
   task: Task;
@@ -25,6 +25,7 @@ type PublicationPanelProps = {
   onFreeze: (metadata: PublicationMetadata) => Promise<void>;
   onPublish: () => Promise<void>;
   onRetry: () => Promise<void>;
+  onResolveUnknown: (outcome: "confirmed_succeeded" | "confirmed_not_created") => Promise<void>;
 };
 
 const checkLabels: Record<string, string> = {
@@ -50,6 +51,7 @@ export function PublicationPanel({
   onFreeze,
   onPublish,
   onRetry,
+  onResolveUnknown,
 }: PublicationPanelProps) {
   const [metadata, setMetadata] = useState<PublicationMetadata>(task.publication_draft_metadata);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("saved");
@@ -80,7 +82,7 @@ export function PublicationPanel({
     const succeeded = operation?.status === "succeeded";
     const failed = operation?.status === "failed";
     const unknown = operation?.status === "unknown";
-    const realOperation = operation?.provider === "wenyan";
+    const realOperation = operation?.provider === "wechat_api";
     const realSucceeded = succeeded && realOperation;
     return (
       <section className="publication-console publication-console-frozen" aria-label="冻结版本与交付操作">
@@ -91,7 +93,7 @@ export function PublicationPanel({
               ? "已写入微信公众号草稿箱，最终群发仍需人工确认"
               : "最终视觉版本已冻结，可选择一种交付方式"}
           </span>
-          <i>{realOperation ? "WENYAN ADAPTER" : "LOCAL REVISION"}</i>
+          <i>{realOperation ? "WECHAT OFFICIAL API" : "LOCAL REVISION"}</i>
         </header>
 
         <div className="publication-final-grid">
@@ -106,7 +108,7 @@ export function PublicationPanel({
                 ? "系统已保存本地冻结版本和真实 Media ID。请到公众号后台完成最终检查与发布。"
                 : succeeded
                   ? "这是早期测试流程留下的模拟结果，没有调用微信接口；返回工作台后可使用真实交付出口。"
-                : "发布到微信会调用本机 Wenyan；复制和下载不会使用 AppID 或 AppSecret。"}
+                : "发布到微信会调用内置官方 API；复制和下载不会使用 AppID 或 AppSecret。"}
             </p>
 
             <dl className="publication-metadata-ledger">
@@ -123,7 +125,8 @@ export function PublicationPanel({
                   {succeeded ? (
                     <>
                       <h3>{realOperation ? "真实公众号草稿已创建" : "本地模拟记录已创建"}</h3>
-                      <code>{operation.media_id}</code>
+                      {operation.media_id ? <code>{operation.media_id}</code> : null}
+                      {realOperation && !operation.media_id ? <p>已由你在公众号后台人工确认草稿存在；接口未返回可记录的 Media ID。</p> : null}
                       <p>请在公众号后台核对标题、封面、正文图片和手机端样式。</p>
                     </>
                   ) : null}
@@ -140,9 +143,23 @@ export function PublicationPanel({
                   ) : null}
                   {unknown ? (
                     <>
-                      <h3>结果未知，暂时不要重复点击</h3>
+                      <h3>结果未知，请先核对公众号后台</h3>
                       <p>{operation.last_error?.message ?? "请先到公众号后台核对是否已经生成草稿。"}</p>
-                      <small>诊断码：{operation.last_error?.code ?? "wenyan_result_unknown"}</small>
+                      <small>诊断码：{operation.last_error?.code ?? "wechat_draft_result_unknown"}</small>
+                      <div className="unknown-resolution-actions">
+                        <button
+                          disabled={Boolean(busy)}
+                          onClick={() => onResolveUnknown("confirmed_succeeded")}
+                          type="button"
+                        >{busy === "resolve-unknown" ? "正在记录…" : "后台已找到草稿"}</button>
+                        <button
+                          className="unknown-resolution-secondary"
+                          disabled={Boolean(busy)}
+                          onClick={() => onResolveUnknown("confirmed_not_created")}
+                          type="button"
+                        >{busy === "resolve-unknown" ? "正在解除…" : "后台确认无草稿，解除锁定"}</button>
+                      </div>
+                      <p>只有确认后台没有草稿后才解除锁定；解除后会出现重新保存按钮。</p>
                     </>
                   ) : null}
                 </section>
@@ -176,21 +193,16 @@ export function PublicationPanel({
                 </div>
                 <p className="publisher-readiness-note">
                   {publisher?.ready
-                    ? `Wenyan ${publisher.version ?? "已安装"} · 本机凭据已配置 · 发布前仍需确认 IP 白名单`
-                    : publisher?.warnings[0] ?? "正在检查本机 Wenyan 发布器…"}
+                    ? "内置微信官方 API · 本机凭据已配置 · 微信接口会再次校验当前出口 IP"
+                    : publisher?.warnings[0] ?? "正在检查微信官方 API 配置…"}
                 </p>
-                {!publisher?.ready && publisher?.install_command ? (
-                  <code className="publisher-install-command">{publisher.install_command}</code>
-                ) : null}
                 <small>复制正文后必须在公众号后台保存、重新打开并用手机预览，重点检查图片。</small>
               </div>
             )}
 
-            {!unknown ? (
-              <button className="continue-editing-button" disabled={Boolean(busy)} onClick={onContinueEditing} type="button">
-                {busy === "continue" ? "正在恢复工作稿…" : "返回工作台继续修改"}
-              </button>
-            ) : null}
+            <button className="continue-editing-button" disabled={Boolean(busy) || unknown} onClick={onContinueEditing} type="button">
+              {unknown ? "先核对后台并处置结果" : busy === "continue" ? "正在恢复工作稿…" : "返回工作台继续修改"}
+            </button>
           </section>
 
           <section className="frozen-preview-workspace">
@@ -209,6 +221,14 @@ export function PublicationPanel({
   }
 
   const blockerCount = readiness?.blockers.length ?? 0;
+  const blockerMessages = Array.from(new Set(readiness?.blockers.map((item) => item.message) ?? []));
+  const blockerHint = readiness === null
+    ? "正在检查交付条件…"
+    : readiness.ready
+      ? publisher?.ready
+        ? "所有必选项已完成，可以保存并创建公众号草稿。"
+        : "所有必选项已完成，可以保存最终版本。"
+      : `未完成：${blockerMessages.slice(0, 2).join("；")}${blockerMessages.length > 2 ? `；另有 ${blockerMessages.length - 2} 项` : ""}`;
   return (
     <section className="publication-console publication-dock" aria-label="确认最终视觉版本">
       <div className="publication-dock-main">
@@ -220,42 +240,43 @@ export function PublicationPanel({
               ? publisher?.ready
                 ? "当前方案已通过检查；一次点击完成本地保存并写入微信公众号草稿箱。"
                 : "当前方案已通过检查；保存后可以复制正文或下载交付包。"
-              : `还有 ${blockerCount} 项需要处理，完成后才能确认最终版本。`}
+              : blockerCount
+                ? "请先完成工作台中的必选项，按钮会自动解锁。"
+                : "正在检查当前方案是否可以交付。"}
           </p>
           <small className={`autosave-state autosave-${saveState}`} aria-live="polite">
             {saveState === "saving" ? "正在自动保存…" : saveState === "error" ? "自动保存失败，确认时将再次保存" : "工作稿已自动保存"}
           </small>
         </div>
 
-        <button
-          className="publication-primary-action"
-          disabled={!readiness?.ready || Boolean(busy)}
-          onClick={() => void onFreeze(metadata)}
-          type="button"
-        >
-          {busy === "freeze"
-            ? "正在保存最终版本…"
-            : busy === "publish"
-              ? "正在创建公众号草稿…"
-              : publisher?.ready
-                ? "保存并创建公众号草稿"
-                : "保存最终版本"}
-        </button>
-      </div>
-
-      {readiness?.blockers.length ? (
-        <div className="gate-blockers publication-dock-blockers">
-          <strong>确认前需要处理</strong>
-          <ul>{readiness.blockers.map((item) => <li key={`${item.code}:${item.resource_id ?? "root"}`}>{item.message}</li>)}</ul>
+        <div className="publication-primary-stack" title={blockerHint}>
+          <button
+            aria-describedby="publication-primary-hint"
+            className="publication-primary-action"
+            disabled={!readiness?.ready || Boolean(busy)}
+            onClick={() => void onFreeze(metadata)}
+            type="button"
+          >
+            {busy === "freeze"
+              ? "正在保存最终版本…"
+              : busy === "publish"
+                ? "正在创建公众号草稿…"
+                : publisher?.ready
+                  ? "保存并创建公众号草稿"
+                  : "保存最终版本"}
+          </button>
+          <small className={readiness?.ready ? "publication-primary-hint hint-ready" : "publication-primary-hint"} id="publication-primary-hint">
+            {blockerHint}
+          </small>
         </div>
-      ) : null}
+      </div>
 
       <details className="publication-details">
         <summary>发布信息与检查详情</summary>
         <div className="publication-details-grid">
           <div className="publication-metadata-form">
             <label>作者（最多 8 个字符）<input maxLength={8} onChange={(event) => setMetadata({ ...metadata, author: event.target.value })} value={metadata.author} /></label>
-            <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} placeholder="可选；Wenyan 2.0.x 暂不传输该字段" rows={3} value={metadata.digest} /></label>
+            <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} placeholder="可选；将通过微信官方 API 写入草稿" rows={3} value={metadata.digest} /></label>
             <label>原文链接<input onChange={(event) => setMetadata({ ...metadata, content_source_url: event.target.value })} placeholder="可选" type="url" value={metadata.content_source_url} /></label>
             <label className="cover-policy"><input checked={metadata.show_cover_pic} onChange={(event) => setMetadata({ ...metadata, show_cover_pic: event.target.checked })} type="checkbox" /><span>在正文中显示封面图（本地记录）</span></label>
           </div>

@@ -23,8 +23,8 @@ macOS 使用：
 bash "{baseDir}/scripts/bootstrap.sh"
 ```
 
-4. 只解析 bootstrap stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
-5. 确认 `installation.persistent=true`、`installation.version_match=true` 和 `capabilities.host_skill_registered=true`。若出现版本或契约不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。
+4. 只解析 bootstrap stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行；立即停止等待，不得轮询或等待 API 进程退出。
+5. 确认 `installation.persistent=true`、`installation.version_match=true`、`installation.runtime_match=true` 和 `capabilities.host_skill_registered=true`。`runtime_match` 会校验正式安装模式与实际数据库路径，避免误连源码/测试库。若出现版本、契约或运行身份不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。正式启动器会把 API 作为无控制台后台进程运行；不要另开一个持续占用终端的前台服务。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
 7. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
 
@@ -87,11 +87,11 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 - 普通配图由模型生成无文字语义插画；结构信息图把完整原文保存为事实锚点，并默认只让模型绘制标题和逐字截取的短标签。若本机 OCR 未能证明实际绘制文案一致，工作台必须展示大图与锁定标签，并把“文字无误，采用此图”作为一次明确的人工确认；不得绕过核对自动采用，也不要再要求用户重复勾选。模型原始输出与最终候选均可查看。
 - 核心会把图片规划保存为 `image_visual_intent.v3`，并用统一 Visual DNA 为整篇文章解析一份 `article_image_art_direction.v0.1`。同篇图片与 AI 封面共享画材、色板、表面语言和气质；封面直接复用已确认的全文 EditorialBrief，并收敛为单焦点 5:4 底图，不另行调用文本模型。各正文图片槽只按原文关系改变场景、节点与构图。结构信息图会移除“第二层 / PART 02”等规划脚手架，画面文字只允许原文语义标题和锁定短标签。不要把 Seedream Prompt 直接复用到其他模型，也不要用固定手绘风格覆盖文章主题。
 - “使用保底信息图”是不调用外部模型的确定性兜底，仅在端到端信息图不满足要求时使用；不要把兜底模板描述为模型生成结果。
-- 工作台可以冻结最终版本、复制富文本、下载交付包；本机配置 Wenyan 后还可以创建微信公众号草稿。即使真实草稿返回失败或 `unknown`，复制与下载仍必须可用，且不会再次调用微信接口。
-- Wenyan 配置只允许来自本机进程环境或 Git 忽略的 `.env.local`。不要要求用户把 AppID、AppSecret 粘贴进对话。
-- 草稿结果为 `unknown` 时，先让用户去公众号后台核对；不得自动重试，以免产生重复草稿。
+- 工作台可以冻结最终版本、复制富文本、下载交付包，并通过内置微信官方 API 发布器创建微信公众号草稿。即使真实草稿返回失败或 `unknown`，复制与下载仍必须可用，且不会再次调用微信接口。
+- 微信公众号配置只允许来自本机进程环境或 Git 忽略的 `.env.local`。不要要求用户把 AppID、AppSecret 粘贴进对话；access token 只保存在后台进程内存中。
+- 草稿结果为 `unknown` 时，先让用户去公众号后台核对；不得自动重试，以免产生重复草稿。核对后必须让用户在工作台选择“后台已找到草稿”或“后台确认无草稿，解除锁定”，不得通过代码或数据库绕过。确认无草稿后，工作台会把原操作转为可重试失败；确认已有草稿后，本次交付直接记为完成。
 - 最近五篇避重只使用冻结稿的轻量视觉签名，不向宿主或图片模型传递历史正文、图片或凭据。主题切换后的协调度是本地推荐分；只有明显冲突才提示，且不阻断冻结。
-- 不得因为版本名含 `alpha` 或读到早期历史决策，就声称当前产品只支持 Mock。以 `doctor --json` 的 `capabilities.wechat_draft` 和 `publishers.wenyan.ready` 为运行时能力依据；Mock 仅用于回归测试。
+- 不得因为版本名含 `alpha` 或读到早期历史决策，就声称当前产品只支持 Mock。以 `doctor --json` 的 `capabilities.wechat_draft` 和 `publishers.wechat.ready` 为运行时能力依据；Mock 仅用于回归测试。
 - “创建公众号草稿”不等于最终发布；群发操作始终由用户在公众号后台完成。
 
 ## 继续已有任务
@@ -122,7 +122,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" stop --json
 - 不把上一篇文章的主题、事实或临时资料混入当前稿件。
 - 不为触发组件而制造概念、结论、因果、案例或数据。
 - 不自行确认 Preflight finding，不替用户切换最终主题或冻结文章。
-- 当前 Alpha 支持本地冻结版本、富文本复制、交付包下载，以及可选的本地 Wenyan 真实草稿适配器；Mock 仅用于回归测试。
+- 当前 Alpha 支持本地冻结版本、富文本复制、交付包下载，以及内置微信官方 API 真实草稿发布器；Mock 仅用于回归测试。
 - 未经用户在工作台明确确认不得创建公众号草稿；最终群发始终由人工完成。
 - 图片模型不可用时允许用户上传、沿用已有图片或跳过，不用无关占位图冒充成稿。
 - 模型 Key 只允许由用户在 Git 忽略的 `.env.local` 或独立私有环境文件中配置；不得要求用户粘贴到对话。

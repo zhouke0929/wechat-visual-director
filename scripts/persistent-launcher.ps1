@@ -50,6 +50,7 @@ if (-not (Test-Path -LiteralPath $VersionLauncher -PathType Leaf)) {
 }
 
 $env:VISUAL_DIRECTOR_INSTALL_ROOT = $InstallRoot
+$env:VISUAL_DIRECTOR_PROJECT_ROOT = $ProjectRoot
 $env:VISUAL_DIRECTOR_DATA_ROOT = [string]$Manifest.data_root
 $env:VISUAL_DIRECTOR_HOME = [string]$Manifest.runtime_root
 $env:VISUAL_DIRECTOR_DB = Join-Path ([string]$Manifest.data_root) "visual-director.db"

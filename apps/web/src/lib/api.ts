@@ -21,7 +21,7 @@ import type {
   VisualPlan,
   WechatConnectionProbe,
   WechatPublisherSettings,
-  WenyanPublisherStatus,
+  WechatPublisherStatus,
 } from "./types";
 
 // Browser traffic stays on the workbench origin and is forwarded by the
@@ -140,7 +140,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{
 export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
   const response = await fetch(`${API_BASE}/theme-gallery`, { cache: "no-store" });
   const payload = await parseResponse<{
-    schema_version: "theme_gallery.v0.3";
+    schema_version: "theme_gallery.v0.4";
     themes: ThemeGalleryItem[];
   }>(response);
   return payload.themes;
@@ -209,7 +209,6 @@ export async function saveWechatPublisherSettings(payload: {
   app_id?: string;
   app_secret?: string;
   clear_credentials?: boolean;
-  ip_whitelist_confirmed?: boolean;
 }): Promise<WechatPublisherSettings> {
   const response = await fetchWithTimeout(`${API_BASE}/settings/wechat-publisher`, {
     method: "PUT",
@@ -262,7 +261,7 @@ export async function generatePlans(task: Task): Promise<void> {
     },
     body: JSON.stringify({
       mode: "start",
-      planner: "intelligent",
+      planner: "rule",
       expected_task_version: task.version,
     }),
   });
@@ -652,16 +651,16 @@ export async function createMockDraft(
   return parseResponse(response);
 }
 
-export async function getWenyanPublisherStatus(): Promise<WenyanPublisherStatus> {
-  const response = await fetchWithTimeout(`${API_BASE}/publishers/wenyan/status`, { cache: "no-store" });
-  return parseResponse<WenyanPublisherStatus>(response);
+export async function getWechatPublisherStatus(): Promise<WechatPublisherStatus> {
+  const response = await fetchWithTimeout(`${API_BASE}/publishers/wechat/status`, { cache: "no-store" });
+  return parseResponse<WechatPublisherStatus>(response);
 }
 
-export async function createWenyanDraft(
+export async function createWechatDraft(
   task: Task,
   revision: PublicationRevision,
 ): Promise<{ operation: DraftOperation; task: Task; idempotency_replayed: boolean }> {
-  const response = await fetch(`${API_BASE}/publication-revisions/${revision.id}/wenyan-draft`, {
+  const response = await fetch(`${API_BASE}/publication-revisions/${revision.id}/wechat-draft`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -714,11 +713,11 @@ export async function retryMockDraft(
   return parseResponse(response);
 }
 
-export async function retryWenyanDraft(
+export async function retryWechatDraft(
   task: Task,
   operation: DraftOperation,
 ): Promise<{ operation: DraftOperation; task: Task; idempotency_replayed: boolean }> {
-  const response = await fetch(`${API_BASE}/draft-operations/${operation.id}/wenyan-retry`, {
+  const response = await fetch(`${API_BASE}/draft-operations/${operation.id}/wechat-retry`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -728,6 +727,31 @@ export async function retryWenyanDraft(
     body: JSON.stringify({
       expected_task_version: task.version,
       expected_operation_version: operation.version,
+    }),
+  });
+  return parseResponse(response);
+}
+
+export async function resolveUnknownDraft(
+  task: Task,
+  operation: DraftOperation,
+  outcome: "confirmed_succeeded" | "confirmed_not_created",
+): Promise<{ operation: DraftOperation; task: Task }> {
+  const evidence = outcome === "confirmed_succeeded"
+    ? "用户已在微信公众号后台确认该草稿已经存在。"
+    : "用户已在微信公众号后台确认没有创建该草稿。";
+  const response = await fetch(`${API_BASE}/draft-operations/${operation.id}/resolve-unknown`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": crypto.randomUUID(),
+      "X-Operator-Id": "operator",
+    },
+    body: JSON.stringify({
+      expected_task_version: task.version,
+      expected_operation_version: operation.version,
+      outcome,
+      evidence,
     }),
   });
   return parseResponse(response);

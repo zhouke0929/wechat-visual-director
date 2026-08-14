@@ -10,18 +10,18 @@ import type { Task } from "@/lib/types";
 const TASK_PAGE_SIZE = 8;
 
 const articleTypes = [
-  ["", "自动识别"],
-  ["data_policy", "数据 / 政策"],
-  ["viewpoint_trend", "观点 / 趋势"],
-  ["tutorial_steps", "教程 / 步骤"],
-  ["lively_growth", "活动 / 成长"],
+  ["", "自动识别（推荐）"],
+  ["data_policy", "数据与规则解读"],
+  ["tutorial_steps", "教程与步骤指南"],
+  ["viewpoint_trend", "观点与趋势分析"],
+  ["lively_growth", "故事与案例叙事"],
 ];
 
 const articleLabels: Record<string, string> = {
-  data_policy: "数据 / 政策",
-  viewpoint_trend: "观点 / 趋势",
-  tutorial_steps: "教程 / 步骤",
-  lively_growth: "活动 / 成长",
+  data_policy: "数据与规则解读",
+  tutorial_steps: "教程与步骤指南",
+  viewpoint_trend: "观点与趋势分析",
+  lively_growth: "故事与案例叙事",
 };
 
 export default function EditorialDeskPage() {
@@ -180,10 +180,10 @@ export default function EditorialDeskPage() {
           <p className="eyebrow">CONTENT OPERATIONS / 01</p>
           <h1 id="page-title">让每篇文章拥有自己的视觉节奏。</h1>
           <p>
-            导入 Markdown 后先检查标题、层级、来源和占位资产；确认没有生成前阻断，再基于品牌约束与最近 5 篇历史编译两套视觉系统。
+            导入 Markdown 后先检查标题、层级、来源和占位资产；再根据内容结构、品牌约束与最近 5 篇历史，编译可即时换主题的视觉推荐稿。
           </p>
           <dl className="hero-metrics">
-            <div><dt>智能规划</dt><dd>1 次</dd></div>
+            <div><dt>直接上传</dt><dd>本地规则</dd></div>
             <div><dt>历史窗口</dt><dd>5 篇</dd></div>
             <div><dt>预览宽度</dt><dd>390 px</dd></div>
           </dl>
@@ -212,12 +212,14 @@ export default function EditorialDeskPage() {
           />
 
           <div className="form-row">
-            <label htmlFor="article-type">文章类型（可选）</label>
+            <label htmlFor="article-type">内容结构（可选）</label>
             <select id="article-type" value={articleType} onChange={(event) => setArticleType(event.target.value)}>
               {articleTypes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </div>
-          <p className="form-hint">默认自动识别；它只影响主题、组件样式和配图方向，不会改写文章内容。</p>
+          <p className="form-hint">
+            默认根据标题、层级、列表和关键词自动识别。直接上传使用本地规则，不调用文本模型；通过 Agent Skill 创建时由宿主 Agent 完成语义规划。该选择只影响主题推荐、组件和配图方向，不改写正文。
+          </p>
 
           {error ? <p className="form-error" role="alert">{error}</p> : null}
 

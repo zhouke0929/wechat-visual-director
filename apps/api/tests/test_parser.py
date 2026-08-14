@@ -74,6 +74,22 @@ def test_blockquoted_and_bold_source_lines_are_metadata_not_quotes() -> None:
     assert not [block for block in article.blocks if block.type == "quote"]
 
 
+def test_reference_link_lists_have_source_semantics_instead_of_action_semantics() -> None:
+    article = parse_markdown(
+        """# 专业调整观察
+
+## 可靠来源
+
+- [教育部：本科专业目录](https://www.moe.gov.cn/example)
+- [高校：专业培养方案](https://www.example.edu.cn/plan)
+"""
+    )
+    references = [block for block in article.blocks if block.type == "reference_list"]
+    assert len(references) == 1
+    assert len(references[0].content) == 2
+    assert not [block for block in article.blocks if block.type == "unordered_list"]
+
+
 def test_decorative_emoji_lines_become_a_content_preserving_list() -> None:
     article = parse_markdown(
         """# 志愿核对
@@ -99,3 +115,21 @@ def test_decorative_emoji_lines_become_a_content_preserving_list() -> None:
         block.type == "paragraph" and "单独一条风险提示" in str(block.content)
         for block in article.blocks
     )
+
+
+def test_article_structure_classification_is_not_limited_to_education_content() -> None:
+    data_article = parse_markdown(
+        """# 隐私新规落地后，企业需要核对哪些指标
+
+监管部门发布最新政策与合规标准。报告列出了数据处理成本、统计口径和公开规则。
+"""
+    )
+    story_article = parse_markdown(
+        """# 一家社区咖啡店如何重新找到客人
+
+这是一个真实品牌案例。主理人通过访谈复盘创业经历，并讲述门店从低谷到恢复的故事。
+"""
+    )
+
+    assert classify_article(data_article) == "data_policy"
+    assert classify_article(story_article) == "lively_growth"

@@ -2,7 +2,7 @@
 
 import Link, { useRouteParam } from "@/lib/router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BackIcon, CheckIcon } from "@/components/icons";
+import { BackIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
 import { PreflightPanel } from "@/components/preflight-panel";
@@ -16,7 +16,7 @@ import {
   acceptImageCandidate,
   continueEditingPublication,
   cropCoverCandidate,
-  createWenyanDraft,
+  createWechatDraft,
   freezePublication,
   generatePlans,
   generateCoverCandidate,
@@ -29,8 +29,9 @@ import {
   getPublicationReadiness,
   getPublicationRevisions,
   getTask,
-  getWenyanPublisherStatus,
-  retryWenyanDraft,
+  getWechatPublisherStatus,
+  retryWechatDraft,
+  resolveUnknownDraft,
   publicationBundleUrl,
   replacePreflightAsset,
   replaceImageSlot,
@@ -58,7 +59,7 @@ import type {
   PublicationRevision,
   TaskDetail,
   VisualPlan,
-  WenyanPublisherStatus,
+  WechatPublisherStatus,
 } from "@/lib/types";
 
 const styleLabels: Record<string, string> = {
@@ -71,7 +72,26 @@ const styleLabels: Record<string, string> = {
   structured_grid: "理性网格",
   youth_campus: "青春校园",
   future_tech: "未来科技",
+  oriental_archive: "新中式雅集",
+  vintage_press: "复古报刊",
+  pop_poster: "波普海报",
+  natural_atlas: "自然图鉴",
+  business_review: "商业画报",
+  cinematic_story: "电影叙事",
 };
+
+function plannerSourceLabel(plan: VisualPlan): string {
+  const metadata = plan.planner_metadata;
+  if (!metadata) return "规划来源：历史任务未记录";
+  if (metadata.fallback_used && (metadata.provider === "host_agent" || metadata.mode === "host_agent")) {
+    return "规划来源：宿主规划无效，已使用本地规则兜底";
+  }
+  if (metadata.fallback_used) return "规划来源：本地规则兜底";
+  if (metadata.provider === "host_agent" || metadata.mode === "host_agent") {
+    return "规划来源：宿主 Agent 语义规划";
+  }
+  return "规划来源：本地规则（未调用文本模型）";
+}
 
 export default function TaskReviewPage() {
   const taskId = useRouteParam("tasks");
@@ -95,7 +115,7 @@ export default function TaskReviewPage() {
   const [publicationReadiness, setPublicationReadiness] = useState<PublicationReadiness | null>(null);
   const [publicationRevisions, setPublicationRevisions] = useState<PublicationRevision[]>([]);
   const [draftOperations, setDraftOperations] = useState<DraftOperation[]>([]);
-  const [wenyanPublisher, setWenyanPublisher] = useState<WenyanPublisherStatus | null>(null);
+  const [wechatPublisher, setWechatPublisher] = useState<WechatPublisherStatus | null>(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [workspaceWarning, setWorkspaceWarning] = useState("");
@@ -105,9 +125,9 @@ export default function TaskReviewPage() {
   const loadSupplementalWorkspace = useCallback(async (nextDetail: TaskDetail) => {
     const warnings: string[] = [];
     try {
-      setWenyanPublisher(await getWenyanPublisherStatus());
+      setWechatPublisher(await getWechatPublisherStatus());
     } catch {
-      setWenyanPublisher(null);
+      setWechatPublisher(null);
       warnings.push("公众号草稿发布状态暂时不可用");
     }
 
@@ -584,9 +604,9 @@ export default function TaskReviewPage() {
     try {
       await savePublicationDraft(taskId, metadata);
       const frozen = await freezePublication(detail.task, metadata);
-      if (wenyanPublisher?.ready) {
+      if (wechatPublisher?.ready) {
         setPublicationBusy("publish");
-        const result = await createWenyanDraft(frozen.task, frozen.revision);
+        const result = await createWechatDraft(frozen.task, frozen.revision);
         await load();
         if (result.operation.status === "succeeded") {
           setNotice("最终版本已保存，并创建微信公众号草稿。请到公众号后台完成最终审核。");
@@ -614,7 +634,7 @@ export default function TaskReviewPage() {
     setError("");
     setNotice("");
     try {
-      const result = await createWenyanDraft(detail.task, revision);
+      const result = await createWechatDraft(detail.task, revision);
       await load();
       if (result.operation.status === "succeeded") {
         setNotice("微信公众号草稿已创建，请到后台完成最终审核和发布。");
@@ -656,13 +676,13 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleRetryWenyanDraft(operation: DraftOperation) {
+  async function handleRetryWechatDraft(operation: DraftOperation) {
     if (!detail) return;
     setPublicationBusy("retry");
     setError("");
     setNotice("");
     try {
-      const result = await retryWenyanDraft(detail.task, operation);
+      const result = await retryWechatDraft(detail.task, operation);
       await load();
       if (result.operation.status === "succeeded") {
         setNotice("微信公众号草稿已创建，请到后台完成最终审核和发布。");
@@ -674,6 +694,36 @@ export default function TaskReviewPage() {
     } catch (reason) {
       await load().catch(() => undefined);
       setError(reason instanceof Error ? reason.message : "微信公众号草稿重试失败");
+    } finally {
+      setPublicationBusy("");
+    }
+  }
+
+  async function handleResolveUnknownDraft(
+    operation: DraftOperation,
+    outcome: "confirmed_succeeded" | "confirmed_not_created",
+  ) {
+    if (!detail) return;
+    const confirmed = window.confirm(
+      outcome === "confirmed_succeeded"
+        ? "请确认：你已经在微信公众号后台找到这篇草稿。确认后系统会把本次交付记为完成。"
+        : "请确认：你已经在微信公众号后台搜索并确认没有这篇草稿。确认后会解除锁定，并允许重新保存。",
+    );
+    if (!confirmed) return;
+    setPublicationBusy("resolve-unknown");
+    setError("");
+    setNotice("");
+    try {
+      await resolveUnknownDraft(detail.task, operation, outcome);
+      await load();
+      setNotice(
+        outcome === "confirmed_succeeded"
+          ? "已记录后台核对结果：草稿存在，本次交付已完成。"
+          : "已记录后台核对结果：未发现草稿，锁定已解除，现在可以重新保存。",
+      );
+    } catch (reason) {
+      await load().catch(() => undefined);
+      setError(reason instanceof Error ? reason.message : "记录后台核对结果失败");
     } finally {
       setPublicationBusy("");
     }
@@ -745,6 +795,15 @@ export default function TaskReviewPage() {
     (item) => item.revision_id === activeRevision?.id && item.status !== "superseded",
   ) ?? null;
   const publicationVisible = Boolean(detail.task.selected_plan_id || activeRevision);
+  const preflightReport = detail.input_summary.preflight_report;
+  const unresolvedManualPreflightCount = preflightReport?.findings.filter(
+    (finding) => !finding.resolved_at && finding.resolution_policy !== "REPLACE_ASSET",
+  ).length ?? 0;
+  const showPreflight = Boolean(
+    preflightReport
+    && !activeRevision
+    && (!activePlan || unresolvedManualPreflightCount > 0),
+  );
 
   return (
     <main className="review-page">
@@ -758,16 +817,7 @@ export default function TaskReviewPage() {
         <StatusPill status={detail.task.status} />
       </header>
 
-      <section className="progress-strip" aria-label="方案生成进度">
-        {detail.progress.map((step, index) => (
-          <div className={`progress-step progress-${step.status}`} key={step.key}>
-            <span>{step.status === "succeeded" ? <CheckIcon /> : String(index + 1).padStart(2, "0")}</span>
-            <div><strong>{step.label}</strong><small>{step.status === "succeeded" ? "完成" : step.status === "running" ? "进行中" : "等待"}</small></div>
-          </div>
-        ))}
-      </section>
-
-      {detail.input_summary.preflight_report && !activeRevision ? (
+      {showPreflight && preflightReport ? (
         <PreflightPanel
           busyFinding={preflightBusy}
           hasPreview={Boolean(activePlan)}
@@ -777,7 +827,7 @@ export default function TaskReviewPage() {
           onLocate={handleFindingLocate}
           onReplaceAsset={handlePreflightAssetReplace}
           planningBusy={planningBusy}
-          report={detail.input_summary.preflight_report}
+          report={preflightReport}
           sectionCount={detail.input_summary.section_count}
           taskStatus={detail.task.status}
           titleSource={detail.input_summary.title_source}
@@ -797,7 +847,7 @@ export default function TaskReviewPage() {
                 busy={publicationBusy}
                 bundleUrl={null}
                 operation={activeDraftOperation}
-                publisher={wenyanPublisher}
+                publisher={wechatPublisher}
                 readiness={publicationReadiness}
                 revision={activeRevision}
                 task={detail.task}
@@ -807,6 +857,7 @@ export default function TaskReviewPage() {
                 onFreeze={handleFreezePublication}
                 onPublish={() => Promise.resolve()}
                 onRetry={() => Promise.resolve()}
+                onResolveUnknown={() => Promise.resolve()}
               />
             </div>
           ) : null}
@@ -821,6 +872,7 @@ export default function TaskReviewPage() {
                   </div>
                   <h2>{activePlan.plan_name}</h2>
                   <p>{activePlan.summary}</p>
+                  <small className="planner-source-note">{plannerSourceLabel(activePlan)}</small>
                   <div className="theme-switch-controls">
                     <label>
                       <span>整体换主题</span>
@@ -837,6 +889,12 @@ export default function TaskReviewPage() {
                           { value: "editorial_contrast", label: "编辑对比", description: "", recent_use_count: 0 },
                           { value: "structured_grid", label: "理性网格", description: "", recent_use_count: 0 },
                           { value: "future_tech", label: "未来科技", description: "", recent_use_count: 0 },
+                          { value: "oriental_archive", label: "新中式雅集", description: "", recent_use_count: 0 },
+                          { value: "vintage_press", label: "复古报刊", description: "", recent_use_count: 0 },
+                          { value: "pop_poster", label: "波普海报", description: "", recent_use_count: 0 },
+                          { value: "natural_atlas", label: "自然图鉴", description: "", recent_use_count: 0 },
+                          { value: "business_review", label: "商业画报", description: "", recent_use_count: 0 },
+                          { value: "cinematic_story", label: "电影叙事", description: "", recent_use_count: 0 },
                         ]).map((theme) => (
                           <option key={theme.value} value={theme.value}>
                             {theme.label}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
@@ -972,7 +1030,7 @@ export default function TaskReviewPage() {
             busy={publicationBusy}
             bundleUrl={publicationBundleUrl(activeRevision.id)}
             operation={activeDraftOperation}
-            publisher={wenyanPublisher}
+            publisher={wechatPublisher}
             readiness={publicationReadiness}
             revision={activeRevision}
             task={detail.task}
@@ -981,7 +1039,10 @@ export default function TaskReviewPage() {
             onCopy={() => handleCopyPublication(activeRevision)}
             onFreeze={handleFreezePublication}
             onPublish={() => handlePublishToWechat(activeRevision)}
-            onRetry={() => activeDraftOperation ? handleRetryWenyanDraft(activeDraftOperation) : Promise.resolve()}
+            onRetry={() => activeDraftOperation ? handleRetryWechatDraft(activeDraftOperation) : Promise.resolve()}
+            onResolveUnknown={(outcome) => activeDraftOperation
+              ? handleResolveUnknownDraft(activeDraftOperation, outcome)
+              : Promise.resolve()}
           />
         </div>
       ) : null}

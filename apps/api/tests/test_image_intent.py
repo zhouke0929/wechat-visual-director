@@ -15,7 +15,7 @@ from visual_director.image_intent import (
     strip_structural_title_prefix,
 )
 from visual_director.parser import parse_markdown
-from visual_director.plan_schema import validate_plan_for_article
+from visual_director.plan_schema import ArticleImageArtDirection, ImageVisualIntent, validate_plan_for_article
 from visual_director.planner import generate_plans
 from visual_director.visual_dna import (
     ARTICLE_THEME_MANIFESTS,
@@ -111,6 +111,10 @@ def test_visual_grammar_uses_exact_short_labels_and_concrete_scene() -> None:
         ("第二层：看懂专业选择", "看懂专业选择"),
         ("第三步｜核对成绩和位次", "核对成绩和位次"),
         ("PART 02 · 判断未来出口", "判断未来出口"),
+        ("二、先完成四步改造，再考虑视觉包装", "先完成四步改造，再考虑视觉包装"),
+        ("（三）沉淀结果证据", "沉淀结果证据"),
+        ("(4) 保留关键决策", "保留关键决策"),
+        ("01 / 重新定义问题", "重新定义问题"),
         ("普通语义标题", "普通语义标题"),
     ],
 )
@@ -178,6 +182,67 @@ def test_visual_dna_manifests_are_independent_and_preserve_current_style_tendenc
                 "novelty",
                 "provider_reliability",
             }
+
+
+def test_extended_themes_resolve_distinct_image_capabilities_without_pair_matrix() -> None:
+    expected = {
+        ("oriental_archive", "viewpoint_trend"): "oriental_ink_folio",
+        ("vintage_press", "data_policy"): "archival_halftone_collage",
+        ("pop_poster", "tutorial_steps"): "graphic_poster_collage",
+        ("natural_atlas", "lively_growth"): "botanical_field_illustration",
+        ("business_review", "data_policy"): "executive_signal_editorial",
+        ("cinematic_story", "viewpoint_trend"): "cinematic_storyboard_collage",
+    }
+    for (visual_system, article_type), style_family in expected.items():
+        direction = resolve_article_image_direction(
+            visual_system=visual_system,
+            article_type=article_type,
+            provider_profile="seedream",
+        )
+        assert direction["style_family"] == style_family
+        assert direction["score_breakdown"]["theme_fit"] > 0.9
+        assert direction["visual_system"] == visual_system
+
+    # A content mismatch can still select a different independent capability;
+    # this proves the registry is scored rather than theme-bound.
+    assert resolve_article_image_direction(
+        visual_system="vintage_press",
+        article_type="lively_growth",
+    )["style_family"] == "editorial_paper_cut"
+
+    assert ARTICLE_THEME_MANIFESTS["business_review"]["palette_family"] == "executive_signal"
+    assert ARTICLE_THEME_MANIFESTS["cinematic_story"]["palette_family"] == "festival_warm"
+
+
+def test_extended_visual_dna_values_are_accepted_by_the_plan_contract() -> None:
+    cases = {
+        "oriental_archive": "viewpoint_trend",
+        "vintage_press": "data_policy",
+        "pop_poster": "tutorial_steps",
+        "natural_atlas": "lively_growth",
+        "business_review": "data_policy",
+        "cinematic_story": "viewpoint_trend",
+    }
+    for visual_system, article_type in cases.items():
+        direction = resolve_article_image_direction(
+            visual_system=visual_system,
+            article_type=article_type,
+            provider_profile="seedream",
+        )
+        ArticleImageArtDirection.model_validate(direction)
+        intent = build_visual_intent(
+            purpose="structured_infographic",
+            subject="核验一所学校的专业培养条件",
+            title="填报前完成三项核验",
+            fact_anchors=["核对培养方案", "核对师资平台", "追踪真实去向"],
+            article_type=article_type,
+            style_family=direction["style_family"],
+            palette_roles=direction["palette_roles"],
+            tone=direction["tone"],
+        )
+        intent["article_art_direction"] = direction
+        intent["visual_grammar"]["edge_treatment"] = direction["edge_treatment"]
+        ImageVisualIntent.model_validate(intent)
 
 
 def test_recent_visual_signature_rotates_more_than_article_theme() -> None:
