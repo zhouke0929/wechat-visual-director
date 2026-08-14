@@ -89,6 +89,7 @@ export function ResilientPreviewFrame({ src, title }: Props) {
       <iframe
         className="preview-frame"
         onLoad={handleLoad}
+        scrolling="yes"
         src={withRetryToken(src, retry)}
         title={title}
       />

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { absoluteApiUrl } from "@/lib/api";
+import { ArticlePreviewViewport } from "@/components/article-preview-viewport";
+import { ResilientPreviewFrame } from "@/components/resilient-preview-frame";
 import type {
   DraftOperation,
   PublicationMetadata,
@@ -210,10 +212,12 @@ export function PublicationPanel({
               <div><span>FINAL MOBILE PREVIEW</span><strong>冻结版本</strong></div>
               <p>390px · 微信兼容检查 {revision.compatibility_status === "pass" ? "通过" : "未通过"}</p>
             </header>
-            <div className="phone-stage">
-              <div className="phone-label"><span>390</span><i />MOBILE CONTENT WIDTH</div>
-              <iframe className="preview-frame" src={absoluteApiUrl(revision.preview_url)} title={`${revision.title} 最终移动端预览`} />
-            </div>
+            <ArticlePreviewViewport label="冻结版本 · 390px 模拟预览">
+              <ResilientPreviewFrame
+                src={absoluteApiUrl(revision.preview_url)}
+                title={`${revision.title} 最终移动端预览`}
+              />
+            </ArticlePreviewViewport>
           </section>
         </div>
       </section>

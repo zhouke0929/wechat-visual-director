@@ -8,6 +8,7 @@ import { CoverReviewPanel } from "@/components/cover-review-panel";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { PublicationPanel } from "@/components/publication-panel";
 import { ResilientPreviewFrame } from "@/components/resilient-preview-frame";
+import { ArticlePreviewViewport } from "@/components/article-preview-viewport";
 import { StatusPill } from "@/components/status-pill";
 import {
   absoluteApiUrl,
@@ -1006,13 +1007,12 @@ export default function TaskReviewPage() {
                   </div>
                   <p>操作时页面不跳转，仅文章内部定位变化位置</p>
                 </header>
-                <div className="phone-stage">
-                  <div className="phone-label"><span>390</span><i />MOBILE CONTENT WIDTH</div>
+                <ArticlePreviewViewport>
                   <ResilientPreviewFrame
                     src={focusedPreviewUrl(activePlan)}
                     title={`${activePlan.plan_name} 公众号移动端预览`}
                   />
-                </div>
+                </ArticlePreviewViewport>
               </section>
             </section>
           ) : null}

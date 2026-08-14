@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@sneas/telephone':
+        specifier: 1.1.2
+        version: 1.1.2
       react:
         specifier: 19.2.7
         version: 19.2.7
@@ -131,6 +134,9 @@ packages:
 
   '@rolldown/pluginutils@1.0.1':
     resolution: {integrity: sha512-2j9bGt5Jh8hj+vPtgzPtl72j0yRxHAyumoo6TNfAjsLB04UtpSvPbPcDcBMxz7n+9CYB0c1GxQFxYRg2jimqGw==}
+
+  '@sneas/telephone@1.1.2':
+    resolution: {integrity: sha512-qgW84VqFqiFcEa9M23dwwgfM/P0RPRVkFt4gn5q4m6zLdoFVxLBir1d59CdcH1NOHQBzyj4bRx6ZaaPErp8cZg==}
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
@@ -390,6 +396,8 @@ snapshots:
     optional: true
 
   '@rolldown/pluginutils@1.0.1': {}
+
+  '@sneas/telephone@1.1.2': {}
 
   '@types/node@24.13.3':
     dependencies:

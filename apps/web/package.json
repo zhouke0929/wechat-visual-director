@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@sneas/telephone": "1.1.2",
     "react": "19.2.7",
     "react-dom": "19.2.7"
   },
