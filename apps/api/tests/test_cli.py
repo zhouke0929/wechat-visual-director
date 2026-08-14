@@ -3,11 +3,39 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from visual_director import cli
+
+
+def test_cli_json_forces_utf8_when_windows_runner_defaults_to_cp1252() -> None:
+    env = dict(os.environ)
+    env["PYTHONIOENCODING"] = "cp1252"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "visual_director.cli",
+            "task",
+            "status",
+            "missing-task",
+            "--api-base",
+            "http://127.0.0.1:1/api/v1",
+            "--web-base",
+            "http://127.0.0.1:1",
+            "--json",
+        ],
+        capture_output=True,
+        env=env,
+        timeout=15,
+        check=False,
+    )
+    payload = json.loads(result.stdout.decode("utf-8"))
+    assert payload["ok"] is False
+    assert any(ord(character) > 127 for character in payload["error"]["message"])
 
 
 def test_web_probe_requires_current_workbench_identity(monkeypatch) -> None:

@@ -1406,6 +1406,13 @@ def run(argv: Sequence[str] | None = None) -> int:
 
 
 def main() -> None:
+    # GitHub-hosted Windows runners and some desktop Agents expose a redirected
+    # cp1252 stdout even though the surrounding PowerShell process is UTF-8.
+    # The CLI contract is JSON/UTF-8 on every platform.
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            reconfigure(encoding="utf-8", errors="strict")
     raise SystemExit(run())
 
 
