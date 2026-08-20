@@ -1,0 +1,79 @@
+{
+  "schema_version": "editorial_brief.v0.1",
+  "article": {
+    "article_type": "viewpoint_trend",
+    "audience": ["社区小店经营者", "本地生活内容运营", "独立品牌主理人"],
+    "reader_task": "区分一次性到店流量与长期熟客关系，并把活动设计成下一次到店的自然理由。",
+    "narrative": "从开业打卡热闹切入，解释稳定预期的重要性，拆解三个常见误区，再用周末换书活动展示关系如何延续。"
+  },
+  "sections": [
+    {
+      "source_block_ids": ["block-007"],
+      "semantic_role": "key_evidence",
+      "visual_priority": "medium",
+      "component_intent": "numbered_insight",
+      "reasoning": "原文列出四种稳定体验，是理解熟客为什么回来的一组并列信号。"
+    },
+    {
+      "source_block_ids": ["block-010", "block-011", "block-012", "block-013", "block-014", "block-015"],
+      "semantic_role": "concept",
+      "visual_priority": "high",
+      "component_intent": "concept_explainer",
+      "reasoning": "三组连续小标题及解释共同构成经营误区词条组，适合在同一视觉结构内比较。"
+    },
+    {
+      "source_block_ids": ["block-018"],
+      "semantic_role": "logic_sequence",
+      "visual_priority": "high",
+      "component_intent": "logic_path",
+      "reasoning": "原文明确给出从活动前到下一次见面的四步顺序，是文章最具体的执行路径。"
+    },
+    {
+      "source_block_ids": ["block-020"],
+      "semantic_role": "key_evidence",
+      "visual_priority": "medium",
+      "component_intent": "evidence_callout",
+      "reasoning": "引文概括社区生意的增长判断，适合形成情绪停顿但不应压过案例本身。"
+    },
+    {
+      "source_block_ids": ["block-023"],
+      "semantic_role": "checklist",
+      "visual_priority": "medium",
+      "component_intent": "numbered_insight",
+      "reasoning": "三个观察信号来自原文，适合在结尾帮助经营者复核熟客关系是否建立。"
+    }
+  ],
+  "image_intents": [
+    {
+      "anchor_block_id": "block-002",
+      "source_block_ids": ["block-002", "block-003"],
+      "purpose": "atmosphere",
+      "necessity": "recommended",
+      "aspect_ratio": "16:9",
+      "visual_metaphor": "清晨的社区街角咖啡店刚刚开门，熟悉的顾客经过并自然停下，空间保留真实生活痕迹而非网红打卡舞台。",
+      "visual_role": "establish_context",
+      "learning_objective": "让读者感受到社区店的价值来自被日常反复选择，而非一次性的热闹。",
+      "layout_family": "semantic_scene",
+      "forbidden_elements": ["text_in_model_image", "qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    },
+    {
+      "anchor_block_id": "block-018",
+      "source_block_ids": ["block-018"],
+      "purpose": "structured_infographic",
+      "necessity": "recommended",
+      "aspect_ratio": "16:9",
+      "visual_metaphor": "一本书从线上推荐、带到店里、交换到新主人手中，再回到一个月后的店内日历，形成闭合但有呼吸感的关系路径。",
+      "visual_role": "explain_sequence",
+      "learning_objective": "说明一次活动如何通过四个连续动作留下下一次到店的理由。",
+      "layout_family": "pathway",
+      "forbidden_elements": ["qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    }
+  ],
+  "art_direction": {
+    "tone": ["温暖", "松弛", "生活化", "克制"],
+    "palette_roles": ["warm_ivory", "coral_accent", "muted_teal", "sunlit_yellow"],
+    "style_family": "soft_flat_illustration",
+    "avoid_recent_patterns": ["history:structured_grid 的硬朗坐标与数据脊柱 -> change:本篇使用街角生活场景、书页路径和柔和人物动作建立节奏"]
+  },
+  "facts_locked": true
+}

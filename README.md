@@ -8,17 +8,82 @@
 [![Platform](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
 [![macOS](https://img.shields.io/badge/macOS-technical_preview-777777)](#macos-技术预览)
 
-`wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章并输出受控的 `EditorialBrief`，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染。运营在浏览器中确认整篇主题、图片与封面，模型不直接自由生成整段 HTML/CSS。
+`wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染；运营只需要确认整篇主题、图片与封面。模型不会自由生成整段 HTML/CSS，也不会绕过人工确认自动群发。
 
-当前开发版本：**v0.1.0-alpha.20**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS，也不会自动群发文章。
+<p align="center">
+  <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>在线浏览产品与 12 套主题</b></a>
+  ·
+  <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>下载最新 Release</b></a>
+  ·
+  <a href="#快速开始"><b>交给 Agent 安装</b></a>
+</p>
 
-本项目与腾讯、微信官方无隶属或背书关系。
+![WeChat Visual Director 产品展示](docs/assets/readme/product-showcase-hero.png)
 
-![Visual Director 本地任务台](docs/assets/readme/workbench-home.png)
+## 一句话理解
 
-## Windows 安装不再依赖 Git、Python、Node.js 或 Wenyan
+它不是给 Markdown 固定换一件衣服，而是先让 Agent 理解“这篇文章在解释什么关系”，再用确定性的主题和组件把重点、证据、步骤与节奏呈现出来。
 
-Windows x64 Release 已包含 Python 3.11.9、后端依赖和构建后的工作台。普通用户把固定 Release 链接交给 Agent 后，不需要预先安装 Git、系统 Python、Node.js、pnpm 或 Wenyan。安装器会校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
+```text
+主题 / 资料 / Markdown
+          ↓
+宿主 Agent：理解内容，生成受控 EditorialBrief
+          ↓
+本地核心：保护事实与结构，编译主题、组件和图片意图
+          ↓
+人工工作台：换主题、确认图片、裁封面、手机预览
+          ↓
+复制全文 / 下载交付包 / 创建微信公众号草稿
+```
+
+## 三篇真实内容案例
+
+三篇文章使用同一套核心，但分别选择「青春校园」「温暖人文」「波普海报」。这也是项目最重要的差异：不是让所有内容长得一样，而是让视觉语言服务文章本身。
+
+<table>
+  <tr>
+    <td width="33%"><img src="site/assets/generated/campus-portfolio-steps.webp" alt="青春校园作品集改造案例"></td>
+    <td width="33%"><img src="site/assets/generated/coffee-repeat-scene.webp" alt="温暖人文社区咖啡店案例"></td>
+    <td width="33%"><img src="site/assets/generated/pop-collaboration-memory.webp" alt="波普海报品牌联名案例"></td>
+  </tr>
+  <tr>
+    <td><b>教程步骤</b><br>把课程作业改造成作品集</td>
+    <td><b>本地商业</b><br>社区咖啡店如何让客人再来</td>
+    <td><b>品牌观点</b><br>联名越做越多为何反而记不住</td>
+  </tr>
+  <tr>
+    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html">查看完整排版</a></td>
+    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html">查看完整排版</a></td>
+    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html">查看完整排版</a></td>
+  </tr>
+</table>
+
+案例图片由 OpenAI 图像生成能力产生，并作为人工候选插入文章；结构信息图仍需要用户核对文字后才能进入最终交付。
+
+## 图片也有文章级 Visual DNA
+
+配图并不是每个章节各自“抽卡”。Visual Director 会先从原文提取内容事实与语义关系，再由当前文章主题编译色板、画材、表面语言和构图气质。正文插图与 AI 封面共享同一份文章级 Visual DNA；已经生成或采用的图片不会因为换主题被静默删除或重复计费。
+
+![结构信息图、场景氛围图与视觉隐喻图](docs/assets/readme/product-showcase-images.png)
+
+结构信息图负责把步骤、对比和关系转成可扫读画面；场景氛围图用环境、人物动作与光线承接叙事；视觉隐喻图则用主题专属画材表达抽象观点。文章决定“画什么、解释什么关系”，主题决定“用什么视觉语言”。系统只允许模型使用原文已经存在的事实与短标签，所有候选仍需人工确认后才能进入最终交付。可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/#image-system)查看完整案例组合。
+
+## 它和普通 Markdown 排版工具有什么不同
+
+| 维度 | 固定主题渲染 | WeChat Visual Director |
+|---|---|---|
+| 内容理解 | 主要依赖 Markdown 标签 | 文章类型、读者任务、章节关系与语义组件 |
+| 视觉变化 | 切换 CSS 或整套模板 | 12 套完整视觉系统 + 主题内节奏原语与组件变体 |
+| 稳定性 | 自由 HTML 容易漂移 | LLM 只输出结构化意图，本地组件确定性渲染 |
+| 历史感知 | 通常无 | 最终冻结稿进入最近五篇主题历史，减少连续重复 |
+| 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
+| 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
+
+当前开发版本：**v0.1.0-alpha.20**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。项目与腾讯、微信官方无隶属或背书关系。
+
+## Windows 普通用户：开箱安装
+
+Windows x64 Release 已包含 Python 3.11.9、后端依赖和构建后的工作台。普通用户把 Releases 页面链接和安装提示词交给 Agent 后，不需要预先安装 Git、系统 Python、Node.js、pnpm 或 Wenyan。安装器会校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
 
 - 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
 - 生成图片：按需配置图片 Provider，或直接人工上传；
@@ -118,8 +183,8 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Trae、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。发送下面这段话：
 
 ```text
-请安装或升级 wechat-visual-director v0.1.0-alpha.20。先阅读固定版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 GitHub Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。
-https://github.com/zhouke0929/wechat-visual-director/releases/tag/v0.1.0-alpha.20
+请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。
+https://github.com/zhouke0929/wechat-visual-director/releases
 ```
 
 安装完成后，请重启宿主 Agent 或新开对话，使它重新扫描本机 Skill 目录。进入新对话不等于重新安装；Agent 应先执行 `doctor --json`。
@@ -217,7 +282,9 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 
 主题不是简单换色。每套主题拥有统一的设计基因、章节装饰和语义组件，规划器会参考最近 5 篇历史视觉摘要，减少连续文章重复使用同一套表达。
 
-![主题样册](docs/assets/readme/theme-gallery.png)
+[在线主题样册](https://zhouke0929.github.io/wechat-visual-director/#themes)直接使用当前版本导出的 12 套真实主题数据；点击左侧主题，即可在 390px 文章预览中观察同一份内容如何改变标题、留白、组件轮廓和阅读节奏。它不需要后端、账号或 API Key。
+
+![在线主题样册与即时预览](docs/assets/readme/product-showcase-themes.png)
 
 ## 系统要求
 

@@ -1,0 +1,72 @@
+{
+  "schema_version": "editorial_brief.v0.1",
+  "article": {
+    "article_type": "viewpoint_trend",
+    "audience": ["品牌运营人员", "新媒体编辑", "市场营销从业者"],
+    "reader_task": "判断一次联名是否只制造短期热闹，并用四个问题检查它能否沉淀为品牌记忆。",
+    "narrative": "从联名随处可见却难被记住的反差出发，拆解视觉刺激、参与理由和品牌资产，再归纳无效联名、体验差异与上新前核对问题。"
+  },
+  "sections": [
+    {
+      "source_block_ids": ["block-006", "block-007", "block-008", "block-009", "block-010", "block-011"],
+      "semantic_role": "concept",
+      "visual_priority": "high",
+      "component_intent": "concept_explainer",
+      "reasoning": "三个连续词条分别解释联名从抓住第一眼到形成长期资产的递进层次，适合组成同一概念组。"
+    },
+    {
+      "source_block_ids": ["block-014"],
+      "semantic_role": "warning",
+      "visual_priority": "high",
+      "component_intent": "numbered_insight",
+      "reasoning": "原文列出三种并列的无效联名方式，可用高辨识度的海报清单形成警示节奏。"
+    },
+    {
+      "source_block_ids": ["block-016"],
+      "semantic_role": "key_evidence",
+      "visual_priority": "medium",
+      "component_intent": "evidence_callout",
+      "reasoning": "引文准确概括有效联名的判断标准，适合作为问题分析与解决方案之间的视觉转场。"
+    },
+    {
+      "source_block_ids": ["block-022"],
+      "semantic_role": "logic_sequence",
+      "visual_priority": "high",
+      "component_intent": "logic_path",
+      "reasoning": "四个有序问题构成上新前完整的检查路径，适合用连续步骤帮助读者直接执行。"
+    }
+  ],
+  "image_intents": [
+    {
+      "anchor_block_id": "block-003",
+      "source_block_ids": ["block-002", "block-003"],
+      "purpose": "atmosphere",
+      "necessity": "recommended",
+      "aspect_ratio": "16:9",
+      "visual_metaphor": "拥挤的联名包装和视觉噪声像海报碎片围绕中心旋转，中央只留下一个清晰、可被记住的共同体验符号。",
+      "visual_role": "establish_context",
+      "learning_objective": "表现联名曝光越来越多，但真正进入消费者记忆的共同体验很少。",
+      "layout_family": "semantic_scene",
+      "forbidden_elements": ["text_in_model_image", "qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    },
+    {
+      "anchor_block_id": "block-020",
+      "source_block_ids": ["block-018", "block-019", "block-020"],
+      "purpose": "atmosphere",
+      "necessity": "recommended",
+      "aspect_ratio": "16:9",
+      "visual_metaphor": "两个不同色彩与质感的品牌世界在中央共同搭建一座可参与的体验舞台，观众从围观走向互动，最终带走一个共同记忆符号。",
+      "visual_role": "create_emotional_pause",
+      "learning_objective": "表现有效联名的价值不只是共享流量，而是共同创造一段可以参与和复述的体验。",
+      "layout_family": "semantic_scene",
+      "forbidden_elements": ["text_in_model_image", "qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    }
+  ],
+  "art_direction": {
+    "tone": ["大胆", "鲜明", "年轻", "有冲击力"],
+    "palette_roles": ["deep_navy", "coral_accent", "sunlit_yellow", "muted_teal", "warm_ivory"],
+    "style_family": "graphic_poster_collage",
+    "avoid_recent_patterns": ["history:structured_grid 的坐标定义与数据脊柱 -> change:改用错位海报、撕纸边缘和高对比符号组织信息"]
+  },
+  "facts_locked": true
+}

@@ -705,6 +705,41 @@ def test_candidate_themes_have_distinct_reading_grammars_and_recommendation_gate
         assert marker in themes[theme_id]["full_preview_html"]
 
 
+def test_theme_gallery_titles_keep_each_theme_hero_grammar() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    assert "AIRY READING" in themes["light_reading"]["full_preview_html"]
+    assert "GRID<br>INDEX 01" in themes["structured_grid"]["full_preview_html"]
+    expected_grammars = {
+        "oriental_archive": "bound-folio-cover",
+        "vintage_press": "front-page",
+        "pop_poster": "poster-wall",
+        "natural_atlas": "field-notebook-cover",
+        "business_review": "market-pictorial-cover",
+        "cinematic_story": "festival-program-cover",
+    }
+    for theme_id, grammar in expected_grammars.items():
+        assert f'data-theme-grammar="{grammar}"' in themes[theme_id]["full_preview_html"]
+
+
+def test_reader_facing_titles_do_not_leak_theme_notes_or_internal_versions() -> None:
+    themes = {item["id"]: item for item in build_theme_gallery()}
+    article = parse_markdown("# 把复杂选择变成一条清晰的行动路线\n\n正文内容。")
+    base_plan = generate_plans(article, "viewpoint_trend", 5)[0]
+
+    for theme_id, theme in themes.items():
+        gallery_document = theme["full_preview_html"]
+        assert "主题统一的是" not in gallery_document, theme_id
+        assert "wechat_components" not in gallery_document, theme_id
+        assert "组件库" not in gallery_document, theme_id
+
+        plan = copy.deepcopy(base_plan)
+        plan["visual_system"] = theme_id
+        plan["configuration"] = visual_system_configuration(theme_id)
+        article_document = render_preview(article, plan)
+        assert "wechat_components" not in article_document, theme_id
+        assert "组件库" not in article_document, theme_id
+
+
 def test_candidate_theme_stickers_are_first_party_publication_assets() -> None:
     themes = {item["id"]: item for item in build_theme_gallery()}
     expected = {

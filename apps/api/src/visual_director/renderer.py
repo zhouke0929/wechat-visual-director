@@ -1068,11 +1068,10 @@ def render_preview(
         hero = extended_hero
     elif airy:
         hero = (
-            f'<header data-content-role="article-metadata-preview" style="padding:34px 0 23px;border-bottom:1px solid {palette.get("sky", accent)};">'
+            f'<header data-content-role="article-metadata-preview" data-theme-grammar="airy-open-cover" style="padding:34px 0 24px;border-bottom:1px solid {palette.get("sky", accent)};">'
             f'<p style="margin:0 0 13px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.16em;">{kicker}</p>'
             f'<h1 style="margin:0;color:#111C1A;font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;line-height:1.38;font-weight:750;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:15px 0 0;color:#687370;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · 组件库 {html.escape(validated["component_library_version"])}</p>'
-            f'<p style="margin:16px 0 -29px;text-align:right;"><span style="display:inline-block;width:28px;height:14px;border-radius:20px 3px 20px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-12deg);"></span><span style="display:inline-block;width:7px;height:7px;margin-left:7px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
+            f'<p style="margin:19px 0 -7px;white-space:nowrap;"><span style="display:inline-block;width:67%;border-top:1px dotted {palette.get("sky", accent)};vertical-align:middle;"></span><span style="display:inline-block;width:28px;height:14px;margin-left:11px;border-radius:20px 3px 20px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-12deg);vertical-align:middle;"></span><span style="display:inline-block;width:7px;height:7px;margin-left:7px;border-radius:50%;background-color:{palette.get("accent", accent)};vertical-align:middle;"></span></p>'
             "</header>"
         )
     elif campus:
@@ -1082,17 +1081,7 @@ def render_preview(
             f'<section style="padding:22px 18px 19px 28px;border-left:11px dotted {palette.get("sky", accent)};border-bottom:4px solid {accent};background-color:{palette.get("surface", "#FFFEFB")};box-shadow:8px 8px 0 {palette.get("secondary_pale", "#FFF6D9")};">'
             f'<p style="margin:0 0 12px;color:{palette.get("accent", accent)};font:800 9px/1.2 Georgia,serif;letter-spacing:.15em;">{kicker}</p>'
             f'<h1 style="margin:0;color:{palette.get("ink", "#20304A")};font-size:30px;line-height:1.38;font-weight:830;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:16px 0 0;padding-top:11px;border-top:2px dashed {palette.get("sky", accent)};color:#63718A;font-size:11px;line-height:1.6;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p></section>'
-            "</header>"
-        )
-    elif False and campus:
-        hero = (
-            f'<header data-content-role="article-metadata-preview" style="padding:31px 0 24px;border-bottom:2px solid {palette.get("sky", accent)};">'
-            f'<p style="width:72px;height:12px;margin:0 0 -4px 17px;background-color:{palette.get("secondary", accent)};transform:rotate(-4deg);"></p>'
-            f'<section style="padding:18px 18px 19px;border:2px solid {accent};border-radius:6px 22px 22px 22px;background-color:{palette.get("surface", "#FFFEFB")};box-shadow:7px 7px 0 {palette.get("accent_pale", "#FFF0F5")};">'
-            f'<p style="margin:0 0 11px;color:{palette.get("accent", accent)};font:800 10px/1.2 Georgia,serif;letter-spacing:.14em;">{kicker}</p>'
-            f'<h1 style="margin:0;color:{palette.get("ink", "#20304A")};font-size:30px;line-height:1.38;font-weight:820;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:15px 0 0;color:#63718A;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p></section>'
+            f'<p style="margin:17px 0 0;border-top:2px dashed {palette.get("sky", accent)};"></p></section>'
             "</header>"
         )
     elif future:
@@ -1101,19 +1090,7 @@ def render_preview(
             f'<p style="margin:0 0 15px;color:{palette.get("primary", accent)};font:800 9px/1.2 Georgia,serif;letter-spacing:.18em;">FUTURE EDITION <span style="color:{palette.get("accent", accent)};">●</span></p>'
             f'<p style="margin:0 0 9px;color:{accent};font-size:10px;font-weight:750;letter-spacing:.1em;">{kicker}</p>'
             f'<h1 style="margin:0;color:{palette.get("ink", "#24304F")};font-size:29px;line-height:1.4;font-weight:830;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:17px 0 0;padding-top:11px;border-top:1px solid {palette.get("sky", accent)};color:#69738F;font-size:10px;line-height:1.5;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
-            f'<p style="margin:10px 0 -28px;text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
-            "</header>"
-        )
-    elif False and future:
-        hero = (
-            f'<header data-content-role="article-metadata-preview" style="padding:30px 0 23px;border-top:8px solid {accent};border-bottom:1px solid #B9D8D2;">'
-            f'<p style="height:5px;margin:-8px 0 15px;background-color:{palette.get("secondary", accent)};width:29%;"></p>'
-            f'<section style="white-space:normal;"><span style="display:inline-block;width:21%;color:{palette.get("accent", accent)};font:800 10px/1.2 Georgia,serif;letter-spacing:.13em;vertical-align:top;">SIGNAL</span>'
-            f'<section style="box-sizing:border-box;display:inline-block;width:79%;padding-left:15px;border-left:2px solid {palette.get("secondary", accent)};vertical-align:top;">'
-            f'<p style="margin:0 0 10px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.13em;">{kicker}</p>'
-            f'<h1 style="margin:0;color:{palette.get("ink", "#17313D")};font-size:29px;line-height:1.4;font-weight:820;letter-spacing:-.02em;">{_inline(parsed.title)}</h1></section></section>'
-            f'<p style="margin:16px 0 0;color:#607985;font-size:11px;line-height:1.6;text-align:right;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
+            f'<p style="margin:18px 0 -28px;padding-top:11px;border-top:1px solid {palette.get("sky", accent)};text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
             "</header>"
         )
     elif warm:
@@ -1121,7 +1098,7 @@ def render_preview(
             f'<header data-content-role="article-metadata-preview" style="padding:33px 0 24px;border-left:6px solid {palette.get("secondary", accent)};border-bottom:1px solid #D7B995;">'
             f'<p style="margin:0 0 13px -7px;"><span style="display:inline-block;padding:5px 11px;background-color:{palette.get("accent_pale", "#FBE9E2")};color:{accent};font:800 10px/1.2 Georgia,serif;letter-spacing:.14em;transform:rotate(-2deg);">{kicker}</span></p>'
             f'<section style="padding-left:18px;"><h1 style="margin:0;color:#342B28;font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;line-height:1.4;font-weight:750;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:15px 0 0;color:#7B6861;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p></section>'
+            f'<p style="width:58px;height:8px;margin:18px 0 -4px;background-color:{palette.get("secondary", accent)};opacity:.72;transform:rotate(-3deg);"></p></section>'
             f'<p style="margin:15px 0 -30px;text-align:right;"><span style="display:inline-block;width:56px;height:10px;background-color:{palette.get("secondary", accent)};opacity:.72;transform:rotate(-3deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette.get("accent", accent)};"></span></p>'
             "</header>"
         )
@@ -1131,7 +1108,7 @@ def render_preview(
             f'<p style="margin:0 0 11px;color:{palette.get("accent", accent)};font:800 10px/1.2 Georgia,serif;letter-spacing:.14em;">FEATURE<span style="display:inline-block;width:52px;height:7px;margin-left:11px;background-color:{accent};"></span></p>'
             f'<p style="margin:0 0 10px;color:{accent};font:800 10px/1.2 Arial;letter-spacing:.14em;">{kicker}</p>'
             f'<h1 style="margin:0;color:#202B33;font-size:31px;line-height:1.34;font-weight:850;letter-spacing:-.03em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:17px 0 0;padding-top:8px;border-top:1px solid #202B33;color:#687370;font-size:11px;line-height:1.6;text-align:right;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
+            f'<p style="margin:17px 0 0;border-top:1px solid #202B33;text-align:right;"><span style="display:inline-block;width:32%;height:8px;background-color:{accent};"></span></p>'
             "</header>"
         )
     elif structured:
@@ -1141,7 +1118,7 @@ def render_preview(
             f'<section style="box-sizing:border-box;display:inline-block;width:75%;padding-left:15px;border-left:1px solid #AEBBB5;vertical-align:top;">'
             f'<p style="margin:0 0 10px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.14em;">{kicker}</p>'
             f'<h1 style="margin:0;color:#111C1A;font-size:29px;line-height:1.38;font-weight:800;letter-spacing:-.02em;">{_inline(parsed.title)}</h1></section></section>'
-            f'<p style="margin:16px 0 0;color:#687370;font-size:11px;line-height:1.6;text-align:right;">{html.escape(validated["plan_name"])} · {html.escape(validated["component_library_version"])}</p>'
+            f'<p style="margin:17px 0 0;border-top:1px solid #AEBBB5;text-align:right;"><span style="display:inline-block;width:18%;height:6px;background-color:{palette.get("secondary", accent)};"></span></p>'
             "</header>"
         )
     else:
@@ -1149,7 +1126,7 @@ def render_preview(
             f'<header data-content-role="article-metadata-preview" style="padding:34px 0 22px;border-bottom:1px solid {accent};">'
             f'<p style="margin:0 0 13px;color:{accent};font:700 11px/1.2 Arial;letter-spacing:.16em;">{kicker}</p>'
             f'<h1 style="margin:0;color:#111C1A;font-family:Georgia,\'Noto Serif SC\',serif;font-size:{32 if editorial else 30}px;line-height:1.35;font-weight:750;letter-spacing:-.02em;">{_inline(parsed.title)}</h1>'
-            f'<p style="margin:15px 0 0;color:#687370;font-size:12px;line-height:1.6;">{html.escape(validated["plan_name"])} · 组件库 {html.escape(validated["component_library_version"])}</p>'
+            f'<p style="width:32%;height:3px;margin:18px 0 0;background-color:{palette.get("secondary", accent)};"></p>'
             "</header>"
         )
     footer = profile.get("fixed_footer") if isinstance(profile.get("fixed_footer"), dict) else {}

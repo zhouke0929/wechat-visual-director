@@ -1,0 +1,72 @@
+{
+  "schema_version": "editorial_brief.v0.1",
+  "article": {
+    "article_type": "tutorial_steps",
+    "audience": ["准备实习的大学生", "需要整理课程项目的应届生"],
+    "reader_task": "把一份已经完成的课程作业整理成能够说明问题、判断与结果的求职作品。",
+    "narrative": "先纠正只做视觉包装的误区，再沿着问题定义、决策复盘、结果表达和页面压缩四步完成作品集改造。"
+  },
+  "sections": [
+    {
+      "source_block_ids": ["block-009"],
+      "semantic_role": "checklist",
+      "visual_priority": "medium",
+      "component_intent": "numbered_insight",
+      "reasoning": "原文是三个并列的项目定义问题，适合帮助读者快速自查，但不改变其原有顺序。"
+    },
+    {
+      "source_block_ids": ["block-012"],
+      "semantic_role": "logic_sequence",
+      "visual_priority": "high",
+      "component_intent": "logic_path",
+      "reasoning": "原文明确给出四步决策复盘链路，适合表现从约束到最终回应的先后关系。"
+    },
+    {
+      "source_block_ids": ["block-014"],
+      "semantic_role": "key_evidence",
+      "visual_priority": "medium",
+      "component_intent": "evidence_callout",
+      "reasoning": "这是一句已经存在的核心判断，承担章节之间的停顿与价值强调。"
+    },
+    {
+      "source_block_ids": ["block-016", "block-017", "block-018", "block-019"],
+      "semantic_role": "comparison",
+      "visual_priority": "high",
+      "component_intent": "concept_explainer",
+      "reasoning": "两个连续小主题分别解释任务描述与结果表达，适合作为同组词条呈现差别。"
+    }
+  ],
+  "image_intents": [
+    {
+      "anchor_block_id": "block-012",
+      "source_block_ids": ["block-012"],
+      "purpose": "structured_infographic",
+      "necessity": "recommended",
+      "aspect_ratio": "16:9",
+      "visual_metaphor": "一份散落的课程作业沿着四个连续工作台逐步变成完整作品集，节点之间由纸张轨迹自然连接。",
+      "visual_role": "explain_sequence",
+      "learning_objective": "让读者一眼理解作品集改造需要保留约束、筛选重点、解释取舍并回应问题。",
+      "layout_family": "linear_progression",
+      "forbidden_elements": ["qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    },
+    {
+      "anchor_block_id": "block-015",
+      "source_block_ids": ["block-015", "block-016", "block-017", "block-018", "block-019"],
+      "purpose": "atmosphere",
+      "necessity": "optional",
+      "aspect_ratio": "4:3",
+      "visual_metaphor": "学生在桌面上把访谈便签、原型草图和反馈记录重新组合，最终形成一张清晰的作品展示页。",
+      "visual_role": "establish_context",
+      "learning_objective": "建立从完成任务转向解释能力与变化的章节语境。",
+      "layout_family": "semantic_scene",
+      "forbidden_elements": ["text_in_model_image", "qr_code", "logo", "official_seal", "fabricated_data", "brand_cta"]
+    }
+  ],
+  "art_direction": {
+    "tone": ["年轻", "清爽", "有行动感", "可信"],
+    "palette_roles": ["soft_sky", "sunlit_yellow", "muted_teal", "warm_ivory"],
+    "style_family": "editorial_paper_cut",
+    "avoid_recent_patterns": ["history:structured_grid 的数据脊柱与坐标定义 -> change:本篇改用纸张轨迹、学习桌面和开放留白组织步骤"]
+  },
+  "facts_locked": true
+}

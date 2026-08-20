@@ -5,13 +5,14 @@ from typing import Any
 from .brief_compiler import visual_system_configuration, visual_system_variant
 from .component_catalog import (
     COMPONENT_CATALOG,
+    COMPONENT_LIBRARY_VERSION,
     CORE_THEME_COMPONENTS,
     VISUAL_SYSTEM_CATALOG,
     VISUAL_SYSTEM_ORDER,
 )
 from .components import render_component
 from .parser import ContentBlock, ParsedArticle, parse_markdown
-from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives
+from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
 
 
 THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.4"
@@ -578,6 +579,7 @@ def _rhythm_primitives(
 
 
 def _full_preview(
+    visual_system: str,
     theme: dict[str, Any],
     specimens: list[dict[str, Any]],
     primitives: list[dict[str, str]],
@@ -586,13 +588,32 @@ def _full_preview(
     body: list[str] = [
         '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">'
     ]
-    if theme["label"] == "温暖人文":
+    if visual_system in EXTENDED_THEME_IDS:
+        extended_hero = render_extended_hero(
+            "把复杂选择变成一条清晰的行动路线",
+            theme["label"],
+            COMPONENT_LIBRARY_VERSION,
+            theme["english"],
+            visual_system_configuration(visual_system),
+        )
+        if extended_hero:
+            body.append(extended_hero)
+    elif theme["label"] == "轻盈阅读":
+        body.extend(
+            [
+                f'<header data-content-role="article-metadata-preview" data-theme-grammar="airy-open-cover" style="padding:34px 0 24px;border-bottom:1px solid {palette["sky"]};">',
+                f'<p style="margin:0 0 13px;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.16em;">AIRY READING · {theme["label"]}</p>',
+                f'<h1 style="margin:0;color:{palette["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;line-height:1.38;font-weight:750;letter-spacing:-.02em;">把复杂选择变成一条清晰的行动路线</h1>',
+                f'<p style="margin:19px 0 -7px;white-space:nowrap;"><span style="display:inline-block;width:67%;border-top:1px dotted {palette["sky"]};vertical-align:middle;"></span><span style="display:inline-block;width:28px;height:14px;margin-left:11px;border-radius:20px 3px 20px 3px;background-color:{palette["secondary"]};transform:rotate(-12deg);vertical-align:middle;"></span><span style="display:inline-block;width:7px;height:7px;margin-left:7px;border-radius:50%;background-color:{palette["accent"]};vertical-align:middle;"></span></p></header>',
+            ]
+        )
+    elif theme["label"] == "温暖人文":
         body.extend(
             [
                 f'<header style="padding:0 0 24px 18px;border-left:6px solid {palette["secondary"]};border-bottom:1px solid #D7B995;">',
                 f'<p style="margin:0 0 13px -19px;"><span style="display:inline-block;padding:5px 11px;background-color:{palette["accent_pale"]};color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">{theme["label"]}</span></p>',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:29px;line-height:1.42;">把复杂选择变成一条清晰的行动路线</h1>',
-                '<p style="margin:16px 0 0;color:#7B6861;font-size:13px;line-height:1.75;">主题统一的是叙事温度与纸页节奏，而不是重复同一种卡片。</p></header>',
+                f'<p style="width:58px;height:8px;margin:18px 0 -4px;background-color:{palette["secondary"]};opacity:.72;transform:rotate(-3deg);"></p></header>',
             ]
         )
     elif theme["label"] == "青春校园":
@@ -602,7 +623,7 @@ def _full_preview(
                 f'<p style="width:72px;height:12px;margin:0 0 -4px 17px;background-color:{palette["secondary"]};transform:rotate(-4deg);"></p>',
                 f'<section style="padding:18px;border:2px solid {palette["primary"]};border-radius:6px 22px 22px 22px;background-color:{palette["surface"]};box-shadow:7px 7px 0 {palette["accent_pale"]};"><p style="margin:0 0 11px;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;">{theme["label"]}</p>',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:820;">把复杂选择变成一条清晰的行动路线</h1>',
-                '<p style="margin:16px 0 0;color:#63718A;font-size:13px;line-height:1.75;">主题统一的是参与感和贴页节奏，不是堆满彩色卡片。</p></section></header>',
+                f'<p style="width:42%;height:3px;margin:17px 0 0;background-color:{palette["sky"]};"></p></section></header>',
             ]
         )
     elif theme["label"] == "编辑对比":
@@ -611,7 +632,7 @@ def _full_preview(
                 f'<header style="padding:0 0 22px;border-top:13px solid {palette["ink"]};border-bottom:4px solid {palette["ink"]};">',
                 f'<p style="margin:15px 0 11px;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;">{theme["label"]}<span style="display:inline-block;width:52px;height:7px;margin-left:11px;background-color:{palette["primary"]};"></span></p>',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-size:30px;line-height:1.36;font-weight:850;">把复杂选择变成一条清晰的行动路线</h1>',
-                '<p style="margin:16px 0 0;padding-top:8px;border-top:1px solid #202B33;color:#687370;font-size:13px;line-height:1.7;text-align:right;">主题统一的是编辑秩序与观点强度。</p></header>',
+                f'<p style="margin:17px 0 0;border-top:1px solid #202B33;text-align:right;"><span style="display:inline-block;width:32%;height:8px;background-color:{palette["primary"]};"></span></p></header>',
             ]
         )
     elif theme["label"] == "未来科技":
@@ -621,7 +642,17 @@ def _full_preview(
                 f'<p style="width:29%;height:5px;margin:0 0 15px;background-color:{palette["secondary"]};"></p>',
                 f'<section style="white-space:normal;"><span style="display:inline-block;width:21%;color:{palette["accent"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.13em;vertical-align:top;">{theme["label"]}</span><section style="box-sizing:border-box;display:inline-block;width:79%;padding-left:15px;border-left:2px solid {palette["secondary"]};vertical-align:top;">',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:820;">把复杂选择变成一条清晰的行动路线</h1>',
-                '<p style="margin:16px 0 0;color:#607985;font-size:13px;line-height:1.75;">主题统一的是信号轨道和模块秩序，而不是黑底科技感。</p></section></section></header>',
+                f'<p style="height:3px;margin:17px 0 0;background:linear-gradient(90deg,{palette["secondary"]} 0%,{palette["secondary"]} 28%,{palette["sky_pale"]} 28%);"></p></section></section></header>',
+            ]
+        )
+    elif theme["label"] == "理性网格":
+        body.extend(
+            [
+                f'<header style="padding:30px 0 23px;border-top:8px solid {palette["primary"]};border-bottom:1px solid #AEBBB5;">',
+                f'<section style="white-space:normal;"><span style="display:inline-block;width:25%;color:{palette["secondary"]};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;vertical-align:top;">GRID<br>INDEX 01</span><section style="box-sizing:border-box;display:inline-block;width:75%;padding-left:15px;border-left:1px solid #AEBBB5;vertical-align:top;">',
+                f'<p style="margin:0 0 10px;color:{palette["accent"]};font-size:10px;font-weight:800;letter-spacing:.14em;">{theme["label"]}</p>',
+                f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.38;font-weight:800;letter-spacing:-.02em;">把复杂选择变成一条清晰的行动路线</h1></section></section>',
+                f'<p style="margin:17px 0 0;border-top:1px solid #AEBBB5;text-align:right;"><span style="display:inline-block;width:18%;height:6px;background-color:{palette["secondary"]};"></span></p></header>',
             ]
         )
     else:
@@ -629,7 +660,7 @@ def _full_preview(
             [
                 f'<p style="margin:0 0 12px;color:{palette["primary"]};font-size:10px;font-weight:750;letter-spacing:.16em;">{theme["label"]}</p>',
                 f'<h1 style="margin:0;color:{palette["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:29px;line-height:1.42;">把复杂选择变成一条清晰的行动路线</h1>',
-                '<p style="margin:17px 0 28px;color:#65706D;font-size:13px;line-height:1.75;">主题统一的是设计基因，而不是把每一段都装进同一种卡片。</p>',
+                f'<p style="width:32%;height:3px;margin:18px 0 27px;background-color:{palette["secondary"]};"></p>',
             ]
         )
     if theme.get("english") == "CAMPUS BULLETIN":
@@ -637,14 +668,14 @@ def _full_preview(
             '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
             f'<header style="padding:0 8px 27px 0;"><p style="margin:0 0 -8px 19px;"><span style="display:inline-block;padding:5px 12px;background-color:{palette["secondary"]};color:{palette["ink"]};font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">CAMPUS BULLETIN</span></p>',
             f'<section style="padding:22px 18px 19px 28px;border-left:11px dotted {palette["sky"]};border-bottom:4px solid {palette["primary"]};background-color:{palette["surface"]};box-shadow:8px 8px 0 {palette["secondary_pale"]};"><h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1>',
-            f'<p style="margin:16px 0 0;padding-top:11px;border-top:2px dashed {palette["sky"]};color:#63718A;font-size:13px;line-height:1.75;">主题统一的是公告栏、活页与票根节奏，不是重复彩色卡片。</p></section></header>',
+            f'<p style="margin:17px 0 0;border-top:2px dashed {palette["sky"]};"></p></section></header>',
         ]
     elif theme.get("english") == "FUTURE EDITION":
         body = [
             '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
             f'<header style="padding:24px 20px 20px;border-left:6px solid {palette["primary"]};border-radius:0 62px 0 24px;background:linear-gradient(135deg,{palette["surface"]} 0%,{palette["pale"]} 48%,{palette["secondary_pale"]} 100%);box-shadow:8px 8px 0 {palette["sky_pale"]};">',
             f'<p style="margin:0 0 15px;color:{palette["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">FUTURE EDITION <span style="color:{palette["accent"]};">●</span></p>',
-            f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1><p style="margin:16px 0 0;padding-top:11px;border-top:1px solid {palette["sky"]};color:#69738F;font-size:13px;line-height:1.75;">主题统一的是极光色带、错位留白和科学杂志节奏，不是技术术语与密集线框。</p><p style="margin:10px 0 -28px;text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette["secondary"]};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette["accent"]};"></span></p></header>',
+            f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1><p style="margin:18px 0 -28px;padding-top:11px;border-top:1px solid {palette["sky"]};text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette["secondary"]};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette["accent"]};"></span></p></header>',
         ]
     body.append(
         f'<p style="margin:26px 0 20px;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">真正有效的排版，不是把每一段都装进卡片，而是帮助读者迅速看见重点、证据和下一步。</p>'
@@ -714,7 +745,13 @@ def build_theme_gallery() -> list[dict[str, Any]]:
                 },
                 "components": specimens,
                 "rhythm_primitives": primitives,
-                "full_preview_html": _full_preview(metadata, specimens, primitives, palette),
+                "full_preview_html": _full_preview(
+                    visual_system,
+                    metadata,
+                    specimens,
+                    primitives,
+                    palette,
+                ),
             }
         )
     return themes

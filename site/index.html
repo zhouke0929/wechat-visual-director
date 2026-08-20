@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="WeChat Visual Director：历史感知、多主题、可人工确认的公众号视觉主编 Skill。"
+    />
+    <title>WeChat Visual Director · 公众号视觉主编</title>
+    <link rel="stylesheet" href="./styles.css?v=20260820-2" />
+  </head>
+  <body>
+    <header class="site-nav">
+      <a class="brand" href="#top" aria-label="返回顶部">
+        <span class="brand-mark">VD</span>
+        <span><b>公众号视觉主编 Skill</b><small>WECHAT VISUAL DIRECTOR</small></span>
+      </a>
+      <nav aria-label="页面导航">
+        <a href="#cases">真实案例</a>
+        <a href="#themes">主题样册</a>
+        <a href="#workflow">工作方式</a>
+      </nav>
+      <div class="nav-actions">
+        <button class="copy-install" id="copyInstallPrompt" type="button" data-copy-install>复制安装提示词</button>
+        <a class="nav-cta" href="https://github.com/zhouke0929/wechat-visual-director" target="_blank" rel="noreferrer">GitHub ↗</a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero section-pad">
+        <div class="hero-copy">
+          <p class="eyebrow">AI AGENT SKILL · OPEN-SOURCE · LOCAL-FIRST</p>
+          <h1>不是给 Markdown<br />换一件衣服。</h1>
+          <p class="hero-thesis">而是先理解文章，再决定视觉节奏。</p>
+          <p class="hero-desc">
+            一套面向公众号运营的视觉主编 Skill：宿主 Agent 理解内容，本地核心守住结构与事实，运营在工作台确认主题、配图和封面，最后写入微信公众号草稿箱。
+          </p>
+          <div class="hero-actions" aria-describedby="installCopyHint">
+            <a class="button primary" href="#cases">看真实文章</a>
+            <button class="button secondary" id="heroCopyInstallPrompt" type="button" data-copy-install>交给 Agent 安装</button>
+          </div>
+          <p class="install-copy-hint" id="installCopyHint" aria-live="polite">点击后复制完整安装提示词，再粘贴到任意 Agent 对话中。</p>
+          <dl class="hero-stats">
+            <div><dt>12</dt><dd>完整视觉主题</dd></div>
+            <div><dt>12</dt><dd>语义组件类型</dd></div>
+            <div><dt>390px</dt><dd>微信内容预览</dd></div>
+          </dl>
+        </div>
+
+        <div class="hero-stage" aria-label="三篇公众号文章预览">
+          <div class="stage-note note-top">内容结构 → 视觉意图 → 确定性渲染</div>
+          <article class="phone phone-back">
+            <div class="phone-top"><span>9:41</span><i></i><span>•••</span></div>
+            <iframe title="温暖人文文章预览" src="./articles/coffee.html" loading="eager"></iframe>
+          </article>
+          <article class="phone phone-front">
+            <div class="phone-top"><span>9:41</span><i></i><span>•••</span></div>
+            <iframe title="青春校园文章预览" src="./articles/campus.html" loading="eager"></iframe>
+            <footer><span class="avatar">V</span><b>公众号预览</b><span>赞　分享　推荐</span></footer>
+          </article>
+          <img class="stage-image" src="./assets/generated/campus-portfolio-scene.webp" alt="学生整理课程项目作品集的编辑插画" />
+          <div class="stage-note note-bottom">正文不改写 · 主题可切换 · 图片需确认</div>
+        </div>
+      </section>
+
+      <section class="proof-strip" aria-label="核心能力">
+        <span>宿主 Agent 复用现有模型</span>
+        <span>最近五篇主题去重</span>
+        <span>微信兼容内联 HTML</span>
+        <span>本地密钥与数据</span>
+        <span>人工确认后交付</span>
+      </section>
+
+      <section class="cases section-pad" id="cases">
+        <header class="section-head">
+          <div><p class="eyebrow">REAL ARTICLE SHOWCASE / 03</p><h2>三种内容，不用同一种模板硬套。</h2></div>
+          <p>以下案例由当前版本的结构规划器、主题系统和微信渲染器生成。配图来自本轮 OpenAI 图像生成，并作为人工候选插入文章。</p>
+        </header>
+
+        <div class="case-list">
+          <article class="case-card case-campus">
+            <div class="case-copy">
+              <p class="case-no">CASE 01 · CAMPUS PROJECT</p>
+              <h3>别让课程作业<br />停在文件夹里</h3>
+              <p>教程步骤类内容选择「青春校园」：活页纸、课程票根与手作拼贴形成行动感，四步改造路径被识别为结构信息图。</p>
+              <ul><li>主题：青春校园</li><li>信息关系：四步路径</li><li>配图：结构信息图 + 场景插画</li></ul>
+              <a href="./articles/campus.html" target="_blank">打开完整排版 ↗</a>
+            </div>
+            <div class="case-media collage-media">
+              <img src="./assets/generated/campus-portfolio-steps.webp" alt="课程作业改造为作品集的四步信息图" />
+              <img src="./assets/generated/campus-portfolio-scene.webp" alt="学生整理项目材料的场景插画" />
+            </div>
+          </article>
+
+          <article class="case-card case-coffee">
+            <div class="case-copy">
+              <p class="case-no">CASE 02 · LOCAL BUSINESS</p>
+              <h3>社区咖啡店<br />如何让客人再来</h3>
+              <p>本地商业观点内容选择「温暖人文」：真实生活场景承接情绪，闭环路径解释一次活动如何留下下一次到店的理由。</p>
+              <ul><li>主题：温暖人文</li><li>信息关系：复访闭环</li><li>配图：真实场景 + 关系路径</li></ul>
+              <a href="./articles/coffee.html" target="_blank">打开完整排版 ↗</a>
+            </div>
+            <div class="case-media split-media">
+              <img src="./assets/generated/coffee-repeat-scene.webp" alt="清晨社区咖啡店的真实生活场景" />
+              <img src="./assets/generated/coffee-repeat-path.webp" alt="社区咖啡店旧书交换活动的复访路径图" />
+            </div>
+          </article>
+
+          <article class="case-card case-pop">
+            <div class="case-copy">
+              <p class="case-no">CASE 03 · BRAND COLLABORATION</p>
+              <h3>联名很热闹<br />品牌却没被记住</h3>
+              <p>品牌观点内容选择「波普海报」：撞色切块、错位套印与撕纸拼贴承接联名话题的传播感，四种主题专属组件把概念、误区和行动路径组织成一篇完整文章。</p>
+              <ul><li>主题：波普海报</li><li>信息关系：记忆三层 + 上新核对</li><li>配图：波普拼贴 + 共同体验场景</li></ul>
+              <a href="./articles/pop-collaboration.html" target="_blank">打开完整排版 ↗</a>
+            </div>
+            <div class="case-media pop-media">
+              <img src="./assets/generated/pop-collaboration-memory.webp" alt="联名视觉噪声与中心记忆符号的波普拼贴" />
+              <img src="./assets/generated/pop-collaboration-experience.webp" alt="两个品牌共同搭建参与式体验的波普拼贴" />
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="image-direction section-pad" id="image-system">
+        <header class="section-head image-head">
+          <div>
+            <p class="eyebrow">ARTICLE-LEVEL VISUAL DNA</p>
+            <h2>图片不是散装生成，<br />而是共享一份美术方向。</h2>
+          </div>
+          <p>文章决定画什么、解释什么关系；主题系统决定色板、画材、表面语言和构图气质。正文插图与封面共享同一份 Visual DNA，生成后仍由运营人工确认。</p>
+        </header>
+
+        <div class="image-dna-grid">
+          <article class="visual-card visual-structure">
+            <figure><img src="./assets/generated/campus-portfolio-steps.webp" alt="课程作业改造为作品集的四步结构信息图" /></figure>
+            <div><span>01 / STRUCTURE</span><h3>结构信息图</h3><p>把步骤、对比和关系变成可扫读的画面，不把整段正文塞进图片。</p></div>
+          </article>
+          <article class="visual-card visual-scene">
+            <figure><img src="./assets/generated/coffee-repeat-scene.webp" alt="社区咖啡店活动的真实生活场景插画" /></figure>
+            <div><span>02 / ATMOSPHERE</span><h3>场景氛围图</h3><p>用环境、人物动作和光线承接情绪，让图片服务叙事而不是只做装饰。</p></div>
+          </article>
+          <article class="visual-card visual-metaphor">
+            <figure><img src="./assets/generated/pop-collaboration-experience.webp" alt="两个品牌共同搭建参与式体验的波普拼贴" /></figure>
+            <div><span>03 / METAPHOR</span><h3>视觉隐喻图</h3><p>用主题专属画材表达抽象观点，同时锁定原文事实与允许出现的短标签。</p></div>
+          </article>
+        </div>
+
+        <div class="dna-formula" aria-label="图片 Visual DNA 编译关系">
+          <span><b>内容事实</b><small>画什么</small></span><i>×</i>
+          <span><b>语义关系</b><small>怎么组织</small></span><i>×</i>
+          <span><b>当前主题</b><small>用什么视觉语言</small></span><i>→</i>
+          <strong>人工确认后的配图</strong>
+        </div>
+      </section>
+
+      <section class="themes section-pad" id="themes">
+        <header class="section-head light-head">
+          <div><p class="eyebrow">LIVE THEME LIBRARY / 12</p><h2>主题不是换色，<br />而是一整套阅读气质。</h2></div>
+          <p>点击主题即可即时查看同一篇示例文章的标题、留白、节奏部件和语义组件如何共同变化。数据直接导出自当前组件库。</p>
+        </header>
+        <div class="theme-workbench">
+          <div class="theme-index" id="themeIndex" aria-label="主题列表"></div>
+          <div class="theme-demo">
+            <div class="demo-meta">
+              <span id="themeEnglish">CAMPUS BULLETIN</span>
+              <div class="swatches" id="themeSwatches"></div>
+            </div>
+            <div class="demo-copy"><h3 id="themeLabel">青春校园</h3><p id="themeDescription"></p></div>
+            <div class="preview-shell">
+              <span class="preview-badge">真实主题 · 所见即所得</span>
+              <div class="preview-scroll" id="themePreview"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="difference section-pad">
+        <header class="section-head">
+          <div><p class="eyebrow">WHY DIFFERENT</p><h2>让模型负责理解，<br />让程序负责稳定。</h2></div>
+        </header>
+        <div class="difference-grid">
+          <article><span>01</span><h3>不是自由生成 HTML</h3><p>模型只输出受控 EditorialBrief；标题层级、数字、来源和正文结构由本地核心保护。</p></article>
+          <article><span>02</span><h3>不是固定模板复用</h3><p>12 套主题各自拥有章节装饰、节奏原语和组件变体，并参考最近五篇减少连续重复。</p></article>
+          <article><span>03</span><h3>不是生成后自动发布</h3><p>图片、封面和最终稿必须经过人工确认；只有用户主动操作才会创建公众号草稿。</p></article>
+        </div>
+      </section>
+
+      <section class="workflow section-pad" id="workflow">
+        <p class="eyebrow">ONE CONVERSATION, ONE LOCAL WORKBENCH</p>
+        <h2>从一个选题，到公众号草稿箱。</h2>
+        <ol>
+          <li><b>01</b><span><strong>提出主题或资料</strong>宿主 Agent 生成规范 Markdown 与视觉意图。</span></li>
+          <li><b>02</b><span><strong>打开本地工作台</strong>立即查看主题、组件、图片和手机端效果。</span></li>
+          <li><b>03</b><span><strong>人工确认关键资产</strong>可换主题、换图、裁封面或跳过不必要的图片。</span></li>
+          <li><b>04</b><span><strong>交付到公众号</strong>复制全文、下载交付包或调用官方 API 创建草稿。</span></li>
+        </ol>
+      </section>
+
+      <section class="final-cta section-pad">
+        <p class="eyebrow">OPEN SOURCE · ALPHA</p>
+        <h2>把仓库链接交给 Agent，<br />让它替你完成安装。</h2>
+        <p>Windows x64 便携版无需预装 Git、Python、Node.js、pnpm 或 Wenyan。项目仍处于 Alpha 阶段，欢迎用真实文章反馈主题与交互问题。</p>
+        <div class="hero-actions">
+          <a class="button primary" href="https://github.com/zhouke0929/wechat-visual-director/releases" target="_blank" rel="noreferrer">查看最新 Release ↗</a>
+          <a class="button secondary dark" href="https://github.com/zhouke0929/wechat-visual-director" target="_blank" rel="noreferrer">Star on GitHub</a>
+        </div>
+      </section>
+    </main>
+
+    <div class="copy-toast" id="copyToast" role="status" aria-live="polite">已复制，可直接粘贴给 Agent</div>
+    <footer class="site-footer"><span>WECHAT VISUAL DIRECTOR</span><span>LOCAL-FIRST · OPEN SOURCE · HUMAN REVIEW</span><span>2026</span></footer>
+    <script src="./app.js?v=20260820-2" type="module"></script>
+  </body>
+</html>
