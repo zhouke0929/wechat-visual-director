@@ -1,6 +1,6 @@
-# WeChat Visual Director
+# WeChat Visual Director — 微信公众号 AI 排版 Skill
 
-> 把公众号主题、资料或 Markdown 初稿，转换为可人工确认、可复制交付、可写入微信公众号草稿箱的视觉文章。
+> 开源微信公众号排版 Skill：把主题、资料或 Markdown 初稿转换为可换主题、可配图、可手机预览，并能写入微信公众号草稿箱的视觉文章。
 
 [![Release](https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&label=release)](https://github.com/zhouke0929/wechat-visual-director/releases)
 [![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
@@ -8,7 +8,9 @@
 [![Platform](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
 [![macOS](https://img.shields.io/badge/macOS-technical_preview-777777)](#macos-技术预览)
 
-`wechat-visual-director` 是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染；运营只需要确认整篇主题、图片与封面。模型不会自由生成整段 HTML/CSS，也不会绕过人工确认自动群发。
+`wechat-visual-director` 面向公众号运营、新媒体团队和使用 AI Agent 提效的内容创作者，是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染；运营只需要确认整篇主题、图片与封面。模型不会自由生成整段 HTML/CSS，也不会绕过人工确认自动群发。
+
+它覆盖微信公众号文章排版、Markdown 转微信兼容 HTML、AI 配图、拟真手机预览、富文本复制和公众号草稿箱交付；既可以零 Key 只做排版，也可以按需连接图片模型和微信官方 API。
 
 <p align="center">
   <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>在线浏览产品与 12 套主题</b></a>

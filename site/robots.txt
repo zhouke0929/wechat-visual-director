@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://zhouke0929.github.io/wechat-visual-director/sitemap.xml

@@ -1,0 +1,26 @@
+# WeChat Visual Director
+
+WeChat Visual Director（微信公众号 AI 排版 Skill）是一个本地优先的开源 Agent Skill 与可视化工作台。
+
+它把公众号主题、资料或 Markdown 初稿转换为微信兼容视觉文章，提供 12 套可切换视觉主题、语义组件、AI 配图、封面裁切、390px 内容校对、拟真手机预览、富文本复制、交付包下载和微信公众号草稿箱写入。
+
+## 适合谁
+
+- 希望使用 AI Agent 提升公众号生产效率的运营和新媒体团队
+- 需要将 Markdown 转换为微信公众号兼容排版的内容创作者
+- 希望保留人工审核，同时减少重复排版、配图和草稿上传工作的团队
+
+## 产品边界
+
+- 宿主 Agent 理解文章并生成结构化视觉意图
+- 本地核心使用确定性组件渲染，不允许模型自由生成整段 HTML/CSS
+- 图片候选、封面和最终草稿均保留人工确认
+- 创建公众号草稿不等于最终群发
+- 本地配置、任务数据库和密钥不会进入公开仓库
+
+## Links
+
+- Product showcase: https://zhouke0929.github.io/wechat-visual-director/
+- GitHub repository: https://github.com/zhouke0929/wechat-visual-director
+- Releases: https://github.com/zhouke0929/wechat-visual-director/releases
+- License: Apache-2.0
