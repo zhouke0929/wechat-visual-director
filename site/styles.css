@@ -131,9 +131,9 @@ img { max-width: 100%; }
 .image-direction { overflow: hidden; background: #e7eee9; }
 .image-head { margin-bottom: 52px; }
 .image-head h2 { max-width: 900px; }
-.image-dna-grid { display: grid; grid-template-columns: 1.12fr .88fr .88fr; gap: 14px; }
-.visual-card { min-width: 0; display: grid; grid-template-rows: minmax(260px, 1fr) auto; overflow: hidden; border: 1px solid rgba(19,33,31,.25); background: var(--white); }
-.visual-card figure { position: relative; min-height: 0; margin: 0; overflow: hidden; background: #d7e5df; }
+.image-dna-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+.visual-card { min-width: 0; display: grid; grid-template-rows: auto 1fr; overflow: hidden; border: 1px solid rgba(19,33,31,.25); background: var(--white); }
+.visual-card figure { position: relative; min-height: 0; aspect-ratio: 16 / 10; margin: 0; overflow: hidden; background: #d7e5df; }
 .visual-card figure::after { content: ""; position: absolute; inset: 12px; border: 1px solid rgba(255,255,255,.72); pointer-events: none; }
 .visual-card img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .5s ease; }
 .visual-card:hover img { transform: scale(1.025); }
@@ -141,17 +141,17 @@ img { max-width: 100%; }
 .visual-card span { color: var(--coral); font-size: 8px; font-weight: 850; letter-spacing: .18em; }
 .visual-card h3 { margin: 12px 0 0; font: 760 27px/1.2 var(--serif); }
 .visual-card p { margin: 13px 0 0; color: #5c6864; font-size: 12px; line-height: 1.75; }
-.visual-structure { transform: translateY(-12px); }
 .visual-structure > div { border-color: #3169d8; }
 .visual-scene > div { border-color: #b56f48; }
-.visual-metaphor { transform: translateY(18px); }
 .visual-metaphor > div { border-color: #ef315d; }
-.dna-formula { margin-top: 48px; display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr) 24px) minmax(190px, 1.2fr); align-items: center; border-top: 1px solid rgba(19,33,31,.28); border-bottom: 1px solid rgba(19,33,31,.28); }
-.dna-formula span, .dna-formula strong { min-height: 92px; display: flex; flex-direction: column; justify-content: center; padding: 18px 22px; }
-.dna-formula b, .dna-formula strong { font: 740 18px/1.3 var(--serif); }
-.dna-formula small { margin-top: 6px; color: #68736f; font-size: 9px; letter-spacing: .08em; }
-.dna-formula i { color: var(--coral); font: 760 20px/1 var(--serif); text-align: center; }
-.dna-formula strong { color: white; background: var(--teal-dark); font-size: 20px; }
+.dna-flow { margin: 46px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); list-style: none; border-top: 1px solid rgba(19,33,31,.28); border-bottom: 1px solid rgba(19,33,31,.28); }
+.dna-flow li { position: relative; min-height: 116px; display: grid; align-content: center; gap: 7px; padding: 22px 40px 22px 24px; border-right: 1px solid rgba(19,33,31,.2); }
+.dna-flow li:last-child { border-right: 0; color: white; background: var(--teal-dark); }
+.dna-flow li:not(:last-child)::after { content: "→"; position: absolute; right: 14px; top: 50%; color: var(--coral); font: 760 20px/1 var(--serif); transform: translateY(-50%); }
+.dna-flow span { color: var(--coral); font-size: 8px; font-weight: 850; letter-spacing: .18em; }
+.dna-flow b { font: 740 20px/1.3 var(--serif); }
+.dna-flow small { color: #68736f; font-size: 10px; line-height: 1.55; }
+.dna-flow li:last-child small { color: #b8c6c1; }
 
 .themes { color: #f7f3e8; background: var(--teal-dark); }
 .themes .eyebrow { color: var(--yellow); }
@@ -229,11 +229,11 @@ img { max-width: 100%; }
   .case-card { grid-template-columns: 1fr; }
   .case-media { min-height: 500px; }
   .case-copy a { margin-top: 34px; }
-  .image-dna-grid { grid-template-columns: 1fr 1fr; }
-  .visual-structure, .visual-metaphor { transform: none; }
-  .visual-structure { grid-column: 1 / 3; }
-  .dna-formula { grid-template-columns: 1fr 24px 1fr; }
-  .dna-formula strong { grid-column: 1 / -1; min-height: 72px; }
+  .image-dna-grid { grid-template-columns: 1fr; }
+  .dna-flow { grid-template-columns: 1fr; }
+  .dna-flow li { border-right: 0; border-bottom: 1px solid rgba(19,33,31,.2); }
+  .dna-flow li:last-child { border-bottom: 0; }
+  .dna-flow li:not(:last-child)::after { content: "↓"; right: 22px; }
   .theme-index { grid-template-columns: repeat(2, 1fr); }
   .theme-demo { grid-template-columns: 1fr; }
   .demo-meta, .demo-copy, .preview-shell { grid-column: 1; }
@@ -258,12 +258,6 @@ img { max-width: 100%; }
   .hero-stats dt { font-size: 24px; }
   .case-copy { padding: 34px 22px; }
   .case-media { min-height: 360px; }
-  .image-dna-grid { grid-template-columns: 1fr; }
-  .visual-structure { grid-column: auto; }
-  .visual-card { grid-template-rows: 260px auto; }
-  .dna-formula { grid-template-columns: 1fr; }
-  .dna-formula i { padding: 2px 0; transform: rotate(90deg); }
-  .dna-formula strong { grid-column: auto; text-align: center; }
   .theme-index { grid-template-columns: 1fr; }
   .theme-button { min-height: 60px; }
   .theme-demo { padding: 24px 12px; }
