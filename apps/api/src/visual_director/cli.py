@@ -403,6 +403,55 @@ def _multipart_markdown(
     return b"".join(chunks), boundary
 
 
+def _multipart_image_import(
+    path: Path,
+    *,
+    request_id: str,
+    expected_plan_revision: int,
+    expected_image_revision: int,
+    host_name: str,
+    host_model: str,
+) -> tuple[bytes, str]:
+    boundary = f"----visual-director-{uuid.uuid4().hex}"
+    chunks: list[bytes] = []
+
+    def field(name: str, value: str) -> None:
+        chunks.extend(
+            [
+                f"--{boundary}\r\n".encode(),
+                f'Content-Disposition: form-data; name="{name}"\r\n\r\n'.encode(),
+                value.encode("utf-8"),
+                b"\r\n",
+            ]
+        )
+
+    field("request_id", request_id)
+    field("expected_plan_revision", str(expected_plan_revision))
+    field("expected_image_revision", str(expected_image_revision))
+    field("host_name", host_name)
+    field("host_model", host_model)
+    content_types = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }
+    content_type = content_types.get(path.suffix.lower(), "application/octet-stream")
+    chunks.extend(
+        [
+            f"--{boundary}\r\n".encode(),
+            (
+                f'Content-Disposition: form-data; name="image_file"; filename="{path.name}"\r\n'
+                f"Content-Type: {content_type}\r\n\r\n"
+            ).encode("utf-8"),
+            path.read_bytes(),
+            b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        ]
+    )
+    return b"".join(chunks), boundary
+
+
 def _spawn_detached(
     command: list[str],
     *,
@@ -1211,6 +1260,95 @@ def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _image_context(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.no_start:
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
+    detail = _request_json(
+        "GET",
+        f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}",
+        timeout=15,
+    )
+    task = detail.get("task") if isinstance(detail.get("task"), dict) else {}
+    plan_id = str(task.get("selected_plan_id") or "")
+    if not plan_id:
+        raise CliError(
+            "image_plan_not_selected",
+            "任务还没有选定可处理图片的视觉方案",
+            exit_code=5,
+            details={"task_id": args.task_id},
+        )
+    context = _request_json(
+        "GET",
+        f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{plan_id}/host-image-context",
+        timeout=30,
+    )
+    requests = context.get("requests") if isinstance(context.get("requests"), list) else []
+    return {
+        "ok": True,
+        "schema_version": "host_image_context_result.v0.1",
+        "task_id": args.task_id,
+        "plan_id": plan_id,
+        "visual_system": context.get("visual_system"),
+        "plan_revision": context.get("plan_revision"),
+        "prompt_version": context.get("prompt_version"),
+        "requests": requests,
+        "output_rules": context.get("output_rules") or [],
+        "request_count": len(requests),
+        "next_action": "generate_images_with_host" if requests else "human_review",
+        "review_url": f"{args.web_base.rstrip('/')}/tasks/{args.task_id}",
+    }
+
+
+def _image_import(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.no_start:
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
+    image_path = Path(args.file).expanduser().resolve()
+    if not image_path.is_file():
+        raise CliError(
+            "image_file_not_found",
+            "找不到宿主 Agent 生成的图片文件",
+            exit_code=2,
+            details={"path": str(image_path)},
+        )
+    if image_path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise CliError("unsupported_image_type", "只支持 PNG、JPEG 和 WEBP", exit_code=2)
+    if image_path.stat().st_size > 8 * 1024 * 1024:
+        raise CliError("image_too_large", "宿主 Agent 生成的图片不能超过 8MB", exit_code=2)
+    body, boundary = _multipart_image_import(
+        image_path,
+        request_id=args.request_id,
+        expected_plan_revision=args.expected_plan_revision,
+        expected_image_revision=args.expected_image_revision,
+        host_name=args.host_name,
+        host_model=args.host_model,
+    )
+    payload = _request_json(
+        "POST",
+        (
+            f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{args.plan_id}"
+            f"/image-slots/{args.image_slot_id}/host-import"
+        ),
+        body=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        timeout=45,
+    )
+    state = payload.get("image_slot") if isinstance(payload.get("image_slot"), dict) else {}
+    return {
+        "ok": True,
+        "schema_version": "host_image_import_result.v0.1",
+        "task_id": args.task_id,
+        "plan_id": args.plan_id,
+        "image_slot_id": args.image_slot_id,
+        "request_id": args.request_id,
+        "candidate_count": len(state.get("candidates") or []),
+        "image_revision": state.get("image_revision"),
+        "theme_compatibility": payload.get("theme_compatibility"),
+        "review_notice": payload.get("review_notice"),
+        "review_url": f"{args.web_base.rstrip('/')}/tasks/{args.task_id}",
+        "next_action": "human_review",
+    }
+
+
 def _task_status(args: argparse.Namespace) -> dict[str, Any]:
     payload = _request_json(
         "GET", f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}", timeout=10
@@ -1291,6 +1429,30 @@ def build_parser() -> argparse.ArgumentParser:
     data_recover.add_argument("--activate", action="store_true", help="目标已有任务时显式激活来源数据")
     data_recover.add_argument("--yes", action="store_true", help="确认执行非空目标切换")
     data_recover.add_argument("--json", action="store_true", dest="json_output")
+
+    image = subparsers.add_parser("image", help="与宿主 Agent 交换受控配图请求和候选文件")
+    image_subparsers = image.add_subparsers(dest="image_command", required=True)
+    image_context = image_subparsers.add_parser("context", help="读取当前主题的宿主生图请求")
+    _add_connection_args(image_context)
+    image_context.add_argument("task_id")
+    image_context.add_argument("--no-start", action="store_true")
+    image_context.add_argument("--start-timeout", type=float, default=45)
+    image_context.add_argument("--json", action="store_true", dest="json_output")
+
+    image_import = image_subparsers.add_parser("import", help="导入宿主 Agent 生成的图片候选")
+    _add_connection_args(image_import)
+    image_import.add_argument("task_id")
+    image_import.add_argument("--plan-id", required=True)
+    image_import.add_argument("--slot-id", required=True, dest="image_slot_id")
+    image_import.add_argument("--request-id", required=True)
+    image_import.add_argument("--expected-plan-revision", required=True, type=int)
+    image_import.add_argument("--expected-image-revision", required=True, type=int)
+    image_import.add_argument("--file", required=True)
+    image_import.add_argument("--host-name", default="host_agent")
+    image_import.add_argument("--host-model", default="host_managed")
+    image_import.add_argument("--no-start", action="store_true")
+    image_import.add_argument("--start-timeout", type=float, default=45)
+    image_import.add_argument("--json", action="store_true", dest="json_output")
 
     task = subparsers.add_parser("task", help="管理视觉任务")
     task_subparsers = task.add_subparsers(dest="task_command", required=True)
@@ -1377,6 +1539,10 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _data_scan(args), 0
         elif args.command == "data" and args.data_command == "recover":
             payload, exit_code = _data_recover(args), 0
+        elif args.command == "image" and args.image_command == "context":
+            payload, exit_code = _image_context(args), 0
+        elif args.command == "image" and args.image_command == "import":
+            payload, exit_code = _image_import(args), 0
         elif args.command == "task" and args.task_command == "create":
             payload, exit_code = _create_task(args), 0
         elif args.command == "task" and args.task_command == "status":

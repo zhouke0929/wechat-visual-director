@@ -1133,11 +1133,11 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         if variant == "editorial_split":
             return (
                 f'<section style="margin:31px 0;border-top:11px solid {ink};border-bottom:3px solid {ink};white-space:normal;">'
-                f'<section style="box-sizing:border-box;display:inline-block;width:42%;min-height:164px;padding:16px 13px 19px 0;border-right:6px solid {accent};vertical-align:top;">'
+                f'<section style="box-sizing:border-box;display:inline-block;width:42%;min-width:0;min-height:164px;padding:16px 13px 19px 0;border-right:6px solid {accent};overflow-wrap:anywhere;vertical-align:top;">'
                 f'<span style="display:block;margin-bottom:14px;color:{accent};font-family:Georgia,serif;font-size:35px;font-weight:800;line-height:1;">A</span>'
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.8;">{left}</p></section>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:58%;min-height:164px;margin-top:18px;padding:15px 0 18px 17px;background-color:{pale};vertical-align:top;">'
-                f'<span style="display:block;margin-bottom:12px;color:{primary};font-family:Georgia,serif;font-size:22px;font-weight:800;line-height:1;">B / COUNTERPOINT</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:58%;min-width:0;min-height:164px;margin-top:18px;padding:15px 0 18px 17px;background-color:{pale};overflow-wrap:anywhere;vertical-align:top;">'
+                f'<span style="display:block;max-width:100%;margin-bottom:12px;color:{primary};font-family:Georgia,serif;font-size:18px;font-weight:800;line-height:1.25;overflow-wrap:anywhere;">B / 对照观点</span>'
                 f'<p style="margin:0;color:{ink};font-size:14px;font-weight:700;line-height:1.8;">{right}</p></section></section>'
             )
         if variant == "dual_channel":

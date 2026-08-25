@@ -646,6 +646,32 @@ def test_all_themes_cover_all_core_components_without_cross_theme_fallbacks() ->
         assert definition["fallback_variant"] not in variants
 
 
+def test_editorial_comparison_uses_mobile_safe_columns() -> None:
+    article = parse_markdown(
+        """# 对比测试
+
+## 两种路径
+
+- 左侧是一段用于比较的较长中文内容
+- 右侧是另一段用于比较的较长中文内容
+"""
+    )
+    document = render_component(
+        {
+            "component_type": "comparison_card",
+            "variant": "editorial_split",
+            "content_bindings": {
+                "left": "block-003:item:0",
+                "right": "block-003:item:1",
+            },
+        },
+        article,
+    )
+    assert "B / 对照观点" in document
+    assert "COUNTERPOINT" not in document
+    assert document.count("overflow-wrap:anywhere") >= 3
+
+
 def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> None:
     themes = {item["id"]: item for item in build_theme_gallery()}
     assert {theme["status"] for theme in themes.values()} == {

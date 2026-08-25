@@ -5,7 +5,12 @@ import { createPortal } from "react-dom";
 
 import { absoluteApiUrl } from "@/lib/api";
 import { ResilientImage } from "@/components/resilient-image";
-import type { ImageCandidate, ImageSlotList, ImageSlotReview, VisualPlan } from "@/lib/types";
+import type {
+  ImageCandidate,
+  ImageSlotList,
+  ImageSlotReview,
+  VisualPlan,
+} from "@/lib/types";
 
 const purposeLabels = {
   atmosphere: "氛围概念图",
@@ -60,6 +65,7 @@ type ReviewTarget = {
 
 function candidateLabel(candidate: ImageCandidate, selected: boolean): string {
   if (candidate.provider === "manual_upload") return selected ? "人工替换 · 已采用" : "人工替换";
+  if (candidate.provider === "host_agent") return selected ? "当前 Agent · 已采用" : "当前 Agent";
   return selected ? `候选 ${candidate.candidate_index} · 已采用` : `候选 ${candidate.candidate_index}`;
 }
 

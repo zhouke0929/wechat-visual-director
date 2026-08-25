@@ -122,6 +122,103 @@ def test_service_python_prefers_no_console_executable(tmp_path: Path) -> None:
     )
 
 
+def test_image_context_exposes_theme_bound_host_requests(monkeypatch) -> None:
+    args = cli.build_parser().parse_args(
+        ["image", "context", "task-1", "--no-start", "--json"]
+    )
+
+    def fake_request(method: str, url: str, **_kwargs):
+        assert method == "GET"
+        if url.endswith("/article-tasks/task-1"):
+            return {"task": {"selected_plan_id": "plan-1"}}
+        assert url.endswith("/article-tasks/task-1/plans/plan-1/host-image-context")
+        return {
+            "visual_system": "youth_campus",
+            "plan_revision": 3,
+            "prompt_version": "v1",
+            "requests": [
+                {
+                    "request_id": "request-12345678",
+                    "image_slot_id": "image-01",
+                    "expected_plan_revision": 3,
+                    "expected_image_revision": 1,
+                    "prompt": "draw this",
+                }
+            ],
+            "output_rules": ["do not auto accept"],
+        }
+
+    monkeypatch.setattr(cli, "_request_json", fake_request)
+    payload = cli._image_context(args)
+
+    assert payload["ok"] is True
+    assert payload["visual_system"] == "youth_campus"
+    assert payload["request_count"] == 1
+    assert payload["next_action"] == "generate_images_with_host"
+
+
+def test_image_import_posts_generated_file_as_human_review_candidate(
+    monkeypatch, tmp_path: Path
+) -> None:
+    image_path = tmp_path / "host-output.png"
+    image_path.write_bytes(b"host-image-bytes")
+    args = cli.build_parser().parse_args(
+        [
+            "image",
+            "import",
+            "task-1",
+            "--plan-id",
+            "plan-1",
+            "--slot-id",
+            "image-01",
+            "--request-id",
+            "request-12345678",
+            "--expected-plan-revision",
+            "3",
+            "--expected-image-revision",
+            "1",
+            "--file",
+            str(image_path),
+            "--host-name",
+            "codex",
+            "--host-model",
+            "gpt-image-2",
+            "--no-start",
+            "--json",
+        ]
+    )
+    captured = {}
+
+    def fake_request(method: str, url: str, **kwargs):
+        captured.update({"method": method, "url": url, **kwargs})
+        return {
+            "image_slot": {
+                "image_revision": 2,
+                "candidates": [{"id": "candidate-1", "provider": "host_agent"}],
+            },
+            "theme_compatibility": {
+                "level": "partial",
+                "generated_visual_system": "youth_campus",
+                "target_visual_system": "future_tech",
+            },
+            "review_notice": "图片已作为候选插入，但生成时主题与当前主题不同，请人工确认。",
+        }
+
+    monkeypatch.setattr(cli, "_request_json", fake_request)
+    payload = cli._image_import(args)
+
+    assert captured["method"] == "POST"
+    assert captured["url"].endswith(
+        "/article-tasks/task-1/plans/plan-1/image-slots/image-01/host-import"
+    )
+    assert b"host-image-bytes" in captured["body"]
+    assert payload["candidate_count"] == 1
+    assert payload["image_revision"] == 2
+    assert payload["theme_compatibility"]["level"] == "partial"
+    assert "人工确认" in payload["review_notice"]
+    assert payload["next_action"] == "human_review"
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX virtualenv symlink behavior")
 def test_service_python_keeps_virtualenv_symlink_on_posix(tmp_path: Path) -> None:
     system_python = tmp_path / "system" / "python3"

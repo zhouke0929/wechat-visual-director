@@ -1157,7 +1157,7 @@ article_type: tutorial_steps
                 "reason": "operator_theme_switch",
             },
         )
-        assert switched.status_code == 200
+        assert switched.status_code == 200, switched.text
         payload = switched.json()
         changed = payload["plan"]
         assert payload["planner_called"] is False
@@ -1362,6 +1362,195 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         )
         replaced_preview = client.get(selected["preview_url"])
         assert replaced_candidate["content_url"] in replaced_preview.text
+
+
+def test_host_agent_image_context_import_and_theme_compatibility(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-images.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 把课程作业整理成作品集
+
+## 四步行动
+
+1. 重新定义问题
+2. 保留关键决策
+3. 补充真实验证
+4. 沉淀结果证据
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("host-images.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "tutorial_steps"},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+
+        context_response = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/host-image-context'
+        )
+        assert context_response.status_code == 200
+        context = context_response.json()
+        assert context["schema_version"] == "host_image_generation_context.v0.1"
+        assert context["visual_system"] == plan["visual_system"]
+        assert context["requests"]
+        request = context["requests"][0]
+        assert request["expected_plan_revision"] == plan["revision"]
+        assert request["expected_image_revision"] == 1
+        assert request["prompt"]
+
+        imported = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                f'/image-slots/{request["image_slot_id"]}/host-import'
+            ),
+            data={
+                "request_id": request["request_id"],
+                "expected_plan_revision": str(request["expected_plan_revision"]),
+                "expected_image_revision": str(request["expected_image_revision"]),
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("host.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200
+        state = imported.json()["image_slot"]
+        candidate = state["candidates"][-1]
+        assert state["selected_candidate_id"] is None
+        assert state["decision"] == "pending"
+        assert candidate["provider"] == "host_agent"
+        assert candidate["model"] == "gpt-image-2"
+        receipt = candidate["machine_checks"]["host_generation"]
+        assert receipt["request_id"] == request["request_id"]
+        assert receipt["host_name"] == "codex"
+
+        fresh_context = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/host-image-context'
+        ).json()
+        stale_request = fresh_context["requests"][0]
+        target_theme = next(
+            item["value"]
+            for item in plan["visual_system_metadata"]["available_visual_systems"]
+            if item["value"] != plan["visual_system"]
+        )
+        switched_response = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/theme',
+            json={
+                "visual_system": target_theme,
+                "expected_plan_revision": plan["revision"],
+                "reason": "product_review",
+            },
+        )
+        assert switched_response.status_code == 200, switched_response.text
+        switched_theme_import = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                f'/image-slots/{stale_request["image_slot_id"]}/host-import'
+            ),
+            data={
+                "request_id": stale_request["request_id"],
+                "expected_plan_revision": str(stale_request["expected_plan_revision"]),
+                "expected_image_revision": str(stale_request["expected_image_revision"]),
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("stale.png", _png_bytes(), "image/png")},
+        )
+        assert switched_theme_import.status_code == 200
+        switched_payload = switched_theme_import.json()
+        assert switched_payload["image_slot"]["decision"] == "pending"
+        assert switched_payload["theme_compatibility"]["generated_visual_system"] == plan["visual_system"]
+        assert switched_payload["theme_compatibility"]["target_visual_system"] == target_theme
+        assert switched_payload["theme_compatibility"]["level"] in {
+            "compatible",
+            "partial",
+            "incompatible",
+        }
+        assert "人工确认" in switched_payload["review_notice"]
+        refreshed = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots'
+        ).json()
+        refreshed_state = next(
+            item["state"]
+            for item in refreshed["items"]
+            if item["image_slot_id"] == stale_request["image_slot_id"]
+        )
+        refreshed_candidate = refreshed_state["candidates"][-1]
+        assert refreshed_candidate["theme_compatibility"] == switched_payload["theme_compatibility"]
+
+
+def test_host_agent_image_import_survives_switch_away_and_back(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-images-switch-back.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 把课程作业整理成作品集
+
+## 四步行动
+
+1. 重新定义问题
+2. 保留关键决策
+3. 补充真实验证
+4. 沉淀结果证据
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("host-images.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "tutorial_steps"},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        request = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/host-image-context'
+        ).json()["requests"][0]
+        original_theme = plan["visual_system"]
+        target_theme = next(
+            item["value"]
+            for item in plan["visual_system_metadata"]["available_visual_systems"]
+            if item["value"] != original_theme
+        )
+        switched_response = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/theme',
+            json={
+                "visual_system": target_theme,
+                "expected_plan_revision": plan["revision"],
+                "reason": "operator_theme_switch",
+            },
+        )
+        assert switched_response.status_code == 200, switched_response.text
+        switched = switched_response.json()
+        restored = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/theme',
+            json={
+                "visual_system": original_theme,
+                "expected_plan_revision": switched["revision"],
+                "reason": "operator_theme_switch",
+            },
+        )
+        assert restored.status_code == 200
+
+        imported = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                f'/image-slots/{request["image_slot_id"]}/host-import'
+            ),
+            data={
+                "request_id": request["request_id"],
+                "expected_plan_revision": str(request["expected_plan_revision"]),
+                "expected_image_revision": str(request["expected_image_revision"]),
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("switch-back.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200
+        payload = imported.json()
+        assert payload["image_slot"]["decision"] == "pending"
+        assert payload["theme_compatibility"]["generated_visual_system"] == original_theme
+        assert payload["theme_compatibility"]["target_visual_system"] == original_theme
+        assert payload["theme_compatibility"]["level"] == "compatible"
 
 
 def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Path) -> None:

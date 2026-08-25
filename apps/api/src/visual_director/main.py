@@ -2653,6 +2653,124 @@ def create_app(
         repository.ensure_image_slot_states(task_id, plan_id, plan.get("image_slots", []))
         return plan, image_slot
 
+    def host_image_generation_context(
+        task_id: str,
+        plan_id: str,
+        *,
+        plan_snapshot: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Compile theme-bound image requests for a capable host Agent.
+
+        The host is deliberately outside the synchronous Provider interface: it
+        generates an image with its own tool, then imports the file through the
+        controlled candidate pipeline below. Request ids preserve the visual
+        direction used at generation time. A later theme switch does not invalidate
+        the result by itself: import keeps the original art-direction snapshot and
+        lets the normal compatibility review compare it with the current theme.
+        """
+        task = repository.get_task(task_id)
+        if task["selected_plan_id"] != plan_id:
+            raise VersionConflictError("只有当前选中的方案可以准备宿主 Agent 配图")
+        plan = plan_snapshot or repository.get_plan(task_id, plan_id)
+        repository.ensure_image_slot_states(task_id, plan_id, plan.get("image_slots", []))
+        states = {
+            item["image_slot_id"]: item
+            for item in repository.list_image_slot_states(task_id, plan_id)
+        }
+        visual_system = plan.get("visual_system") or plan.get("style_mode")
+        recent_summaries = repository.list_recent_component_summaries(
+            task["account_id"],
+            task["history_window"],
+        )
+        parsed = None
+        requests: list[dict[str, Any]] = []
+        for image_slot in plan.get("image_slots", []):
+            state = states[image_slot["image_slot_id"]]
+            if state.get("decision") != "pending":
+                continue
+            model_candidate_count = sum(
+                1
+                for candidate in state.get("candidates", [])
+                if candidate.get("provider") != "manual_upload"
+            )
+            if model_candidate_count >= 3:
+                continue
+            generation_slot = apply_theme_to_image_slot(
+                image_slot,
+                visual_system,
+                article_type=str(plan.get("article_type") or "viewpoint_trend"),
+                recent_summaries=recent_summaries,
+                art_direction=plan.get("image_art_direction"),
+            )
+            locked_copy: list[str] = []
+            infographic_title: str | None = None
+            infographic_items: list[str] | None = None
+            if image_slot["purpose"] == "structured_infographic":
+                if parsed is None:
+                    parsed = parse_markdown(task["normalized_markdown"], task["title"])
+                infographic_title, infographic_items = resolve_overlay_copy(
+                    parsed,
+                    image_slot["fact_bindings"],
+                )
+                display_title, display_items = resolve_display_copy(
+                    generation_slot["visual_intent"],
+                    infographic_title,
+                    infographic_items,
+                )
+                locked_copy = [display_title, *display_items]
+            candidate_index = model_candidate_count + 1
+            prompt = build_provider_prompt(
+                generation_slot,
+                str(plan.get("article_type") or "viewpoint_trend"),
+                infographic_title=infographic_title,
+                infographic_items=infographic_items,
+                prompt_profile="generic",
+                candidate_index=candidate_index,
+            )
+            prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+            request_seed = "|".join(
+                [
+                    task_id,
+                    plan_id,
+                    image_slot["image_slot_id"],
+                    str(plan.get("revision") or 1),
+                    str(state["image_revision"]),
+                    prompt_sha256,
+                ]
+            )
+            request_id = hashlib.sha256(request_seed.encode("utf-8")).hexdigest()[:24]
+            requests.append(
+                {
+                    "request_id": request_id,
+                    "image_slot_id": image_slot["image_slot_id"],
+                    "purpose": image_slot["purpose"],
+                    "aspect_ratio": image_slot["aspect_ratio"],
+                    "anchor_block_id": image_slot["anchor_block_id"],
+                    "reason": image_slot["reason"],
+                    "prompt": prompt,
+                    "prompt_sha256": prompt_sha256,
+                    "locked_copy": locked_copy,
+                    "expected_plan_revision": int(plan.get("revision") or 1),
+                    "expected_image_revision": int(state["image_revision"]),
+                    "suggested_output_filename": f'host-{image_slot["image_slot_id"]}-{request_id}.png',
+                }
+            )
+        return {
+            "schema_version": "host_image_generation_context.v0.1",
+            "task_id": task_id,
+            "plan_id": plan_id,
+            "plan_revision": int(plan.get("revision") or 1),
+            "visual_system": visual_system,
+            "prompt_version": IMAGE_PROMPT_VERSION,
+            "requests": requests,
+            "output_rules": [
+                "只在当前宿主明确具备图片生成工具时执行；不得静默调用收费 API。",
+                "逐条原样使用 prompt，不补写文章事实、Logo、二维码或水印。",
+                "每张图片生成后使用 request_id 导入；不得替用户自动采用候选。",
+                "宿主不具备生图能力时明确返回 host_image_generation_unavailable。",
+            ],
+        }
+
     def cover_workspace(task_id: str, plan_id: str) -> dict[str, Any]:
         task = repository.get_task(task_id)
         if task["selected_plan_id"] != plan_id:
@@ -3035,6 +3153,228 @@ def create_app(
                 {**slot, "state": states[slot["image_slot_id"]]}
                 for slot in plan.get("image_slots", [])
             ],
+        }
+
+    @app.get("/api/v1/article-tasks/{task_id}/plans/{plan_id}/host-image-context")
+    def get_host_image_generation_context(task_id: str, plan_id: str) -> dict[str, Any]:
+        repository.assert_task_editable(task_id)
+        return host_image_generation_context(task_id, plan_id)
+
+    @app.post(
+        "/api/v1/article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/host-import"
+    )
+    async def import_host_image_candidate(
+        task_id: str,
+        plan_id: str,
+        image_slot_id: str,
+        request_id: str = Form(..., min_length=8, max_length=80),
+        expected_plan_revision: int = Form(..., ge=1),
+        expected_image_revision: int = Form(..., ge=1),
+        host_name: str = Form(default="host_agent", max_length=80),
+        host_model: str = Form(default="host_managed", max_length=160),
+        image_file: UploadFile = File(...),
+    ) -> Any:
+        repository.assert_task_editable(task_id)
+        plan, image_slot = image_slot_for_plan(task_id, plan_id, image_slot_id)
+        current_plan_revision = int(plan.get("revision") or 1)
+        try:
+            generation_plan = repository.get_plan_revision(
+                task_id,
+                plan_id,
+                expected_plan_revision,
+            )
+        except NotFoundError:
+            return _error(
+                409,
+                "host_image_request_stale",
+                "找不到这张图片对应的历史生成请求，请重新读取当前任务的配图请求。",
+                retryable=True,
+                details={
+                    "expected_plan_revision": expected_plan_revision,
+                    "current_plan_revision": current_plan_revision,
+                },
+            )
+        generation_slot = next(
+            (
+                item
+                for item in generation_plan.get("image_slots", [])
+                if item.get("image_slot_id") == image_slot_id
+            ),
+            None,
+        )
+        semantic_fields = (
+            "image_slot_id",
+            "purpose",
+            "aspect_ratio",
+            "anchor_block_id",
+            "reason",
+            "fact_bindings",
+            "visual_intent",
+        )
+        if generation_slot is None or any(
+            generation_slot.get(field) != image_slot.get(field)
+            for field in semantic_fields
+        ):
+            return _error(
+                409,
+                "host_image_semantic_context_changed",
+                "图片对应的正文位置或表达任务已经变化，请按当前内容重新生成。",
+                retryable=True,
+                details={
+                    "expected_plan_revision": expected_plan_revision,
+                    "current_plan_revision": current_plan_revision,
+                },
+            )
+        current_state = repository.get_image_slot_state(task_id, plan_id, image_slot_id)
+        if int(current_state["image_revision"]) != expected_image_revision:
+            return _error(
+                409,
+                "host_image_revision_changed",
+                "图片槽已经被处理或加入了其他候选，请刷新后再决定是否继续生成。",
+                retryable=True,
+                details={
+                    "expected_image_revision": expected_image_revision,
+                    "current_image_revision": int(current_state["image_revision"]),
+                },
+            )
+        context = host_image_generation_context(
+            task_id,
+            plan_id,
+            plan_snapshot=generation_plan,
+        )
+        host_request = next(
+            (
+                item
+                for item in context["requests"]
+                if item["request_id"] == request_id
+                and item["image_slot_id"] == image_slot_id
+            ),
+            None,
+        )
+        if host_request is None:
+            return _error(
+                409,
+                "host_image_request_stale",
+                "这条宿主配图请求已经过期或已完成，请重新读取当前任务的配图请求。",
+                retryable=True,
+            )
+        if int(host_request["expected_image_revision"]) != expected_image_revision:
+            return _error(
+                409,
+                "host_image_revision_changed",
+                "图片槽已经发生变化，请重新读取当前任务的配图请求。",
+                retryable=True,
+            )
+
+        content = await image_file.read()
+        if len(content) > 8 * 1024 * 1024:
+            return _error(413, "image_too_large", "宿主 Agent 生成的图片不能超过 8MB")
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image.verify()
+            with Image.open(BytesIO(content)) as image:
+                width, height = image.size
+                image_format = (image.format or "").upper()
+        except (UnidentifiedImageError, OSError):
+            return _error(422, "invalid_image", "宿主 Agent 返回的文件不是有效图片")
+        format_map = {
+            "PNG": ("image/png", ".png"),
+            "JPEG": ("image/jpeg", ".jpg"),
+            "WEBP": ("image/webp", ".webp"),
+        }
+        if image_format not in format_map:
+            return _error(415, "unsupported_image_type", "只支持 PNG、JPEG 和 WEBP")
+        content_type, extension = format_map[image_format]
+        expected_ratio = 4 / 3 if image_slot["aspect_ratio"] == "4:3" else 16 / 9
+        actual_ratio = width / height
+        ratio_valid = abs(actual_ratio - expected_ratio) / expected_ratio <= 0.08
+        generated_visual_system = generation_plan.get("visual_system") or generation_plan.get("style_mode")
+        current_visual_system = plan.get("visual_system") or plan.get("style_mode")
+        themed_generation_slot = apply_theme_to_image_slot(
+            generation_slot,
+            generated_visual_system,
+            article_type=str(generation_plan.get("article_type") or "viewpoint_trend"),
+            recent_summaries=repository.list_recent_component_summaries(
+                repository.get_task(task_id)["account_id"],
+                repository.get_task(task_id)["history_window"],
+            ),
+            art_direction=generation_plan.get("image_art_direction"),
+        )
+        art_direction_snapshot = build_art_direction_snapshot(
+            visual_system=generated_visual_system,
+            visual_intent=themed_generation_slot["visual_intent"],
+            plan_revision=expected_plan_revision,
+        )
+        theme_compatibility = evaluate_theme_compatibility(
+            art_direction_snapshot,
+            current_visual_system,
+        )
+        locked_copy = list(host_request.get("locked_copy") or [])
+        text_consistency = (
+            verify_locked_copy(content, locked_copy).as_dict()
+            if image_slot["purpose"] == "structured_infographic"
+            else {
+                "status": "not_applicable",
+                "human_confirmation_required": False,
+            }
+        )
+        safe_host_name = re.sub(r"[^A-Za-z0-9._-]+", "_", host_name.strip())[:80] or "host_agent"
+        safe_host_model = re.sub(r"[\r\n\t]+", " ", host_model.strip())[:160] or "host_managed"
+        updated = repository.add_image_candidate(
+            task_id=task_id,
+            plan_id=plan_id,
+            image_slot_id=image_slot_id,
+            expected_image_revision=expected_image_revision,
+            provider="host_agent",
+            model=safe_host_model,
+            provider_prompt=str(host_request["prompt"]),
+            content=content,
+            content_type=content_type,
+            extension=extension,
+            width=width,
+            height=height,
+            latency_ms=0,
+            machine_checks={
+                "file_valid": True,
+                "ratio_valid": ratio_valid,
+                "qr_risk": "unknown",
+                "text_risk": "locked_copy_review" if locked_copy else "none_requested",
+                "logo_risk": "unknown",
+                "person_risk": "unknown",
+                "generation_mode": (
+                    "model_end_to_end_infographic"
+                    if image_slot["purpose"] == "structured_infographic"
+                    else "semantic_illustration"
+                ),
+                "art_direction_snapshot": art_direction_snapshot,
+                "locked_copy": locked_copy,
+                "text_consistency": text_consistency,
+                "host_generation": {
+                    "schema_version": "host_image_generation_receipt.v0.1",
+                    "request_id": request_id,
+                    "host_name": safe_host_name,
+                    "host_model": safe_host_model,
+                    "prompt_sha256": host_request["prompt_sha256"],
+                    "generated_plan_revision": expected_plan_revision,
+                    "imported_plan_revision": current_plan_revision,
+                },
+            },
+            raw_content=content,
+        )
+        return {
+            "image_slot": updated,
+            "provider_mode": app.state.image_provider.provider,
+            "host_request": {
+                "request_id": request_id,
+                "host_name": safe_host_name,
+                "host_model": safe_host_model,
+            },
+            "theme_compatibility": theme_compatibility,
+            "review_notice": (
+                "图片已作为候选插入，但生成时主题与当前主题不同，请根据兼容度人工确认。"
+                if generated_visual_system != current_visual_system
+                else "图片已作为候选插入，请人工确认后再采用。"
+            ),
         }
 
     @app.post("/api/v1/article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/generate")

@@ -300,7 +300,7 @@ export type ImageCandidate = {
   id: string;
   image_slot_id: string;
   candidate_index: number;
-  provider: "mock" | "images_api" | "gemini" | "manual_upload" | "deterministic_fallback" | "agnes";
+  provider: "mock" | "images_api" | "gemini" | "manual_upload" | "deterministic_fallback" | "host_agent" | "agnes";
   model: string;
   provider_prompt: string;
   status: "generated";

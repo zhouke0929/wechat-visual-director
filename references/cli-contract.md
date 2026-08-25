@@ -23,6 +23,12 @@
 & "{launcher}" task status <task-id> --json
 & "{launcher}" task open <task-id> --json
 
+# 用户确认主题后，读取当前宿主可执行的受控配图请求
+& "{launcher}" image context <task-id> --json
+
+# 宿主原生生图完成后，把文件导回工作台作为待审核候选
+& "{launcher}" image import <task-id> --plan-id <plan-id> --slot-id <image-slot-id> --request-id <request-id> --expected-plan-revision <plan-revision> --expected-image-revision <image-revision> --file C:\path\image.png --host-name codex --host-model gpt-image-2 --json
+
 # 安全停止本 CLI 启动的服务
 & "{launcher}" stop --json
 
@@ -41,6 +47,9 @@
 - `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题；`source_structure_too_flat` 只允许整理原稿已有关系。
 - `next_action=generate_editorial_brief`：读取 `task context`，由当前宿主 Agent 或可选子智能体生成 Brief。
 - `next_action=human_review`：把 `review_url` 交给用户，暂停 Agent 自主操作。
+- `next_action=generate_images_with_host`：仅当当前宿主暴露原生生图工具时，逐条执行 `requests[]` 并用 `image import` 回传；否则返回 `host_image_generation_unavailable`。
+- 生成期间只切换主题不会使请求失效；旧图仍导入为候选，并按当前主题返回 `theme_compatibility`，由用户人工决定是否采用。
+- `host_image_request_stale`、`host_image_semantic_context_changed`、`host_image_revision_changed`：历史请求不存在、正文锚点/图片任务已改变，或图片槽已被处理；重新读取上下文，不要覆盖当前候选。
 - `planner_provider=host_agent`：本次使用了宿主提交的 Brief，核心没有再次调用文本模型。
 - `fallback_used=true`：宿主 Brief 无效或无法编译，方案已透明降级为规则规划。
 - `normalization_count>0`：核心对 Brief 做了不改变事实的安全规范化。
