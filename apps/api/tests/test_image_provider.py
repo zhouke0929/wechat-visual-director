@@ -110,6 +110,59 @@ def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> No
     assert "节点1" not in structured
     assert "配色只用" in structured
     assert "空白底板" not in structured
+    assert "教育类" not in structured
+
+
+def test_provider_prompt_uses_article_bound_semantics_without_education_keyword_leakage() -> None:
+    slot = prompt_slot(
+        purpose="atmosphere",
+        subject=(
+            "同一临时空间中并置三种真实体验语汇：可参观的品牌档案与装置、"
+            "可试用的感官产品、可亲手完成的运动或科技任务"
+        ),
+    )
+    slot["visual_intent"]["learning_objective"] = (
+        "帮助读者感知跨行业快闪虽然共享空间形式，却围绕文化叙事、感官语言和功能理解提出不同实验问题。"
+    )
+
+    prompt = build_provider_prompt(slot, "viewpoint_trend", prompt_profile="generic")
+
+    assert "跨行业快闪" in prompt
+    assert "品牌档案与装置" in prompt
+    assert "人工智能时代以人为本" not in prompt
+    assert "教育类微信公众号" not in prompt
+    assert "学生" not in prompt
+
+
+def test_seedream_and_cover_prompts_are_industry_neutral() -> None:
+    slot = prompt_slot(
+        purpose="atmosphere",
+        subject="城市快闪空间中，品牌档案、感官产品与互动任务形成连续体验",
+    )
+    slot["visual_intent"]["learning_objective"] = "理解短期活动如何沉淀为长期品牌资产"
+    body_prompt = build_provider_prompt(
+        slot,
+        "viewpoint_trend",
+        prompt_profile="seedream",
+        candidate_index=1,
+    )
+    cover_prompt = build_cover_prompt(
+        {
+            "title": "快闪店如何沉淀为长期品牌资产",
+            "article_type": "viewpoint_trend",
+            "narrative": "从一次线下活动理解内容、体验与品牌资产的关系",
+            "reader_task": "识别可复用的活动资产",
+        },
+        prompt_profile="seedream",
+        candidate_index=1,
+    )
+
+    for prompt in (body_prompt, cover_prompt):
+        assert "教育类" not in prompt
+        assert "校园" not in prompt
+        assert "学生" not in prompt
+    assert "城市快闪空间" in body_prompt
+    assert "线下活动" in cover_prompt
 
 
 def test_seedream_prompt_is_concise_provider_specific_and_rotates_scenes() -> None:
@@ -148,6 +201,7 @@ def test_seedream_prompt_is_concise_provider_specific_and_rotates_scenes() -> No
     assert "严格文字白名单" in infographic
     assert "同一纸面世界" in infographic
     assert "70%到85%" in infographic
+    assert "教育类" not in infographic
 
 
 def test_seedream_future_tech_uses_editorial_collage_without_signpost_stage() -> None:
@@ -481,6 +535,47 @@ def test_images_api_provider_waits_for_provider_url_to_become_ready() -> None:
     assert calls == 4
     assert sleeps == [1.0, 2.0]
     assert generated.machine_checks["file_valid"] is True
+
+
+def test_images_api_provider_uses_url_when_relay_returns_empty_base64() -> None:
+    """OpenAI-compatible relays may include an empty b64_json beside a URL."""
+
+    calls = 0
+
+    def urlopen(_: Any, **__: Any) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return FakeResponse(
+                json.dumps(
+                    {
+                        "data": [
+                            {
+                                "url": "https://storage.example.com/output.png",
+                                "b64_json": "",
+                            }
+                        ]
+                    }
+                ).encode(),
+                "application/json",
+            )
+        return FakeResponse(png_bytes(1312, 736), "image/png")
+
+    provider = ImagesApiProvider(
+        api_key="test-key-that-is-long-enough",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=lambda _: None,
+    )
+    generated = provider.generate(
+        prompt="Abstract editorial art inspired by: a calm wide learning scene",
+        aspect_ratio="16:9",
+        candidate_index=1,
+    )
+
+    assert calls == 2
+    assert generated.content_type == "image/png"
+    assert generated.machine_checks["ratio_valid"] is True
 
 
 def test_images_api_provider_does_not_retry_auth_or_sensitive_prompt() -> None:

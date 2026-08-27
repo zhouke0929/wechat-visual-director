@@ -508,7 +508,7 @@ export function ImageReviewPanel({
                   <button
                     className="image-review-accept"
                     disabled={
-                      Boolean(busy) ||
+                      anyImageActionBusy ||
                       activeTarget.slot.state.selected_candidate_id ===
                         activeTarget.candidate.id
                     }
@@ -525,7 +525,7 @@ export function ImageReviewPanel({
                         : "采用此图"}
                   </button>
                   <button
-                    disabled={Boolean(busy)}
+                    disabled={anyImageActionBusy}
                     onClick={() => {
                       setActiveTargetKey(null);
                       void onSkip(activeTarget.slot);

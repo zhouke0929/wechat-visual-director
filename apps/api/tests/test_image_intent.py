@@ -85,7 +85,7 @@ def test_visual_grammar_uses_exact_short_labels_and_concrete_scene() -> None:
         style_family="soft_flat_illustration",
     )
     grammar = intent["visual_grammar"]
-    assert grammar["scene_metaphor"] == "一条可行走的学习路线串起连续行动"
+    assert grammar["scene_metaphor"] == "一条可行走的行动路线串起连续步骤"
     assert grammar["text_mode"] == "label_only"
     assert grammar["display_labels"] == [
         "招生专业目录",

@@ -263,7 +263,7 @@ def _node_visual(label: str, article_type: str) -> str:
     return {
         "data_policy": "资料页、核验标记与清晰坐标",
         "tutorial_steps": "行动工具、路径节点与完成标记",
-        "lively_growth": "书页、植物与学生创作物",
+        "lively_growth": "创作工具、自然生长形态与成果物",
         "viewpoint_trend": "路标、地平线与结构变化",
     }.get(article_type, "与该标签直接对应的一件具体物体")
 
@@ -319,7 +319,7 @@ def build_visual_grammar(
 
     recipes = {
         "linear_progression": (
-            "一条可行走的学习路线串起连续行动",
+            "一条可行走的行动路线串起连续步骤",
             ["顶部短标题区", "中部连续路线与节点", "底部安静收束区"],
             "用一条不断裂的道路、脚印或细箭线按原文顺序连接",
         ),
@@ -361,7 +361,7 @@ def build_visual_grammar(
     }
     metaphor, zones, connector = recipes.get(
         layout_family,
-        ("一个清楚的教育主题场景", ["中央主场景", "四周留白"], "只保留一条主要阅读动线"),
+        ("一个与当前内容直接相关的具体场景", ["中央主场景", "四周留白"], "只保留一条主要阅读动线"),
     )
     motifs = _decorative_motifs(style_family)
     return {

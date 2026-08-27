@@ -111,24 +111,18 @@ def validate_provider_prompt(prompt: str) -> None:
         )
 
 
-def _visual_concept(subject: str, article_type: str) -> str:
-    normalized = sanitize_subject(subject)
-    routes = [
-        (r"位次|分数|数据|核对|官方|政策", "基于公开信息核验、比较并谨慎做出教育选择"),
-        (r"冲|稳|保|梯度|排序|路径", "从冲刺到稳妥选择的清晰决策路径"),
-        (r"步骤|提交|检查|清单|复核", "平静、可靠的分步核对流程"),
-        (r"玩|兴趣|项目|动手|机器人|实践", "动手学习、兴趣探索与学生自主创作"),
-        (r"AI|人工智能|科技|未来", "人工智能时代以人为本的学习与创造力"),
-    ]
-    for pattern, concept in routes:
-        if re.search(pattern, normalized, re.IGNORECASE):
-            return concept
-    return {
-        "data_policy": "基于已核验公开信息做出谨慎的教育决策",
-        "tutorial_steps": "可靠、清楚的教育决策步骤",
-        "lively_growth": "好奇心、动手学习与个人成长",
-        "viewpoint_trend": "关于学习与未来选择的编辑视角",
-    }.get(article_type, "关于学习与未来选择的编辑视角")
+def _semantic_focus(subject: str, learning_objective: str | None = None) -> str:
+    """Use article-bound semantics instead of guessing an industry from keywords.
+
+    ``subject`` and ``learning_objective`` are compiled from the current article's
+    image slot.  Older versions routed words such as ``科技`` to a fixed education
+    concept, which could silently contaminate unrelated retail or brand articles.
+    """
+    objective = sanitize_subject(str(learning_objective or ""))
+    if objective:
+        return objective
+    normalized_subject = sanitize_subject(subject)
+    return normalized_subject or "帮助读者理解当前章节的核心情境"
 
 
 def image_prompt_profile(provider: ImageProvider) -> str:
@@ -152,14 +146,14 @@ def _structured_style_direction(style_family: str, candidate_index: int) -> str:
             "局部越出浅色形状的自由边缘",
             "柔和弧形与少量贴纸式切边",
         )
-        return f"清爽教育绘本插画，柔和扁平色块配铅笔细节，{edges[variant]}，不做规则卡片"
+        return f"清爽编辑绘本插画，柔和扁平色块配铅笔细节，{edges[variant]}，不做规则卡片"
     if style_family == "clean_3d_geometry":
         edges = (
             "低矮连续地台",
             "一条贯穿画面的空间轨道",
             "错落但统一材质的微缩场景",
         )
-        return f"轻量三维教育微缩模型，统一哑光材质与柔和投影，{edges[variant]}，不做界面面板"
+        return f"轻量三维编辑微缩场景，统一哑光材质与柔和投影，{edges[variant]}，不做界面面板"
     if style_family == "editorial_tech_collage":
         edges = (
             "半透明信息薄片与连续信号曲线形成不对称编辑场",
@@ -229,10 +223,10 @@ def _cover_style_direction(style_family: str, candidate_index: int) -> str:
     variant = max(0, candidate_index - 1) % 3
     if style_family == "soft_flat_illustration":
         edges = ("开放手绘边缘", "浅色形状自然越出局部轮廓", "柔和弧线与少量贴纸切边")
-        return f"柔和教育编辑插画，扁平色块配铅笔细节，{edges[variant]}"
+        return f"柔和编辑插画，扁平色块配铅笔细节，{edges[variant]}"
     if style_family == "clean_3d_geometry":
         spaces = ("连续低矮地台", "一条贯穿画面的空间轨道", "错落但统一材质的微缩场景")
-        return f"干净哑光三维教育几何，统一材质与柔和投影，{spaces[variant]}；禁止仪表盘和塑料玩具感"
+        return f"干净哑光三维编辑几何，统一材质与柔和投影，{spaces[variant]}；禁止仪表盘和塑料玩具感"
     if style_family == "editorial_tech_collage":
         layouts = ("不对称信息场", "沿信号曲线展开的两三层薄片", "前景物件与背景数据轨迹形成开放跨页")
         return (
@@ -363,30 +357,13 @@ def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
 
 
 def _seedream_scene(subject: str, article_type: str, candidate_index: int) -> tuple[str, str, str]:
-    """Choose a deterministic but visibly different scene for each semantic slot."""
-    routes = {
-        "data_policy": (
-            ("一张安静的研究桌，透明资料页、放大镜与几枚证据标记形成清楚的核验路径", "俯视斜构图", "现代编辑拼贴与细腻纸艺"),
-            ("一座连接信息孤岛的桥，远近两端由清晰的光点与路径相连", "横向远景构图", "克制的建筑插画与柔和颗粒质感"),
-            ("一间小型教育观察室，光束穿过层叠数据薄片并汇聚到唯一焦点", "侧向景深构图", "精致微缩模型与低饱和材质"),
-        ),
-        "tutorial_steps": (
-            ("一条由三个清楚节点组成的行动路径，人物依次完成观察、核对与确认", "左下到右上的连续动线", "轻盈杂志插画与纸张拼贴"),
-            ("一张井然有序的工作台，工具和材料沿操作顺序自然展开", "俯视开放构图", "柔和水粉与手工纸质感"),
-            ("校园中的连续路标与台阶引导人物抵达明亮终点", "横向叙事构图", "清爽建筑插画与自然光"),
-        ),
-        "lively_growth": (
-            ("阳光校园庭院里，学生围绕一个正在生长的创意模型共同实践", "宽幅群像构图", "清新手绘与轻微拼贴质感"),
-            ("开放式创作工坊中，作品、工具和灵感线索围绕学生自然展开", "近中景构图", "温暖水粉与细腻铅笔纹理"),
-            ("一座由书页、植物与实验器材构成的小型成长花园", "层叠纵深构图", "精致纸雕与柔和日光"),
-        ),
-        "viewpoint_trend": (
-            ("新旧教育场景在同一地平线上自然交汇，人物站在分岔路径前做出选择", "电影感横向远景", "当代杂志插画与克制拼贴"),
-            ("一座校园城市从旧结构过渡到新的开放学习空间", "轴测远景构图", "建筑绘本与柔和颗粒质感"),
-            ("潮汐般的知识路径围绕一座灯塔展开，远处出现新的学习地平线", "大留白横向构图", "诗意水粉与现代编辑插画"),
-        ),
-    }
-    options = routes.get(article_type, routes["viewpoint_trend"])
+    """Keep the article-bound scene and rotate only composition/medium."""
+    scene = sanitize_subject(subject) or "一个与当前章节直接相关的具体场景"
+    options = (
+        (scene, "俯视斜构图，主体关系清楚", "现代编辑拼贴与细腻纸艺"),
+        (scene, "横向叙事构图，主场景连贯展开", "克制的杂志插画与柔和颗粒质感"),
+        (scene, "侧向景深构图，唯一焦点明确", "精致微缩场景与低饱和材质"),
+    )
     digest = hashlib.sha256(f"{article_type}|{subject}".encode("utf-8")).digest()
     return options[(digest[0] + max(0, candidate_index - 1)) % len(options)]
 
@@ -440,7 +417,7 @@ def _seedream_provider_prompt(
         )
         prompt = " ".join(
             [
-                "教育类微信公众号横版4:3插画型信息图，像一本现代教育绘本的跨页，不是PPT、表格或卡片模板。",
+                "微信公众号横版4:3插画型信息图，像一本高质量编辑画册的跨页，不是PPT、表格或卡片模板。",
                 f'顶部只放左对齐标题“{title}”。核心场景隐喻：{grammar.get("scene_metaphor")}。空间分区：{zones}。',
                 f'节点脚本：{nodes}。连接方式：{grammar.get("connector_language")}。图像承担主要解释，短标签贴近对应物体。',
                 f"阅读目标：{learning_objective or '帮助读者看懂节点关系'}。严格文字白名单：只允许标题和上述引号中的标签；场景隐喻、连接词和装饰要求只画不写，不补充句子、数据或结论。",
@@ -478,8 +455,8 @@ def _seedream_provider_prompt(
     }.get(style_family, "保持一个清晰主体和连贯阅读动线。")
     prompt = " ".join(
         [
-            "教育类微信公众号正文横版语义插画，画面不是信息图或海报。",
-            f"图片作用是{learning_objective or '建立章节语境'}；文章要表达{_visual_concept(subject, article_type)}，具体线索是{subject}。",
+            "微信公众号正文横版语义插画，画面不是信息图或海报。",
+            f"章节语义是{_semantic_focus(subject, learning_objective)}。",
             f"场景：{scene}。{composition}，并服从整篇的{article_composition}；{medium}，{surface}，配色只用{palette}，气质{tone}，自然柔光。",
             special_negative,
             "主体完整位于中央80%安全区，不贴边、不截断。",
@@ -508,8 +485,8 @@ def build_provider_prompt(
             candidate_index=candidate_index,
         )
     intent = image_slot["visual_intent"]
-    concept = _visual_concept(intent["subject"], article_type)
     learning_objective = sanitize_subject(str(intent.get("learning_objective") or ""))
+    semantic_focus = _semantic_focus(str(intent.get("subject") or ""), learning_objective)
     layout_family = str(intent.get("layout_family") or "semantic_scene")
     style_labels = {
         "editorial_paper_cut": "精致的编辑纸雕拼贴风，具有杂志感、轻微纸张层次和克制的装饰细节",
@@ -590,7 +567,7 @@ def build_provider_prompt(
         direction_palette, surface, article_composition, direction_tone = _resolved_art_labels(intent)
         prompt = " ".join(
             [
-                "设计一张教育类微信公众号横版4:3插画型信息图，像一页有呼吸感的教育绘本，不是PPT、后台界面、表格或卡片模板。",
+                "设计一张微信公众号横版4:3插画型信息图，像一页有呼吸感的高质量编辑画册，不是PPT、后台界面、表格或卡片模板。",
                 f'顶部只放左对齐标题“{title}”。核心场景隐喻：{grammar.get("scene_metaphor")}。空间分区：{zones}。',
                 f'节点脚本：{nodes}。连接方式：{grammar.get("connector_language")}。让物体、人物动作与空间关系承担主要解释。',
                 f"阅读目标：{learning_objective or '帮助读者理解原文节点关系'}。严格文字白名单：只允许标题和上述引号中的标签；场景隐喻、连接词和装饰要求只画不写，不增加说明、数据或结论。",
@@ -604,9 +581,8 @@ def build_provider_prompt(
     _, surface, article_composition, direction_tone = _resolved_art_labels(intent)
     prompt = " ".join(
         [
-            "为教育类微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
-            f"文章语义：{concept}。",
-            f"图片作用：{learning_objective or '建立章节语境与阅读停顿'}。",
+            "为微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
+            f"章节语义：{semantic_focus}。",
             f"具体视觉隐喻：{sanitize_subject(str(intent.get('subject') or ''))}。",
             f"构图：{composition}；{negative_space}；整篇采用{article_composition}。",
             f"美术方向：{style}，表面语言为{surface}。整体气质：{direction_tone or tone}。配色：{palette}。",
@@ -637,7 +613,11 @@ def build_cover_prompt(
             if value
         )
     )
-    concept = _visual_concept(subject, article_type)
+    concept = sanitize_subject(
+        str(cover_brief.get("narrative") or "")
+        or str(cover_brief.get("reader_task") or "")
+        or str(cover_brief.get("title") or "")
+    ) or subject
     direction = cover_brief.get("image_art_direction") or {}
     palette, surface, article_composition, tone = _resolved_art_labels(
         {"article_art_direction": direction}
@@ -648,7 +628,7 @@ def build_cover_prompt(
         style_direction = _cover_style_direction(style_family, candidate_index)
         prompt = " ".join(
             [
-                "教育类微信公众号5:4封面底图，只生成图片，不排标题。",
+                "微信公众号5:4封面底图，只生成图片，不排标题。",
                 f"核心概念是{concept}，具体场景为{scene}。",
                 f"{composition}，并服从整篇的{article_composition}；{style_direction}，表面语言为{surface}，配色只用{palette}，气质{tone}。",
                 "只保留一个鲜明视觉隐喻，不做信息图、多面板或并排步骤卡。",
@@ -668,7 +648,7 @@ def build_cover_prompt(
             "warm ivory, forest green, clay orange, and muted gold",
         ),
         "lively_growth": (
-            "warm human-centered educational illustration with crafted playful forms",
+            "warm human-centered editorial illustration with crafted playful forms",
             "warm ivory, fresh teal, coral, and optimistic yellow",
         ),
         "viewpoint_trend": (
@@ -681,8 +661,8 @@ def build_cover_prompt(
     ))
     style_labels = {
         "editorial_paper_cut": "tactile editorial paper-cut illustration with subtle handmade fibers",
-        "soft_flat_illustration": "soft flat educational illustration with open hand-drawn edges",
-        "clean_3d_geometry": "clean matte three-dimensional educational geometry",
+        "soft_flat_illustration": "soft flat editorial illustration with open hand-drawn edges",
+        "clean_3d_geometry": "clean matte three-dimensional editorial geometry",
         "editorial_tech_collage": "editorial technology collage with frosted translucent layers, tactile paper fibers, and restrained 2.5D depth",
         "oriental_ink_folio": "contemporary oriental ink folio illustration on tactile rice paper with restrained cinnabar accents",
         "archival_halftone_collage": "archival newsprint collage with halftone ink, clipped paper edges, and restrained editorial red",
@@ -695,7 +675,7 @@ def build_cover_prompt(
     direction_palette = ", ".join(str(value) for value in direction.get("palette_roles") or [])
     return " ".join(
         [
-            "Create a premium editorial cover background for an education-focused WeChat article.",
+            "Create a premium editorial cover background for a WeChat article.",
             f"Editorial concept: {concept}.",
             f"Art direction: {style}. Surface and composition: {surface}; {article_composition}. Palette: {direction_palette or fallback_palette}.",
             "Use one dominant scene, strong silhouette, restrained detail, and generous breathing room.",
@@ -1233,7 +1213,12 @@ class ImagesApiProvider:
         encoded_image = first_item.get("b64_json") if first_item else None
         upstream_content_type = ""
         downloaded_from_url = False
-        if isinstance(encoded_image, str):
+        # Several OpenAI-compatible relays (including Agnes) return both
+        # fields, with ``b64_json`` present as an empty string and the actual
+        # image available through ``url``.  Treat an empty string as absent;
+        # otherwise the URL branch is skipped and the later image metadata is
+        # never initialized correctly.
+        if isinstance(encoded_image, str) and encoded_image.strip():
             try:
                 content = base64.b64decode(encoded_image, validate=True)
             except (ValueError, binascii.Error) as error:
@@ -1243,7 +1228,7 @@ class ImagesApiProvider:
                     retryable=False,
                     http_status=502,
                 ) from error
-        elif isinstance(image_url, str):
+        elif isinstance(image_url, str) and image_url.strip():
             downloaded_from_url = True
             self._validate_image_url(image_url)
             download_request = urllib.request.Request(
