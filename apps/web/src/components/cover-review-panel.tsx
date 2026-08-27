@@ -111,19 +111,9 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
   if (!review) return <div className="cover-loading">正在读取封面工作台…</div>;
   return (
     <section className="cover-desk" aria-label="封面规划与选择">
-      <header className="cover-desk-header">
-        <div>
-          <span>COVER DIRECTOR / 1080×864</span>
-          <h3>封面不是附件，是文章的第一视觉判断</h3>
-          <p>{review.cover_brief.narrative}</p>
-        </div>
-        <b>{review.selected_cover ? "已选封面" : "待选择"}</b>
-      </header>
-
       <div className="cover-brief-ticket">
         <span>全文提炼</span>
         <strong>{review.cover_brief.reader_task}</strong>
-        <small>标题安全区：左上与中央 · 模型底图禁止文字、二维码和 Logo</small>
       </div>
 
       <div className="cover-actions-grid">
@@ -135,11 +125,9 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
               : busy === "generate" ? "生成中…" : "AI 总结全文生成封面"}
           </strong>
           <small>
-            {review.provider_mode === "images_api"
-              ? "通用 Images API"
-              : review.provider_mode === "gemini"
-              ? "Gemini / Nano Banana"
-              : review.provider_mode === "mock" ? "Mock 确定性候选" : "不调用图片模型"}
+            {review.provider_mode === "manual"
+              ? "从正文候选或本机图片中选择"
+              : "根据全文与当前主题生成"}
           </small>
         </button>
         <label className={busy ? "disabled" : ""}>

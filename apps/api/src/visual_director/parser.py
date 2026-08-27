@@ -42,11 +42,12 @@ IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]*\)")
 IMAGE_LINE_RE = re.compile(r'^!\[([^\]]*)]\(([^)]+)\)\s*$')
 HORIZONTAL_RULE_RE = re.compile(r"^(?:-{3,}|\*{3,}|_{3,})$")
 SOURCE_PREFIX_RE = re.compile(
-    r"^(?:[📊📚🔗]\s*)?(?:\*\*)?(?:(?:数据|资料|规则|政策|核验|信息)\s*)?来源\s*[:：]",
+    r"^(?:[📊📚🔗]\s*)?(?:\*\*)?"
+    r"(?:(?:数据|资料|规则|政策|核验|信息|参考|可靠)\s*)?来源(?:说明)?\s*[:：]",
     flags=re.IGNORECASE,
 )
 REFERENCE_HEADING_RE = re.compile(
-    r"^(?:可靠来源|参考来源|资料来源|数据来源|信息来源|政策来源|规则来源|参考资料|参考文献|来源)$",
+    r"^(?:可靠来源|参考来源|资料来源|数据来源|信息来源|政策来源|规则来源|来源说明|参考资料|参考文献|来源)$",
     flags=re.IGNORECASE,
 )
 REFERENCE_ITEM_RE = re.compile(r"^(?:\[[^\]]+\]\(https?://[^)]+\)|https?://\S+)$", flags=re.IGNORECASE)

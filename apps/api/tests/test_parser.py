@@ -67,10 +67,12 @@ def test_blockquoted_and_bold_source_lines_are_metadata_not_quotes() -> None:
 > 政策来源：教育发展规划
 
 > 核验来源：全国高等学校名单
+
+> 来源说明：综合参考品牌官网、官方公众号与公开行业资料。
 """
     )
     sources = [block for block in article.blocks if block.type == "source"]
-    assert len(sources) == 4
+    assert len(sources) == 5
     assert not [block for block in article.blocks if block.type == "quote"]
 
 

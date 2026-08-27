@@ -38,19 +38,11 @@ const layoutLabels = {
   pathway: "连续路径",
 } as const;
 
-const providerLabels = {
-  manual: ["MANUAL", "人工上传，不调用模型"],
-  mock: ["MOCK", "交互验证，不消耗额度"],
-  images_api: ["IMAGES API", "OpenAI / Seedream / 兼容服务"],
-  gemini: ["GEMINI", "Nano Banana 原生接口"],
-} as const;
-
 type Props = {
   plan: VisualPlan;
   review: ImageSlotList | null;
-  busy: string;
+  busy: readonly string[];
   onGenerate: (slot: ImageSlotReview) => Promise<void>;
-  onGenerateAll: () => Promise<void>;
   onFallback: (slot: ImageSlotReview) => Promise<void>;
   onAccept: (slot: ImageSlotReview, candidate: ImageCandidate, textVerified: boolean) => Promise<void>;
   onSkip: (slot: ImageSlotReview) => Promise<void>;
@@ -84,7 +76,6 @@ export function ImageReviewPanel({
   review,
   busy,
   onGenerate,
-  onGenerateAll,
   onFallback,
   onAccept,
   onSkip,
@@ -92,8 +83,8 @@ export function ImageReviewPanel({
   onRestoreTheme,
 }: Props) {
   const [activeTargetKey, setActiveTargetKey] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
   const knownCandidateIds = useRef<Set<string> | null>(null);
+  const knownReviewIdentity = useRef<string | null>(null);
 
   const allTargets = useMemo<ReviewTarget[]>(
     () =>
@@ -115,18 +106,21 @@ export function ImageReviewPanel({
 
   const activeTarget =
     allTargets.find((target) => targetKey(target) === activeTargetKey) ?? null;
-  const resolvedCount =
-    review?.items.filter((slot) => reviewStatus(slot) !== "pending").length ?? 0;
-  const emptyPendingCount =
-    review?.items.filter(
-      (slot) => reviewStatus(slot) === "pending" && slot.state.candidates.length === 0,
-    ).length ?? 0;
-  const batchBusy = busy === "batch";
+  const reviewIdentity = review ? `${review.task_id}:${review.plan_id}` : null;
+  const anyImageActionBusy = busy.length > 0;
 
   useEffect(() => {
     const currentIds = new Set(allTargets.map((target) => target.candidate.id));
-    if (knownCandidateIds.current === null) {
+    if (!reviewIdentity) {
+      knownReviewIdentity.current = null;
+      knownCandidateIds.current = null;
+      setActiveTargetKey(null);
+      return;
+    }
+    if (knownReviewIdentity.current !== reviewIdentity || knownCandidateIds.current === null) {
+      knownReviewIdentity.current = reviewIdentity;
       knownCandidateIds.current = currentIds;
+      setActiveTargetKey(null);
       return;
     }
     const newTarget = allTargets.find(
@@ -134,11 +128,7 @@ export function ImageReviewPanel({
     );
     knownCandidateIds.current = currentIds;
     if (newTarget) setActiveTargetKey(targetKey(newTarget));
-  }, [allTargets]);
-
-  useEffect(() => {
-    setZoom(1);
-  }, [activeTargetKey]);
+  }, [allTargets, reviewIdentity]);
 
   useEffect(() => {
     if (!activeTarget) return;
@@ -195,30 +185,6 @@ export function ImageReviewPanel({
 
   return (
     <section className="image-editor" aria-label={`${plan.plan_name} 配图确认`}>
-      <header className="image-editor-header image-editor-header-quick">
-        <div>
-          <span>IMAGE DESK / QUICK REVIEW</span>
-          <h3>配图审核 · 已完成 {resolvedCount}/{review.items.length}</h3>
-          <p>系统已自动规划位置；批量生成后，在大图中连续采用或跳过。</p>
-        </div>
-        <div className="image-review-header-actions">
-          <div className="provider-stamp">
-            <strong>{providerLabels[review.provider_mode][0]}</strong>
-            <small>{providerLabels[review.provider_mode][1]}</small>
-          </div>
-          {review.provider_mode !== "manual" && emptyPendingCount ? (
-            <button
-              className="image-batch-button"
-              disabled={Boolean(busy)}
-              onClick={() => void onGenerateAll()}
-              type="button"
-            >
-              {batchBusy ? `正在依次生成 ${emptyPendingCount} 张…` : `一键生成待配图（${emptyPendingCount}）`}
-            </button>
-          ) : null}
-        </div>
-      </header>
-
       {review.items.length ? (
         <div className="image-slot-list">
           {review.items.map((slot, slotIndex) => {
@@ -235,8 +201,7 @@ export function ImageReviewPanel({
                 (candidate) => candidate.id === slot.state.selected_candidate_id,
               ) ?? slot.state.candidates.at(-1);
             const compatibility = compatibilityCandidate?.theme_compatibility;
-            const slotBusy =
-              batchBusy || busy.startsWith(`${slot.image_slot_id}:`);
+            const slotBusy = busy.some((key) => key.startsWith(`${slot.image_slot_id}:`));
             const status = reviewStatus(slot);
             return (
               <article
@@ -256,20 +221,23 @@ export function ImageReviewPanel({
                         {status === "accepted" ? "已采用" : status === "skipped" ? "已跳过" : "待处理"}
                       </span>
                     </div>
-                    <p>{slot.reason}</p>
-                    <small>
-                      图片目标：{roleLabels[slot.visual_intent.visual_role]} · {layoutLabels[slot.visual_intent.layout_family]}
-                    </small>
-                    <small>{slot.visual_intent.learning_objective}</small>
-                    {slot.purpose === "structured_infographic" ? (
+                    <details className="image-slot-intent">
+                      <summary>查看配图意图</summary>
+                      <p>{slot.reason}</p>
                       <small>
-                        视觉脚本：{slot.visual_intent.visual_grammar?.scene_metaphor ?? "兼容版语义场景"} ·
-                        {slot.visual_intent.visual_grammar?.text_mode === "verbatim_full_copy"
-                          ? "原文短句"
-                          : "短标签插画"}
+                        图片目标：{roleLabels[slot.visual_intent.visual_role]} · {layoutLabels[slot.visual_intent.layout_family]}
                       </small>
-                    ) : null}
-                    <small>插入位置：{slot.anchor_block_id} 之后</small>
+                      <small>{slot.visual_intent.learning_objective}</small>
+                      {slot.purpose === "structured_infographic" ? (
+                        <small>
+                          视觉脚本：{slot.visual_intent.visual_grammar?.scene_metaphor ?? "兼容版语义场景"} ·
+                          {slot.visual_intent.visual_grammar?.text_mode === "verbatim_full_copy"
+                            ? "原文短句"
+                            : "短标签插画"}
+                        </small>
+                      ) : null}
+                      <small>插入位置：{slot.anchor_block_id} 之后</small>
+                    </details>
                   </div>
                 </div>
 
@@ -286,7 +254,7 @@ export function ImageReviewPanel({
                         type="button"
                       >按新主题再生成</button>
                       {(plan.undo_stack ?? []).length ? (
-                        <button disabled={slotBusy} onClick={() => void onRestoreTheme()} type="button">
+                        <button disabled={anyImageActionBusy} onClick={() => void onRestoreTheme()} type="button">
                           回到上个主题
                         </button>
                       ) : null}
@@ -369,7 +337,7 @@ export function ImageReviewPanel({
                 ) : (
                   <div className="image-empty-contact">
                     <span>READY TO GENERATE</span>
-                    <p>位置和用途已经规划完成，可以单张生成，也可以使用顶部的一键生成。</p>
+                    <p>位置和用途已规划好，请为这一处单独生成、上传图片，或选择跳过。</p>
                   </div>
                 )}
 
@@ -386,7 +354,7 @@ export function ImageReviewPanel({
                   >
                     {review.provider_mode === "manual"
                       ? "人工模式：请上传图片"
-                      : busy === `${slot.image_slot_id}:generate`
+                      : busy.includes(`${slot.image_slot_id}:generate`)
                         ? "图片生成中…"
                         : modelCandidates.length
                           ? `再生成一版（当前主题 ${currentThemeCandidates.length + 1}/3）`
@@ -464,24 +432,6 @@ export function ImageReviewPanel({
                 </strong>
               </div>
               <div className="image-review-dialog-tools">
-                <button
-                  aria-label="缩小图片"
-                  disabled={zoom <= 0.75}
-                  onClick={() => setZoom((value) => Math.max(0.75, value - 0.25))}
-                  type="button"
-                >
-                  −
-                </button>
-                <span>{Math.round(zoom * 100)}%</span>
-                <button
-                  aria-label="放大图片"
-                  disabled={zoom >= 2.5}
-                  onClick={() => setZoom((value) => Math.min(2.5, value + 0.25))}
-                  type="button"
-                >
-                  +
-                </button>
-                <button onClick={() => setZoom(1)} type="button">复位</button>
                 <button onClick={() => setActiveTargetKey(null)} type="button">关闭</button>
               </div>
             </header>
@@ -491,7 +441,6 @@ export function ImageReviewPanel({
                 <div className="image-review-canvas-scroll">
                   <ResilientImage
                     src={absoluteApiUrl(activeTarget.candidate.content_url)}
-                    style={{ width: `${zoom * 100}%` }}
                     alt={`${purposeLabels[activeTarget.slot.purpose]}审核大图`}
                   />
                 </div>

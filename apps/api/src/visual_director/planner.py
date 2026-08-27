@@ -18,6 +18,8 @@ from .editorial_brief import (
     adjacent_comparison_pair,
     adjacent_concept_pairs,
     is_concept_pair,
+    is_parallel_analysis_heading,
+    is_reader_question_heading,
 )
 from .image_intent import build_visual_intent
 
@@ -88,6 +90,10 @@ SEMANTIC_FAMILIES = {
     "before_after_timeline": "comparison",
     "comparison_card": "comparison",
 }
+
+WARNING_SIGNAL_RE = re.compile(
+    r"风险|警惕|避免|不要|不可|谨防|请注意|需要注意|注意事项|务必"
+)
 
 
 def _base_usage(parsed: ParsedArticle) -> Counter[str]:
@@ -195,7 +201,19 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
 
         if block.type == "heading" and (block.level or 0) >= 3:
             heading = str(block.content)
-            if re.search(r"[？?]|为什么|是什么|有什么|如何|是否", heading):
+            concept_pair = bool(
+                following
+                and following.type == "paragraph"
+                and is_concept_pair(heading, str(following.content))
+            )
+            if (
+                is_reader_question_heading(heading)
+                and not concept_pair
+                and not is_parallel_analysis_heading(
+                    block.id,
+                    {item.id: item for item in blocks},
+                )
+            ):
                 candidates.append(
                     _candidate("question_hook", [block], {"title": block.id}, "章节标题明确提出读者核心问题。", recent_counts)
                 )
@@ -219,11 +237,7 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
                         recent_counts,
                     )
                 )
-            if (
-                following
-                and following.type == "paragraph"
-                and is_concept_pair(heading, str(following.content))
-            ):
+            if concept_pair:
                 candidates.append(
                     _candidate(
                         "concept_explainer",
@@ -275,7 +289,7 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
                 _candidate("evidence_callout", [block], {"evidence": block.id}, "原文包含可回溯的引语或来源说明。", recent_counts)
             )
 
-        if block.type in {"paragraph", "quote"} and re.search(r"注意|风险|警惕|避免|不要|不可|谨防", str(block.content)):
+        if block.type in {"paragraph", "quote"} and WARNING_SIGNAL_RE.search(str(block.content)):
             candidates.append(
                 _candidate("warning_note", [block], {"body": block.id}, "原文明示风险或注意事项。", recent_counts)
             )

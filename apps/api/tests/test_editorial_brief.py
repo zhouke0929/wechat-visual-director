@@ -16,6 +16,7 @@ from visual_director.editorial_brief import (
 )
 from visual_director.main import create_app
 from visual_director.parser import classify_article, parse_markdown
+from visual_director.planner import component_opportunity_diagnostics
 from visual_director.renderer import render_preview
 from visual_director.text_planner import (
     MockTextPlannerProvider,
@@ -514,6 +515,156 @@ def test_real_article_concept_and_long_checklist_survive_normalization() -> None
     assert "普通正文继续解释规则变化" in document
     assert "盲目勾选的风险" in document
     assert "完全不勾选的风险" in document
+
+
+def test_parallel_analysis_heading_with_internal_how_is_not_a_question_card() -> None:
+    parsed = parse_markdown(
+        """# 跨行业快闪观察
+
+## 跨行业案例：实验假设并不相同
+
+### 奢侈品与时尚：测试文化叙事能否被公众进入
+
+品牌档案、设计语言与当代装置共同构成可参观的文化世界。
+
+### 美妆与餐饮：测试感官体验如何转化为用户语言
+
+质地、色彩和味觉体验会在现场转化为消费者的自然表达。
+
+### 运动与消费科技：测试功能能否在任务中被理解
+
+抽象参数需要通过一次拍摄、动作或协作变成可感知结果。
+"""
+    )
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="viewpoint_trend",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    target_heading = next(
+        block for block in parsed.blocks
+        if block.type == "heading" and "美妆与餐饮" in str(block.content)
+    )
+    target_body = parsed.blocks[parsed.blocks.index(target_heading) + 1]
+    raw["sections"] = [
+        {
+            "source_block_ids": [target_heading.id, target_body.id],
+            "semantic_role": "faq",
+            "visual_priority": "medium",
+            "component_intent": "faq_card",
+            "reasoning": "标题包含如何。",
+        }
+    ]
+    raw["image_intents"] = []
+
+    normalized, adjustments = normalize_editorial_brief_for_article(raw, parsed)
+
+    assert normalized.sections[0].component_intent == "plain"
+    assert any(
+        item["code"] == "component_intent_lowered_to_plain"
+        for item in adjustments
+    )
+    diagnostics = component_opportunity_diagnostics(parsed)
+    target_candidates = [
+        item for item in diagnostics["candidate_anchors"]
+        if item["anchor_block_id"] == target_heading.id
+    ]
+    assert not [
+        item for item in target_candidates
+        if item["component_type"] in {"question_hook", "faq_card"}
+    ]
+
+
+def test_generalized_source_note_is_not_an_evidence_candidate() -> None:
+    parsed = parse_markdown(
+        """# 行业观察
+
+正文判断。
+
+> 来源说明：综合参考品牌官网、官方公众号、公开社交账号与行业资料，未引用未经核验的精确销量。
+"""
+    )
+
+    source = next(block for block in parsed.blocks if block.type == "source")
+    diagnostics = component_opportunity_diagnostics(parsed)
+    assert diagnostics["source_block_types"]["source"] == 1
+    assert not [
+        item for item in diagnostics["candidate_anchors"]
+        if item["anchor_block_id"] == source.id
+        and item["component_type"] == "evidence_callout"
+    ]
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="viewpoint_trend",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    brief = MockTextPlannerProvider().generate(request).model_copy(deep=True)
+    brief.sections = []
+    brief.image_intents = []
+    document = render_preview(parsed, compile_editorial_brief(parsed, brief, 5, []))
+    assert 'data-content-role="source"' in document
+    assert "font-size:12px" in document
+    assert "证据摘录" not in document
+
+
+def test_warning_and_concept_candidates_require_semantic_signals_not_substrings() -> None:
+    parsed = parse_markdown(
+        """# 快闪复盘
+
+## 行业案例
+
+### 奢侈品与时尚：测试文化叙事
+
+它不急于把注意力导向单件商品，而是先建立可参观的文化世界。
+
+## 四项行动
+
+### 1. 先写实验问题
+
+讨论装置前先明确本次活动只验证一到两个问题，并据此设计观察方式。
+"""
+    )
+
+    diagnostics = component_opportunity_diagnostics(parsed)
+    assert not [
+        item for item in diagnostics["candidate_anchors"]
+        if item["component_type"] == "warning_note"
+    ]
+    numbered_heading = next(
+        block for block in parsed.blocks
+        if block.type == "heading" and "先写实验问题" in str(block.content)
+    )
+    assert not [
+        item for item in diagnostics["candidate_anchors"]
+        if item["anchor_block_id"] == numbered_heading.id
+        and item["component_type"] == "concept_explainer"
+    ]
+
+
+def test_definition_question_prefers_concept_over_faq() -> None:
+    parsed = parse_markdown(
+        """# 产品介绍
+
+## 功能总览
+
+### 什么是合规校验
+
+合规校验是指提交前自动核对政策要求。
+"""
+    )
+    diagnostics = component_opportunity_diagnostics(parsed)
+    component_types = {
+        item["component_type"]
+        for item in diagnostics["candidate_anchors"]
+    }
+    assert "concept_explainer" in component_types
+    assert "question_hook" not in component_types
+    assert "faq_card" not in component_types
 
 
 def test_compiler_maps_art_direction_to_frozen_palette_and_layout() -> None:

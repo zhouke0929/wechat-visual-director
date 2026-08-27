@@ -416,6 +416,73 @@ def test_images_api_provider_retries_one_transient_failure_only() -> None:
     assert generated.machine_checks["ratio_valid"] is True
 
 
+def test_images_api_provider_reports_non_image_download_without_leaking_body() -> None:
+    calls = 0
+
+    def urlopen(_: Any, **__: Any) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return FakeResponse(
+                json.dumps({"data": [{"url": "https://storage.example.com/output.png"}]}).encode(),
+                "application/json",
+            )
+        return FakeResponse(b"<html>temporary free-tier page</html>", "text/html; charset=utf-8")
+
+    provider = ImagesApiProvider(
+        api_key="test-key-that-is-long-enough",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=lambda _: None,
+    )
+    with pytest.raises(ImageProviderError) as captured:
+        provider.generate(
+            prompt="Abstract editorial art inspired by: a calm wide learning scene",
+            aspect_ratio="16:9",
+            candidate_index=1,
+        )
+
+    assert captured.value.code == "image_api_invalid_image"
+    assert captured.value.retryable is True
+    assert captured.value.details["upstream_content_type"] == "text/html"
+    assert captured.value.details["response_bytes"] == 37
+    assert captured.value.details["download_attempts"] == 4
+    assert "temporary free-tier page" not in captured.value.public_message
+
+
+def test_images_api_provider_waits_for_provider_url_to_become_ready() -> None:
+    calls = 0
+    sleeps: list[float] = []
+
+    def urlopen(_: Any, **__: Any) -> FakeResponse:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return FakeResponse(
+                json.dumps({"data": [{"url": "https://storage.example.com/output.png"}]}).encode(),
+                "application/json",
+            )
+        if calls in {2, 3}:
+            return FakeResponse(b"", "")
+        return FakeResponse(png_bytes(1312, 736), "image/png")
+
+    provider = ImagesApiProvider(
+        api_key="test-key-that-is-long-enough",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=sleeps.append,
+    )
+    generated = provider.generate(
+        prompt="Abstract editorial art inspired by: a calm wide learning scene",
+        aspect_ratio="16:9",
+        candidate_index=1,
+    )
+
+    assert calls == 4
+    assert sleeps == [1.0, 2.0]
+    assert generated.machine_checks["file_valid"] is True
+
+
 def test_images_api_provider_does_not_retry_auth_or_sensitive_prompt() -> None:
     calls = 0
 

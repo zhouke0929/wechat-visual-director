@@ -224,7 +224,6 @@ export function PublicationPanel({
     );
   }
 
-  const blockerCount = readiness?.blockers.length ?? 0;
   const blockerMessages = Array.from(new Set(readiness?.blockers.map((item) => item.message) ?? []));
   const blockerHint = readiness === null
     ? "正在检查交付条件…"
@@ -233,67 +232,70 @@ export function PublicationPanel({
         ? "所有必选项已完成，可以保存并创建公众号草稿。"
         : "所有必选项已完成，可以保存最终版本。"
       : `未完成：${blockerMessages.slice(0, 2).join("；")}${blockerMessages.length > 2 ? `；另有 ${blockerMessages.length - 2} 项` : ""}`;
+  const compactHint = readiness === null
+    ? "正在检查交付条件"
+    : readiness.ready
+      ? publisher?.ready
+        ? "检查通过，可直接创建草稿"
+        : "检查通过，先保存最终版本"
+      : blockerMessages[0] ?? "仍有必选项未完成";
   return (
-    <section className="publication-console publication-dock" aria-label="确认最终视觉版本">
-      <div className="publication-dock-main">
-        <div className="publication-dock-copy">
-          <span>DELIVERY DOCK / LOCAL</span>
-          <h2>{publisher?.ready ? "确认后，直接创建公众号草稿" : "保存最终版本"}</h2>
-          <p>
-            {readiness?.ready
-              ? publisher?.ready
-                ? "当前方案已通过检查；一次点击完成本地保存并写入微信公众号草稿箱。"
-                : "当前方案已通过检查；保存后可以复制正文或下载交付包。"
-              : blockerCount
-                ? "请先完成工作台中的必选项，按钮会自动解锁。"
-                : "正在检查当前方案是否可以交付。"}
-          </p>
-          <small className={`autosave-state autosave-${saveState}`} aria-live="polite">
-            {saveState === "saving" ? "正在自动保存…" : saveState === "error" ? "自动保存失败，确认时将再次保存" : "工作稿已自动保存"}
-          </small>
-        </div>
-
-        <div className="publication-primary-stack" title={blockerHint}>
-          <button
-            aria-describedby="publication-primary-hint"
-            className="publication-primary-action"
-            disabled={!readiness?.ready || Boolean(busy)}
-            onClick={() => void onFreeze(metadata)}
-            type="button"
-          >
+    <div className={`publication-toolbar${readiness?.ready ? " is-ready" : ""}`} aria-label="草稿交付">
+      <div className="publication-toolbar-action" title={blockerHint}>
+        <button
+          aria-describedby="publication-toolbar-hint"
+          disabled={!readiness?.ready || Boolean(busy)}
+          onClick={() => void onFreeze(metadata)}
+          type="button"
+        >
+          <strong>
             {busy === "freeze"
-              ? "正在保存最终版本…"
+              ? "正在保存…"
               : busy === "publish"
-                ? "正在创建公众号草稿…"
+                ? "正在创建草稿…"
                 : publisher?.ready
-                  ? "保存并创建公众号草稿"
+                  ? "创建公众号草稿"
                   : "保存最终版本"}
-          </button>
-          <small className={readiness?.ready ? "publication-primary-hint hint-ready" : "publication-primary-hint"} id="publication-primary-hint">
-            {blockerHint}
-          </small>
-        </div>
+          </strong>
+          {!readiness?.ready ? <small>{compactHint}</small> : null}
+        </button>
+        <span className="visually-hidden" id="publication-toolbar-hint">{blockerHint}</span>
       </div>
-
-      <details className="publication-details">
-        <summary>发布信息与检查详情</summary>
-        <div className="publication-details-grid">
-          <div className="publication-metadata-form">
-            <label>作者（最多 8 个字符）<input maxLength={8} onChange={(event) => setMetadata({ ...metadata, author: event.target.value })} value={metadata.author} /></label>
-            <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} placeholder="可选；将通过微信官方 API 写入草稿" rows={3} value={metadata.digest} /></label>
-            <label>原文链接<input onChange={(event) => setMetadata({ ...metadata, content_source_url: event.target.value })} placeholder="可选" type="url" value={metadata.content_source_url} /></label>
-            <label className="cover-policy"><input checked={metadata.show_cover_pic} onChange={(event) => setMetadata({ ...metadata, show_cover_pic: event.target.checked })} type="checkbox" /><span>在正文中显示封面图（本地记录）</span></label>
-          </div>
-          <div className="gate-check-cards">
-            {Object.entries(readiness?.checks ?? {}).map(([key, status]) => (
-              <div className={`gate-check gate-check-${status}`} key={key}>
-                <span>{status === "pass" ? "✓" : status === "blocking" ? "!" : "·"}</span>
-                <div><strong>{checkLabels[key] ?? key}</strong><small>{status === "pass" ? "已通过" : status === "blocking" ? "待处理" : "等待检查"}</small></div>
-              </div>
-            ))}
+      <details className="publication-toolbar-details">
+        <summary aria-label="展开发布详情" title="发布详情">
+          <span className="visually-hidden">发布详情</span>
+        </summary>
+        <div className="publication-toolbar-popover">
+          <header>
+            <div>
+              <span>DELIVERY CHECK</span>
+              <strong>发布信息与检查</strong>
+            </div>
+            <small className={`autosave-state autosave-${saveState}`} aria-live="polite">
+              {saveState === "saving" ? "正在自动保存…" : saveState === "error" ? "自动保存失败" : "工作稿已保存"}
+            </small>
+          </header>
+          <p className={readiness?.ready ? "publication-toolbar-readiness is-ready" : "publication-toolbar-readiness"}>
+            {blockerHint}
+          </p>
+          <div className="publication-toolbar-grid">
+            <div className="publication-metadata-form publication-metadata-compact">
+              <label>作者（最多 8 个字符）<input maxLength={8} onChange={(event) => setMetadata({ ...metadata, author: event.target.value })} value={metadata.author} /></label>
+              <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} placeholder="可选；将通过微信官方 API 写入草稿" rows={3} value={metadata.digest} /></label>
+              <label>原文链接<input onChange={(event) => setMetadata({ ...metadata, content_source_url: event.target.value })} placeholder="可选" type="url" value={metadata.content_source_url} /></label>
+              <label className="cover-policy"><input checked={metadata.show_cover_pic} onChange={(event) => setMetadata({ ...metadata, show_cover_pic: event.target.checked })} type="checkbox" /><span>在正文中显示封面图（本地记录）</span></label>
+            </div>
+            <div className="gate-check-cards">
+              {Object.entries(readiness?.checks ?? {}).map(([key, status]) => (
+                <div className={`gate-check gate-check-${status}`} key={key}>
+                  <span>{status === "pass" ? "✓" : status === "blocking" ? "!" : "·"}</span>
+                  <div><strong>{checkLabels[key] ?? key}</strong><small>{status === "pass" ? "已通过" : status === "blocking" ? "待处理" : "等待检查"}</small></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </details>
-    </section>
+    </div>
   );
 }

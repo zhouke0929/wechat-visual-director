@@ -42,6 +42,8 @@ ALLOWED_RATIOS = {"4:3", "16:9"}
 # image can make the JSON envelope much larger than a normal API response.
 MAX_JSON_BYTES = 18 * 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
+IMAGE_URL_READY_ATTEMPTS = 4
+IMAGE_URL_READY_DELAY_SECONDS = 1.0
 
 
 @dataclass(frozen=True)
@@ -1092,7 +1094,12 @@ class ImagesApiProvider:
                 )
 
     @staticmethod
-    def _inspect_image(content: bytes, expected_ratio: str) -> tuple[str, str, int, int, bool]:
+    def _inspect_image(
+        content: bytes,
+        expected_ratio: str,
+        *,
+        upstream_content_type: str = "",
+    ) -> tuple[str, str, int, int, bool]:
         try:
             with Image.open(BytesIO(content)) as image:
                 image.verify()
@@ -1100,11 +1107,23 @@ class ImagesApiProvider:
                 width, height = image.size
                 image_format = (image.format or "").upper()
         except (UnidentifiedImageError, OSError) as error:
+            normalized_content_type = upstream_content_type.split(";", 1)[0].strip().lower()
+            returned_non_image = bool(normalized_content_type) and not normalized_content_type.startswith("image/")
             raise ImageProviderError(
                 "image_api_invalid_image",
-                "图片服务返回成功，但内容不是有效图片。",
-                retryable=False,
+                (
+                    "图片服务这次返回了网页或文本内容，而不是图片。请重试，"
+                    "若持续出现可上传替换或切换图片服务。"
+                    if returned_non_image
+                    else "图片服务这次没有返回可用图片，请重试，若持续出现可上传替换或切换图片服务。"
+                ),
+                retryable=True,
                 http_status=502,
+                details={
+                    "upstream_content_type": normalized_content_type or "unknown",
+                    "response_bytes": len(content),
+                    "response_sha256_prefix": hashlib.sha256(content).hexdigest()[:12],
+                },
             ) from error
         format_map = {
             "PNG": ("image/png", ".png"),
@@ -1122,6 +1141,45 @@ class ImagesApiProvider:
         ratio_valid = abs(width / height - expected) / expected <= 0.08
         content_type, extension = format_map[image_format]
         return content_type, extension, width, height, ratio_valid
+
+    def _download_ready_image(
+        self,
+        request: urllib.request.Request,
+        *,
+        expected_ratio: str,
+    ) -> tuple[bytes, str, int, int, bool, str]:
+        """Wait briefly for provider-hosted image URLs to become readable.
+
+        Some relay/free-tier providers return the final URL before the object is
+        available on storage.  In that short window the URL may answer with an
+        empty body or a placeholder document even though generation itself was
+        reported as successful.  Retrying the same URL is cheaper than issuing
+        another generation request and keeps the UI's single-click contract.
+        """
+        last_error: ImageProviderError | None = None
+        for attempt in range(IMAGE_URL_READY_ATTEMPTS):
+            content, upstream_content_type = self._read_with_retry(
+                request,
+                max_bytes=MAX_IMAGE_BYTES,
+            )
+            try:
+                content_type, _, width, height, ratio_valid = self._inspect_image(
+                    content,
+                    expected_ratio,
+                    upstream_content_type=upstream_content_type,
+                )
+                return content, content_type, width, height, ratio_valid, upstream_content_type
+            except ImageProviderError as error:
+                last_error = error
+                if (
+                    error.code != "image_api_invalid_image"
+                    or not error.retryable
+                    or attempt + 1 >= IMAGE_URL_READY_ATTEMPTS
+                ):
+                    error.details["download_attempts"] = attempt + 1
+                    raise
+                self._sleep(IMAGE_URL_READY_DELAY_SECONDS * (attempt + 1))
+        raise last_error or RuntimeError("unreachable")
 
     @staticmethod
     def _crop_to_ratio(content: bytes, expected_ratio: str) -> bytes:
@@ -1173,6 +1231,8 @@ class ImagesApiProvider:
         first_item = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else None
         image_url = first_item.get("url") if first_item else None
         encoded_image = first_item.get("b64_json") if first_item else None
+        upstream_content_type = ""
+        downloaded_from_url = False
         if isinstance(encoded_image, str):
             try:
                 content = base64.b64decode(encoded_image, validate=True)
@@ -1184,13 +1244,28 @@ class ImagesApiProvider:
                     http_status=502,
                 ) from error
         elif isinstance(image_url, str):
+            downloaded_from_url = True
             self._validate_image_url(image_url)
             download_request = urllib.request.Request(
                 image_url,
                 headers={"Accept": "image/png,image/jpeg,image/webp"},
                 method="GET",
             )
-            content, _ = self._read_with_retry(download_request, max_bytes=MAX_IMAGE_BYTES)
+            download_request.add_header(
+                "User-Agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) WechatVisualDirector/0.1",
+            )
+            (
+                content,
+                content_type,
+                width,
+                height,
+                ratio_valid,
+                upstream_content_type,
+            ) = self._download_ready_image(
+                download_request,
+                expected_ratio=aspect_ratio,
+            )
         else:
             raise ImageProviderError(
                 "image_api_missing_image",
@@ -1198,7 +1273,12 @@ class ImagesApiProvider:
                 retryable=False,
                 http_status=502,
             )
-        content_type, _, width, height, ratio_valid = self._inspect_image(content, aspect_ratio)
+        if not downloaded_from_url:
+            content_type, _, width, height, ratio_valid = self._inspect_image(
+                content,
+                aspect_ratio,
+                upstream_content_type=upstream_content_type,
+            )
         if not ratio_valid:
             content = self._crop_to_ratio(content, aspect_ratio)
             content_type, _, width, height, ratio_valid = self._inspect_image(content, aspect_ratio)

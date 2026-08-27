@@ -10,19 +10,94 @@ from .parser import ParsedArticle
 
 
 EDITORIAL_BRIEF_SCHEMA_VERSION = "editorial_brief.v0.1"
-EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.7-concept-groups"
+EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.8-semantic-parity"
 
 CONCEPT_HEADING_RE = re.compile(r"什么是|核心概念|概念解释|概念定义|定义[：:]?")
 NON_CONCEPT_HEADING_RE = re.compile(
     r"核心功能|功能[一二三四五六七八九十百0-9]+|痛点|信号|步骤|"
     r"第[一二三四五六七八九十百0-9]+步|答案|我们能帮|优势|下一步|行动清单|"
-    r"怎么(?:做|操作|使用)|如何(?:操作|使用)"
+    r"怎么(?:做|操作|使用)|如何(?:操作|使用)|^\s*[一二三四五六七八九十百0-9]+[.、)]"
 )
 CONCEPT_DEFINITION_RE = re.compile(r"是指|指的是|本质上是|定义为|可以理解为")
 COMPARISON_SIDE_RE = re.compile(
     r"^(?:盲目|完全|一方面|另一方面|过去|现在|改革前|改革后|传统|新方式|"
     r"优点|缺点|优势|不足|错误做法|正确做法)"
 )
+READER_QUESTION_START_RE = re.compile(
+    r"^(?:为什么|为何|怎么|怎样|如何|是否|能否|可否|何时|哪里|谁|什么是|有什么)"
+)
+COLON_HEADING_RE = re.compile(r"^[^：:\n]{1,28}[：:][^：:\n]{2,}$")
+
+
+def is_reader_question_heading(heading: str) -> bool:
+    """Return whether a subheading is genuinely asking the reader a question.
+
+    An interrogative word appearing inside a declarative analytical title is
+    insufficient.  For example, “美妆与餐饮：测试感官体验如何转化为用户语言”
+    names an industry-analysis dimension; it is not an isolated FAQ merely
+    because it contains “如何”.
+    """
+    compact = re.sub(r"\s+", "", heading).strip()
+    if not compact:
+        return False
+    if compact.endswith(("？", "?")):
+        return True
+    if READER_QUESTION_START_RE.match(compact):
+        return True
+    if "：" in compact or ":" in compact:
+        suffix = re.split(r"[：:]", compact, maxsplit=1)[1]
+        return bool(READER_QUESTION_START_RE.match(suffix))
+    return False
+
+
+def is_parallel_analysis_heading(block_id: str, blocks: dict[str, object]) -> bool:
+    """Protect colon-led sibling analysis headings from isolated card styling.
+
+    Repeated H3/H4 headings such as “行业 A：验证假设” and “行业 B：验证假设”
+    express a parallel article skeleton.  Turning only one item into a question
+    card breaks that hierarchy.  An explicit question mark still wins, because
+    it signals that the author intentionally wrote a reader-facing question.
+    """
+    ordered = list(blocks.values())
+    position = next((index for index, block in enumerate(ordered) if block.id == block_id), None)
+    if position is None:
+        return False
+    block = ordered[position]
+    if not _is_component_heading(block):
+        return False
+    heading = str(block.content).strip()
+    if heading.endswith(("？", "?")) or not COLON_HEADING_RE.fullmatch(heading):
+        return False
+
+    level = int(block.level or 0)
+    parent_position = -1
+    parent_level = 0
+    for index in range(position - 1, -1, -1):
+        candidate = ordered[index]
+        if candidate.type == "heading" and 0 < int(candidate.level or 0) < level:
+            parent_position = index
+            parent_level = int(candidate.level or 0)
+            break
+
+    end = len(ordered)
+    for index in range(position + 1, len(ordered)):
+        candidate = ordered[index]
+        if candidate.type == "heading" and int(candidate.level or 0) <= parent_level:
+            end = index
+            break
+
+    siblings = [
+        candidate
+        for candidate in ordered[parent_position + 1 : end]
+        if candidate.type == "heading" and int(candidate.level or 0) == level
+    ]
+    colon_siblings = [
+        candidate
+        for candidate in siblings
+        if COLON_HEADING_RE.fullmatch(str(candidate.content).strip())
+        and not str(candidate.content).strip().endswith(("？", "?"))
+    ]
+    return len(colon_siblings) >= 2
 
 
 def is_concept_pair(heading: str, paragraph: str) -> bool:
@@ -382,7 +457,12 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
     lists = [block for block in source_blocks if block.type in {"ordered_list", "unordered_list"}]
     evidence = [block for block in source_blocks if block.type in {"quote", "paragraph"}]
     if section.component_intent == "question_hook" and headings:
-        return [headings[0].id]
+        heading = headings[0]
+        if (
+            is_reader_question_heading(str(heading.content))
+            and not is_parallel_analysis_heading(heading.id, blocks)
+        ):
+            return [heading.id]
     if section.component_intent == "numbered_insight" and lists and 2 <= len(lists[0].content) <= 5:
         return [lists[0].id]
     if section.component_intent == "evidence_callout" and evidence:
@@ -407,6 +487,12 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
     if section.component_intent in {"case_card", "faq_card"}:
         pair = _adjacent_concept_pair(section.source_block_ids, blocks)
         if pair:
+            if section.component_intent == "faq_card" and (
+                not is_reader_question_heading(str(pair[0].content))
+                or is_parallel_analysis_heading(pair[0].id, blocks)
+                or is_concept_pair(str(pair[0].content), str(pair[1].content))
+            ):
+                return []
             return [pair[0].id, pair[1].id]
     if section.component_intent == "warning_note" and evidence:
         return [evidence[0].id]

@@ -81,19 +81,6 @@ const styleLabels: Record<string, string> = {
   cinematic_story: "电影叙事",
 };
 
-function plannerSourceLabel(plan: VisualPlan): string {
-  const metadata = plan.planner_metadata;
-  if (!metadata) return "规划来源：历史任务未记录";
-  if (metadata.fallback_used && (metadata.provider === "host_agent" || metadata.mode === "host_agent")) {
-    return "规划来源：宿主规划无效，已使用本地规则兜底";
-  }
-  if (metadata.fallback_used) return "规划来源：本地规则兜底";
-  if (metadata.provider === "host_agent" || metadata.mode === "host_agent") {
-    return "规划来源：宿主 Agent 语义规划";
-  }
-  return "规划来源：本地规则（未调用文本模型）";
-}
-
 export default function TaskReviewPage() {
   const taskId = useRouteParam("tasks");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
@@ -106,7 +93,8 @@ export default function TaskReviewPage() {
   const [imageReview, setImageReview] = useState<ImageSlotList | null>(null);
   const [coverReview, setCoverReview] = useState<CoverWorkspace | null>(null);
   const [coverBusy, setCoverBusy] = useState("");
-  const [imageBusy, setImageBusy] = useState("");
+  const [imageBusy, setImageBusy] = useState<string[]>([]);
+  const imageBusyRef = useRef(new Set<string>());
   const [imageRefreshToken, setImageRefreshToken] = useState(0);
   const [sourceAssetRefreshToken, setSourceAssetRefreshToken] = useState(0);
   const [focusSlotByPlan, setFocusSlotByPlan] = useState<Record<string, string>>({});
@@ -271,8 +259,10 @@ export default function TaskReviewPage() {
 
   async function handleImageGenerate(plan: VisualPlan, slot: ImageSlotReview) {
     const key = `${slot.image_slot_id}:generate`;
+    if (imageBusyRef.current.has(slot.image_slot_id)) return;
+    imageBusyRef.current.add(slot.image_slot_id);
     const modelCandidateCount = slot.state.candidates.filter((candidate) => candidate.provider !== "manual_upload").length;
-    setImageBusy(key);
+    setImageBusy((current) => [...current, key]);
     setError("");
     setNotice("");
     try {
@@ -295,59 +285,16 @@ export default function TaskReviewPage() {
       }
       setError(message);
     } finally {
-      setImageBusy("");
-    }
-  }
-
-  async function handleImageGenerateAll(plan: VisualPlan) {
-    if (!imageReview) return;
-    const targets = imageReview.items.filter(
-      (slot) =>
-        slot.state.decision === "pending" &&
-        slot.state.candidates.length === 0,
-    );
-    if (!targets.length) return;
-
-    setImageBusy("batch");
-    setError("");
-    setNotice("");
-    const failures: string[] = [];
-    let generatedCount = 0;
-    try {
-      // 图片 Provider 常有并发限制。这里有意串行执行，减少限流和重复计费风险。
-      for (const slot of targets) {
-        try {
-          await generateImageCandidate(
-            taskId,
-            plan.id,
-            slot.image_slot_id,
-            slot.state.image_revision,
-            "start",
-          );
-          generatedCount += 1;
-        } catch (reason) {
-          failures.push(
-            `${slot.anchor_block_id}：${reason instanceof Error ? reason.message : "生成失败"}`,
-          );
-        }
-      }
-      await refreshImageReview(plan.id);
-      if (generatedCount) {
-        setNotice(
-          `已依次生成 ${generatedCount} 张候选，工作台将从第一张大图开始连续审核。`,
-        );
-      }
-      if (failures.length) {
-        setError(`有 ${failures.length} 张未生成：${failures.join("；")}`);
-      }
-    } finally {
-      setImageBusy("");
+      imageBusyRef.current.delete(slot.image_slot_id);
+      setImageBusy((current) => current.filter((item) => item !== key));
     }
   }
 
   async function handleImageFallback(plan: VisualPlan, slot: ImageSlotReview) {
     const key = `${slot.image_slot_id}:fallback`;
-    setImageBusy(key);
+    if (imageBusyRef.current.has(slot.image_slot_id)) return;
+    imageBusyRef.current.add(slot.image_slot_id);
+    setImageBusy((current) => [...current, key]);
     setError("");
     setNotice("");
     try {
@@ -364,7 +311,8 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "生成保底信息图失败");
     } finally {
-      setImageBusy("");
+      imageBusyRef.current.delete(slot.image_slot_id);
+      setImageBusy((current) => current.filter((item) => item !== key));
     }
   }
 
@@ -374,7 +322,10 @@ export default function TaskReviewPage() {
     candidate: ImageCandidate,
     textVerified: boolean,
   ) {
-    setImageBusy(`${slot.image_slot_id}:accept`);
+    const key = `${slot.image_slot_id}:accept`;
+    if (imageBusyRef.current.has(slot.image_slot_id)) return;
+    imageBusyRef.current.add(slot.image_slot_id);
+    setImageBusy((current) => [...current, key]);
     setError("");
     setNotice("");
     try {
@@ -392,12 +343,16 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "采用图片失败");
     } finally {
-      setImageBusy("");
+      imageBusyRef.current.delete(slot.image_slot_id);
+      setImageBusy((current) => current.filter((item) => item !== key));
     }
   }
 
   async function handleImageSkip(plan: VisualPlan, slot: ImageSlotReview) {
-    setImageBusy(`${slot.image_slot_id}:skip`);
+    const key = `${slot.image_slot_id}:skip`;
+    if (imageBusyRef.current.has(slot.image_slot_id)) return;
+    imageBusyRef.current.add(slot.image_slot_id);
+    setImageBusy((current) => [...current, key]);
     setError("");
     setNotice("");
     try {
@@ -408,12 +363,16 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "跳过图片槽失败");
     } finally {
-      setImageBusy("");
+      imageBusyRef.current.delete(slot.image_slot_id);
+      setImageBusy((current) => current.filter((item) => item !== key));
     }
   }
 
   async function handleImageReplace(plan: VisualPlan, slot: ImageSlotReview, file: File) {
-    setImageBusy(`${slot.image_slot_id}:replace`);
+    const key = `${slot.image_slot_id}:replace`;
+    if (imageBusyRef.current.has(slot.image_slot_id)) return;
+    imageBusyRef.current.add(slot.image_slot_id);
+    setImageBusy((current) => [...current, key]);
     setError("");
     setNotice("");
     try {
@@ -424,7 +383,8 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "上传替换图片失败");
     } finally {
-      setImageBusy("");
+      imageBusyRef.current.delete(slot.image_slot_id);
+      setImageBusy((current) => current.filter((item) => item !== key));
     }
   }
 
@@ -789,6 +749,11 @@ export default function TaskReviewPage() {
     ?? planList?.plans[0]
     ?? null;
   const activePlanSelected = Boolean(activePlan && detail.task.selected_plan_id === activePlan.id);
+  const resolvedImageCount = imageReview?.items.filter(
+    (item) => Boolean(item.state.selected_candidate_id) || item.state.status === "skipped",
+  ).length ?? 0;
+  const totalImageCount = imageReview?.items.length ?? 0;
+  const coverStatusLabel = coverReview?.selected_cover ? "已完成" : "待选择";
   const activeRevision = publicationRevisions.find(
     (item) => item.id === detail.task.active_publication_revision_id,
   ) ?? null;
@@ -807,15 +772,36 @@ export default function TaskReviewPage() {
   );
 
   return (
-    <main className="review-page">
+    <main className={`review-page${activePlan && !activeRevision && !showPreflight ? " review-page-workbench" : ""}`}>
       <header className="review-topbar">
         <Link className="back-link" href="/"><BackIcon />任务台</Link>
         <div className="review-title">
           <p>VISUAL REVIEW / {taskId.slice(0, 8).toUpperCase()}</p>
           <h1>{detail.task.title}</h1>
         </div>
-        <Link className="review-settings-link" href="/settings">图片设置</Link>
-        <StatusPill status={detail.task.status} />
+        <div className="review-topbar-actions">
+          <Link className="review-settings-link" href="/settings">本地设置</Link>
+          {publicationVisible && !activeRevision ? (
+            <PublicationPanel
+              busy={publicationBusy}
+              bundleUrl={null}
+              operation={activeDraftOperation}
+              publisher={wechatPublisher}
+              readiness={publicationReadiness}
+              revision={null}
+              task={detail.task}
+              onAutosave={handlePublicationAutosave}
+              onContinueEditing={() => Promise.resolve()}
+              onCopy={() => Promise.resolve()}
+              onFreeze={handleFreezePublication}
+              onPublish={() => Promise.resolve()}
+              onRetry={() => Promise.resolve()}
+              onResolveUnknown={() => Promise.resolve()}
+            />
+          ) : (
+            <StatusPill status={detail.task.status} />
+          )}
+        </div>
       </header>
 
       {showPreflight && preflightReport ? (
@@ -842,41 +828,13 @@ export default function TaskReviewPage() {
 
       {planList && !activeRevision ? (
         <>
-          {publicationVisible ? (
-            <div id="publication-console">
-              <PublicationPanel
-                busy={publicationBusy}
-                bundleUrl={null}
-                operation={activeDraftOperation}
-                publisher={wechatPublisher}
-                readiness={publicationReadiness}
-                revision={activeRevision}
-                task={detail.task}
-                onAutosave={handlePublicationAutosave}
-                onContinueEditing={() => Promise.resolve()}
-                onCopy={() => Promise.resolve()}
-                onFreeze={handleFreezePublication}
-                onPublish={() => Promise.resolve()}
-                onRetry={() => Promise.resolve()}
-                onResolveUnknown={() => Promise.resolve()}
-              />
-            </div>
-          ) : null}
-
           {activePlan ? (
             <section className="editor-workbench" id="editor-workbench" aria-label={`${activePlan.plan_name} 编辑工作台`}>
               <aside className="editor-controls">
                 <div className="active-plan-summary">
-                  <div className="plan-kicker-row">
-                    <span>推荐主题</span>
-                    <span>{styleLabels[activePlan.style_mode] ?? activePlan.style_mode}</span>
-                  </div>
-                  <h2>{activePlan.plan_name}</h2>
-                  <p>{activePlan.summary}</p>
-                  <small className="planner-source-note">{plannerSourceLabel(activePlan)}</small>
                   <div className="theme-switch-controls">
                     <label>
-                      <span>整体换主题</span>
+                      <span>当前主题</span>
                       <select
                         aria-label="选择整篇文章主题"
                         disabled={Boolean(switchingTheme) || Boolean(restoring)}
@@ -923,7 +881,6 @@ export default function TaskReviewPage() {
                       >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
                     ) : null}
                   </div>
-                  <small className="theme-switch-note">换主题不改正文、图片和文章结构；已有图片始终保留，新生图跟随当前主题，最终冻结后才计入最近五篇。</small>
                   {!activePlanSelected ? (
                     <button
                       className="select-button"
@@ -945,7 +902,8 @@ export default function TaskReviewPage() {
                     type="button"
                   >
                     <span>01</span>
-                    配图审核
+                    <strong>配图审核</strong>
+                    <small>{imageReview ? `${resolvedImageCount}/${totalImageCount}` : "加载中"}</small>
                   </button>
                   <button
                     aria-selected={activeEditorTab === "cover"}
@@ -955,7 +913,8 @@ export default function TaskReviewPage() {
                     type="button"
                   >
                     <span>02</span>
-                    文章封面
+                    <strong>文章封面</strong>
+                    <small>{coverReview ? coverStatusLabel : "加载中"}</small>
                   </button>
                 </div>
 
@@ -977,7 +936,6 @@ export default function TaskReviewPage() {
                       }
                       onFallback={(slot) => handleImageFallback(activePlan, slot)}
                       onGenerate={(slot) => handleImageGenerate(activePlan, slot)}
-                      onGenerateAll={() => handleImageGenerateAll(activePlan)}
                       onReplace={(slot, file) => handleImageReplace(activePlan, slot, file)}
                       onRestoreTheme={() => handleRestore(activePlan)}
                       onSkip={(slot) => handleImageSkip(activePlan, slot)}
@@ -1000,13 +958,6 @@ export default function TaskReviewPage() {
               </aside>
 
               <section className="preview-workspace" id={`preview-${activePlan.id}`}>
-                <header className="preview-workspace-header">
-                  <div>
-                    <span>LIVE ARTICLE / 390PX</span>
-                    <strong>右侧文章预览</strong>
-                  </div>
-                  <p>操作时页面不跳转，仅文章内部定位变化位置</p>
-                </header>
                 <ArticlePreviewViewport>
                   <ResilientPreviewFrame
                     src={focusedPreviewUrl(activePlan)}

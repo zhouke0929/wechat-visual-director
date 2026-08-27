@@ -1107,7 +1107,7 @@ article_type: tutorial_steps
 
 
 def test_switch_whole_theme_preserves_structure_images_and_supports_undo(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "theme-switch.db"))
+    app = create_app(str(tmp_path / "theme-switch.db"), image_provider=MockImageProvider())
     with TestClient(app) as client:
         markdown = """---
 title: 主题切换测试
