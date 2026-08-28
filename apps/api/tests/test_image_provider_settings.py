@@ -14,6 +14,8 @@ IMAGE_ENV_KEYS = (
     "IMAGE_API_KEY",
     "IMAGE_API_ENDPOINT",
     "IMAGE_API_MODEL",
+    "IMAGE_API_ADAPTER",
+    "IMAGE_API_RESOLUTION",
     "IMAGE_API_PROTOCOL",
     "IMAGE_API_SIZE",
     "GEMINI_API_KEY",
@@ -84,13 +86,12 @@ def test_image_settings_write_only_key_and_hot_reload(monkeypatch, tmp_path: Pat
                 "api_key": secret,
                 "endpoint": "https://api.openai.com/v1/images/generations",
                 "model": "gpt-image-2",
-                "protocol": "openai",
-                "size": "auto",
+                "resolution": "1K",
             },
         )
         assert saved.status_code == 200
         body = saved.json()
-        assert body["settings"]["schema_version"] == "image_provider_settings.v0.2"
+        assert body["settings"]["schema_version"] == "image_provider_settings.v0.3"
         assert body["settings"]["mode"] == "images_api"
         assert body["settings"]["active_provider"] == "images_api"
         assert body["settings"]["api_key_configured"] is True
@@ -129,8 +130,7 @@ def test_image_settings_accept_ark_agent_plan_without_replacing_key(monkeypatch,
                 "mode": "images_api",
                 "endpoint": "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations",
                 "model": "doubao-seedream-5.0-lite",
-                "protocol": "ark_plan",
-                "size": "2K",
+                "resolution": "2K",
             },
         )
         assert response.status_code == 200
@@ -140,15 +140,15 @@ def test_image_settings_accept_ark_agent_plan_without_replacing_key(monkeypatch,
         images_api = settings["providers"]["images_api"]
         assert images_api["endpoint"] == "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations"
         assert images_api["model"] == "doubao-seedream-5.0-lite"
-        assert images_api["protocol"] == "ark_plan"
-        assert images_api["size"] == "2K"
+        assert images_api["adapter"] == "ark_plan"
+        assert images_api["resolution"] == "2K"
         assert images_api["api_key_configured"] is True
         assert "agent-plan-secret-never-return" not in response.text
 
     values = read_env_file(env_file)
     assert values["IMAGE_API_KEY"] == "agent-plan-secret-never-return"
-    assert values["IMAGE_API_PROTOCOL"] == "ark_plan"
-    assert values["IMAGE_API_SIZE"] == "2K"
+    assert values["IMAGE_API_ADAPTER"] == "ark_plan"
+    assert values["IMAGE_API_RESOLUTION"] == "2K"
 
 
 def test_image_settings_can_clear_key_without_deleting_other_values(monkeypatch, tmp_path: Path) -> None:
@@ -183,7 +183,7 @@ def test_image_settings_can_clear_key_without_deleting_other_values(monkeypatch,
     assert values["AGNES_API_KEY"] == "legacy-key-must-not-resurface"
 
 
-def test_gemini_settings_use_a_separate_write_only_key(monkeypatch, tmp_path: Path) -> None:
+def test_gemini_openai_compatible_endpoint_uses_the_unified_key(monkeypatch, tmp_path: Path) -> None:
     app, env_file = _isolated_settings_app(monkeypatch, tmp_path)
     secret = "gemini-secret-never-return"
 
@@ -192,23 +192,25 @@ def test_gemini_settings_use_a_separate_write_only_key(monkeypatch, tmp_path: Pa
             "/api/v1/settings/image-provider",
             headers={"X-Settings-Intent": "local-operator"},
             json={
-                "mode": "gemini",
+                "mode": "images_api",
                 "api_key": secret,
+                "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/images/generations",
                 "model": "gemini-3.1-flash-image",
-                "size": "2K",
+                "resolution": "2K",
             },
         )
         assert response.status_code == 200
         settings = response.json()["settings"]
-        assert settings["mode"] == "gemini"
-        assert settings["active_provider"] == "gemini"
-        assert settings["providers"]["gemini"]["size"] == "2K"
+        assert settings["mode"] == "images_api"
+        assert settings["active_provider"] == "images_api"
+        assert settings["providers"]["images_api"]["adapter"] == "openai"
+        assert settings["providers"]["images_api"]["resolution"] == "2K"
         assert settings["api_key_configured"] is True
         assert secret not in response.text
 
     values = read_env_file(env_file)
-    assert values["GEMINI_API_KEY"] == secret
-    assert "IMAGE_API_KEY" not in values
+    assert values["IMAGE_API_KEY"] == secret
+    assert "GEMINI_API_KEY" not in values
 
 
 def test_image_settings_refuse_to_override_process_environment(monkeypatch, tmp_path: Path) -> None:

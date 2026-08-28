@@ -26,11 +26,8 @@ from .preflight import PREFLIGHT_RULESET_VERSION, PREFLIGHT_SCHEMA_VERSION, run_
 from .image_provider import (
     DEFAULT_AGNES_ENDPOINT,
     DEFAULT_AGNES_MODEL,
-    DEFAULT_GEMINI_IMAGE_ENDPOINT,
-    DEFAULT_GEMINI_IMAGE_MODEL,
     DEFAULT_IMAGES_API_ENDPOINT,
     DEFAULT_IMAGES_API_MODEL,
-    DEFAULT_IMAGES_API_PROTOCOL,
     IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
     IMAGE_PROMPT_VERSION,
     GeneratedImage,
@@ -41,6 +38,7 @@ from .image_provider import (
     build_theme_fallback_cover,
     create_image_provider_from_env,
     image_prompt_profile,
+    resolve_images_api_adapter,
 )
 from .planner import generate_plans, structural_difference_count
 from .brief_compiler import (
@@ -118,13 +116,12 @@ class GeneratePlansRequest(BaseModel):
 
 
 class ImageProviderSettingsRequest(BaseModel):
-    mode: str = Field(pattern="^(manual|mock|images_api|gemini)$")
+    mode: str = Field(pattern="^(manual|mock|images_api)$")
     api_key: str | None = Field(default=None, max_length=512)
     clear_api_key: bool = False
     endpoint: str | None = Field(default=None, max_length=500)
     model: str | None = Field(default=None, max_length=160)
-    protocol: str | None = Field(default=None, pattern="^(openai|ark|ark_plan|extended)$")
-    size: str | None = Field(default=None, max_length=40)
+    resolution: str | None = Field(default=None, pattern="^(1K|2K)$")
 
 
 class SetupPreferencesRequest(BaseModel):
@@ -902,6 +899,9 @@ def create_app(
             "IMAGE_API_KEY",
             "IMAGE_API_ENDPOINT",
             "IMAGE_API_MODEL",
+            "IMAGE_API_ADAPTER",
+            "IMAGE_API_RESOLUTION",
+            # Pre-v0.3 fields remain readable during migration.
             "IMAGE_API_PROTOCOL",
             "IMAGE_API_SIZE",
             "GEMINI_API_KEY",
@@ -925,9 +925,10 @@ def create_app(
             or "mock"
         ).strip().lower()
         legacy_agnes = raw_mode == "agnes"
-        mode = "images_api" if legacy_agnes else raw_mode
-        active_key_name = "GEMINI_API_KEY" if mode == "gemini" else "IMAGE_API_KEY"
-        active_legacy_key_name = "AGNES_API_KEY" if mode == "images_api" else ""
+        legacy_gemini = raw_mode == "gemini"
+        mode = "images_api" if legacy_agnes or legacy_gemini else raw_mode
+        active_key_name = "GEMINI_API_KEY" if legacy_gemini else "IMAGE_API_KEY"
+        active_legacy_key_name = "AGNES_API_KEY" if legacy_agnes else ""
         process_has_primary_key = active_key_name in os.environ
         file_has_primary_key = active_key_name in file_values
         process_api_key = str(
@@ -960,13 +961,20 @@ def create_app(
             warnings.append("manual_upload_only")
         elif mode == "mock":
             warnings.append("mock_images_are_not_production_assets")
-        elif mode in {"images_api", "gemini"} and not active_provider.configured:
+        elif mode == "images_api" and not active_provider.configured:
             warnings.append("image_api_key_missing")
         if legacy_agnes:
             warnings.append("legacy_agnes_settings_mapped_to_images_api")
+        if legacy_gemini:
+            warnings.append("legacy_gemini_settings_mapped_to_images_api")
         images_endpoint = str(
             os.environ.get("IMAGE_API_ENDPOINT")
             or file_values.get("IMAGE_API_ENDPOINT")
+            or (
+                "https://generativelanguage.googleapis.com/v1beta/openai/images/generations"
+                if legacy_gemini
+                else ""
+            )
             or os.environ.get("AGNES_IMAGE_ENDPOINT")
             or file_values.get("AGNES_IMAGE_ENDPOINT")
             or (DEFAULT_AGNES_ENDPOINT if legacy_agnes else DEFAULT_IMAGES_API_ENDPOINT)
@@ -974,14 +982,38 @@ def create_app(
         images_model = str(
             os.environ.get("IMAGE_API_MODEL")
             or file_values.get("IMAGE_API_MODEL")
+            or (
+                os.environ.get("GEMINI_IMAGE_MODEL")
+                or file_values.get("GEMINI_IMAGE_MODEL")
+                if legacy_gemini
+                else ""
+            )
             or os.environ.get("AGNES_IMAGE_MODEL")
             or file_values.get("AGNES_IMAGE_MODEL")
             or (DEFAULT_AGNES_MODEL if legacy_agnes else DEFAULT_IMAGES_API_MODEL)
         )
+        images_resolution = str(
+            os.environ.get("IMAGE_API_RESOLUTION")
+            or file_values.get("IMAGE_API_RESOLUTION")
+            or os.environ.get("IMAGE_API_SIZE")
+            or file_values.get("IMAGE_API_SIZE")
+            or (
+                os.environ.get("GEMINI_IMAGE_SIZE")
+                or file_values.get("GEMINI_IMAGE_SIZE")
+                if legacy_gemini
+                else ""
+            )
+            or os.environ.get("AGNES_IMAGE_SIZE")
+            or file_values.get("AGNES_IMAGE_SIZE")
+            or "1K"
+        ).upper()
+        if images_resolution not in {"1K", "2K"}:
+            images_resolution = "1K"
+        resolved_adapter = resolve_images_api_adapter(images_endpoint, images_model)
         return {
             "schema_version": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
             "mode": mode,
-            "active_provider": active_provider.provider,
+            "active_provider": "images_api" if legacy_gemini else active_provider.provider,
             "active_model": active_provider.model,
             "real_generation_available": (
                 active_provider.provider in {"images_api", "gemini"} and active_provider.configured
@@ -995,51 +1027,16 @@ def create_app(
                 "images_api": {
                     "endpoint": images_endpoint,
                     "model": images_model,
-                    "protocol": str(
-                        os.environ.get("IMAGE_API_PROTOCOL")
-                        or file_values.get("IMAGE_API_PROTOCOL")
-                        or ("extended" if legacy_agnes else DEFAULT_IMAGES_API_PROTOCOL)
-                    ),
-                    "size": str(
-                        os.environ.get("IMAGE_API_SIZE")
-                        or file_values.get("IMAGE_API_SIZE")
-                        or os.environ.get("AGNES_IMAGE_SIZE")
-                        or file_values.get("AGNES_IMAGE_SIZE")
-                        or ("1K" if legacy_agnes else "auto")
-                    ),
+                    "adapter": resolved_adapter,
+                    "resolution": images_resolution,
                     "api_key_configured": bool(
                         str(
-                            os.environ.get("IMAGE_API_KEY", "")
-                            if "IMAGE_API_KEY" in os.environ
-                            else file_values.get("IMAGE_API_KEY", "")
-                            if "IMAGE_API_KEY" in file_values
-                            else os.environ.get("AGNES_API_KEY", "")
-                            or file_values.get("AGNES_API_KEY", "")
-                        ).strip()
-                    ),
-                },
-                "gemini": {
-                    "endpoint": str(
-                        os.environ.get("GEMINI_IMAGE_ENDPOINT")
-                        or file_values.get("GEMINI_IMAGE_ENDPOINT")
-                        or DEFAULT_GEMINI_IMAGE_ENDPOINT
-                    ),
-                    "model": str(
-                        os.environ.get("GEMINI_IMAGE_MODEL")
-                        or file_values.get("GEMINI_IMAGE_MODEL")
-                        or DEFAULT_GEMINI_IMAGE_MODEL
-                    ),
-                    "protocol": "gemini_interactions",
-                    "size": str(
-                        os.environ.get("GEMINI_IMAGE_SIZE")
-                        or file_values.get("GEMINI_IMAGE_SIZE")
-                        or "1K"
-                    ),
-                    "api_key_configured": bool(
-                        str(
-                            os.environ.get("GEMINI_API_KEY")
-                            or file_values.get("GEMINI_API_KEY")
-                            or ""
+                            os.environ.get(active_key_name, "")
+                            if active_key_name in os.environ
+                            else file_values.get(active_key_name, "")
+                            if active_key_name in file_values
+                            else os.environ.get(active_legacy_key_name, "")
+                            or file_values.get(active_legacy_key_name, "")
                         ).strip()
                     ),
                 },
@@ -1094,30 +1091,35 @@ def create_app(
         file_values = read_env_file(env_path)
         updates = {"VISUAL_DIRECTOR_IMAGE_PROVIDER": payload.mode}
         if payload.mode == "images_api":
+            next_endpoint = (payload.endpoint or current["providers"]["images_api"]["endpoint"]).strip()
+            next_model = (payload.model or current["providers"]["images_api"]["model"]).strip()
+            next_resolution = payload.resolution or current["providers"]["images_api"]["resolution"]
             updates.update(
                 {
-                    "IMAGE_API_ENDPOINT": (payload.endpoint or current["providers"]["images_api"]["endpoint"]).strip(),
-                    "IMAGE_API_MODEL": (payload.model or current["providers"]["images_api"]["model"]).strip(),
-                    "IMAGE_API_PROTOCOL": payload.protocol or current["providers"]["images_api"]["protocol"],
-                    "IMAGE_API_SIZE": (payload.size or current["providers"]["images_api"]["size"]).strip(),
+                    # The endpoint is stored and requested verbatim.  Adapter
+                    # selection is deterministic and never exposed as a user setting.
+                    "IMAGE_API_ENDPOINT": next_endpoint,
+                    "IMAGE_API_MODEL": next_model,
+                    "IMAGE_API_ADAPTER": resolve_images_api_adapter(next_endpoint, next_model),
+                    "IMAGE_API_RESOLUTION": next_resolution,
+                    # Stop stale v0.2 fields from overriding the unified connection.
+                    "IMAGE_API_PROTOCOL": "",
+                    "IMAGE_API_SIZE": "",
                 }
             )
             if payload.clear_api_key:
                 updates["IMAGE_API_KEY"] = ""
             elif api_key is not None:
                 updates["IMAGE_API_KEY"] = api_key
-        elif payload.mode == "gemini":
-            updates.update(
-                {
-                    "GEMINI_IMAGE_ENDPOINT": (payload.endpoint or current["providers"]["gemini"]["endpoint"]).strip(),
-                    "GEMINI_IMAGE_MODEL": (payload.model or current["providers"]["gemini"]["model"]).strip(),
-                    "GEMINI_IMAGE_SIZE": (payload.size or current["providers"]["gemini"]["size"]).strip(),
-                }
-            )
-            if payload.clear_api_key:
-                updates["GEMINI_API_KEY"] = ""
-            elif api_key is not None:
-                updates["GEMINI_API_KEY"] = api_key
+            elif not str(file_values.get("IMAGE_API_KEY", "")).strip():
+                # One-time migration from the removed Gemini/Agnes cards.
+                legacy_key = str(
+                    file_values.get("GEMINI_API_KEY")
+                    or file_values.get("AGNES_API_KEY")
+                    or ""
+                ).strip()
+                if legacy_key:
+                    updates["IMAGE_API_KEY"] = legacy_key
         elif api_key is not None or payload.clear_api_key:
             return _error(
                 422,

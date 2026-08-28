@@ -30,12 +30,12 @@ SENSITIVE_LABEL_RE = re.compile(
 )
 DEFAULT_IMAGES_API_ENDPOINT = "https://api.openai.com/v1/images/generations"
 DEFAULT_IMAGES_API_MODEL = "gpt-image-2"
-DEFAULT_IMAGES_API_PROTOCOL = "openai"
+DEFAULT_IMAGES_API_PROTOCOL = "auto"
 DEFAULT_GEMINI_IMAGE_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions"
 DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
 DEFAULT_AGNES_ENDPOINT = "https://apihub.agnes-ai.com/v1/images/generations"
 DEFAULT_AGNES_MODEL = "agnes-image-2.1-flash"
-IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION = "image_provider_settings.v0.2"
+IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION = "image_provider_settings.v0.3"
 IMAGE_PROMPT_VERSION = "v10-visual-dna-article-direction"
 ALLOWED_RATIOS = {"4:3", "16:9"}
 # OpenAI and Gemini can return the generated image inline as Base64. A 4K
@@ -44,6 +44,25 @@ MAX_JSON_BYTES = 18 * 1024 * 1024
 MAX_IMAGE_BYTES = 12 * 1024 * 1024
 IMAGE_URL_READY_ATTEMPTS = 4
 IMAGE_URL_READY_DELAY_SECONDS = 1.0
+
+
+def resolve_images_api_adapter(endpoint: str, model: str = "") -> str:
+    """Resolve a hidden adapter without changing the user-supplied endpoint."""
+    parsed = urlparse(endpoint.strip())
+    host = (parsed.hostname or "").lower()
+    path = parsed.path.lower()
+    normalized_model = model.strip().lower()
+    if host == "ark.cn-beijing.volces.com" or host.endswith(".volces.com"):
+        return "ark_plan" if "/api/plan/" in path else "ark"
+    if (
+        host == "dashscope.aliyuncs.com"
+        or host == "dashscope-intl.aliyuncs.com"
+        or host.endswith(".maas.aliyuncs.com")
+    ):
+        return "dashscope"
+    if host == "apihub.agnes-ai.com" or "agnes" in host or "agnes" in normalized_model:
+        return "extended"
+    return "openai"
 
 
 @dataclass(frozen=True)
@@ -845,7 +864,7 @@ class ManualImageProvider:
 
 
 class ImagesApiProvider:
-    """Adapter for OpenAI Images API and closely related image endpoints.
+    """One user-facing image connection backed by hidden provider adapters.
 
     The product contract remains provider-neutral. ``protocol`` only controls
     the small payload differences required by the upstream service:
@@ -853,6 +872,7 @@ class ImagesApiProvider:
     - ``openai``: OpenAI Images API and strict compatible relays.
     - ``ark``: Volcengine Ark pay-as-you-go / Seedream image generation.
     - ``ark_plan``: Volcengine Agent Plan / Seedream dedicated route.
+    - ``dashscope``: Alibaba Model Studio native image endpoints.
     - ``extended``: legacy relays that accept ``ratio`` and ``extra_body``.
     """
 
@@ -865,7 +885,7 @@ class ImagesApiProvider:
         endpoint: str = DEFAULT_IMAGES_API_ENDPOINT,
         model: str = DEFAULT_IMAGES_API_MODEL,
         protocol: str = DEFAULT_IMAGES_API_PROTOCOL,
-        size: str = "auto",
+        size: str = "1K",
         timeout_seconds: int = 180,
         max_attempts: int = 2,
         retry_delay_seconds: float = 1.0,
@@ -876,8 +896,13 @@ class ImagesApiProvider:
         self.api_key = api_key.strip()
         self.endpoint = endpoint.strip()
         self.model = model.strip()
-        self.protocol = protocol.strip().lower()
-        self.size = size.strip()
+        requested_protocol = protocol.strip().lower()
+        self.protocol = (
+            resolve_images_api_adapter(self.endpoint, self.model)
+            if requested_protocol in {"", "auto"}
+            else requested_protocol
+        )
+        self.size = size.strip().upper()
         self.timeout_seconds = timeout_seconds
         self.max_attempts = max_attempts
         self.retry_delay_seconds = retry_delay_seconds
@@ -908,25 +933,27 @@ class ImagesApiProvider:
             or endpoint_ip.is_multicast
         ):
             raise ValueError("Images API endpoint 不允许指向本机或内部网络地址")
-        if self.protocol not in {"openai", "ark", "ark_plan", "extended"}:
-            raise ValueError("Images API protocol 只允许 openai、ark、ark_plan 或 extended")
+        if self.protocol not in {"openai", "ark", "ark_plan", "dashscope", "extended"}:
+            raise ValueError("无法识别当前图片接口类型")
         if not self.model:
             raise ValueError("Images API model 不能为空")
-        if not self.size:
-            raise ValueError("Images API size 不能为空")
+        if self.size not in {"AUTO", "1K", "2K"}:
+            raise ValueError("图片清晰度只允许 1K 或 2K")
         if not 60 <= self.timeout_seconds <= 360:
             raise ValueError("Images API timeout 必须在 60–360 秒之间")
         if self.max_attempts != 2:
             raise ValueError("Images API 固定首次失败后最多自动重试 1 次")
 
     def _request_size(self, aspect_ratio: str) -> str:
-        if self.size.lower() != "auto":
-            return self.size
         if self.protocol == "openai":
             return "1536x1024"
         if self.protocol in {"ark", "ark_plan"}:
-            return "2K"
-        return "1K"
+            return "2K" if self.size == "2K" else "1K"
+        if self.protocol == "dashscope":
+            if aspect_ratio == "16:9":
+                return "1664*928" if self.size != "2K" else "1920*1080"
+            return "1328*992" if self.size != "2K" else "1664*1248"
+        return "2K" if self.size == "2K" else "1K"
 
     def _payload(self, *, prompt: str, aspect_ratio: str) -> dict[str, Any]:
         if aspect_ratio not in ALLOWED_RATIOS:
@@ -936,24 +963,79 @@ class ImagesApiProvider:
                 retryable=False,
                 http_status=422,
             )
+        request_size = self._request_size(aspect_ratio)
         base_payload: dict[str, Any] = {
             "model": self.model,
             "prompt": prompt,
-            "size": self._request_size(aspect_ratio),
+            "size": request_size,
         }
         if self.protocol == "openai":
-            return {**base_payload, "n": 1}
+            payload = {**base_payload, "n": 1}
+            if urlparse(self.endpoint).hostname == "api.openai.com" and self.size == "2K":
+                payload["quality"] = "high"
+            return payload
         if self.protocol in {"ark", "ark_plan"}:
             return {
                 **base_payload,
                 "sequential_image_generation": "disabled",
                 "response_format": "url",
             }
+        if self.protocol == "dashscope":
+            if "/multimodal-generation/" in urlparse(self.endpoint).path.lower():
+                return {
+                    "model": self.model,
+                    "input": {
+                        "messages": [
+                            {"role": "user", "content": [{"text": prompt}]},
+                        ],
+                    },
+                    "parameters": {"size": request_size, "n": 1},
+                }
+            return {
+                "model": self.model,
+                "input": {"prompt": prompt},
+                "parameters": {"size": request_size, "n": 1},
+            }
         return {
             **base_payload,
             "ratio": aspect_ratio,
             "extra_body": {"response_format": "url"},
         }
+
+    @staticmethod
+    def _response_image(response_payload: Any) -> tuple[str | None, str | None]:
+        """Extract an image from OpenAI-compatible or DashScope envelopes."""
+        if not isinstance(response_payload, dict):
+            return None, None
+        items = response_payload.get("data")
+        first_item = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else None
+        if first_item:
+            image_url = first_item.get("url")
+            encoded_image = first_item.get("b64_json")
+            if isinstance(image_url, str) or isinstance(encoded_image, str):
+                return image_url, encoded_image
+
+        output = response_payload.get("output")
+        if isinstance(output, dict):
+            results = output.get("results")
+            if isinstance(results, list):
+                for result in results:
+                    if isinstance(result, dict) and isinstance(result.get("url"), str):
+                        return result["url"], None
+            choices = output.get("choices")
+            if isinstance(choices, list):
+                for choice in choices:
+                    message = choice.get("message") if isinstance(choice, dict) else None
+                    content = message.get("content") if isinstance(message, dict) else None
+                    if not isinstance(content, list):
+                        continue
+                    for part in content:
+                        if not isinstance(part, dict):
+                            continue
+                        image_url = part.get("image") or part.get("url")
+                        if isinstance(image_url, str):
+                            return image_url, None
+        return None, None
 
     @staticmethod
     def _http_error(status: int) -> ImageProviderError:
@@ -999,7 +1081,7 @@ class ImagesApiProvider:
             )
         return ImageProviderError(
             "image_api_request_rejected",
-            "图片服务拒绝了本次请求，请检查接口协议、模型和尺寸配置。",
+            "图片服务拒绝了本次请求，请检查完整 Endpoint、模型和图片清晰度配置。",
             retryable=False,
             http_status=502,
             details={"upstream_status": status},
@@ -1207,10 +1289,7 @@ class ImagesApiProvider:
                 retryable=False,
                 http_status=502,
             ) from error
-        items = response_payload.get("data") if isinstance(response_payload, dict) else None
-        first_item = items[0] if isinstance(items, list) and items and isinstance(items[0], dict) else None
-        image_url = first_item.get("url") if first_item else None
-        encoded_image = first_item.get("b64_json") if first_item else None
+        image_url, encoded_image = self._response_image(response_payload)
         upstream_content_type = ""
         downloaded_from_url = False
         # Several OpenAI-compatible relays (including Agnes) return both
@@ -1302,14 +1381,16 @@ class GeminiImageProvider(ImagesApiProvider):
         size: str = "1K",
         **kwargs: Any,
     ) -> None:
+        requested_size = size.strip().upper()
         super().__init__(
             api_key=api_key,
             endpoint=endpoint,
             model=model,
             protocol="openai",
-            size=size,
+            size=requested_size if requested_size in {"1K", "2K"} else "1K",
             **kwargs,
         )
+        self.size = requested_size
         if self.size not in {"0.5K", "1K", "2K", "4K"}:
             raise ValueError("Gemini image size 只允许 0.5K、1K、2K 或 4K")
 
@@ -1455,6 +1536,14 @@ def create_image_provider_from_env(environ: dict[str, str] | None = None) -> Ima
         if "IMAGE_API_KEY" in values
         else values.get("AGNES_API_KEY", "")
     )
+    configured_resolution = (
+        values.get("IMAGE_API_RESOLUTION")
+        or values.get("IMAGE_API_SIZE")
+        or values.get("AGNES_IMAGE_SIZE")
+        or "1K"
+    ).strip().upper()
+    if configured_resolution not in {"AUTO", "1K", "2K"}:
+        configured_resolution = "1K"
     return ImagesApiProvider(
         api_key=image_api_key,
         endpoint=(
@@ -1468,14 +1557,10 @@ def create_image_provider_from_env(environ: dict[str, str] | None = None) -> Ima
             or (DEFAULT_AGNES_MODEL if legacy_agnes else DEFAULT_IMAGES_API_MODEL)
         ),
         protocol=(
-            values.get("IMAGE_API_PROTOCOL")
+            values.get("IMAGE_API_ADAPTER")
             or ("extended" if legacy_agnes else DEFAULT_IMAGES_API_PROTOCOL)
         ),
-        size=(
-            values.get("IMAGE_API_SIZE")
-            or values.get("AGNES_IMAGE_SIZE")
-            or ("1K" if legacy_agnes else "auto")
-        ),
+        size=configured_resolution,
         timeout_seconds=timeout_seconds,
         retry_delay_seconds=retry_delay_seconds,
     )

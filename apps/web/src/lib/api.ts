@@ -79,7 +79,7 @@ export async function assertRuntimeCompatibility(): Promise<RuntimeHealth> {
     || payload.application_version === EXPECTED_APPLICATION_VERSION;
   if (
     !payload.application_version
-    || payload.image_provider_settings_schema_version !== "image_provider_settings.v0.2"
+    || payload.image_provider_settings_schema_version !== "image_provider_settings.v0.3"
     || payload.capability_settings_schema_version !== "capability_settings.v0.1"
     || !versionMatches
   ) {
@@ -150,9 +150,8 @@ export async function getImageProviderSettings(): Promise<ImageProviderSettings>
   const response = await fetch(`${API_BASE}/settings/image-provider`, { cache: "no-store" });
   const payload = await parseResponse<{ settings: ImageProviderSettings }>(response);
   if (
-    payload.settings?.schema_version !== "image_provider_settings.v0.2"
+    payload.settings?.schema_version !== "image_provider_settings.v0.3"
     || !payload.settings.providers?.images_api
-    || !payload.settings.providers?.gemini
   ) {
     throw new Error("检测到旧版核心服务仍占用端口。请停止旧服务并重新启动当前版本。");
   }
@@ -165,8 +164,7 @@ export async function saveImageProviderSettings(payload: {
   clear_api_key?: boolean;
   endpoint?: string;
   model?: string;
-  protocol?: "openai" | "ark" | "ark_plan" | "extended";
-  size?: string;
+  resolution?: "1K" | "2K";
 }): Promise<ImageProviderSettings> {
   const response = await fetch(`${API_BASE}/settings/image-provider`, {
     method: "PUT",

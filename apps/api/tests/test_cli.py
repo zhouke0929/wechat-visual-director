@@ -283,7 +283,7 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.5",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -375,7 +375,7 @@ def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, ca
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.5",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "image_provider": "mock",
             "image_provider_configured": True,
             "runtime_identity": {
@@ -436,7 +436,7 @@ def test_doctor_rejects_same_version_api_with_wrong_runtime_data_root(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.19",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "runtime_identity": running_identity,
         },
     )
@@ -479,7 +479,7 @@ def test_serve_refuses_same_version_api_with_wrong_runtime_data_root(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.19",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "runtime_identity": running_identity,
         },
     )
@@ -507,7 +507,7 @@ def test_doctor_rejects_stale_api_after_persistent_upgrade(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.4",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "image_provider": "mock",
             "image_provider_configured": True,
         },
@@ -537,7 +537,7 @@ def test_serve_refuses_to_reuse_stale_api_after_persistent_upgrade(
         lambda *_args, **_kwargs: {
             "status": "ok",
             "application_version": "0.1.0-alpha.4",
-            "image_provider_settings_schema_version": "image_provider_settings.v0.2",
+            "image_provider_settings_schema_version": "image_provider_settings.v0.3",
         },
     )
     monkeypatch.setattr(cli, "_probe_web", lambda *_args, **_kwargs: True)

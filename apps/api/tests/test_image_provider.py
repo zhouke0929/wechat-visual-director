@@ -19,6 +19,7 @@ from visual_director.image_provider import (
     build_provider_prompt,
     build_theme_fallback_cover,
     create_image_provider_from_env,
+    resolve_images_api_adapter,
 )
 from visual_director.main import create_app
 from visual_director.infographic_overlay import compose_structured_infographic
@@ -438,6 +439,65 @@ def test_images_api_provider_builds_ark_agent_plan_payload() -> None:
     assert requests[0].headers["Authorization"] == "Bearer agent-plan-test-key"
     assert generated.provider == "images_api"
     assert generated.machine_checks["ratio_valid"] is True
+
+
+def test_images_api_adapter_resolution_is_deterministic_and_endpoint_is_verbatim() -> None:
+    cases = {
+        "https://api.openai.com/v1/images/generations": "openai",
+        "https://generativelanguage.googleapis.com/v1beta/openai/images/generations": "openai",
+        "https://ark.cn-beijing.volces.com/api/v3/images/generations": "ark",
+        "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations": "ark_plan",
+        "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation": "dashscope",
+        "https://apihub.agnes-ai.com/v1/images/generations": "extended",
+        "https://relay.example.com/custom/generate": "openai",
+    }
+    for endpoint, adapter in cases.items():
+        assert resolve_images_api_adapter(endpoint, "test-model") == adapter
+        provider = ImagesApiProvider(api_key="test-key", endpoint=endpoint, model="test-model")
+        assert provider.endpoint == endpoint
+        assert provider.protocol == adapter
+
+
+def test_dashscope_adapter_builds_native_payload_and_extracts_image() -> None:
+    requests: list[Any] = []
+
+    def urlopen(request: Any, **_: Any) -> FakeResponse:
+        requests.append(request)
+        if len(requests) == 1:
+            return FakeResponse(
+                json.dumps(
+                    {
+                        "output": {
+                            "choices": [
+                                {"message": {"content": [{"image": "https://storage.example.com/output.png"}]}}
+                            ]
+                        }
+                    }
+                ).encode(),
+                "application/json",
+            )
+        return FakeResponse(png_bytes(1312, 736), "image/png")
+
+    endpoint = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+    provider = ImagesApiProvider(
+        api_key="dashscope-test-key",
+        endpoint=endpoint,
+        model="qwen-image-plus",
+        size="1K",
+        urlopen=urlopen,
+        resolve_host=public_resolver,
+        sleep=lambda _: None,
+    )
+    generated = provider.generate(
+        prompt="A calm editorial illustration with one clear learning path",
+        aspect_ratio="16:9",
+        candidate_index=1,
+    )
+    payload = json.loads(requests[0].data.decode("utf-8"))
+    assert requests[0].full_url == endpoint
+    assert payload["input"]["messages"][0]["content"][0]["text"].startswith("A calm")
+    assert payload["parameters"]["size"] == "1664*928"
+    assert generated.provider == "images_api"
 
 
 def test_images_api_provider_retries_one_transient_failure_only() -> None:

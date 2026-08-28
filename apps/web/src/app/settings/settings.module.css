@@ -248,7 +248,7 @@
 
 .providerGrid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -388,12 +388,21 @@
 
 .connectionGrid label {
   display: grid;
+  align-content: start;
   gap: 7px;
 }
+
+.connectionGrid label:first-child { grid-column: 1 / -1; }
 
 .connectionGrid label > span {
   font-size: 11px;
   font-weight: 800;
+}
+
+.connectionGrid label > small {
+  color: #6a7572;
+  font-size: 10px;
+  line-height: 1.5;
 }
 
 .connectionGrid input,

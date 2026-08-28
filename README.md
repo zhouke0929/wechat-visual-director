@@ -130,7 +130,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 正文配图、结构信息图、人工上传与封面候选；
 - `image_visual_intent.v3` 插画型信息图、文章级 Visual DNA 与短标签事实锁定；
 - 正文配图与 AI 封面共享整篇美术方向，换主题时保留既有候选并只对明显冲突做轻提示；
-- 人工、Mock、OpenAI/Ark/兼容 Images API、Gemini Nano Banana 图片 Provider；
+- 人工、Mock 与统一图片模型 API；支持 GPT Image、Nano Banana、Seedream、通义万相及 OpenAI Images 兼容中转；
 - 可选的宿主原生配图：主题确认后，用户可直接在原 Agent 对话中要求“为当前工作台任务生成并插入配图”；生成结果仍回到工作台人工审核；
 - 本地任务、历史方案、图片选择与冻结版本持久化；
 - 历史任务服务端分页（默认每页 8 篇）与当前页批量清理；
@@ -250,10 +250,9 @@ host_skill_registered=true
 |---|---|---:|
 | `manual` | 人工上传、沿用原图或跳过 | 否 |
 | `mock` | 本地占位图与交互验收 | 否 |
-| `images_api` | OpenAI GPT Image、火山方舟 Seedream、兼容中转站 | 是 |
-| `gemini` | Google Nano Banana 原生接口 | 是 |
+| `images_api` | GPT Image、Nano Banana、Seedream、通义万相及兼容中转站 | 是 |
 
-Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“是否已配置”，不会回显原值。详细协议见 [图片 Provider 说明](references/image-providers.md)。
+真实生图只有一个连接入口：填写厂商提供的**完整 Endpoint**、Model ID、API Key，并选择 1K（推荐）或 2K。系统不会自动补全 URL；火山方舟、阿里云 DashScope 和 Agnes 等已知接口由隐藏 Adapter 处理，Google 官方 OpenAI 兼容接口与未知兼容中转按标准 OpenAI Images JSON 请求。Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“是否已配置”，不会回显原值。详细规则见 [图片 Provider 说明](references/image-providers.md)。
 
 如果当前宿主本身提供可调用的原生生图工具，用户可先在工作台确认主题，再直接在原 Agent 对话中说“为当前工作台任务生成并插入配图”。Agent 会在后台读取与当前任务、主题和图片槽绑定的受控请求，生成并导入待审核候选；工作台不再提供需要来回复制粘贴的交接按钮。生成期间即使切换主题（包括切走后切回），图片仍会回到工作台成为候选，并按当前主题显示兼容度；只有正文锚点、图片任务或图片槽状态真正变化时才会拒绝错挂。该能力不要求额外填写项目图片 API Key，但会使用宿主自身的图片额度，通常也比工作台直连 API 慢。没有原生生图工具时，继续使用工作台 Provider、人工上传、沿用原图或跳过，不会静默调用收费 API。Agnes 等服务可能提供免费或低成本额度，但具体可用性、限额与条款以服务商当前规则为准。
 

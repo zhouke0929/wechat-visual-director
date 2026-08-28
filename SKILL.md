@@ -98,7 +98,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 ```
 
   导入只会新增待审核候选，绝不自动采用。生成期间只切换主题（包括切走后切回）不会拒绝导入：核心会保留生成时的 Visual DNA 快照，并按当前主题给出与 API 候选一致的兼容度提示。若返回 `host_image_request_stale`、`host_image_semantic_context_changed` 或 `host_image_revision_changed`，说明历史请求不存在、正文锚点/图片任务已改变，或图片槽已被处理；此时重新执行 `image context`，不得强制导入。宿主没有原生生图能力时明确返回 `host_image_generation_unavailable`，继续允许工作台 API 生图、人工上传、沿用原图或跳过；不得静默调用收费图片 API，也不得要求用户为了这条可选路径再配置 Key。
-- 图片设置位于本地工作台 `/settings`；人工上传、Mock、通用 Images API 和 Google Gemini 可切换。需要配置真实生图时读取 [图片 Provider 说明](references/image-providers.md)。Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
+- 图片设置位于本地工作台 `/settings`；人工上传、Mock 与统一图片模型 API 可切换。真实生图只需填写完整 Endpoint、Model ID、API Key 和清晰度，Endpoint 原样使用，厂商差异由隐藏 Adapter 处理。需要配置时读取 [图片 Provider 说明](references/image-providers.md)。Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
 - 普通配图由模型生成无文字语义插画；结构信息图把完整原文保存为事实锚点，并默认只让模型绘制标题和逐字截取的短标签。若本机 OCR 未能证明实际绘制文案一致，工作台必须展示大图与锁定标签，并把“文字无误，采用此图”作为一次明确的人工确认；不得绕过核对自动采用，也不要再要求用户重复勾选。模型原始输出与最终候选均可查看。
 - 核心会把图片规划保存为 `image_visual_intent.v3`，并用统一 Visual DNA 为整篇文章解析一份 `article_image_art_direction.v0.1`。同篇图片与 AI 封面共享画材、色板、表面语言和气质；封面直接复用已确认的全文 EditorialBrief，并收敛为单焦点 5:4 底图，不另行调用文本模型。各正文图片槽只按原文关系改变场景、节点与构图。结构信息图会移除“第二层 / PART 02”等规划脚手架，画面文字只允许原文语义标题和锁定短标签。不要把 Seedream Prompt 直接复用到其他模型，也不要用固定手绘风格覆盖文章主题。
 - “使用保底信息图”是不调用外部模型的确定性兜底，仅在端到端信息图不满足要求时使用；不要把兜底模板描述为模型生成结果。

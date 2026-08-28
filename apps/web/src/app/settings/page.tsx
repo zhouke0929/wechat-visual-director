@@ -49,18 +49,10 @@ const providerCards: Array<{
   {
     mode: "images_api",
     index: "03",
-    name: "通用 Images API",
-    eyebrow: "OPENAI / ARK / RELAY",
-    description: "连接 GPT Image、Seedream 以及兼容 Images API 的中转服务。",
-    note: "接口地址、协议和模型 ID 均可替换",
-  },
-  {
-    mode: "gemini",
-    index: "04",
-    name: "Google Gemini",
-    eyebrow: "NATIVE / NANO BANANA",
-    description: "通过 Google 原生 Interactions API 调用 Nano Banana 系列。",
-    note: "不强行伪装成 OpenAI 协议，减少隐性兼容错误",
+    name: "图片模型 API",
+    eyebrow: "ONE CONNECTION / AUTO ADAPTER",
+    description: "填写完整 Endpoint、模型与 Key，连接 GPT Image、Nano Banana、Seedream、通义万相等主流服务。",
+    note: "接口类型由系统自动识别；未知地址按 OpenAI Images 格式请求",
   },
 ];
 
@@ -94,29 +86,6 @@ const targetCards: Array<{
   },
 ];
 
-const imageApiPresets = {
-  openai: {
-    endpoint: "https://api.openai.com/v1/images/generations",
-    model: "gpt-image-2",
-    size: "auto",
-  },
-  ark: {
-    endpoint: "https://ark.cn-beijing.volces.com/api/v3/images/generations",
-    model: "",
-    size: "2K",
-  },
-  ark_plan: {
-    endpoint: "https://ark.cn-beijing.volces.com/api/plan/v3/images/generations",
-    model: "doubao-seedream-5.0-lite",
-    size: "2K",
-  },
-  extended: {
-    endpoint: "",
-    model: "",
-    size: "1K",
-  },
-} as const;
-
 function statusCopy(settings: ImageProviderSettings): string {
   if (settings.mode === "manual") return "人工上传已启用";
   if (settings.mode === "mock") return "本地演示已启用";
@@ -133,8 +102,7 @@ export default function ImageProviderSettingsPage() {
   const [clearApiKey, setClearApiKey] = useState(false);
   const [endpoint, setEndpoint] = useState("");
   const [model, setModel] = useState("");
-  const [protocol, setProtocol] = useState<"openai" | "ark" | "ark_plan" | "extended">("openai");
-  const [size, setSize] = useState("auto");
+  const [resolution, setResolution] = useState<"1K" | "2K">("1K");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [targetSaving, setTargetSaving] = useState(false);
@@ -164,12 +132,7 @@ export default function ImageProviderSettingsPage() {
         if (imageResult.mode === "images_api") {
           setEndpoint(imageResult.providers.images_api.endpoint);
           setModel(imageResult.providers.images_api.model);
-          setProtocol(imageResult.providers.images_api.protocol);
-          setSize(imageResult.providers.images_api.size);
-        } else if (imageResult.mode === "gemini") {
-          setEndpoint(imageResult.providers.gemini.endpoint);
-          setModel(imageResult.providers.gemini.model);
-          setSize(imageResult.providers.gemini.size);
+          setResolution(imageResult.providers.images_api.resolution);
         }
       })
       .catch((reason: Error) => setError(reason.message))
@@ -195,11 +158,7 @@ export default function ImageProviderSettingsPage() {
     }
   }
 
-  const activeConfig = mode === "images_api"
-    ? settings?.providers.images_api
-    : mode === "gemini"
-      ? settings?.providers.gemini
-      : null;
+  const activeConfig = mode === "images_api" ? settings?.providers.images_api : null;
   const selectedKeyConfigured = Boolean(activeConfig?.api_key_configured);
 
   const hasUnsavedChanges = useMemo(() => {
@@ -207,11 +166,10 @@ export default function ImageProviderSettingsPage() {
     const configChanged = activeConfig
       ? endpoint !== activeConfig.endpoint
         || model !== activeConfig.model
-        || size !== activeConfig.size
-        || (mode === "images_api" && protocol !== settings.providers.images_api.protocol)
+        || resolution !== activeConfig.resolution
       : false;
     return Boolean(mode !== settings.mode || apiKey.trim() || clearApiKey || configChanged);
-  }, [activeConfig, apiKey, clearApiKey, endpoint, mode, model, protocol, settings, size]);
+  }, [activeConfig, apiKey, clearApiKey, endpoint, mode, model, resolution, settings]);
 
   function selectMode(nextMode: ImageProviderMode) {
     if (!settings) return;
@@ -222,12 +180,7 @@ export default function ImageProviderSettingsPage() {
     if (nextMode === "images_api") {
       setEndpoint(settings.providers.images_api.endpoint);
       setModel(settings.providers.images_api.model);
-      setProtocol(settings.providers.images_api.protocol);
-      setSize(settings.providers.images_api.size);
-    } else if (nextMode === "gemini") {
-      setEndpoint(settings.providers.gemini.endpoint);
-      setModel(settings.providers.gemini.model);
-      setSize(settings.providers.gemini.size);
+      setResolution(settings.providers.images_api.resolution);
     }
   }
 
@@ -242,10 +195,9 @@ export default function ImageProviderSettingsPage() {
         mode,
         ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
         ...(clearApiKey ? { clear_api_key: true } : {}),
-        ...(mode === "images_api" || mode === "gemini"
-          ? { endpoint: endpoint.trim(), model: model.trim(), size: size.trim() }
+        ...(mode === "images_api"
+          ? { endpoint: endpoint.trim(), model: model.trim(), resolution }
           : {}),
-        ...(mode === "images_api" ? { protocol } : {}),
       });
       setSettings(saved);
       setMode(saved.mode);
@@ -468,9 +420,7 @@ export default function ImageProviderSettingsPage() {
                   <span>03 / IMAGE CONNECTION</span>
                   <h2 id="key-heading">
                     {mode === "images_api"
-                      ? "Images API 连接"
-                      : mode === "gemini"
-                        ? "Gemini 原生连接"
+                      ? "图片模型连接"
                         : "无需外部连接"}
                   </h2>
                 </div>
@@ -491,75 +441,41 @@ export default function ImageProviderSettingsPage() {
                   </div>
 
                   <div className={styles.connectionGrid}>
-                    {mode === "images_api" ? (
-                      <label>
-                        <span>接口协议</span>
-                        <select
-                          disabled={settings.managed_by_environment}
-                          onChange={(event) => {
-                            const nextProtocol = event.target.value as typeof protocol;
-                            const preset = imageApiPresets[nextProtocol];
-                            setProtocol(nextProtocol);
-                            setEndpoint(preset.endpoint);
-                            setModel(preset.model);
-                            setSize(preset.size);
-                          }}
-                          value={protocol}
-                        >
-                          <option value="openai">OpenAI Images API</option>
-                          <option value="ark">火山方舟按量 / Seedream</option>
-                          <option value="ark_plan">火山方舟 Agent Plan / Seedream</option>
-                          <option value="extended">扩展兼容（旧 Agnes 等）</option>
-                        </select>
-                      </label>
-                    ) : null}
                     <label>
-                      <span>Endpoint</span>
+                      <span>完整 Endpoint</span>
                       <input
                         disabled={settings.managed_by_environment}
                         onChange={(event) => setEndpoint(event.target.value)}
+                        placeholder="https://…/images/generations"
                         required
                         spellCheck={false}
                         type="url"
                         value={endpoint}
                       />
+                      <small>填写厂商给出的完整请求地址；系统不会自动追加路径。</small>
                     </label>
                     <label>
                       <span>Model ID</span>
                       <input
                         disabled={settings.managed_by_environment}
                         onChange={(event) => setModel(event.target.value)}
-                        placeholder={
-                          mode === "images_api" && (protocol === "ark" || protocol === "ark_plan")
-                            ? "从火山方舟控制台复制 Model ID"
-                            : ""
-                        }
+                        placeholder="厂商模型名或 Endpoint ID"
                         required
                         spellCheck={false}
                         value={model}
                       />
                     </label>
                     <label>
-                      <span>输出尺寸</span>
-                      {mode === "gemini" ? (
-                        <select
-                          disabled={settings.managed_by_environment}
-                          onChange={(event) => setSize(event.target.value)}
-                          value={size}
-                        >
-                          <option value="0.5K">0.5K</option>
-                          <option value="1K">1K</option>
-                          <option value="2K">2K</option>
-                          <option value="4K">4K</option>
-                        </select>
-                      ) : (
-                        <input
-                          disabled={settings.managed_by_environment}
-                          onChange={(event) => setSize(event.target.value)}
-                          placeholder="auto / 2K / 1536x1024"
-                          value={size}
-                        />
-                      )}
+                      <span>图片清晰度</span>
+                      <select
+                        disabled={settings.managed_by_environment}
+                        onChange={(event) => setResolution(event.target.value as "1K" | "2K")}
+                        value={resolution}
+                      >
+                        <option value="1K">标准 1K（推荐）</option>
+                        <option value="2K">高清 2K（更耗额度）</option>
+                      </select>
+                      <small>系统会映射到厂商最接近的尺寸档位，最终像素由模型能力决定。</small>
                     </label>
                   </div>
 
@@ -620,7 +536,8 @@ export default function ImageProviderSettingsPage() {
               <dl>
                 <div><dt>当前 Provider</dt><dd>{settings.active_provider.toUpperCase()}</dd></div>
                 <div><dt>当前模型</dt><dd>{settings.active_model}</dd></div>
-                <div><dt>输出尺寸</dt><dd>{activeConfig?.size ?? "LOCAL"}</dd></div>
+                <div><dt>图片清晰度</dt><dd>{activeConfig?.resolution ?? "LOCAL"}</dd></div>
+                <div><dt>接口适配</dt><dd>{activeConfig?.adapter.toUpperCase() ?? "LOCAL"}</dd></div>
                 <div><dt>提示词</dt><dd>视觉主编自动生成</dd></div>
                 <div><dt>外部连接</dt><dd>首次真实生图时验证</dd></div>
               </dl>

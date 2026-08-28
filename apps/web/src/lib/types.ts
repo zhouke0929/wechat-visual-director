@@ -551,10 +551,10 @@ export type WechatPublisherStatus = {
   warnings: string[];
 };
 
-export type ImageProviderMode = "manual" | "mock" | "images_api" | "gemini";
+export type ImageProviderMode = "manual" | "mock" | "images_api";
 
 export type ImageProviderSettings = {
-  schema_version: "image_provider_settings.v0.2";
+  schema_version: "image_provider_settings.v0.3";
   mode: ImageProviderMode;
   active_provider: ImageProviderMode;
   active_model: string;
@@ -568,15 +568,8 @@ export type ImageProviderSettings = {
     images_api: {
       endpoint: string;
       model: string;
-      protocol: "openai" | "ark" | "ark_plan" | "extended";
-      size: string;
-      api_key_configured: boolean;
-    };
-    gemini: {
-      endpoint: string;
-      model: string;
-      protocol: "gemini_interactions";
-      size: string;
+      adapter: "openai" | "ark" | "ark_plan" | "dashscope" | "extended";
+      resolution: "1K" | "2K";
       api_key_configured: boolean;
     };
   };

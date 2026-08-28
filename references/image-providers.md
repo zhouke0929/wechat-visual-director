@@ -1,6 +1,6 @@
 # 图片 Provider 配置
 
-视觉主编使用统一的内部生图契约，外部厂商协议由 Adapter 处理。不要因为某个中转站宣称“OpenAI 兼容”就默认所有字段兼容；必须选择正确协议并执行一次真实生图验收。
+视觉主编只向用户展示一个图片模型 API 入口：完整 Endpoint、Model ID、API Key 和图片清晰度。Endpoint 会原样保存和请求，不自动追加 `/images/generations` 或其他后缀。外部厂商协议差异由本地隐藏 Adapter 处理。
 
 ## 工作台模式
 
@@ -8,8 +8,7 @@
 |---|---|---|
 | `manual` | 人工上传、沿用原图或跳过 | 否 |
 | `mock` | 本地占位图和交互验收 | 否 |
-| `images_api` | OpenAI GPT Image、火山方舟 Seedream、兼容中转站 | 是 |
-| `gemini` | Google Nano Banana 原生 Interactions API | 是 |
+| `images_api` | GPT Image、Nano Banana、Seedream、通义万相与兼容中转站 | 是 |
 
 ## 当前宿主 Agent 的原生生图（可选）
 
@@ -22,51 +21,60 @@
 - 宿主生成的文件仍执行格式、尺寸、比例和结构信息图文字核验；导入后必须人工查看大图并采用，不会自动写入文章。
 - 这条链路不得静默降级到付费图片 API，也不得读取工作台已经保存的图片 Key。
 
-## 通用 Images API
+## 统一图片模型 API
+
+设置页不再要求用户选择协议。核心只进行一次确定性 Adapter 判定，不会为了“猜协议”把同一个付费请求轮流发送给多个接口：
+
+- 火山方舟官方域名与路径 → Ark / Agent Plan Adapter；
+- 阿里云 DashScope / Model Studio 官方域名 → DashScope Adapter；
+- Agnes 已知域名 → Extended Adapter；
+- Google 的 OpenAI 兼容 Endpoint、OpenAI 官方接口以及其他未知 Endpoint → 标准 OpenAI Images JSON。
+
+未知中转站必须由服务商明确声明兼容 OpenAI Images 请求与响应格式。只兼容 Chat Completions 不代表兼容生图。
 
 ### OpenAI
 
-- 协议：`openai`
 - Endpoint：`https://api.openai.com/v1/images/generations`
 - Model：`gpt-image-2`
-- Size：`auto`
+- 清晰度：建议 `1K`
 
 OpenAI 的横向输出与文章要求的 4:3、16:9 不完全一致时，核心会做确定性的居中裁切，不把尺寸差异泄漏到渲染器。
 
 ### 火山方舟 / Seedream
 
-- 标准按量协议：`ark`
 - Endpoint：`https://ark.cn-beijing.volces.com/api/v3/images/generations`
 - Model：从用户自己的火山方舟控制台复制当前可用 Model ID，不在 Skill 中长期硬编码。
-- Size：建议先用 `2K`
+- 清晰度：建议先用 `1K`，确认质量后再选 `2K`
 
 订阅火山方舟 Agent Plan 时改用：
 
-- 协议：`ark_plan`
 - Endpoint：`https://ark.cn-beijing.volces.com/api/plan/v3/images/generations`
 - 默认 Model：`doubao-seedream-5.0-lite`
-- Size：`2K`
+- 清晰度：`1K` 或 `2K`
 
 两个协议的图片请求字段一致，但计费/订阅路由不同，不能互相替换。
 
 Seedream 是图片模型；Seedance 是视频模型，不应出现在图片 Provider 的模型列表中。
 
+### Google Gemini / Nano Banana
+
+- Endpoint：`https://generativelanguage.googleapis.com/v1beta/openai/images/generations`
+- Model：填写 Google 当前提供的可生图模型名
+- 清晰度：建议 `1K`
+
+这里使用 Google 官方 OpenAI 兼容生图 Endpoint，因此和其他模型共用同一个入口，不再要求用户切换到单独的 Gemini 卡片。
+
+### 阿里云百炼 / 通义万相 / Qwen Image
+
+- Endpoint：从阿里云 Model Studio 文档或控制台复制完整官方请求地址；
+- Model：填写当前可用模型名；
+- 清晰度：建议 `1K`。
+
+阿里云官方接口采用 DashScope 原生请求结构，本地核心会根据官方域名选择隐藏 Adapter。不要把 Chat Completions 的 Endpoint 填进图片设置。
+
 ### 中转服务
 
-- 严格兼容 OpenAI Images API 时选 `openai`。
-- 支持火山方舟字段时选 `ark`。
-- 仍使用旧 `ratio`、`extra_body` 结构时选 `extended`。
-
-不要仅凭 URL 或模型名自动猜协议。中转服务的权限、价格、数据处理与可用性由用户自行核实。
-
-## Google Gemini / Nano Banana
-
-- 模式：`gemini`
-- Endpoint：`https://generativelanguage.googleapis.com/v1beta/interactions`
-- 默认 Model：`gemini-3.1-flash-image`
-- Size：`1K`；需要更高质量时可选 `2K` 或 `4K`
-
-Google 使用 `x-goog-api-key` 和 Interactions 原生请求结构，不能无损地塞进 OpenAI Images API。核心为它保留独立 Adapter。
+直接填写服务商提供的完整生图 Endpoint。未知域名按标准 OpenAI Images JSON 请求；如果服务商使用自定义字段且不属于已内置官方 Adapter，当前版本不会自动试错或重复计费。
 
 ## 密钥与验收
 
@@ -138,4 +146,4 @@ Google 使用 `x-goog-api-key` 和 Interactions 原生请求结构，不能无�
 
 ## 旧 Agnes 配置
 
-Alpha.6 的 `VISUAL_DIRECTOR_IMAGE_PROVIDER=agnes` 与 `AGNES_*` 字段仍会被读取，并映射到 `images_api + extended`。新版本只写入 `IMAGE_API_*` 或 `GEMINI_*` 字段。
+旧版 `agnes` 与独立 `gemini` 配置仍会被读取。旧 `IMAGE_API_PROTOCOL` 不再决定新请求；核心会按完整 Endpoint 重新解析，用户下一次在设置页保存后会迁移为统一的 `IMAGE_API_ENDPOINT`、`IMAGE_API_MODEL`、`IMAGE_API_RESOLUTION` 与隐藏 `IMAGE_API_ADAPTER`。
