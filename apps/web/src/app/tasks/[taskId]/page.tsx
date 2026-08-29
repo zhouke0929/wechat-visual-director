@@ -290,32 +290,6 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleImageFallback(plan: VisualPlan, slot: ImageSlotReview) {
-    const key = `${slot.image_slot_id}:fallback`;
-    if (imageBusyRef.current.has(slot.image_slot_id)) return;
-    imageBusyRef.current.add(slot.image_slot_id);
-    setImageBusy((current) => [...current, key]);
-    setError("");
-    setNotice("");
-    try {
-      await generateImageCandidate(
-        taskId,
-        plan.id,
-        slot.image_slot_id,
-        slot.state.image_revision,
-        "fallback",
-      );
-      await refreshImageReview(plan.id);
-      setFocusSlotByPlan((current) => ({ ...current, [plan.id]: slot.image_slot_id }));
-      setNotice("已生成不调用模型的确定性保底信息图，可直接核对原文。");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "生成保底信息图失败");
-    } finally {
-      imageBusyRef.current.delete(slot.image_slot_id);
-      setImageBusy((current) => current.filter((item) => item !== key));
-    }
-  }
-
   async function handleImageAccept(
     plan: VisualPlan,
     slot: ImageSlotReview,
@@ -934,7 +908,6 @@ export default function TaskReviewPage() {
                       onAccept={(slot, candidate, textVerified) =>
                         handleImageAccept(activePlan, slot, candidate, textVerified)
                       }
-                      onFallback={(slot) => handleImageFallback(activePlan, slot)}
                       onGenerate={(slot) => handleImageGenerate(activePlan, slot)}
                       onReplace={(slot, file) => handleImageReplace(activePlan, slot, file)}
                       onRestoreTheme={() => handleRestore(activePlan)}

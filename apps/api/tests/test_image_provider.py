@@ -22,7 +22,6 @@ from visual_director.image_provider import (
     resolve_images_api_adapter,
 )
 from visual_director.main import create_app
-from visual_director.infographic_overlay import compose_structured_infographic
 from visual_director.visual_dna import resolve_article_image_direction
 
 
@@ -164,6 +163,37 @@ def test_seedream_and_cover_prompts_are_industry_neutral() -> None:
         assert "学生" not in prompt
     assert "城市快闪空间" in body_prompt
     assert "线下活动" in cover_prompt
+
+
+def test_generic_cover_prompt_uses_article_scene_and_image_only_theme_language() -> None:
+    prompt = build_cover_prompt(
+        {
+            "title": "一场社区活动如何形成长期连接",
+            "article_type": "viewpoint_trend",
+            "narrative": "从空间体验、参与者互动和后续反馈理解长期运营价值",
+            "reader_task": "识别可以持续积累的关系资产",
+            "scene_anchor": "傍晚的社区庭院里，摊主与访客围绕手作体验自然交流",
+            "image_art_direction": {
+                "style_family": "clean_3d_geometry",
+                "surface_treatment": "structured_spatial_surface",
+                "composition_family": "spatial_route",
+                "palette_roles": ["warm_ivory", "muted_teal", "deep_navy", "sunlit_yellow"],
+                "tone": ["精确", "克制", "有秩序"],
+            },
+        },
+        prompt_profile="generic",
+        candidate_index=1,
+    )
+
+    assert "傍晚的社区庭院" in prompt
+    assert "Scene:" in prompt
+    assert "栏目索引" not in prompt
+    assert "数据轨道" not in prompt
+    assert "坐标轴" not in prompt
+    assert "非对称表格" not in prompt
+    assert "unlabeled matte three-dimensional objects" in prompt
+    assert "STRICT IMAGE-ONLY RULE" in prompt
+    assert len(prompt) < 850
 
 
 def test_seedream_prompt_is_concise_provider_specific_and_rotates_scenes() -> None:
@@ -336,18 +366,6 @@ def test_seedream_cover_prompt_and_local_theme_fallback_are_publishable() -> Non
     with Image.open(BytesIO(content)) as image:
         assert image.format == "PNG"
         assert image.size == (1080, 864)
-
-
-def test_deterministic_infographic_overlay_preserves_canvas_and_adds_copy() -> None:
-    overlaid = compose_structured_infographic(
-        png_bytes(1152, 864),
-        title="提交前完成四项核对",
-        items=["核对分数和位次", "检查专业限制", "确认志愿梯度", "由另一人独立复核"],
-    )
-    with Image.open(BytesIO(overlaid)) as image:
-        assert image.format == "PNG"
-        assert image.size == (1152, 864)
-    assert overlaid != png_bytes(1152, 864)
 
 
 def test_images_api_provider_builds_openai_payload_decodes_and_validates_image() -> None:

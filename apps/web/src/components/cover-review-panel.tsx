@@ -11,7 +11,10 @@ type Props = {
   review: CoverWorkspace | null;
   onGenerate: () => Promise<void>;
   onFallback: () => Promise<void>;
-  onCrop: (candidate: CoverCandidate, transform: { scale: number; offsetX: number; offsetY: number }) => Promise<void>;
+  onCrop: (
+    candidate: CoverCandidate,
+    transform: { scale: number; offsetX: number; offsetY: number },
+  ) => Promise<void>;
   onReuse: (source: CoverReuseSource) => Promise<void>;
   onSelect: (candidate: CoverCandidate) => Promise<void>;
   onUpload: (file: File) => Promise<void>;
@@ -182,8 +185,16 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
                 <p><span>{String(candidate.candidate_index).padStart(2, "0")}</span><strong>{sourceLabels[candidate.source_type]}</strong></p>
                 <div className="cover-candidate-actions">
                   <button disabled={Boolean(busy)} onClick={() => openCrop(candidate)} type="button">调整裁切</button>
-                  <button disabled={candidate.selected || Boolean(busy)} onClick={() => void onSelect(candidate)} type="button">
-                    {candidate.selected ? "当前封面" : busy === `select:${candidate.id}` ? "采用中…" : "直接采用"}
+                  <button
+                    disabled={candidate.selected || Boolean(busy)}
+                    onClick={() => void onSelect(candidate)}
+                    type="button"
+                  >
+                    {candidate.selected
+                      ? "当前封面"
+                      : busy === `select:${candidate.id}`
+                        ? "采用中…"
+                        : "直接采用"}
                   </button>
                 </div>
               </article>

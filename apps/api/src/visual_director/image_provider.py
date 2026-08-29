@@ -375,6 +375,63 @@ def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
     )
 
 
+def _cover_surface_direction(style_family: str) -> str:
+    """Translate article styling into image-only cover materials.
+
+    Article themes may describe reports, bulletins, indexes or page systems because
+    those are valid deterministic HTML components. A model cover must never receive
+    those literal publishing objects: they strongly invite invented copy.
+    """
+    return {
+        "editorial_paper_cut": "tactile unprinted paper layers with subtle handmade fibers",
+        "soft_flat_illustration": "clean matte color fields with soft hand-drawn edges",
+        "clean_3d_geometry": "unlabeled matte three-dimensional objects with soft shadows",
+        "editorial_tech_collage": "frosted translucent shapes, tactile fibers, and restrained depth",
+        "oriental_ink_folio": "unmarked rice-paper texture with restrained ink wash and cinnabar accents",
+        "archival_halftone_collage": "unprinted aged paper shapes with halftone grain and clipped edges",
+        "graphic_poster_collage": "screen-print color shapes, cut-paper silhouettes, and slight ink misregistration",
+        "botanical_field_illustration": "natural paper, watercolor forms, and pencil-like organic contours",
+        "executive_signal_editorial": "crisp geometric forms, restrained paths, and precise matte contrast",
+        "cinematic_storyboard_collage": "one unified cinematic scene with subtle film grain and layered depth",
+    }.get(style_family, "cohesive matte editorial materials without printed marks")
+
+
+def _cover_composition_direction(composition_family: str) -> str:
+    """Keep theme rhythm without leaking document, table or interface semantics."""
+    return {
+        "editorial_storyline": "one continuous scene with a clear visual journey",
+        "open_diagonal": "one dominant subject on an open diagonal movement",
+        "layered_spread": "one connected scene with layered foreground and background depth",
+        "open_scene": "one open scene with generous negative space",
+        "gentle_path": "one gentle visual path formed by people, objects, and light",
+        "balanced_focus": "one balanced focal subject with calm surrounding space",
+        "spatial_route": "one continuous spatial route expressed only through physical objects",
+        "miniature_stage": "one coherent miniature-like environment around a single focal event",
+        "axial_system": "one clear spatial axis connecting the main subject and supporting objects",
+        "asymmetric_editorial_field": "one asymmetric scene balanced by light, scale, and empty space",
+        "flowing_signal_path": "one flowing path expressed through light and object placement",
+        "layered_horizon": "one layered horizon leading toward the main subject",
+        "scrolling_folio": "one horizontally unfolding scene with open breathing room",
+        "ink_landscape_path": "one restrained landscape path connecting concrete subjects",
+        "seal_anchor_spread": "one visual anchor balancing a large quiet field",
+        "clipping_storyline": "one continuous scene built from layered image shapes",
+        "column_break_spread": "one asymmetric vertical balance using scene depth and pure shapes",
+        "headline_evidence_path": "one dominant subject supported by a secondary concrete object",
+        "poster_burst": "one oversized visual symbol radiating energy through color and silhouettes",
+        "sticker_diagonal": "one diagonal movement built from image-only cut shapes",
+        "oversized_symbol_field": "one large concrete symbol in an open field",
+        "specimen_growth_path": "one organic growth path formed by real natural subjects",
+        "field_note_spread": "one observational scene with natural objects and open margins",
+        "organic_constellation": "one coherent cluster of related natural subjects",
+        "signal_orbit": "one central subject surrounded by a restrained orbit of unlabeled visual cues",
+        "executive_diagonal": "one precise diagonal movement with a strong focal subject",
+        "decision_map": "one continuous visual route expressed through objects and spatial depth",
+        "storyboard_sequence": "one unified cinematic moment rather than multiple panels",
+        "widescreen_scene": "one wide cinematic scene with a single focal event",
+        "shot_reverse_shot": "one unified interaction between two subjects around the same focal event",
+    }.get(composition_family, "one continuous image-only scene with a single focal subject")
+
+
 def _seedream_scene(subject: str, article_type: str, candidate_index: int) -> tuple[str, str, str]:
     """Keep the article-bound scene and rotate only composition/medium."""
     scene = sanitize_subject(subject) or "一个与当前章节直接相关的具体场景"
@@ -637,20 +694,30 @@ def build_cover_prompt(
         or str(cover_brief.get("reader_task") or "")
         or str(cover_brief.get("title") or "")
     ) or subject
+    scene_anchor = sanitize_subject(
+        str(cover_brief.get("scene_anchor") or "")
+        or str(cover_brief.get("title") or "")
+        or str(cover_brief.get("reader_task") or "")
+    ) or subject
     direction = cover_brief.get("image_art_direction") or {}
-    palette, surface, article_composition, tone = _resolved_art_labels(
+    palette, _, _, tone = _resolved_art_labels(
         {"article_art_direction": direction}
     )
+    style_family = str(direction.get("style_family") or "editorial_paper_cut")
+    cover_surface = _cover_surface_direction(style_family)
+    cover_composition = _cover_composition_direction(
+        str(direction.get("composition_family") or "")
+    )
     if prompt_profile == "seedream":
-        scene, composition, _ = _seedream_scene(subject, article_type, candidate_index)
-        style_family = str(direction.get("style_family") or "editorial_paper_cut")
+        scene, composition, _ = _seedream_scene(scene_anchor, article_type, candidate_index)
         style_direction = _cover_style_direction(style_family, candidate_index)
         prompt = " ".join(
             [
                 "微信公众号5:4封面底图，只生成图片，不排标题。",
                 f"核心概念是{concept}，具体场景为{scene}。",
-                f"{composition}，并服从整篇的{article_composition}；{style_direction}，表面语言为{surface}，配色只用{palette}，气质{tone}。",
+                f"{composition}；整篇构图为{cover_composition}；{style_direction}，表面语言为{cover_surface}，配色只用{palette}，气质{tone}。",
                 "只保留一个鲜明视觉隐喻，不做信息图、多面板或并排步骤卡。",
+                "文章主题的抽象特征只通过色彩、材质、留白以及人物与物体的空间关系表达，不生成任何承载信息的版面元素。",
                 "重要主体完整位于中央70%，左上与中央保留平静的标题安全区，不贴边、不截断。",
                 "不出现文字、字母、数字、表格、图表、文档界面、Logo、水印、二维码、条形码、印章或招牌。",
             ]
@@ -684,24 +751,27 @@ def build_cover_prompt(
         "clean_3d_geometry": "clean matte three-dimensional editorial geometry",
         "editorial_tech_collage": "editorial technology collage with frosted translucent layers, tactile paper fibers, and restrained 2.5D depth",
         "oriental_ink_folio": "contemporary oriental ink folio illustration on tactile rice paper with restrained cinnabar accents",
-        "archival_halftone_collage": "archival newsprint collage with halftone ink, clipped paper edges, and restrained editorial red",
+        "archival_halftone_collage": "archival collage with unprinted aged paper shapes, halftone grain, and restrained editorial red",
         "graphic_poster_collage": "contemporary screen-print poster collage with bold cut stickers and misregistered color layers",
         "botanical_field_illustration": "botanical field-note illustration with watercolor specimens, pencil lines, and organic growth paths",
-        "executive_signal_editorial": "executive editorial illustration with signal routes, index discs, and crisp print graphics",
-        "cinematic_storyboard_collage": "bright film-festival storyboard collage with ticket-paper details and subtle film grain",
+        "executive_signal_editorial": "executive editorial illustration with restrained paths, circular forms, and crisp geometric contrast",
+        "cinematic_storyboard_collage": "bright cinematic editorial collage with one unified scene and subtle film grain",
     }
-    style = style_labels.get(str(direction.get("style_family") or ""), fallback_style)
+    style = style_labels.get(style_family, fallback_style)
     direction_palette = ", ".join(str(value) for value in direction.get("palette_roles") or [])
-    return " ".join(
+    prompt = " ".join(
         [
-            "Create a premium editorial cover background for a WeChat article.",
-            f"Editorial concept: {concept}.",
-            f"Art direction: {style}. Surface and composition: {surface}; {article_composition}. Palette: {direction_palette or fallback_palette}.",
-            "Use one dominant scene, strong silhouette, restrained detail, and generous breathing room.",
-            "Keep the upper-left and central area visually calm as a safe title zone; important subjects stay inside the middle 70 percent.",
-            "STRICT IMAGE-ONLY RULE: no text, no letters, no Chinese characters, no numbers, no tables, no charts, no document, no interface, no logo, no watermark, no QR code, no barcode, no official seal, and no signage.",
+            "Create a premium 5:4 image-only cover background for a WeChat article.",
+            f"Scene: {scene_anchor[:90]}.",
+            f"Mood, never copy: {concept[:40]}.",
+            f"Visual style: {style}. Materials: {cover_surface}. Layout: {cover_composition}. Palette: {direction_palette or fallback_palette}.",
+            "One coherent scene, one focus, generous breathing room. Express abstract ideas only with color, material, light, and real spatial relationships.",
+            "Keep the upper-left and center calm; keep important subjects inside the middle 70 percent.",
+            "STRICT IMAGE-ONLY RULE: no text, letters, Chinese characters, numbers, tables, charts, documents, interfaces, logos, watermarks, QR codes, barcodes, seals, or signs.",
         ]
     )
+    validate_provider_prompt(prompt)
+    return prompt
 
 
 def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:

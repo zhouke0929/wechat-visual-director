@@ -505,7 +505,7 @@ export async function generateImageCandidate(
   planId: string,
   imageSlotId: string,
   expectedImageRevision: number,
-  mode: "start" | "regenerate" | "fallback",
+  mode: "start" | "regenerate",
 ): Promise<void> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/image-slots/${imageSlotId}/generate`,

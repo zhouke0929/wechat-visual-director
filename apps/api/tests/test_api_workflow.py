@@ -1321,34 +1321,26 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         assert state["selected_candidate_id"] == first_candidate["id"]
         assert state["image_revision"] == 4
 
-        fallback = client.post(
+        removed_fallback = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/generate',
             json={"mode": "fallback", "expected_image_revision": 4},
         )
-        assert fallback.status_code == 200
-        state = fallback.json()["image_slot"]
-        fallback_candidate = state["candidates"][-1]
-        assert fallback_candidate["provider"] == "deterministic_fallback"
-        assert fallback_candidate["machine_checks"]["text_consistency"]["status"] == "passed"
-        assert client.get(fallback_candidate["content_url"]).content != client.get(
-            fallback_candidate["raw_content_url"]
-        ).content
-        assert state["image_revision"] == 5
+        assert removed_fallback.status_code == 422
 
         skipped = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/skip',
-            json={"expected_image_revision": 5},
+            json={"expected_image_revision": 4},
         )
         state = skipped.json()["image_slot"]
         assert state["status"] == "skipped"
         assert state["selected_candidate_id"] is None
-        assert state["image_revision"] == 6
+        assert state["image_revision"] == 5
         skipped_preview = client.get(selected["preview_url"])
         assert f'id="{item["image_slot_id"]}"' not in skipped_preview.text
 
         replaced = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{selected["id"]}/image-slots/{item["image_slot_id"]}/replace',
-            data={"expected_image_revision": "6"},
+            data={"expected_image_revision": "5"},
             files={"image_file": ("replacement.png", image_response.content, "image/png")},
         )
         assert replaced.status_code == 200
@@ -1356,12 +1348,58 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
         assert state["status"] == "replaced"
         assert state["decision"] == "replaced"
         assert state["selected_candidate_id"] is not None
-        assert state["image_revision"] == 7
+        assert state["image_revision"] == 6
         replaced_candidate = next(
             candidate for candidate in state["candidates"] if candidate["id"] == state["selected_candidate_id"]
         )
         replaced_preview = client.get(selected["preview_url"])
         assert replaced_candidate["content_url"] in replaced_preview.text
+
+
+def test_image_slot_can_keep_drawing_more_than_three_model_candidates(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "unlimited-image-candidates.db"), image_provider=MockImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 城市快闪活动复盘
+
+## 四个观察
+
+1. 先识别真实参与者
+2. 再观察现场互动
+3. 记录内容传播路径
+4. 沉淀下一次活动假设
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("unlimited-images.md", markdown.encode("utf-8"), "text/markdown")},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        slot = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots'
+        ).json()["items"][0]
+
+        image_revision = slot["state"]["image_revision"]
+        state = slot["state"]
+        for candidate_number in range(1, 6):
+            generated = client.post(
+                (
+                    f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                    f'/image-slots/{slot["image_slot_id"]}/generate'
+                ),
+                json={
+                    "mode": "start" if candidate_number == 1 else "regenerate",
+                    "expected_image_revision": image_revision,
+                },
+            )
+            assert generated.status_code == 200
+            state = generated.json()["image_slot"]
+            image_revision = state["image_revision"]
+
+        assert len(state["candidates"]) == 5
+        assert [candidate["candidate_index"] for candidate in state["candidates"]] == [1, 2, 3, 4, 5]
 
 
 def test_host_agent_image_context_import_and_theme_compatibility(tmp_path: Path) -> None:
@@ -1675,6 +1713,7 @@ def test_cover_fallback_skips_model_and_upload_but_satisfies_delivery_cover(tmp_
             "offset_x": 0.2,
             "offset_y": -0.1,
         }
+        assert cropped_payload["candidate"]["machine_checks"]["text_absence"]["status"] == "passed"
 
 
 def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: Path) -> None:

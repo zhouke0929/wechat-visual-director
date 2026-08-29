@@ -1568,9 +1568,6 @@ class Repository:
         if state["image_revision"] != expected_image_revision:
             raise VersionConflictError("图片槽已被更新，请刷新后重试")
         existing = state["candidates"]
-        model_candidate_count = sum(1 for item in existing if item["provider"] != "manual_upload")
-        if provider != "manual_upload" and model_candidate_count >= 3:
-            raise VersionConflictError("单个图片槽最多保留 3 个模型候选")
         candidate_id = str(uuid.uuid4())
         filename = f"{candidate_id}{extension}"
         target = self.image_asset_dir / filename

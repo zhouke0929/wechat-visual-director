@@ -30,7 +30,6 @@ from .image_provider import (
     DEFAULT_IMAGES_API_MODEL,
     IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
     IMAGE_PROMPT_VERSION,
-    GeneratedImage,
     ImageProvider,
     ImageProviderError,
     build_cover_prompt,
@@ -63,10 +62,9 @@ from .text_planner import (
 )
 from .infographic_overlay import (
     InfographicOverlayError,
-    compose_structured_infographic,
     resolve_overlay_copy,
 )
-from .ocr_verifier import verify_locked_copy
+from .ocr_verifier import verify_locked_copy, verify_no_text
 from .image_intent import (
     apply_theme_to_image_slot,
     build_art_direction_snapshot,
@@ -166,7 +164,7 @@ class UndoPlanRequest(BaseModel):
 
 
 class GenerateImageRequest(BaseModel):
-    mode: str = Field(pattern="^(start|regenerate|fallback)$")
+    mode: str = Field(pattern="^(start|regenerate)$")
     expected_image_revision: int = Field(ge=1)
 
 
@@ -352,6 +350,27 @@ def _crop_cover(content: bytes, *, scale: float, offset_x: float, offset_y: floa
             return output.getvalue()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("封面来源不是有效图片") from error
+
+
+def _cover_candidate_text_absence(candidate: dict[str, Any]) -> dict[str, Any]:
+    existing = (candidate.get("machine_checks") or {}).get("text_absence") or {}
+    if existing.get("status"):
+        return existing
+    if candidate.get("source_type") not in {"ai_generated", "custom_crop"}:
+        return {
+            "status": "passed",
+            "engine": "controlled_source",
+            "detected_character_count": 0,
+            "human_confirmation_required": False,
+            "reason": None,
+        }
+    return {
+        "status": "human_required",
+        "engine": "unavailable",
+        "detected_character_count": 0,
+        "human_confirmation_required": True,
+        "reason": "source_cover_text_check_unavailable",
+    }
 
 
 def _public_publication_revision(revision: dict[str, Any], *, suggested_draft_slot: str) -> dict[str, Any]:
@@ -2779,6 +2798,23 @@ def create_app(
             raise VersionConflictError("只有当前选中的方案可以规划封面")
         plan = repository.get_plan(task_id, plan_id)
         metadata = plan.get("editorial_brief_metadata") or {}
+        image_slots = list(plan.get("image_slots") or [])
+        scene_anchor = next(
+            (
+                str((slot.get("visual_intent") or {}).get("subject") or "").strip()
+                for slot in image_slots
+                if slot.get("purpose") == "atmosphere"
+                and str((slot.get("visual_intent") or {}).get("subject") or "").strip()
+            ),
+            "",
+        ) or next(
+            (
+                str((slot.get("visual_intent") or {}).get("subject") or "").strip()
+                for slot in image_slots
+                if str((slot.get("visual_intent") or {}).get("subject") or "").strip()
+            ),
+            "",
+        )
         candidates = repository.list_cover_candidates(task_id, plan_id)
         replacements = repository.list_preflight_asset_replacements(task_id)
         selected_cover = next((item for item in replacements if item["asset_role"] == "cover"), None)
@@ -2815,7 +2851,12 @@ def create_app(
             "article_type": task["article_type"],
             "audience": metadata.get("audience") or [],
             "reader_task": metadata.get("reader_task") or "帮助读者快速理解文章核心价值",
-            "narrative": plan.get("summary") or "提炼文章核心判断与行动方向",
+            "narrative": (
+                plan.get("editorial_narrative")
+                or plan.get("summary")
+                or "提炼文章核心判断与行动方向"
+            ),
+            "scene_anchor": scene_anchor or task["title"],
             "visual_system": plan.get("visual_system") or plan.get("style_mode"),
             "image_art_direction": plan.get("image_art_direction"),
             "output_size": "1080x864",
@@ -2867,6 +2908,7 @@ def create_app(
                 retryable=error.retryable,
                 details=error.details,
             )
+        text_absence = verify_no_text(fitted)
         candidate = repository.add_cover_candidate(
             task_id=task_id,
             plan_id=plan_id,
@@ -2885,6 +2927,14 @@ def create_app(
                 **generated.machine_checks,
                 "cover_fit": "1080x864_contain_over_soft_backdrop",
                 "ratio_valid": True,
+                "text_risk": (
+                    "none"
+                    if text_absence.status == "passed"
+                    else "detected"
+                    if text_absence.status == "failed"
+                    else "human_review"
+                ),
+                "text_absence": text_absence.as_dict(),
             },
         )
         return {"candidate": candidate, "workspace": cover_workspace(task_id, plan_id)}
@@ -3094,6 +3144,12 @@ def create_app(
             machine_checks={
                 "file_valid": True,
                 "ratio_valid": True,
+                "text_risk": (
+                    "none"
+                    if _cover_candidate_text_absence(source_candidate).get("status") == "passed"
+                    else "human_review"
+                ),
+                "text_absence": _cover_candidate_text_absence(source_candidate),
                 "generation_mode": "operator_fixed_frame_crop",
                 "source_candidate_id": candidate_id,
                 "crop_transform": {
@@ -3407,8 +3463,6 @@ def create_app(
             plan_revision=int(plan.get("revision") or 1),
         )
         state = repository.get_image_slot_state(task_id, plan_id, image_slot_id)
-        if payload.mode == "start" and state["candidates"]:
-            return _error(409, "image_already_generated", "该图片槽已有候选，请使用重生成")
         try:
             locked_copy: list[str] = []
             infographic_title: str | None = None
@@ -3425,63 +3479,22 @@ def create_app(
                     infographic_items,
                 )
                 locked_copy = [display_title, *display_items]
-            if payload.mode == "fallback":
-                if image_slot["purpose"] != "structured_infographic":
-                    return _error(422, "fallback_not_supported", "确定性保底图只适用于结构信息图")
-                fallback_size = (1600, 1200) if image_slot["aspect_ratio"] == "4:3" else (1600, 900)
-                fallback_source = BytesIO()
-                Image.new("RGB", fallback_size, "#fffaf0").save(fallback_source, format="PNG")
-                raw_content = fallback_source.getvalue()
-                fallback_content = compose_structured_infographic(
-                    raw_content,
-                    title=display_title or "关键步骤",
-                    items=display_items or [],
-                )
-                generated = GeneratedImage(
-                    provider="deterministic_fallback",
-                    model="infographic-fallback-v2",
-                    prompt="deterministic locked-copy infographic fallback",
-                    content=fallback_content,
-                    content_type="image/png",
-                    width=fallback_size[0],
-                    height=fallback_size[1],
-                    latency_ms=1,
-                    machine_checks={
-                        "file_valid": True,
-                        "ratio_valid": True,
-                        "qr_risk": "none",
-                        "text_risk": "deterministic_locked_copy",
-                        "logo_risk": "none",
-                        "person_risk": "none",
-                        "generation_mode": "deterministic_infographic_fallback",
-                        "locked_copy": locked_copy,
-                        "text_consistency": {
-                            "status": "passed",
-                            "engine": "deterministic_source_copy",
-                            "expected_count": len(locked_copy),
-                            "matched_count": len(locked_copy),
-                            "human_confirmation_required": False,
-                            "reason": None,
-                        },
-                    },
-                )
-            else:
-                candidate_index = len(state["candidates"]) + 1
-                prompt = build_provider_prompt(
-                    generation_slot,
-                    str(plan.get("article_type", "viewpoint_trend")),
-                    infographic_title=infographic_title,
-                    infographic_items=infographic_items,
-                    prompt_profile=image_prompt_profile(app.state.image_provider),
-                    candidate_index=candidate_index,
-                )
-                generated = app.state.image_provider.generate(
-                    prompt=prompt,
-                    aspect_ratio=image_slot["aspect_ratio"],
-                    candidate_index=candidate_index,
-                )
-                raw_content = generated.content
-            if image_slot["purpose"] == "structured_infographic" and payload.mode != "fallback":
+            candidate_index = len(state["candidates"]) + 1
+            prompt = build_provider_prompt(
+                generation_slot,
+                str(plan.get("article_type", "viewpoint_trend")),
+                infographic_title=infographic_title,
+                infographic_items=infographic_items,
+                prompt_profile=image_prompt_profile(app.state.image_provider),
+                candidate_index=candidate_index,
+            )
+            generated = app.state.image_provider.generate(
+                prompt=prompt,
+                aspect_ratio=image_slot["aspect_ratio"],
+                candidate_index=candidate_index,
+            )
+            raw_content = generated.content
+            if image_slot["purpose"] == "structured_infographic":
                 text_consistency = verify_locked_copy(generated.content, locked_copy)
                 generated = type(generated)(
                     provider=generated.provider,

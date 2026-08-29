@@ -16,3 +16,15 @@ def test_ocr_verifier_requires_human_confirmation_without_local_engine(monkeypat
     assert result.expected_count == 2
     assert result.human_confirmation_required is True
     assert result.reason == "local_ocr_engine_unavailable"
+
+
+def test_no_text_verifier_requires_human_confirmation_without_local_engine(monkeypatch) -> None:
+    monkeypatch.setattr(ocr_verifier.shutil, "which", lambda _: None)
+
+    result = ocr_verifier.verify_no_text(b"image-bytes-are-not-read-without-an-engine")
+
+    assert result.status == "human_required"
+    assert result.engine == "unavailable"
+    assert result.detected_character_count == 0
+    assert result.human_confirmation_required is True
+    assert result.reason == "local_ocr_engine_unavailable"

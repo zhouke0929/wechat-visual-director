@@ -392,6 +392,19 @@ export type CoverCandidate = {
   width: 1080;
   height: 864;
   latency_ms: number;
+  machine_checks: {
+    file_valid: boolean;
+    ratio_valid: boolean;
+    text_risk?: string;
+    text_absence?: {
+      status: "passed" | "failed" | "human_required";
+      engine: string;
+      detected_character_count: number;
+      human_confirmation_required: boolean;
+      reason?: string | null;
+    };
+    [key: string]: unknown;
+  };
   selected: boolean;
 };
 
@@ -412,6 +425,7 @@ export type CoverWorkspace = {
     audience: string[];
     reader_task: string;
     narrative: string;
+    scene_anchor: string;
     visual_system: string;
     output_size: "1080x864";
     text_policy: "image_only";

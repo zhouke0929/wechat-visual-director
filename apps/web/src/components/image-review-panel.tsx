@@ -43,7 +43,6 @@ type Props = {
   review: ImageSlotList | null;
   busy: readonly string[];
   onGenerate: (slot: ImageSlotReview) => Promise<void>;
-  onFallback: (slot: ImageSlotReview) => Promise<void>;
   onAccept: (slot: ImageSlotReview, candidate: ImageCandidate, textVerified: boolean) => Promise<void>;
   onSkip: (slot: ImageSlotReview) => Promise<void>;
   onReplace: (slot: ImageSlotReview, file: File) => Promise<void>;
@@ -76,7 +75,6 @@ export function ImageReviewPanel({
   review,
   busy,
   onGenerate,
-  onFallback,
   onAccept,
   onSkip,
   onReplace,
@@ -189,7 +187,9 @@ export function ImageReviewPanel({
         <div className="image-slot-list">
           {review.items.map((slot, slotIndex) => {
             const modelCandidates = slot.state.candidates.filter(
-              (candidate) => candidate.provider !== "manual_upload",
+              (candidate) =>
+                candidate.provider !== "manual_upload" &&
+                candidate.provider !== "deterministic_fallback",
             );
             const currentVisualSystem = plan.visual_system ?? plan.style_mode;
             const currentThemeCandidates = modelCandidates.filter((candidate) => {
@@ -249,10 +249,10 @@ export function ImageReviewPanel({
                     </div>
                     <div>
                       <button
-                        disabled={slotBusy || currentThemeCandidates.length >= 3}
+                        disabled={slotBusy}
                         onClick={() => void onGenerate(slot)}
                         type="button"
-                      >按新主题再生成</button>
+                      >按新主题抽一张</button>
                       {(plan.undo_stack ?? []).length ? (
                         <button disabled={anyImageActionBusy} onClick={() => void onRestoreTheme()} type="button">
                           回到上个主题
@@ -346,8 +346,7 @@ export function ImageReviewPanel({
                     className="image-generate-button"
                     disabled={
                       review.provider_mode === "manual" ||
-                      slotBusy ||
-                      currentThemeCandidates.length >= 3
+                      slotBusy
                     }
                     onClick={() => void onGenerate(slot)}
                     type="button"
@@ -357,19 +356,11 @@ export function ImageReviewPanel({
                       : busy.includes(`${slot.image_slot_id}:generate`)
                         ? "图片生成中…"
                         : modelCandidates.length
-                          ? `再生成一版（当前主题 ${currentThemeCandidates.length + 1}/3）`
+                          ? currentThemeCandidates.length
+                            ? `再抽一张（本主题已有 ${currentThemeCandidates.length} 张）`
+                            : "按当前主题抽一张"
                           : "生成图片"}
                   </button>
-                  {slot.purpose === "structured_infographic" ? (
-                    <button
-                      className="image-skip-button"
-                      disabled={slotBusy || modelCandidates.length >= 3}
-                      onClick={() => void onFallback(slot)}
-                      type="button"
-                    >
-                      使用保底信息图
-                    </button>
-                  ) : null}
                   <label
                     className={
                       slotBusy
