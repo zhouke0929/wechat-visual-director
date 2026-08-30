@@ -81,7 +81,10 @@ rsync -a "$MANAGED_PREFIX/" "$PACKAGE_ROOT/runtime/python/"
 RUNTIME_PYTHON="$PACKAGE_ROOT/runtime/python/bin/python3"
 [[ -x "$RUNTIME_PYTHON" ]] || build_failure "python_runtime_invalid" "The copied standalone Python runtime is incomplete."
 
-UV_NO_CACHE=1 uv pip install --python "$RUNTIME_PYTHON" --reinstall "$ROOT/apps/api"
+# The uv-managed base interpreter intentionally carries PEP 668's
+# EXTERNALLY-MANAGED marker. This is a private copied runtime inside the release
+# payload, so installing the application into that copy is safe and explicit.
+UV_NO_CACHE=1 uv pip install --python "$RUNTIME_PYTHON" --reinstall --break-system-packages "$ROOT/apps/api"
 "$RUNTIME_PYTHON" -c 'import fastapi, PIL, uvicorn, visual_director, yaml; print("runtime-ok")' >/dev/null
 
 find "$PACKAGE_ROOT/runtime/python" -type d -name '__pycache__' -prune -exec rm -rf {} +

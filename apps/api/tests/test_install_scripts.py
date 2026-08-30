@@ -192,6 +192,9 @@ def test_release_workflow_builds_both_macos_architectures() -> None:
     assert "architecture: x64" in workflow
     assert "test-macos-package.sh" in workflow
 
+    builder = (REPOSITORY_ROOT / "scripts" / "build-macos-package.sh").read_text(encoding="utf-8")
+    assert "--break-system-packages" in builder
+
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
 def test_installed_uninstaller_detects_adjacent_root_and_purges(tmp_path: Path) -> None:
