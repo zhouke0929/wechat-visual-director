@@ -5,10 +5,10 @@
       "id": "light_reading",
       "label": "轻盈阅读",
       "english": "AIRY READING",
-      "description": "用开放式标题、叶片线条、漂浮批注和少量柔色块组织教育科普长文。",
+      "description": "用开放式标题、叶片线条、漂浮批注和少量柔色块组织科普与知识型长文。",
       "ideal_for": [
         "通用科普",
-        "教育解读",
+        "知识解读",
         "长文阅读"
       ],
       "personality": [
@@ -160,7 +160,7 @@
       "description": "用纸张感、暖珊瑚色和手作细节增强成长故事与人物内容的叙事温度。",
       "ideal_for": [
         "成长故事",
-        "生涯规划",
+        "生活方式",
         "人物内容"
       ],
       "personality": [
@@ -613,11 +613,11 @@
       "id": "structured_grid",
       "label": "理性网格",
       "english": "STRUCTURED GRID",
-      "description": "用栏目索引、数据轨道、坐标轴和非对称表格组织政策、流程与专业信息。",
+      "description": "用栏目索引、数据轨道、坐标轴和非对称表格组织规则、流程与结构化信息。",
       "ideal_for": [
-        "数据政策",
+        "数据与规则",
         "步骤教程",
-        "专业介绍"
+        "产品与方法"
       ],
       "personality": [
         "理性",
@@ -765,11 +765,11 @@
       "id": "future_tech",
       "label": "未来科技",
       "english": "FUTURE EDITION",
-      "description": "用极光色带、错位留白、杂志式大字号和轻盈数据视觉组织 AI 教育、科技趋势与专业前沿。",
+      "description": "用极光色带、错位留白、杂志式大字号和轻盈数据视觉组织 AI 应用、科技趋势与创新前沿。",
       "ideal_for": [
-        "AI 教育",
+        "AI 应用",
         "科技趋势",
-        "专业前沿"
+        "创新前沿"
       ],
       "personality": [
         "前沿",

@@ -81,7 +81,7 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.20**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.21**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 普通用户：开箱安装
 
@@ -188,7 +188,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”，一键复制下面这段不绑定具体版本的提示词：
 
 ```text
-请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。
+请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。如果确认这是本机首次安装，完成后请用不超过五行说明最关键的用法：我可以直接给出文章主题或 Markdown；成稿后会获得本地工作台链接；如果当前 Agent 支持生图，确认主题后可以要求它按照当前主题生成并插入配图；密钥只在本地设置填写；系统只创建草稿、不自动群发。升级、修复或检测到已经安装时不要重复这段教程。
 https://github.com/zhouke0929/wechat-visual-director/releases
 ```
 
@@ -199,8 +199,8 @@ https://github.com/zhouke0929/wechat-visual-director/releases
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha20.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.20/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha21.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.21/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
@@ -258,11 +258,11 @@ host_skill_registered=true
 
 如果当前宿主本身提供可调用的原生生图工具，用户可先在工作台确认主题，再直接在原 Agent 对话中说“为当前工作台任务生成并插入配图”。Agent 会在后台读取与当前任务、主题和图片槽绑定的受控请求，生成并导入待审核候选；工作台不再提供需要来回复制粘贴的交接按钮。生成期间即使切换主题（包括切走后切回），图片仍会回到工作台成为候选，并按当前主题显示兼容度；只有正文锚点、图片任务或图片槽状态真正变化时才会拒绝错挂。该能力不要求额外填写项目图片 API Key，但会使用宿主自身的图片额度，通常也比工作台直连 API 慢。没有原生生图工具时，继续使用工作台 Provider、人工上传、沿用原图或跳过，不会静默调用收费 API。Agnes 等服务可能提供免费或低成本额度，但具体可用性、限额与条款以服务商当前规则为准。
 
-封面候选支持 5:4 可视化裁切。原图完整展示，裁切框可以拖到画面边缘，并可通过滑条或鼠标滚轮缩放；保存后生成新的受控候选，不会覆盖原图。
+封面候选保留 1080×864（5:4）原始母图，候选卡片和编辑器用可移动的“封面显示区”标明公众号头条常用的 900×383（约 2.35:1）范围。用户可以调整范围大小和位置；保存时只更新显示参数与受控发布封面，不会裁掉、覆盖或复制候选原图。微信开放接口只接收封面素材 ID，并不规定展示比例；次条和部分分享入口仍可能按 1:1 截取，因此生成 Prompt 继续要求主体靠近中央安全区域。
 
 同一篇文章的正文插图与 AI 封面会复用一份文章级 Visual DNA：文章决定“画什么、解释什么关系”，当前主题只影响推荐画材、色板、表面语言和构图气质。封面会优先复用文章已经规划的具体氛围场景，主题中的栏目、表格、坐标或报告等排版语言只会转换为无字的材质、留白和空间关系，不会作为画面文案交给模型。换主题不会删除已生成或已采用的图片，也不会自动再次扣费；尚未生成的新候选才按当前主题编译。
 
-AI 封面始终按“无字底图”生成，正文标题由确定性组件渲染，不依赖图片模型写字。本机 OCR 结果只保留为内部诊断：候选卡片维持“调整裁切 / 直接采用”的普通审核流程，不用不确定的自动识别结果制造额外焦虑或操作门槛。
+AI 封面始终按“无字底图”生成，正文标题由确定性组件渲染，不依赖图片模型写字。本机 OCR 结果只保留为内部诊断：候选卡片维持“调整封面显示区 / 直接采用”的普通审核流程，不用不确定的自动识别结果制造额外焦虑或操作门槛。
 
 结构信息图只允许绘制来自原文的标题与短标签，完整事实锚点仍保存在任务中用于核对。系统会把场景隐喻、连接关系和装饰语法作为“只画不写”的视觉脚本，减少长句卡片和提示词说明被误画进图片。
 
@@ -312,7 +312,7 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 ### macOS 技术预览
 
 ```bash
-git clone --branch v0.1.0-alpha.20 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
+git clone --branch v0.1.0-alpha.21 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
 cd wechat-visual-director
 bash scripts/bootstrap.sh
 ```

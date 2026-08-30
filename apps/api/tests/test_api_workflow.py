@@ -49,7 +49,7 @@ def test_cover_fit_preserves_both_edges_of_wide_source() -> None:
         assert cover.getpixel((1079, 432))[2] > 180
 
 
-def test_cover_crop_zoom_and_offset_match_fixed_frame_editor() -> None:
+def test_cover_display_area_focus_matches_editor_coordinates() -> None:
     source = Image.new("RGB", (1080, 864), "#ffffff")
     for x in range(540):
         for y in range(864):
@@ -58,14 +58,14 @@ def test_cover_crop_zoom_and_offset_match_fixed_frame_editor() -> None:
     buffer = BytesIO()
     source.save(buffer, format="PNG")
 
-    left_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=0.5, offset_y=0)
-    right_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=-0.5, offset_y=0)
+    left_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=-0.5, offset_y=0)
+    right_focus = _crop_cover(buffer.getvalue(), scale=2, offset_x=0.5, offset_y=0)
 
     with Image.open(BytesIO(left_focus)) as cover:
-        assert cover.size == (1080, 864)
-        assert cover.getpixel((540, 432))[0] > 180
+        assert cover.size == (900, 383)
+        assert cover.getpixel((450, 191))[0] > 180
     with Image.open(BytesIO(right_focus)) as cover:
-        assert cover.getpixel((540, 432))[2] > 180
+        assert cover.getpixel((450, 191))[2] > 180
 
 
 class _FailThenSucceedWechatPublisher(_SuccessfulWechatPublisher):
@@ -1624,7 +1624,7 @@ def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Pa
         workspace = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/cover-candidates'
         ).json()
-        assert workspace["cover_brief"]["output_size"] == "1080x864"
+        assert workspace["cover_brief"]["output_size"] == "1080x864 master / 900x383 headline"
         assert workspace["cover_brief"]["text_policy"] == "image_only"
         generated = client.post(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/cover-candidates/generate',
@@ -1643,7 +1643,8 @@ def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Pa
             json={"expected_task_version": task_version},
         )
         assert adopted.status_code == 200
-        assert adopted.json()["workspace"]["selected_cover"]["width"] == 1080
+        assert adopted.json()["workspace"]["selected_cover"]["width"] == 900
+        assert adopted.json()["workspace"]["selected_cover"]["height"] == 383
         assert adopted.json()["workspace"]["candidates"][0]["selected"] is True
 
 
@@ -1682,8 +1683,14 @@ def test_cover_fallback_skips_model_and_upload_but_satisfies_delivery_cover(tmp_
         payload = fallback.json()
         assert payload["candidate"]["source_type"] == "theme_fallback"
         assert payload["candidate"]["provider"] == "deterministic_fallback"
-        assert payload["workspace"]["selected_cover"]["output_sha256"] == payload["candidate"]["output_sha256"]
+        assert payload["workspace"]["selected_cover"]["output_sha256"] == payload["candidate"]["machine_checks"]["cover_display_output_sha256"]
+        assert payload["workspace"]["selected_cover"]["output_sha256"] != payload["candidate"]["output_sha256"]
+        assert (payload["workspace"]["selected_cover"]["width"], payload["workspace"]["selected_cover"]["height"]) == (900, 383)
+        original_candidate_id = payload["candidate"]["id"]
+        original_candidate_sha256 = payload["candidate"]["output_sha256"]
+        original_candidate_count = len(payload["workspace"]["candidates"])
         content = client.get(payload["candidate"]["content_url"])
+        original_candidate_bytes = content.content
         with Image.open(BytesIO(content.content)) as image:
             assert image.size == (1080, 864)
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()
@@ -1705,9 +1712,20 @@ def test_cover_fallback_skips_model_and_upload_but_satisfies_delivery_cover(tmp_
         )
         assert cropped.status_code == 200
         cropped_payload = cropped.json()
-        assert cropped_payload["candidate"]["source_type"] == "custom_crop"
-        assert cropped_payload["candidate"]["source_resource_id"] == payload["candidate"]["id"]
-        assert cropped_payload["workspace"]["selected_cover"]["output_sha256"] == cropped_payload["candidate"]["output_sha256"]
+        assert cropped_payload["candidate"]["id"] == original_candidate_id
+        assert cropped_payload["candidate"]["source_type"] == "theme_fallback"
+        assert cropped_payload["candidate"]["output_sha256"] == original_candidate_sha256
+        assert client.get(cropped_payload["candidate"]["content_url"]).content == original_candidate_bytes
+        assert len(cropped_payload["workspace"]["candidates"]) == original_candidate_count
+        assert cropped_payload["workspace"]["selected_cover"]["output_sha256"] == cropped_payload["candidate"]["machine_checks"]["cover_display_output_sha256"]
+        assert cropped_payload["workspace"]["selected_cover"]["output_sha256"] != cropped_payload["candidate"]["output_sha256"]
+        assert (cropped_payload["workspace"]["selected_cover"]["width"], cropped_payload["workspace"]["selected_cover"]["height"]) == (900, 383)
+        selected_content = client.get(cropped_payload["workspace"]["selected_cover"]["content_url"])
+        with Image.open(BytesIO(selected_content.content)) as image:
+            assert image.size == (900, 383)
+        assert cropped_payload["candidate"]["machine_checks"]["presentation_adjustment"] == "operator_cover_display_area"
+        assert cropped_payload["candidate"]["machine_checks"]["cover_display_aspect_ratio"] == "2.35:1"
+        assert cropped_payload["candidate"]["machine_checks"]["crop_revision"] == 1
         assert cropped_payload["candidate"]["machine_checks"]["crop_transform"] == {
             "scale": 1.5,
             "offset_x": 0.2,

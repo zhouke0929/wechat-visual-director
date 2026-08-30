@@ -32,6 +32,13 @@ try {
     if ($BootstrapResult.runtime_mode -ne "bundled_python" -or -not $BootstrapResult.bundled_runtime) {
         throw "Installer did not select bundled Python."
     }
+    if (-not $BootstrapResult.first_install) { throw "Fresh package install was not marked as first_install." }
+    if ($BootstrapResult.first_run_guide.schema_version -ne "first_run_guide.v0.1") {
+        throw "Fresh package install did not return the first-run guide."
+    }
+    if (@($BootstrapResult.first_run_guide.lines).Count -ne 4) {
+        throw "First-run guide must remain concise."
+    }
 
     $Launcher = [string]$BootstrapResult.launcher
     $DoctorRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher doctor --json

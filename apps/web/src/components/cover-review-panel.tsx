@@ -28,11 +28,39 @@ const sourceLabels: Record<CoverCandidate["source_type"], string> = {
   custom_crop: "人工裁切封面",
 };
 
-const DEFAULT_CROP_SCALE = 1.15;
+const DEFAULT_CROP_SCALE = 1;
+const COVER_MASTER_ASPECT = 5 / 4;
+const WECHAT_HEADLINE_ASPECT = 900 / 383;
 
-function clampOffset(value: number, scale: number) {
-  const limit = Math.max(0, (1 - 1 / scale) / 2);
+type CoverDisplayTransform = { scale: number; offsetX: number; offsetY: number };
+
+function displayFrameSize(scale: number) {
+  const width = 1 / scale;
+  return { width, height: width * COVER_MASTER_ASPECT / WECHAT_HEADLINE_ASPECT };
+}
+
+function clampOffset(value: number, scale: number, axis: "x" | "y") {
+  const frame = displayFrameSize(scale);
+  const limit = Math.max(0, (1 - (axis === "x" ? frame.width : frame.height)) / 2);
   return Math.max(-limit, Math.min(limit, value));
+}
+
+function savedDisplayTransform(candidate: CoverCandidate): CoverDisplayTransform {
+  const stored = candidate.machine_checks.crop_transform as Record<string, unknown> | undefined;
+  const scale = Math.max(1, Math.min(3, Number(stored?.scale) || DEFAULT_CROP_SCALE));
+  return {
+    scale,
+    offsetX: clampOffset(Number(stored?.offset_x) || 0, scale, "x"),
+    offsetY: clampOffset(Number(stored?.offset_y) || 0, scale, "y"),
+  };
+}
+
+function displayAreaStyle(transform: CoverDisplayTransform) {
+  return {
+    "--cover-display-width": `${100 / transform.scale}%`,
+    "--cover-display-x": `${transform.offsetX * 100}%`,
+    "--cover-display-y": `${transform.offsetY * 100}%`,
+  } as CSSProperties;
 }
 
 export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop, onReuse, onSelect, onUpload }: Props) {
@@ -48,16 +76,17 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
   } | null>(null);
 
   function openCrop(candidate: CoverCandidate) {
+    const saved = savedDisplayTransform(candidate);
     setCropCandidate(candidate);
-    setCropScale(DEFAULT_CROP_SCALE);
-    setCropOffset({ x: 0, y: 0 });
+    setCropScale(saved.scale);
+    setCropOffset({ x: saved.offsetX, y: saved.offsetY });
   }
 
   function changeScale(nextScale: number) {
     setCropScale(nextScale);
     setCropOffset((current) => ({
-      x: clampOffset(current.x, nextScale),
-      y: clampOffset(current.y, nextScale),
+      x: clampOffset(current.x, nextScale, "x"),
+      y: clampOffset(current.y, nextScale, "y"),
     }));
   }
 
@@ -78,8 +107,8 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
     if (!drag || drag.pointerId !== event.pointerId) return;
     const bounds = event.currentTarget.parentElement?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
     setCropOffset({
-      x: clampOffset(drag.offsetX + (event.clientX - drag.startX) / bounds.width, cropScale),
-      y: clampOffset(drag.offsetY + (event.clientY - drag.startY) / bounds.height, cropScale),
+      x: clampOffset(drag.offsetX + (event.clientX - drag.startX) / bounds.width, cropScale, "x"),
+      y: clampOffset(drag.offsetY + (event.clientY - drag.startY) / bounds.height, cropScale, "y"),
     });
   }
 
@@ -102,8 +131,8 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
     try {
       await onCrop(cropCandidate, {
         scale: cropScale,
-        offsetX: -cropOffset.x * cropScale,
-        offsetY: -cropOffset.y * cropScale,
+        offsetX: cropOffset.x,
+        offsetY: cropOffset.y,
       });
       setCropCandidate(null);
     } catch {
@@ -172,43 +201,46 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
       <section className="cover-contact-sheet">
         <header>
           <strong>封面候选</strong>
-          <span>{review.candidates.length ? `${review.candidates.length} 张 · 全部已无损适配为 5:4` : "尚未生成候选"}</span>
+          <span>{review.candidates.length ? `${review.candidates.length} 张 5:4 原图 · 可调整 2.35:1 头图范围` : "尚未生成候选"}</span>
         </header>
         {review.candidates.length ? (
           <div>
-            {review.candidates.map((candidate) => (
-              <article className={candidate.selected ? "selected" : ""} key={candidate.id}>
-                <div className="cover-crop-frame">
-                  <img alt={`封面候选 ${candidate.candidate_index}`} src={absoluteApiUrl(candidate.content_url)} />
-                  <i>标题安全区</i>
-                </div>
-                <p><span>{String(candidate.candidate_index).padStart(2, "0")}</span><strong>{sourceLabels[candidate.source_type]}</strong></p>
-                <div className="cover-candidate-actions">
-                  <button disabled={Boolean(busy)} onClick={() => openCrop(candidate)} type="button">调整裁切</button>
-                  <button
-                    disabled={candidate.selected || Boolean(busy)}
-                    onClick={() => void onSelect(candidate)}
-                    type="button"
-                  >
-                    {candidate.selected
-                      ? "当前封面"
-                      : busy === `select:${candidate.id}`
-                        ? "采用中…"
-                        : "直接采用"}
-                  </button>
-                </div>
-              </article>
-            ))}
+            {review.candidates.map((candidate) => {
+              const displayTransform = savedDisplayTransform(candidate);
+              return (
+                <article className={candidate.selected ? "selected" : ""} key={candidate.id}>
+                  <div className="cover-crop-frame">
+                    <img alt={`封面候选 ${candidate.candidate_index}`} src={absoluteApiUrl(candidate.content_url)} />
+                    <div className="cover-display-area" style={displayAreaStyle(displayTransform)}><i>封面显示区</i></div>
+                  </div>
+                  <p><span>{String(candidate.candidate_index).padStart(2, "0")}</span><strong>{sourceLabels[candidate.source_type]}</strong></p>
+                  <div className="cover-candidate-actions">
+                    <button disabled={Boolean(busy)} onClick={() => openCrop(candidate)} type="button">调整封面显示区</button>
+                    <button
+                      disabled={candidate.selected || Boolean(busy)}
+                      onClick={() => void onSelect(candidate)}
+                      type="button"
+                    >
+                      {candidate.selected
+                        ? "当前封面"
+                        : busy === `select:${candidate.id}`
+                          ? "采用中…"
+                          : "直接采用"}
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : <p>可生成 AI 候选、复用正文图片、直接上传，或一键使用主题保底封面。</p>}
       </section>
 
       {cropCandidate && typeof document !== "undefined" ? createPortal((
-        <div className="cover-crop-dialog" role="dialog" aria-modal="true" aria-label="调整封面裁切">
-          <button className="cover-crop-backdrop" onClick={() => setCropCandidate(null)} type="button" aria-label="关闭裁切窗口" />
+        <div className="cover-crop-dialog" role="dialog" aria-modal="true" aria-label="调整封面显示区">
+          <button className="cover-crop-backdrop" onClick={() => setCropCandidate(null)} type="button" aria-label="关闭封面显示区窗口" />
           <section className="cover-crop-sheet">
             <header>
-              <div><span>COVER CROP / 5:4</span><h3>拖动裁切框，留下最重要的视觉焦点</h3></div>
+              <div><span>COVER DISPLAY / 2.35:1</span><h3>在原图中调整公众号头图的显示范围</h3></div>
               <button disabled={Boolean(busy)} onClick={() => setCropCandidate(null)} type="button">关闭</button>
             </header>
             <div className="cover-crop-workspace">
@@ -231,14 +263,14 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
                   } as CSSProperties}
                 >
                   <div className="cover-crop-grid" aria-hidden="true"><i /><i /><i /><i /></div>
-                  <span>最终保留区域</span>
+                  <span>封面显示区</span>
                 </div>
               </div>
               <aside>
-                <span>缩放画面</span>
-                <strong>{Math.round(cropScale * 100)}%</strong>
+                <span>显示范围</span>
+                <strong>{cropScale === 1 ? "完整宽度" : `聚焦 ${Math.round(100 / cropScale)}%`}</strong>
                 <input
-                  aria-label="缩放封面"
+                  aria-label="调整封面显示区大小"
                   min="1"
                   max="3"
                   step="0.01"
@@ -246,18 +278,18 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
                   value={cropScale}
                   onChange={(event) => changeScale(Number(event.target.value))}
                 />
-                <p>{cropScale === 1 ? "当前显示完整原图；使用滚轮或滑条放大后，即可拖动裁切框。" : "鼠标滚轮或滑条缩放；按住白色裁切框可拖到画面边缘。"}</p>
+                <p>{cropScale === 1 ? "当前显示区已占满原图宽度；上下拖动可选择头图保留位置。" : "使用滚轮或滑条调整范围，再拖动白色显示区选择画面重点。"}</p>
                 <button
                   disabled={Boolean(busy)}
                   onClick={() => { setCropScale(DEFAULT_CROP_SCALE); setCropOffset({ x: 0, y: 0 }); }}
                   type="button"
-                >重置位置</button>
+                >恢复完整宽度</button>
               </aside>
             </div>
             <footer>
-              <p>原始候选不会被覆盖，保存后会生成一张新的受控封面并自动采用。</p>
+              <p>只保存 2.35:1 头图的显示位置并自动采用；5:4 候选原图不会被裁掉或覆盖。</p>
               <button disabled={Boolean(busy)} onClick={() => void saveCrop()} type="button">
-                {busy === `crop:${cropCandidate.id}` ? "保存裁切中…" : "保存裁切并采用"}
+                {busy === `crop:${cropCandidate.id}` ? "保存显示区中…" : "保存显示区并采用"}
               </button>
             </footer>
           </section>

@@ -58,6 +58,13 @@ if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
 }
 $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
+$InstallManifest = Join-Path $InstallRoot "install.json"
+$InstallHistory = Join-Path $InstallRoot "config\install-history.json"
+$FirstInstallation = -not (
+    (Test-Path -LiteralPath $StableLauncher -PathType Leaf) -or
+    (Test-Path -LiteralPath $InstallManifest -PathType Leaf) -or
+    (Test-Path -LiteralPath $InstallHistory -PathType Leaf)
+)
 $Installer = Join-Path $SourceRoot "scripts\install.ps1"
 
 if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
@@ -126,6 +133,21 @@ if ([string]::IsNullOrWhiteSpace($NextAction)) {
     $NextAction = "create_article"
 }
 
+$FirstRunGuide = $null
+if ($FirstInstallation) {
+    $FirstRunGuide = [ordered]@{
+        schema_version = "first_run_guide.v0.1"
+        language = "respond_in_user_language"
+        title = "WeChat Visual Director is ready"
+        lines = @(
+            "Ask for a WeChat article by topic, or provide Markdown for typesetting.",
+            "The Agent returns a local workbench link for theme, image, and cover review.",
+            "If the current Agent supports native image generation, confirm the theme first and then ask it to generate and insert images for the current article.",
+            "Enter image API and WeChat credentials only in Local Settings; the product creates drafts and never mass publishes automatically."
+        )
+    }
+}
+
 [ordered]@{
     ok = $true
     schema_version = "bootstrap_result.v0.1"
@@ -138,6 +160,8 @@ if ([string]::IsNullOrWhiteSpace($NextAction)) {
     web_base = [string]$ServeResult.web_base
     settings_url = [string]$DoctorResult.setup.settings_url
     next_action = $NextAction
+    first_install = [bool]$FirstInstallation
+    first_run_guide = $FirstRunGuide
     background = $true
     process_mode = "detached"
     command_completed = $true

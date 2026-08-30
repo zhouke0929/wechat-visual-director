@@ -368,7 +368,7 @@ export default function TaskReviewPage() {
     setError("");
     try {
       setCoverReview(await generateCoverCandidate(detail.task, plan.id));
-      setNotice("封面候选已根据全文编辑简报生成，并自动裁切为 1080×864。");
+      setNotice("已生成 1080×864 封面原图，可在候选卡片中调整 2.35:1 头图显示区。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "生成封面候选失败");
     } finally {
@@ -431,9 +431,9 @@ export default function TaskReviewPage() {
     try {
       setCoverReview(await cropCoverCandidate(detail.task, plan.id, candidate.id, transform));
       await load();
-      setNotice("裁切后的封面已保存为新资产并自动采用，原始候选仍然保留。");
+      setNotice("封面显示区已保存并自动采用，候选原图保持不变。");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "保存封面裁切失败");
+      setError(reason instanceof Error ? reason.message : "保存封面显示区失败");
       throw reason;
     } finally {
       setCoverBusy("");

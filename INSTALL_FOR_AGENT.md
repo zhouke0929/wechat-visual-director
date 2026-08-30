@@ -27,8 +27,8 @@ invoke npm, pnpm, or install a global Node.js package.
    user installation.
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha20.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.20/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha21.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.21/install-release.ps1" -OutFile $installer
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -62,7 +62,18 @@ bash scripts/bootstrap.sh
    - `configure_image_provider` or `configure_wechat_publisher`: give the user
      `settings_url`. The user enters private credentials in the local page;
      never ask them to paste those values into the conversation.
-7. After first installation, tell the user to start a new host conversation if
+7. Only after a successful first installation, return a concise first-use receipt
+   instead of replying with only "installed". Keep it to no more than five lines
+   and use `first_run_guide` from the bootstrap result when available. Tell the
+   user, in their language:
+   - they can ask for a WeChat article by topic or provide Markdown for typesetting;
+   - the Agent will return a local workbench link for theme, image, and cover review;
+   - if the current Agent supports native image generation, after confirming the
+     theme they can ask it to generate and insert images for the current article;
+   - private image API and WeChat credentials belong only in Local Settings, and
+     the product creates drafts rather than mass publishing automatically.
+   Do not repeat this tutorial after an upgrade, repair, or existing-install check.
+8. After first installation, tell the user to start a new host conversation if
    the host only discovers Skills at startup.
 
 ## Built-in WeChat publisher

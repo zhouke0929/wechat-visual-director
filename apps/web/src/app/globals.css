@@ -577,8 +577,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .cover-contact-sheet article.selected { border: 2px solid var(--teal); box-shadow: 4px 4px 0 #b9d9d3; }
 .cover-crop-frame { position: relative; aspect-ratio: 5 / 4; overflow: hidden; background: #e5e2d9; }
 .cover-crop-frame img { width: 100%; height: 100%; display: block; object-fit: cover; }
-.cover-crop-frame::after { content: ""; position: absolute; inset: 14% 12%; border: 1px dashed rgba(255,255,255,.8); box-shadow: 0 0 0 999px rgba(17,34,31,.12); pointer-events: none; }
-.cover-crop-frame i { position: absolute; left: 14%; top: 16%; z-index: 1; padding: 3px 5px; background: rgba(255,253,247,.86); color: #35433f; font: normal 700 7px/1 Arial, sans-serif; }
+.cover-display-area { position: absolute; left: calc(50% + var(--cover-display-x)); top: calc(50% + var(--cover-display-y)); width: var(--cover-display-width); aspect-ratio: 900 / 383; box-sizing: border-box; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,.96); box-shadow: 0 0 0 999px rgba(17,34,31,.2), inset 0 0 0 1px rgba(17,34,31,.22); pointer-events: none; }
+.cover-display-area i { position: absolute; left: 7px; top: 7px; z-index: 1; padding: 4px 6px; background: rgba(17,34,31,.82); color: #fffdf7; font: normal 750 7px/1 Arial, sans-serif; letter-spacing: .08em; }
 .cover-contact-sheet article > p { margin: 8px 0; display: flex; gap: 8px; align-items: baseline; }
 .cover-contact-sheet article > p span { color: var(--coral); font: 800 16px/1 Georgia, serif; }
 .cover-contact-sheet article > p strong { font-size: 9px; }
@@ -596,7 +596,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .cover-crop-workspace { min-width: 0; padding: 28px; display: grid; grid-template-columns: minmax(480px, 1fr) 220px; gap: 28px; align-items: center; }
 .cover-crop-viewport { position: relative; width: min(650px, 100%); aspect-ratio: 5 / 4; overflow: hidden; justify-self: center; background: #d8d8d1; cursor: default; touch-action: none; user-select: none; box-shadow: 0 18px 44px rgba(22,34,31,.2); }
 .cover-crop-viewport > img { width: 100%; height: 100%; display: block; object-fit: cover; pointer-events: none; }
-.cover-crop-selection { position: absolute; left: calc(50% + var(--crop-frame-x)); top: calc(50% + var(--crop-frame-y)); width: var(--crop-frame-size); aspect-ratio: 5 / 4; transform: translate(-50%, -50%); border: 2px solid #fff; box-shadow: 0 0 0 999px rgba(12,24,21,.48), inset 0 0 0 1px rgba(16,40,35,.18); cursor: grab; touch-action: none; will-change: left, top, width; }
+.cover-crop-selection { position: absolute; left: calc(50% + var(--crop-frame-x)); top: calc(50% + var(--crop-frame-y)); width: var(--crop-frame-size); aspect-ratio: 900 / 383; box-sizing: border-box; transform: translate(-50%, -50%); border: 2px solid #fff; box-shadow: 0 0 0 999px rgba(12,24,21,.48), inset 0 0 0 1px rgba(16,40,35,.18); cursor: grab; touch-action: none; will-change: left, top, width; }
 .cover-crop-selection:active { cursor: grabbing; }
 .cover-crop-selection::before, .cover-crop-selection::after { content: ""; position: absolute; width: 28px; height: 28px; border-color: #f1ca4f; pointer-events: none; }
 .cover-crop-selection::before { left: -2px; top: -2px; border-top: 4px solid #f1ca4f; border-left: 4px solid #f1ca4f; }
@@ -612,7 +612,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .cover-crop-grid i:nth-child(4) { top: 66.666%; }
 .cover-crop-workspace aside { align-self: stretch; padding: 22px; display: flex; flex-direction: column; justify-content: center; border-left: 1px solid #aeb3ae; }
 .cover-crop-workspace aside > span { color: var(--teal); font-size: 9px; font-weight: 850; letter-spacing: .12em; }
-.cover-crop-workspace aside strong { margin-top: 8px; font: 760 40px/1 Georgia, serif; }
+.cover-crop-workspace aside strong { margin-top: 8px; font: 760 27px/1.1 "Noto Serif SC", "Songti SC", serif; }
 .cover-crop-workspace input[type="range"] { width: 100%; margin: 30px 0 0; accent-color: var(--coral); }
 .cover-crop-workspace aside p { min-height: 52px; margin: 18px 0 0; color: #626d68; font-size: 11px; line-height: 1.6; }
 .cover-crop-workspace aside button { min-height: 38px; margin-top: auto; border: 1px solid #87908c; background: transparent; color: #3d4b47; font-size: 10px; font-weight: 800; }

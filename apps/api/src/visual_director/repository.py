@@ -1401,6 +1401,7 @@ class Repository:
 
     @staticmethod
     def _cover_candidate_from_row(row: sqlite3.Row) -> dict[str, Any]:
+        output_sha256 = row["output_sha256"]
         return {
             "id": row["id"],
             "task_id": row["task_id"],
@@ -1411,14 +1412,14 @@ class Repository:
             "provider": row["provider"],
             "model": row["model"],
             "provider_prompt": row["provider_prompt"],
-            "output_sha256": row["output_sha256"],
+            "output_sha256": output_sha256,
             "content_type": row["content_type"],
             "width": row["width"],
             "height": row["height"],
             "latency_ms": row["latency_ms"],
             "machine_checks": json.loads(row["machine_checks_json"]),
             "created_at": row["created_at"],
-            "content_url": f'/api/v1/cover-candidates/{row["id"]}/content',
+            "content_url": f'/api/v1/cover-candidates/{row["id"]}/content?v={output_sha256[:12]}',
         }
 
     def list_cover_candidates(self, task_id: str, plan_id: str) -> list[dict[str, Any]]:
@@ -1449,6 +1450,41 @@ class Repository:
         if not path.is_file():
             raise NotFoundError("封面候选文件不存在")
         return path, str(row["content_type"])
+
+    def update_cover_candidate_display_area(
+        self,
+        *,
+        candidate_id: str,
+        machine_check_updates: dict[str, Any],
+    ) -> dict[str, Any]:
+        row = self.connection.execute(
+            "SELECT * FROM cover_candidates WHERE id = ?",
+            (candidate_id,),
+        ).fetchone()
+        if row is None:
+            raise NotFoundError("封面候选不存在")
+
+        machine_checks = json.loads(row["machine_checks_json"])
+        machine_checks.update(machine_check_updates)
+        now = utc_now()
+        with self.lock:
+            self.connection.execute(
+                "UPDATE cover_candidates SET machine_checks_json = ? WHERE id = ?",
+                (json.dumps(machine_checks, ensure_ascii=False), candidate_id),
+            )
+            self._record_event_locked(
+                row["task_id"],
+                "cover_candidate_display_area_updated",
+                {
+                    "plan_id": row["plan_id"],
+                    "candidate_id": candidate_id,
+                    "candidate_index": row["candidate_index"],
+                    "crop_revision": machine_checks.get("crop_revision"),
+                },
+                now,
+            )
+            self.connection.commit()
+        return self.get_cover_candidate(candidate_id)
 
     def ensure_image_slot_states(self, task_id: str, plan_id: str, image_slots: list[dict[str, Any]]) -> None:
         self.get_plan(task_id, plan_id)

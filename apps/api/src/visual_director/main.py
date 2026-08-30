@@ -321,35 +321,71 @@ def _fit_cover(content: bytes) -> bytes:
         raise ValueError("封面来源不是有效图片") from error
 
 
+WECHAT_COVER_MASTER_SIZE = (1080, 864)
+WECHAT_HEADLINE_COVER_SIZE = (900, 383)
+
+
 def _crop_cover(content: bytes, *, scale: float, offset_x: float, offset_y: float) -> bytes:
-    """Apply the same fixed-frame transform used by the browser crop editor."""
+    """Render a movable 2.35:1 headline display area from the untouched 5:4 master."""
     try:
         with Image.open(BytesIO(content)) as source:
             converted = source.convert("RGB")
-            target_width, target_height = 1080, 864
-            base = ImageOps.fit(
+            master_width, master_height = WECHAT_COVER_MASTER_SIZE
+            target_width, target_height = WECHAT_HEADLINE_COVER_SIZE
+            master = ImageOps.fit(
                 converted,
-                (target_width, target_height),
+                (master_width, master_height),
                 method=Image.Resampling.LANCZOS,
                 centering=(0.5, 0.5),
             )
-            scaled_width = max(target_width, round(target_width * scale))
-            scaled_height = max(target_height, round(target_height * scale))
-            scaled = base.resize((scaled_width, scaled_height), Image.Resampling.LANCZOS)
-            max_x = max(0.0, (scale - 1.0) / 2.0)
-            max_y = max(0.0, (scale - 1.0) / 2.0)
+            crop_width = max(1, round(master_width / scale))
+            crop_height = max(1, round(crop_width * target_height / target_width))
+            crop_height = min(master_height, crop_height)
+            max_x = max(0.0, (master_width - crop_width) / (2 * master_width))
+            max_y = max(0.0, (master_height - crop_height) / (2 * master_height))
             safe_offset_x = max(-max_x, min(max_x, offset_x))
             safe_offset_y = max(-max_y, min(max_y, offset_y))
-            left = round((scaled_width - target_width) / 2 - safe_offset_x * target_width)
-            top = round((scaled_height - target_height) / 2 - safe_offset_y * target_height)
-            left = max(0, min(scaled_width - target_width, left))
-            top = max(0, min(scaled_height - target_height, top))
-            cropped = scaled.crop((left, top, left + target_width, top + target_height))
+            center_x = master_width / 2 + safe_offset_x * master_width
+            center_y = master_height / 2 + safe_offset_y * master_height
+            left = round(center_x - crop_width / 2)
+            top = round(center_y - crop_height / 2)
+            left = max(0, min(master_width - crop_width, left))
+            top = max(0, min(master_height - crop_height, top))
+            cropped = master.crop((left, top, left + crop_width, top + crop_height))
+            cropped = cropped.resize((target_width, target_height), Image.Resampling.LANCZOS)
             output = BytesIO()
             cropped.save(output, format="PNG", optimize=True)
             return output.getvalue()
     except (UnidentifiedImageError, OSError) as error:
         raise ValueError("封面来源不是有效图片") from error
+
+
+def _cover_display_transform(candidate: dict[str, Any]) -> dict[str, float]:
+    stored = (candidate.get("machine_checks") or {}).get("crop_transform") or {}
+    scale = max(1.0, min(3.0, float(stored.get("scale") or 1.0)))
+    return {
+        "scale": scale,
+        "offset_x": float(stored.get("offset_x") or 0.0),
+        "offset_y": float(stored.get("offset_y") or 0.0),
+    }
+
+
+def _cover_display_checks(
+    candidate: dict[str, Any],
+    *,
+    transform: dict[str, float],
+    content: bytes,
+    increment_revision: bool,
+) -> dict[str, Any]:
+    previous_revision = int((candidate.get("machine_checks") or {}).get("crop_revision") or 0)
+    return {
+        "presentation_adjustment": "operator_cover_display_area",
+        "crop_revision": previous_revision + (1 if increment_revision else 0),
+        "crop_transform": transform,
+        "cover_display_aspect_ratio": "2.35:1",
+        "cover_display_size": "900x383",
+        "cover_display_output_sha256": hashlib.sha256(content).hexdigest(),
+    }
 
 
 def _cover_candidate_text_absence(candidate: dict[str, Any]) -> dict[str, Any]:
@@ -2859,7 +2895,7 @@ def create_app(
             "scene_anchor": scene_anchor or task["title"],
             "visual_system": plan.get("visual_system") or plan.get("style_mode"),
             "image_art_direction": plan.get("image_art_direction"),
-            "output_size": "1080x864",
+            "output_size": "1080x864 master / 900x383 headline",
             "text_policy": "image_only",
             "recommended_source": "reuse_body_image" if reuse_sources else "ai_generated",
         }
@@ -2870,7 +2906,14 @@ def create_app(
             "cover_brief": brief,
             "selected_cover": selected_cover,
             "candidates": [
-                {**candidate, "selected": candidate["output_sha256"] == selected_sha}
+                {
+                    **candidate,
+                    "selected": (
+                        candidate["output_sha256"] == selected_sha
+                        or (candidate.get("machine_checks") or {}).get("cover_display_output_sha256")
+                        == selected_sha
+                    ),
+                }
                 for candidate in candidates
             ],
             "reuse_sources": reuse_sources,
@@ -3009,17 +3052,28 @@ def create_app(
         if cover_finding is None:
             raise NotFoundError("当前任务没有可替换的封面预检项")
         path, _ = repository.get_cover_candidate_asset(candidate_id)
+        transform = _cover_display_transform(candidate)
+        content = _crop_cover(path.read_bytes(), **transform)
         updated = repository.replace_preflight_asset(
             task_id=task_id,
             finding_code=cover_finding["code"],
             block_id=cover_finding.get("block_id"),
             expected_version=payload.expected_task_version,
-            content=path.read_bytes(),
+            content=content,
             content_type="image/png",
             extension=".png",
-            width=1080,
-            height=864,
+            width=WECHAT_HEADLINE_COVER_SIZE[0],
+            height=WECHAT_HEADLINE_COVER_SIZE[1],
             replaced_by=operator_id,
+        )
+        repository.update_cover_candidate_display_area(
+            candidate_id=candidate_id,
+            machine_check_updates=_cover_display_checks(
+                candidate,
+                transform=transform,
+                content=content,
+                increment_revision=False,
+            ),
         )
         return {"task": _public_task(updated), "workspace": cover_workspace(task_id, plan_id)}
 
@@ -3072,17 +3126,28 @@ def create_app(
                 "generation_mode": "deterministic_theme_fallback",
             },
         )
+        transform = _cover_display_transform(candidate)
+        display_content = _crop_cover(content, **transform)
         updated = repository.replace_preflight_asset(
             task_id=task_id,
             finding_code=cover_finding["code"],
             block_id=cover_finding.get("block_id"),
             expected_version=payload.expected_task_version,
-            content=content,
+            content=display_content,
             content_type="image/png",
             extension=".png",
-            width=1080,
-            height=864,
+            width=WECHAT_HEADLINE_COVER_SIZE[0],
+            height=WECHAT_HEADLINE_COVER_SIZE[1],
             replaced_by=operator_id,
+        )
+        candidate = repository.update_cover_candidate_display_area(
+            candidate_id=candidate["id"],
+            machine_check_updates=_cover_display_checks(
+                candidate,
+                transform=transform,
+                content=display_content,
+                increment_revision=False,
+            ),
         )
         return {
             "candidate": candidate,
@@ -3124,41 +3189,11 @@ def create_app(
             offset_x=payload.offset_x,
             offset_y=payload.offset_y,
         )
-        candidate = repository.add_cover_candidate(
-            task_id=task_id,
-            plan_id=plan_id,
-            source_type="custom_crop",
-            source_resource_id=candidate_id,
-            provider="deterministic_crop",
-            model="fixed-frame-cover-crop-v1",
-            provider_prompt=(
-                f"fixed 5:4 crop; scale={payload.scale:.4f}; "
-                f"offset_x={payload.offset_x:.4f}; offset_y={payload.offset_y:.4f}"
-            ),
-            content=content,
-            content_type="image/png",
-            extension=".png",
-            width=1080,
-            height=864,
-            latency_ms=0,
-            machine_checks={
-                "file_valid": True,
-                "ratio_valid": True,
-                "text_risk": (
-                    "none"
-                    if _cover_candidate_text_absence(source_candidate).get("status") == "passed"
-                    else "human_review"
-                ),
-                "text_absence": _cover_candidate_text_absence(source_candidate),
-                "generation_mode": "operator_fixed_frame_crop",
-                "source_candidate_id": candidate_id,
-                "crop_transform": {
-                    "scale": payload.scale,
-                    "offset_x": payload.offset_x,
-                    "offset_y": payload.offset_y,
-                },
-            },
-        )
+        transform = {
+            "scale": payload.scale,
+            "offset_x": payload.offset_x,
+            "offset_y": payload.offset_y,
+        }
         updated = repository.replace_preflight_asset(
             task_id=task_id,
             finding_code=cover_finding["code"],
@@ -3167,9 +3202,25 @@ def create_app(
             content=content,
             content_type="image/png",
             extension=".png",
-            width=1080,
-            height=864,
+            width=WECHAT_HEADLINE_COVER_SIZE[0],
+            height=WECHAT_HEADLINE_COVER_SIZE[1],
             replaced_by=operator_id,
+        )
+        text_absence = _cover_candidate_text_absence(source_candidate)
+        candidate = repository.update_cover_candidate_display_area(
+            candidate_id=candidate_id,
+            machine_check_updates={
+                "file_valid": True,
+                "ratio_valid": True,
+                "text_risk": "none" if text_absence.get("status") == "passed" else "human_review",
+                "text_absence": text_absence,
+                **_cover_display_checks(
+                    source_candidate,
+                    transform=transform,
+                    content=content,
+                    increment_revision=True,
+                ),
+            },
         )
         return {
             "candidate": candidate,

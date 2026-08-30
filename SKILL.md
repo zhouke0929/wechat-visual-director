@@ -26,7 +26,8 @@ bash "{baseDir}/scripts/bootstrap.sh"
 4. Release 安装器或源码 bootstrap 都只解析 stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。Windows Release 安装还必须确认 `runtime_mode=bundled_python` 与 `bundled_runtime=true`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行；立即停止等待，不得轮询或等待 API 进程退出。
 5. 确认 `installation.persistent=true`、`installation.version_match=true`、`installation.runtime_match=true` 和 `capabilities.host_skill_registered=true`。`runtime_match` 会校验正式安装模式与实际数据库路径，避免误连源码/测试库。若出现版本、契约或运行身份不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。正式启动器会把 API 作为无控制台后台进程运行；不要另开一个持续占用终端的前台服务。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
-7. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
+7. 仅在首次安装成功后，根据安装结果的 `first_run_guide` 向用户返回不超过五行的首次使用说明：可以直接给主题或 Markdown；成稿后会得到本地工作台链接；若当前 Agent 原生支持生图，确认主题后可要求它“按照当前主题为文章生成并插入配图”；密钥只在“本地设置”填写；系统只创建草稿、不自动群发。升级、修复、换对话或既有安装检查时不要重复展示。
+8. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
 
 ## 创建文章任务
 
@@ -101,7 +102,7 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
   导入只会新增待审核候选，绝不自动采用。生成期间只切换主题（包括切走后切回）不会拒绝导入：核心会保留生成时的 Visual DNA 快照，并按当前主题给出与 API 候选一致的兼容度提示。若返回 `host_image_request_stale`、`host_image_semantic_context_changed` 或 `host_image_revision_changed`，说明历史请求不存在、正文锚点/图片任务已改变，或图片槽已被处理；此时重新执行 `image context`，不得强制导入。宿主没有原生生图能力时明确返回 `host_image_generation_unavailable`，继续允许工作台 API 生图、人工上传、沿用原图或跳过；不得静默调用收费图片 API，也不得要求用户为了这条可选路径再配置 Key。
 - 图片设置位于本地工作台 `/settings`；人工上传、Mock 与统一图片模型 API 可切换。真实生图只需填写完整 Endpoint、Model ID、API Key 和清晰度，Endpoint 原样使用，厂商差异由隐藏 Adapter 处理。需要配置时读取 [图片 Provider 说明](references/image-providers.md)。Key 只允许由用户本人在该页面或本地私有配置文件中填写。设置页不回显 Key，也不以“保存成功”冒充外部模型已连通。
 - 普通配图由模型生成无文字语义插画；结构信息图把完整原文保存为事实锚点，并默认只让模型绘制标题和逐字截取的短标签。若本机 OCR 未能证明实际绘制文案一致，工作台必须展示大图与锁定标签，并把“文字无误，采用此图”作为一次明确的人工确认；不得绕过核对自动采用，也不要再要求用户重复勾选。模型原始输出与最终候选均可查看。
-- 核心会把图片规划保存为 `image_visual_intent.v3`，并用统一 Visual DNA 为整篇文章解析一份 `article_image_art_direction.v0.1`。同篇图片与 AI 封面共享画材、色板和气质；封面优先使用当前文章已有的氛围图语义作为具体场景锚点，主题中的栏目、报告、表格或坐标等组件语言只能被编译为无字的材质、留白与空间关系，不得原样进入 Prompt，也不得加入固定行业词。AI 封面固定为单焦点 5:4 无字底图；自动 OCR 结果只保留为内部诊断，不在候选卡片展示警告，也不增加采用或裁切门槛，用户按正常大图审核判断即可。各正文图片槽只按原文关系改变场景、节点与构图。结构信息图会移除“第二层 / PART 02”等规划脚手架，画面文字只允许原文语义标题和锁定短标签。不要把 Seedream Prompt 直接复用到其他模型，也不要用固定手绘风格覆盖文章主题。
+- 核心会把图片规划保存为 `image_visual_intent.v3`，并用统一 Visual DNA 为整篇文章解析一份 `article_image_art_direction.v0.1`。同篇图片与 AI 封面共享画材、色板和气质；封面优先使用当前文章已有的氛围图语义作为具体场景锚点，主题中的栏目、报告、表格或坐标等组件语言只能被编译为无字的材质、留白与空间关系，不得原样进入 Prompt，也不得加入固定行业词。AI 封面固定为单焦点 5:4 无字母图，头条发布资产从原图中确定性输出 900×383（约 2.35:1）；自动 OCR 结果只保留为内部诊断，不在候选卡片展示警告，也不增加采用门槛，用户按正常大图审核判断即可。用户保存“封面显示区”时只更新显示参数与受控发布资产，保留候选原图、编号和生成来源，不新增“人工裁切”候选卡片。各正文图片槽只按原文关系改变场景、节点与构图。结构信息图会移除“第二层 / PART 02”等规划脚手架，画面文字只允许原文语义标题和锁定短标签。不要把 Seedream Prompt 直接复用到其他模型，也不要用固定手绘风格覆盖文章主题。
 - 工作台可以冻结最终版本、复制富文本、下载交付包，并通过内置微信官方 API 发布器创建微信公众号草稿。即使真实草稿返回失败或 `unknown`，复制与下载仍必须可用，且不会再次调用微信接口。
 - 微信公众号配置只允许来自本机进程环境或 Git 忽略的 `.env.local`。不要要求用户把 AppID、AppSecret 粘贴进对话；access token 只保存在后台进程内存中。
 - 草稿结果为 `unknown` 时，先让用户去公众号后台核对；不得自动重试，以免产生重复草稿。核对后必须让用户在工作台选择“后台已找到草稿”或“后台确认无草稿，解除锁定”，不得通过代码或数据库绕过。确认无草稿后，工作台会把原操作转为可重试失败；确认已有草稿后，本次交付直接记为完成。
