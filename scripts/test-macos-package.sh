@@ -16,6 +16,10 @@ HOST_HOME="$TEMP_ROOT/host-home"
 EXTRACT_ROOT="$TEMP_ROOT/extracted"
 mkdir -p "$EXTRACT_ROOT" "$HOST_HOME"
 
+# Keep the runtime's host discovery aligned with the isolated registration
+# target passed to the installer. Real users naturally have both values equal.
+export HOME="$HOST_HOME"
+
 cleanup() {
   if [[ -x "$INSTALL_ROOT/visual-director" ]]; then
     "$INSTALL_ROOT/visual-director" stop --json >/dev/null 2>&1 || true
