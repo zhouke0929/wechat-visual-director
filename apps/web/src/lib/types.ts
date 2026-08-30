@@ -383,7 +383,7 @@ export type ImageSlotList = {
 export type CoverCandidate = {
   id: string;
   candidate_index: number;
-  source_type: "ai_generated" | "accepted_body_image" | "controlled_source_image" | "theme_fallback" | "custom_crop";
+  source_type: "ai_generated" | "host_generated" | "accepted_body_image" | "controlled_source_image" | "theme_fallback" | "custom_crop";
   source_resource_id: string | null;
   provider: string;
   model: string;

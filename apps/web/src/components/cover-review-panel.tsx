@@ -22,6 +22,7 @@ type Props = {
 
 const sourceLabels: Record<CoverCandidate["source_type"], string> = {
   ai_generated: "AI 全文生成",
+  host_generated: "宿主原生生图",
   accepted_body_image: "正文配图复用",
   controlled_source_image: "原稿图片复用",
   theme_fallback: "主题保底封面",

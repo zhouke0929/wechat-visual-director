@@ -1345,8 +1345,6 @@ class Repository:
     ) -> dict[str, Any]:
         self.get_plan(task_id, plan_id)
         existing = self.list_cover_candidates(task_id, plan_id)
-        if len(existing) >= 8:
-            raise VersionConflictError("单个方案最多保留 8 个封面候选")
         candidate_id = str(uuid.uuid4())
         filename = f"cover-{candidate_id}{extension}"
         target = self.image_asset_dir / filename

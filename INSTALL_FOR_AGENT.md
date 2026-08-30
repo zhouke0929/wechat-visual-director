@@ -27,8 +27,8 @@ invoke npm, pnpm, or install a global Node.js package.
    user installation.
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha22.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.22/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha23.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.23/install-release.ps1" -OutFile $installer
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 

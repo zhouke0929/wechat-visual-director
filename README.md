@@ -81,7 +81,7 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.22**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.23**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 与 macOS：交给 Agent 开箱安装
 
@@ -133,7 +133,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 正文配图与 AI 封面共享整篇美术方向，换主题时保留既有候选并只对明显冲突做轻提示；
 - AI 封面以文章真实场景为内容锚点，主题只提供无字的材质与构图；OCR 结果仅作为内部诊断，不增加额外采用门槛；
 - 人工、Mock 与统一图片模型 API；支持 GPT Image、Nano Banana、Seedream、通义万相及 OpenAI Images 兼容中转；
-- 可选的宿主原生配图：主题确认后，用户可直接在原 Agent 对话中要求“为当前工作台任务生成并插入配图”；生成结果仍回到工作台人工审核；
+- 可选的宿主原生配图与封面：主题确认后，用户可直接在原 Agent 对话中要求继续生成正文候选或封面；已有采用结果不会被覆盖，生成结果仍回到工作台人工审核；
 - 本地任务、历史方案、图片选择与冻结版本持久化；
 - 历史任务服务端分页（默认每页 8 篇）与当前页批量清理；
 - 富文本复制、Markdown/HTML/图片交付包；
@@ -199,8 +199,8 @@ https://github.com/zhouke0929/wechat-visual-director/releases
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha22.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.22/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha23.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.23/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```

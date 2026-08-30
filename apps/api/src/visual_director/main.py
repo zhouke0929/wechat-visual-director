@@ -2715,6 +2715,7 @@ def create_app(
         plan_id: str,
         *,
         plan_snapshot: dict[str, Any] | None = None,
+        asset_type: str = "body_image",
     ) -> dict[str, Any]:
         """Compile theme-bound image requests for a capable host Agent.
 
@@ -2728,12 +2729,9 @@ def create_app(
         task = repository.get_task(task_id)
         if task["selected_plan_id"] != plan_id:
             raise VersionConflictError("只有当前选中的方案可以准备宿主 Agent 配图")
+        if asset_type not in {"body_image", "cover", "all"}:
+            raise ValueError("未知的宿主生图资产类型")
         plan = plan_snapshot or repository.get_plan(task_id, plan_id)
-        repository.ensure_image_slot_states(task_id, plan_id, plan.get("image_slots", []))
-        states = {
-            item["image_slot_id"]: item
-            for item in repository.list_image_slot_states(task_id, plan_id)
-        }
         visual_system = plan.get("visual_system") or plan.get("style_mode")
         recent_summaries = repository.list_recent_component_summaries(
             task["account_id"],
@@ -2741,98 +2739,155 @@ def create_app(
         )
         parsed = None
         requests: list[dict[str, Any]] = []
-        for image_slot in plan.get("image_slots", []):
-            state = states[image_slot["image_slot_id"]]
-            if state.get("decision") != "pending":
-                continue
-            model_candidate_count = sum(
-                1
-                for candidate in state.get("candidates", [])
-                if candidate.get("provider") != "manual_upload"
-            )
-            if model_candidate_count >= 3:
-                continue
-            generation_slot = apply_theme_to_image_slot(
-                image_slot,
-                visual_system,
-                article_type=str(plan.get("article_type") or "viewpoint_trend"),
-                recent_summaries=recent_summaries,
-                art_direction=plan.get("image_art_direction"),
-            )
-            locked_copy: list[str] = []
-            infographic_title: str | None = None
-            infographic_items: list[str] | None = None
-            if image_slot["purpose"] == "structured_infographic":
-                if parsed is None:
-                    parsed = parse_markdown(task["normalized_markdown"], task["title"])
-                infographic_title, infographic_items = resolve_overlay_copy(
-                    parsed,
-                    image_slot["fact_bindings"],
+        blocked_targets: list[dict[str, Any]] = []
+        if asset_type in {"body_image", "all"}:
+            repository.ensure_image_slot_states(task_id, plan_id, plan.get("image_slots", []))
+            states = {
+                item["image_slot_id"]: item
+                for item in repository.list_image_slot_states(task_id, plan_id)
+            }
+            image_slots = list(plan.get("image_slots", []))
+            if not image_slots:
+                blocked_targets.append(
+                    {
+                        "asset_type": "body_image",
+                        "reason": "no_image_slots",
+                        "message": "当前方案没有正文图片槽，宿主不得自行补造配图任务。",
+                    }
                 )
-                display_title, display_items = resolve_display_copy(
-                    generation_slot["visual_intent"],
-                    infographic_title,
-                    infographic_items,
+            for image_slot in image_slots:
+                state = states[image_slot["image_slot_id"]]
+                model_candidate_count = sum(
+                    1
+                    for candidate in state.get("candidates", [])
+                    if candidate.get("provider") != "manual_upload"
                 )
-                locked_copy = [display_title, *display_items]
-            candidate_index = model_candidate_count + 1
-            prompt = build_provider_prompt(
-                generation_slot,
-                str(plan.get("article_type") or "viewpoint_trend"),
-                infographic_title=infographic_title,
-                infographic_items=infographic_items,
+                generation_slot = apply_theme_to_image_slot(
+                    image_slot,
+                    visual_system,
+                    article_type=str(plan.get("article_type") or "viewpoint_trend"),
+                    recent_summaries=recent_summaries,
+                    art_direction=plan.get("image_art_direction"),
+                )
+                locked_copy: list[str] = []
+                infographic_title: str | None = None
+                infographic_items: list[str] | None = None
+                if image_slot["purpose"] == "structured_infographic":
+                    if parsed is None:
+                        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+                    infographic_title, infographic_items = resolve_overlay_copy(
+                        parsed,
+                        image_slot["fact_bindings"],
+                    )
+                    display_title, display_items = resolve_display_copy(
+                        generation_slot["visual_intent"],
+                        infographic_title,
+                        infographic_items,
+                    )
+                    locked_copy = [display_title, *display_items]
+                candidate_index = model_candidate_count + 1
+                prompt = build_provider_prompt(
+                    generation_slot,
+                    str(plan.get("article_type") or "viewpoint_trend"),
+                    infographic_title=infographic_title,
+                    infographic_items=infographic_items,
+                    prompt_profile="generic",
+                    candidate_index=candidate_index,
+                )
+                prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+                request_seed = "|".join(
+                    [
+                        task_id,
+                        plan_id,
+                        image_slot["image_slot_id"],
+                        str(plan.get("revision") or 1),
+                        str(state["image_revision"]),
+                        prompt_sha256,
+                    ]
+                )
+                request_id = hashlib.sha256(request_seed.encode("utf-8")).hexdigest()[:24]
+                requests.append(
+                    {
+                        "asset_type": "body_image",
+                        "request_id": request_id,
+                        "image_slot_id": image_slot["image_slot_id"],
+                        "purpose": image_slot["purpose"],
+                        "aspect_ratio": image_slot["aspect_ratio"],
+                        "anchor_block_id": image_slot["anchor_block_id"],
+                        "reason": image_slot["reason"],
+                        "prompt": prompt,
+                        "prompt_sha256": prompt_sha256,
+                        "locked_copy": locked_copy,
+                        "expected_plan_revision": int(plan.get("revision") or 1),
+                        "expected_image_revision": int(state["image_revision"]),
+                        "current_decision": state.get("decision") or "pending",
+                        "existing_candidate_count": len(state.get("candidates", [])),
+                        "suggested_output_filename": f'host-{image_slot["image_slot_id"]}-{request_id}.png',
+                    }
+                )
+
+        if asset_type in {"cover", "all"}:
+            cover_candidates = repository.list_cover_candidates(task_id, plan_id)
+            cover_candidate_count = len(cover_candidates)
+            cover_brief = build_cover_brief(task, plan, reuse_sources=[])
+            prompt = build_cover_prompt(
+                cover_brief,
                 prompt_profile="generic",
-                candidate_index=candidate_index,
+                candidate_index=cover_candidate_count + 1,
             )
             prompt_sha256 = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
             request_seed = "|".join(
                 [
                     task_id,
                     plan_id,
-                    image_slot["image_slot_id"],
+                    "cover",
                     str(plan.get("revision") or 1),
-                    str(state["image_revision"]),
+                    str(cover_candidate_count),
                     prompt_sha256,
                 ]
             )
             request_id = hashlib.sha256(request_seed.encode("utf-8")).hexdigest()[:24]
             requests.append(
                 {
+                    "asset_type": "cover",
                     "request_id": request_id,
-                    "image_slot_id": image_slot["image_slot_id"],
-                    "purpose": image_slot["purpose"],
-                    "aspect_ratio": image_slot["aspect_ratio"],
-                    "anchor_block_id": image_slot["anchor_block_id"],
-                    "reason": image_slot["reason"],
+                    "purpose": "article_cover",
+                    "aspect_ratio": "5:4",
+                    "reason": "根据全文语义与当前主题生成一张无字封面候选",
                     "prompt": prompt,
                     "prompt_sha256": prompt_sha256,
-                    "locked_copy": locked_copy,
+                    "locked_copy": [],
                     "expected_plan_revision": int(plan.get("revision") or 1),
-                    "expected_image_revision": int(state["image_revision"]),
-                    "suggested_output_filename": f'host-{image_slot["image_slot_id"]}-{request_id}.png',
+                    "expected_cover_candidate_count": cover_candidate_count,
+                    "existing_candidate_count": cover_candidate_count,
+                    "suggested_output_filename": f"host-cover-{request_id}.png",
                 }
             )
         return {
-            "schema_version": "host_image_generation_context.v0.1",
+            "schema_version": "host_image_generation_context.v0.2",
             "task_id": task_id,
             "plan_id": plan_id,
             "plan_revision": int(plan.get("revision") or 1),
             "visual_system": visual_system,
             "prompt_version": IMAGE_PROMPT_VERSION,
+            "requested_asset_type": asset_type,
             "requests": requests,
+            "blocked_targets": blocked_targets,
             "output_rules": [
                 "只在当前宿主明确具备图片生成工具时执行；不得静默调用收费 API。",
                 "逐条原样使用 prompt，不补写文章事实、Logo、二维码或水印。",
                 "每张图片生成后使用 request_id 导入；不得替用户自动采用候选。",
+                "requests 为空时必须停止，禁止自行编写 prompt、生图或改走普通人工上传。",
                 "宿主不具备生图能力时明确返回 host_image_generation_unavailable。",
             ],
         }
 
-    def cover_workspace(task_id: str, plan_id: str) -> dict[str, Any]:
-        task = repository.get_task(task_id)
-        if task["selected_plan_id"] != plan_id:
-            raise VersionConflictError("只有当前选中的方案可以规划封面")
-        plan = repository.get_plan(task_id, plan_id)
+    def build_cover_brief(
+        task: dict[str, Any],
+        plan: dict[str, Any],
+        *,
+        reuse_sources: list[dict[str, Any]],
+    ) -> dict[str, Any]:
         metadata = plan.get("editorial_brief_metadata") or {}
         image_slots = list(plan.get("image_slots") or [])
         scene_anchor = next(
@@ -2847,10 +2902,34 @@ def create_app(
             (
                 str((slot.get("visual_intent") or {}).get("subject") or "").strip()
                 for slot in image_slots
-                if str((slot.get("visual_intent") or {}).get("subject") or "").strip()
+                if slot.get("purpose") != "structured_infographic"
+                and str((slot.get("visual_intent") or {}).get("subject") or "").strip()
             ),
             "",
         )
+        return {
+            "title": task["title"],
+            "article_type": task["article_type"],
+            "audience": metadata.get("audience") or [],
+            "reader_task": metadata.get("reader_task") or "帮助读者快速理解文章核心价值",
+            "narrative": (
+                plan.get("editorial_narrative")
+                or plan.get("summary")
+                or "提炼文章核心判断与行动方向"
+            ),
+            "scene_anchor": scene_anchor or task["title"],
+            "visual_system": plan.get("visual_system") or plan.get("style_mode"),
+            "image_art_direction": plan.get("image_art_direction"),
+            "output_size": "1080x864 master / 900x383 headline",
+            "text_policy": "image_only",
+            "recommended_source": "reuse_body_image" if reuse_sources else "ai_generated",
+        }
+
+    def cover_workspace(task_id: str, plan_id: str) -> dict[str, Any]:
+        task = repository.get_task(task_id)
+        if task["selected_plan_id"] != plan_id:
+            raise VersionConflictError("只有当前选中的方案可以规划封面")
+        plan = repository.get_plan(task_id, plan_id)
         candidates = repository.list_cover_candidates(task_id, plan_id)
         replacements = repository.list_preflight_asset_replacements(task_id)
         selected_cover = next((item for item in replacements if item["asset_role"] == "cover"), None)
@@ -2882,23 +2961,7 @@ def create_app(
                         "content_url": candidate["content_url"],
                     }
                 )
-        brief = {
-            "title": task["title"],
-            "article_type": task["article_type"],
-            "audience": metadata.get("audience") or [],
-            "reader_task": metadata.get("reader_task") or "帮助读者快速理解文章核心价值",
-            "narrative": (
-                plan.get("editorial_narrative")
-                or plan.get("summary")
-                or "提炼文章核心判断与行动方向"
-            ),
-            "scene_anchor": scene_anchor or task["title"],
-            "visual_system": plan.get("visual_system") or plan.get("style_mode"),
-            "image_art_direction": plan.get("image_art_direction"),
-            "output_size": "1080x864 master / 900x383 headline",
-            "text_policy": "image_only",
-            "recommended_source": "reuse_body_image" if reuse_sources else "ai_generated",
-        }
+        brief = build_cover_brief(task, plan, reuse_sources=reuse_sources)
         return {
             "task_id": task_id,
             "plan_id": plan_id,
@@ -2909,9 +2972,12 @@ def create_app(
                 {
                     **candidate,
                     "selected": (
-                        candidate["output_sha256"] == selected_sha
-                        or (candidate.get("machine_checks") or {}).get("cover_display_output_sha256")
-                        == selected_sha
+                        selected_sha is not None
+                        and (
+                            candidate["output_sha256"] == selected_sha
+                            or (candidate.get("machine_checks") or {}).get("cover_display_output_sha256")
+                            == selected_sha
+                        )
                     ),
                 }
                 for candidate in candidates
@@ -3265,9 +3331,167 @@ def create_app(
         }
 
     @app.get("/api/v1/article-tasks/{task_id}/plans/{plan_id}/host-image-context")
-    def get_host_image_generation_context(task_id: str, plan_id: str) -> dict[str, Any]:
+    def get_host_image_generation_context(
+        task_id: str,
+        plan_id: str,
+        asset_type: str = Query(default="body_image", pattern="^(body_image|cover|all)$"),
+    ) -> dict[str, Any]:
         repository.assert_task_editable(task_id)
-        return host_image_generation_context(task_id, plan_id)
+        return host_image_generation_context(task_id, plan_id, asset_type=asset_type)
+
+    @app.post(
+        "/api/v1/article-tasks/{task_id}/plans/{plan_id}/cover-candidates/host-import"
+    )
+    async def import_host_cover_candidate(
+        task_id: str,
+        plan_id: str,
+        request_id: str = Form(..., min_length=8, max_length=80),
+        expected_plan_revision: int = Form(..., ge=1),
+        expected_cover_candidate_count: int = Form(..., ge=0),
+        host_name: str = Form(default="host_agent", max_length=80),
+        host_model: str = Form(default="host_managed", max_length=160),
+        image_file: UploadFile = File(...),
+    ) -> Any:
+        repository.assert_task_editable(task_id)
+        task = repository.get_task(task_id)
+        if task["selected_plan_id"] != plan_id:
+            raise VersionConflictError("只有当前选中的方案可以导入宿主封面")
+        current_plan = repository.get_plan(task_id, plan_id)
+        current_plan_revision = int(current_plan.get("revision") or 1)
+        try:
+            generation_plan = repository.get_plan_revision(
+                task_id,
+                plan_id,
+                expected_plan_revision,
+            )
+        except NotFoundError:
+            return _error(
+                409,
+                "host_cover_request_stale",
+                "找不到这张封面对应的历史生成请求，请重新读取当前封面请求。",
+                retryable=True,
+                details={
+                    "expected_plan_revision": expected_plan_revision,
+                    "current_plan_revision": current_plan_revision,
+                },
+            )
+
+        generation_brief = build_cover_brief(task, generation_plan, reuse_sources=[])
+        current_brief = build_cover_brief(task, current_plan, reuse_sources=[])
+        semantic_fields = ("title", "article_type", "reader_task", "narrative", "scene_anchor")
+        if any(generation_brief.get(field) != current_brief.get(field) for field in semantic_fields):
+            return _error(
+                409,
+                "host_cover_semantic_context_changed",
+                "封面对应的文章语义已经变化，请按当前内容重新生成。",
+                retryable=True,
+                details={
+                    "expected_plan_revision": expected_plan_revision,
+                    "current_plan_revision": current_plan_revision,
+                },
+            )
+
+        current_cover_candidate_count = len(repository.list_cover_candidates(task_id, plan_id))
+        if current_cover_candidate_count != expected_cover_candidate_count:
+            return _error(
+                409,
+                "host_cover_revision_changed",
+                "封面候选已经发生变化，请重新读取当前封面请求。",
+                retryable=True,
+                details={
+                    "expected_cover_candidate_count": expected_cover_candidate_count,
+                    "current_cover_candidate_count": current_cover_candidate_count,
+                },
+            )
+        context = host_image_generation_context(
+            task_id,
+            plan_id,
+            plan_snapshot=generation_plan,
+            asset_type="cover",
+        )
+        host_request = next(
+            (
+                item
+                for item in context["requests"]
+                if item["request_id"] == request_id and item.get("asset_type") == "cover"
+            ),
+            None,
+        )
+        if host_request is None:
+            return _error(
+                409,
+                "host_cover_request_stale",
+                "这条宿主封面请求已经过期或已完成，请重新读取当前封面请求。",
+                retryable=True,
+            )
+
+        content = await image_file.read()
+        if len(content) > 8 * 1024 * 1024:
+            return _error(413, "image_too_large", "宿主 Agent 生成的封面不能超过 8MB")
+        try:
+            with Image.open(BytesIO(content)) as image:
+                image.verify()
+        except (UnidentifiedImageError, OSError):
+            return _error(422, "invalid_image", "宿主 Agent 返回的文件不是有效图片")
+
+        fitted = _fit_cover(content)
+        text_absence = verify_no_text(fitted)
+        safe_host_name = re.sub(r"[^A-Za-z0-9._-]+", "_", host_name.strip())[:80] or "host_agent"
+        safe_host_model = re.sub(r"[\r\n\t]+", " ", host_model.strip())[:160] or "host_managed"
+        generated_visual_system = generation_plan.get("visual_system") or generation_plan.get("style_mode")
+        current_visual_system = current_plan.get("visual_system") or current_plan.get("style_mode")
+        candidate = repository.add_cover_candidate(
+            task_id=task_id,
+            plan_id=plan_id,
+            source_type="host_generated",
+            source_resource_id=None,
+            provider="host_agent",
+            model=safe_host_model,
+            provider_prompt=str(host_request["prompt"]),
+            content=fitted,
+            content_type="image/png",
+            extension=".png",
+            width=1080,
+            height=864,
+            latency_ms=0,
+            machine_checks={
+                "file_valid": True,
+                "ratio_valid": True,
+                "cover_fit": "1080x864_contain_over_soft_backdrop",
+                "text_risk": (
+                    "none"
+                    if text_absence.status == "passed"
+                    else "detected"
+                    if text_absence.status == "failed"
+                    else "human_review"
+                ),
+                "text_absence": text_absence.as_dict(),
+                "generated_visual_system": generated_visual_system,
+                "host_generation": {
+                    "schema_version": "host_cover_generation_receipt.v0.1",
+                    "request_id": request_id,
+                    "host_name": safe_host_name,
+                    "host_model": safe_host_model,
+                    "prompt_sha256": host_request["prompt_sha256"],
+                    "generated_plan_revision": expected_plan_revision,
+                    "imported_plan_revision": current_plan_revision,
+                },
+            },
+        )
+        return {
+            "candidate": candidate,
+            "workspace": cover_workspace(task_id, plan_id),
+            "host_request": {
+                "request_id": request_id,
+                "host_name": safe_host_name,
+                "host_model": safe_host_model,
+            },
+            "review_notice": (
+                "封面已作为候选插入，但生成时主题与当前主题不同，请人工确认后再采用。"
+                if generated_visual_system != current_visual_system
+                else "封面已作为候选插入，请人工确认后再采用。"
+            ),
+        }
 
     @app.post(
         "/api/v1/article-tasks/{task_id}/plans/{plan_id}/image-slots/{image_slot_id}/host-import"
@@ -3350,6 +3574,7 @@ def create_app(
             task_id,
             plan_id,
             plan_snapshot=generation_plan,
+            asset_type="body_image",
         )
         host_request = next(
             (

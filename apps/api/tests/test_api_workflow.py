@@ -1430,7 +1430,7 @@ def test_host_agent_image_context_import_and_theme_compatibility(tmp_path: Path)
         )
         assert context_response.status_code == 200
         context = context_response.json()
-        assert context["schema_version"] == "host_image_generation_context.v0.1"
+        assert context["schema_version"] == "host_image_generation_context.v0.2"
         assert context["visual_system"] == plan["visual_system"]
         assert context["requests"]
         request = context["requests"][0]
@@ -1589,6 +1589,171 @@ def test_host_agent_image_import_survives_switch_away_and_back(tmp_path: Path) -
         assert payload["theme_compatibility"]["generated_visual_system"] == original_theme
         assert payload["theme_compatibility"]["target_visual_system"] == original_theme
         assert payload["theme_compatibility"]["level"] == "compatible"
+
+
+def test_host_agent_can_append_after_selection_without_candidate_limit(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-images-continue.db"), image_provider=MockImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 把复杂行动整理成一条路线
+
+## 四步行动
+
+1. 明确目标
+2. 核对信息
+3. 执行验证
+4. 保存结果
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("host-continue.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "tutorial_steps"},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        slot = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots'
+        ).json()["items"][0]
+        state = slot["state"]
+        for candidate_number in range(4):
+            state = client.post(
+                (
+                    f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                    f'/image-slots/{slot["image_slot_id"]}/generate'
+                ),
+                json={
+                    "mode": "start" if candidate_number == 0 else "regenerate",
+                    "expected_image_revision": state["image_revision"],
+                },
+            ).json()["image_slot"]
+        selected_id = state["candidates"][0]["id"]
+        state = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                f'/image-slots/{slot["image_slot_id"]}/candidates/{selected_id}/accept'
+            ),
+            json={"expected_image_revision": state["image_revision"], "text_verified": True},
+        ).json()["image_slot"]
+        assert state["decision"] == "accepted"
+        assert len(state["candidates"]) == 4
+
+        context = client.get(
+            f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/host-image-context'
+        ).json()
+        request = next(
+            item for item in context["requests"] if item["image_slot_id"] == slot["image_slot_id"]
+        )
+        assert request["asset_type"] == "body_image"
+        assert request["current_decision"] == "accepted"
+        assert request["existing_candidate_count"] == 4
+        assert request["expected_image_revision"] == state["image_revision"]
+
+        imported = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                f'/image-slots/{slot["image_slot_id"]}/host-import'
+            ),
+            data={
+                "request_id": request["request_id"],
+                "expected_plan_revision": str(request["expected_plan_revision"]),
+                "expected_image_revision": str(request["expected_image_revision"]),
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("continued.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200, imported.text
+        updated = imported.json()["image_slot"]
+        assert len(updated["candidates"]) == 5
+        assert updated["selected_candidate_id"] == selected_id
+        assert updated["decision"] == "accepted"
+        assert updated["candidates"][-1]["provider"] == "host_agent"
+        assert updated["candidates"][-1]["human_decision"] == "pending"
+
+
+def test_host_agent_cover_context_imports_unselected_candidate(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host-cover.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 社区菜市场如何重新连接邻里
+
+## 一次日常更新
+
+市场通过共享厨房、儿童活动与摊主故事重新连接附近居民。
+"""
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("host-cover.md", markdown.encode("utf-8"), "text/markdown")},
+            data={"article_type": "viewpoint_trend"},
+        ).json()["task"]
+        client.post(
+            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
+            json={"mode": "start", "expected_task_version": task["version"]},
+        )
+        plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        context = client.get(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                "/host-image-context?asset_type=cover"
+            )
+        ).json()
+        assert context["schema_version"] == "host_image_generation_context.v0.2"
+        assert context["requested_asset_type"] == "cover"
+        assert len(context["requests"]) == 1
+        request = context["requests"][0]
+        assert request["asset_type"] == "cover"
+        assert request["aspect_ratio"] == "5:4"
+        assert request["expected_cover_candidate_count"] == 0
+        assert "no text" in request["prompt"].lower()
+
+        imported = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                "/cover-candidates/host-import"
+            ),
+            data={
+                "request_id": request["request_id"],
+                "expected_plan_revision": str(request["expected_plan_revision"]),
+                "expected_cover_candidate_count": str(request["expected_cover_candidate_count"]),
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("host-cover.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200, imported.text
+        payload = imported.json()
+        candidate = payload["candidate"]
+        assert candidate["source_type"] == "host_generated"
+        assert candidate["provider"] == "host_agent"
+        assert candidate["model"] == "gpt-image-2"
+        assert (candidate["width"], candidate["height"]) == (1080, 864)
+        receipt = candidate["machine_checks"]["host_generation"]
+        assert receipt["request_id"] == request["request_id"]
+        assert receipt["host_name"] == "codex"
+        assert payload["workspace"]["selected_cover"] is None
+        workspace_candidate = payload["workspace"]["candidates"][0]
+        assert workspace_candidate["selected"] is False
+        content = client.get(candidate["content_url"])
+        with Image.open(BytesIO(content.content)) as image:
+            assert image.size == (1080, 864)
+
+        duplicate = client.post(
+            (
+                f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}'
+                "/cover-candidates/host-import"
+            ),
+            data={
+                "request_id": request["request_id"],
+                "expected_plan_revision": str(request["expected_plan_revision"]),
+                "expected_cover_candidate_count": "0",
+                "host_name": "codex",
+                "host_model": "gpt-image-2",
+            },
+            files={"image_file": ("duplicate.png", _png_bytes(), "image/png")},
+        )
+        assert duplicate.status_code == 409
+        assert duplicate.json()["error"]["code"] == "host_cover_revision_changed"
 
 
 def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Path) -> None:

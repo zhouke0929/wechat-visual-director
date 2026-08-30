@@ -408,7 +408,8 @@ def _multipart_image_import(
     *,
     request_id: str,
     expected_plan_revision: int,
-    expected_image_revision: int,
+    expected_image_revision: int | None,
+    expected_cover_candidate_count: int | None,
     host_name: str,
     host_model: str,
 ) -> tuple[bytes, str]:
@@ -427,7 +428,10 @@ def _multipart_image_import(
 
     field("request_id", request_id)
     field("expected_plan_revision", str(expected_plan_revision))
-    field("expected_image_revision", str(expected_image_revision))
+    if expected_image_revision is not None:
+        field("expected_image_revision", str(expected_image_revision))
+    if expected_cover_candidate_count is not None:
+        field("expected_cover_candidate_count", str(expected_cover_candidate_count))
     field("host_name", host_name)
     field("host_model", host_model)
     content_types = {
@@ -1279,22 +1283,27 @@ def _image_context(args: argparse.Namespace) -> dict[str, Any]:
         )
     context = _request_json(
         "GET",
-        f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{plan_id}/host-image-context",
+        (
+            f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{plan_id}"
+            f"/host-image-context?asset_type={args.asset_type}"
+        ),
         timeout=30,
     )
     requests = context.get("requests") if isinstance(context.get("requests"), list) else []
     return {
         "ok": True,
-        "schema_version": "host_image_context_result.v0.1",
+        "schema_version": "host_image_context_result.v0.2",
         "task_id": args.task_id,
         "plan_id": plan_id,
+        "requested_asset_type": context.get("requested_asset_type") or args.asset_type,
         "visual_system": context.get("visual_system"),
         "plan_revision": context.get("plan_revision"),
         "prompt_version": context.get("prompt_version"),
         "requests": requests,
+        "blocked_targets": context.get("blocked_targets") or [],
         "output_rules": context.get("output_rules") or [],
         "request_count": len(requests),
-        "next_action": "generate_images_with_host" if requests else "human_review",
+        "next_action": "generate_images_with_host" if requests else "host_image_handoff_blocked",
         "review_url": f"{args.web_base.rstrip('/')}/tasks/{args.task_id}",
     }
 
@@ -1314,33 +1323,61 @@ def _image_import(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("unsupported_image_type", "只支持 PNG、JPEG 和 WEBP", exit_code=2)
     if image_path.stat().st_size > 8 * 1024 * 1024:
         raise CliError("image_too_large", "宿主 Agent 生成的图片不能超过 8MB", exit_code=2)
+    if args.asset_type == "body_image" and not args.image_slot_id:
+        raise CliError("image_slot_required", "正文配图导入必须提供 --slot-id", exit_code=2)
+    if args.asset_type == "body_image" and args.expected_image_revision is None:
+        raise CliError(
+            "image_revision_required",
+            "正文配图导入必须提供 --expected-image-revision",
+            exit_code=2,
+        )
+    if args.asset_type == "cover" and args.expected_cover_candidate_count is None:
+        raise CliError(
+            "cover_revision_required",
+            "封面导入必须提供 --expected-cover-candidate-count",
+            exit_code=2,
+        )
     body, boundary = _multipart_image_import(
         image_path,
         request_id=args.request_id,
         expected_plan_revision=args.expected_plan_revision,
         expected_image_revision=args.expected_image_revision,
+        expected_cover_candidate_count=args.expected_cover_candidate_count,
         host_name=args.host_name,
         host_model=args.host_model,
     )
-    payload = _request_json(
-        "POST",
-        (
+    if args.asset_type == "cover":
+        endpoint = (
+            f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{args.plan_id}"
+            "/cover-candidates/host-import"
+        )
+    else:
+        endpoint = (
             f"{args.api_base.rstrip('/')}/article-tasks/{args.task_id}/plans/{args.plan_id}"
             f"/image-slots/{args.image_slot_id}/host-import"
-        ),
+        )
+    payload = _request_json(
+        "POST",
+        endpoint,
         body=body,
         headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
         timeout=45,
     )
     state = payload.get("image_slot") if isinstance(payload.get("image_slot"), dict) else {}
+    workspace = payload.get("workspace") if isinstance(payload.get("workspace"), dict) else {}
     return {
         "ok": True,
-        "schema_version": "host_image_import_result.v0.1",
+        "schema_version": "host_image_import_result.v0.2",
         "task_id": args.task_id,
         "plan_id": args.plan_id,
+        "asset_type": args.asset_type,
         "image_slot_id": args.image_slot_id,
         "request_id": args.request_id,
-        "candidate_count": len(state.get("candidates") or []),
+        "candidate_count": (
+            len(workspace.get("candidates") or [])
+            if args.asset_type == "cover"
+            else len(state.get("candidates") or [])
+        ),
         "image_revision": state.get("image_revision"),
         "theme_compatibility": payload.get("theme_compatibility"),
         "review_notice": payload.get("review_notice"),
@@ -1435,6 +1472,12 @@ def build_parser() -> argparse.ArgumentParser:
     image_context = image_subparsers.add_parser("context", help="读取当前主题的宿主生图请求")
     _add_connection_args(image_context)
     image_context.add_argument("task_id")
+    image_context.add_argument(
+        "--asset-type",
+        choices=["body_image", "cover", "all"],
+        default="body_image",
+        help="读取正文配图、封面或全部宿主生图请求",
+    )
     image_context.add_argument("--no-start", action="store_true")
     image_context.add_argument("--start-timeout", type=float, default=45)
     image_context.add_argument("--json", action="store_true", dest="json_output")
@@ -1443,10 +1486,16 @@ def build_parser() -> argparse.ArgumentParser:
     _add_connection_args(image_import)
     image_import.add_argument("task_id")
     image_import.add_argument("--plan-id", required=True)
-    image_import.add_argument("--slot-id", required=True, dest="image_slot_id")
+    image_import.add_argument(
+        "--asset-type",
+        choices=["body_image", "cover"],
+        default="body_image",
+    )
+    image_import.add_argument("--slot-id", dest="image_slot_id")
     image_import.add_argument("--request-id", required=True)
     image_import.add_argument("--expected-plan-revision", required=True, type=int)
-    image_import.add_argument("--expected-image-revision", required=True, type=int)
+    image_import.add_argument("--expected-image-revision", type=int)
+    image_import.add_argument("--expected-cover-candidate-count", type=int)
     image_import.add_argument("--file", required=True)
     image_import.add_argument("--host-name", default="host_agent")
     image_import.add_argument("--host-model", default="host_managed")

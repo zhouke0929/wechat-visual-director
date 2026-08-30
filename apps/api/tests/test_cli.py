@@ -131,7 +131,9 @@ def test_image_context_exposes_theme_bound_host_requests(monkeypatch) -> None:
         assert method == "GET"
         if url.endswith("/article-tasks/task-1"):
             return {"task": {"selected_plan_id": "plan-1"}}
-        assert url.endswith("/article-tasks/task-1/plans/plan-1/host-image-context")
+        assert url.endswith(
+            "/article-tasks/task-1/plans/plan-1/host-image-context?asset_type=body_image"
+        )
         return {
             "visual_system": "youth_campus",
             "plan_revision": 3,
@@ -152,6 +154,8 @@ def test_image_context_exposes_theme_bound_host_requests(monkeypatch) -> None:
     payload = cli._image_context(args)
 
     assert payload["ok"] is True
+    assert payload["schema_version"] == "host_image_context_result.v0.2"
+    assert payload["requested_asset_type"] == "body_image"
     assert payload["visual_system"] == "youth_campus"
     assert payload["request_count"] == 1
     assert payload["next_action"] == "generate_images_with_host"
@@ -217,6 +221,89 @@ def test_image_import_posts_generated_file_as_human_review_candidate(
     assert payload["theme_compatibility"]["level"] == "partial"
     assert "人工确认" in payload["review_notice"]
     assert payload["next_action"] == "human_review"
+
+
+def test_cover_image_import_uses_cover_binding(monkeypatch, tmp_path: Path) -> None:
+    image_path = tmp_path / "host-cover.png"
+    image_path.write_bytes(b"host-cover-bytes")
+    args = cli.build_parser().parse_args(
+        [
+            "image",
+            "import",
+            "task-1",
+            "--asset-type",
+            "cover",
+            "--plan-id",
+            "plan-1",
+            "--request-id",
+            "cover-request-12345678",
+            "--expected-plan-revision",
+            "3",
+            "--expected-cover-candidate-count",
+            "2",
+            "--file",
+            str(image_path),
+            "--host-name",
+            "codex",
+            "--host-model",
+            "gpt-image-2",
+            "--no-start",
+            "--json",
+        ]
+    )
+    captured = {}
+
+    def fake_request(method: str, url: str, **kwargs):
+        captured.update({"method": method, "url": url, **kwargs})
+        return {
+            "workspace": {
+                "candidates": [
+                    {"id": "cover-1"},
+                    {"id": "cover-2"},
+                    {"id": "cover-3", "provider": "host_agent"},
+                ]
+            },
+            "review_notice": "封面已作为候选插入，请人工确认后再采用。",
+        }
+
+    monkeypatch.setattr(cli, "_request_json", fake_request)
+    payload = cli._image_import(args)
+
+    assert captured["method"] == "POST"
+    assert captured["url"].endswith(
+        "/article-tasks/task-1/plans/plan-1/cover-candidates/host-import"
+    )
+    assert b'expected_cover_candidate_count\"\r\n\r\n2' in captured["body"]
+    assert b"host-cover-bytes" in captured["body"]
+    assert payload["asset_type"] == "cover"
+    assert payload["image_slot_id"] is None
+    assert payload["candidate_count"] == 3
+    assert payload["next_action"] == "human_review"
+
+
+def test_empty_host_image_context_is_an_explicit_hard_stop(monkeypatch) -> None:
+    args = cli.build_parser().parse_args(
+        ["image", "context", "task-1", "--no-start", "--json"]
+    )
+
+    def fake_request(method: str, url: str, **_kwargs):
+        if url.endswith("/article-tasks/task-1"):
+            return {"task": {"selected_plan_id": "plan-1"}}
+        return {
+            "requested_asset_type": "body_image",
+            "requests": [],
+            "blocked_targets": [
+                {"asset_type": "body_image", "reason": "no_image_slots"}
+            ],
+            "output_rules": ["requests 为空时必须停止"],
+        }
+
+    monkeypatch.setattr(cli, "_request_json", fake_request)
+    payload = cli._image_context(args)
+
+    assert payload["request_count"] == 0
+    assert payload["next_action"] == "host_image_handoff_blocked"
+    assert payload["blocked_targets"][0]["reason"] == "no_image_slots"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX virtualenv symlink behavior")
