@@ -34,8 +34,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           bash -n scripts/install.sh
+          bash -n scripts/install-release.sh
           bash -n scripts/uninstall.sh
           bash -n scripts/bootstrap.sh
+          bash -n scripts/build-macos-package.sh
+          bash -n scripts/test-macos-package.sh
           bash -n scripts/persistent-launcher.sh
           bash -n scripts/visual-director.sh
       - name: macOS isolated install smoke test

@@ -3,12 +3,31 @@ set -euo pipefail
 
 INSTALL_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MANIFEST="$INSTALL_ROOT/install.json"
-if [[ ! -f "$MANIFEST" ]]; then
-  printf '%s\n' '{"ok":false,"schema_version":"persistent_launcher.v0.1","error":{"code":"install_manifest_missing","message":"Persistent install metadata was not found.","retryable":true}}'
+CURRENT_ROOT_FILE="$INSTALL_ROOT/current-root"
+
+launcher_failure() {
+  printf '{"ok":false,"schema_version":"persistent_launcher.v0.1","error":{"code":"%s","message":"%s","retryable":true}}\n' "$1" "$2"
   exit 2
+}
+
+[[ -f "$MANIFEST" ]] || launcher_failure "install_manifest_missing" "Persistent install metadata was not found."
+
+PROJECT_ROOT=""
+if [[ -f "$CURRENT_ROOT_FILE" ]]; then
+  IFS= read -r PROJECT_ROOT < "$CURRENT_ROOT_FILE"
 fi
 
-eval "$(python3 - "$MANIFEST" <<'PY'
+PARSER_PYTHON=""
+if [[ -n "$PROJECT_ROOT" && -x "$PROJECT_ROOT/runtime/python/bin/python3" ]]; then
+  PARSER_PYTHON="$PROJECT_ROOT/runtime/python/bin/python3"
+elif [[ -n "$PROJECT_ROOT" && -x "$PROJECT_ROOT/apps/api/.venv/bin/python" ]]; then
+  PARSER_PYTHON="$PROJECT_ROOT/apps/api/.venv/bin/python"
+else
+  PARSER_PYTHON="$(command -v python3 || true)"
+fi
+[[ -n "$PARSER_PYTHON" ]] || launcher_failure "installed_runtime_missing" "The active Visual Director runtime is missing."
+
+eval "$("$PARSER_PYTHON" - "$MANIFEST" <<'PY'
 import json, shlex, sys
 from pathlib import Path
 payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
@@ -22,11 +41,13 @@ for key, value in {
 PY
 )"
 
-PYTHON="$PROJECT_ROOT/apps/api/.venv/bin/python"
-if [[ ! -x "$PYTHON" ]]; then
-  printf '%s\n' '{"ok":false,"schema_version":"persistent_launcher.v0.1","error":{"code":"installed_version_missing","message":"The active Visual Director version is incomplete.","retryable":true}}'
-  exit 2
+if [[ -x "$PROJECT_ROOT/runtime/python/bin/python3" ]]; then
+  PYTHON="$PROJECT_ROOT/runtime/python/bin/python3"
+else
+  PYTHON="$PROJECT_ROOT/apps/api/.venv/bin/python"
 fi
+[[ -x "$PYTHON" ]] || launcher_failure "installed_version_missing" "The active Visual Director version is incomplete."
+
 export VISUAL_DIRECTOR_INSTALL_ROOT="$INSTALL_ROOT"
 export VISUAL_DIRECTOR_PROJECT_ROOT="$PROJECT_ROOT"
 export VISUAL_DIRECTOR_DATA_ROOT="$DATA_ROOT"

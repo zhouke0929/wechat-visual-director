@@ -38,13 +38,66 @@ jobs:
             artifacts/release/*.zip
             artifacts/release/*.sha256
           if-no-files-found: error
-      - name: Publish prerelease assets
-        if: github.ref_type == 'tag'
+
+  macos-portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            architecture: arm64
+          - runner: macos-15-intel
+            architecture: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: astral-sh/setup-uv@v6
+      - name: Activate pinned pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
+      - name: Verify runner architecture
+        run: |
+          case "${{ matrix.architecture }}:$(uname -m)" in
+            arm64:arm64|x64:x86_64) ;;
+            *) echo "Unexpected runner architecture: $(uname -m)" >&2; exit 2 ;;
+          esac
+      - name: Build macOS self-contained package
+        run: bash scripts/build-macos-package.sh
+      - name: Smoke test packaged install without system Python
+        run: |
+          asset="$(find artifacts/release -maxdepth 1 -name 'wechat-visual-director-macos-${{ matrix.architecture }}-*.tar.gz' -print -quit)"
+          bash scripts/test-macos-package.sh --archive-path "$asset"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wechat-visual-director-macos-${{ matrix.architecture }}
+          path: |
+            artifacts/release/*.tar.gz
+            artifacts/release/*.sha256
+          if-no-files-found: error
+
+  publish-release:
+    if: github.ref_type == 'tag'
+    needs: [windows-portable, macos-portable]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wechat-visual-director-*
+          path: artifacts/release
+          merge-multiple: true
+      - name: Publish verified cross-platform prerelease
         uses: softprops/action-gh-release@v2
         with:
           prerelease: true
           body_path: docs/releases/${{ github.ref_name }}.md
           files: |
             artifacts/release/*.zip
+            artifacts/release/*.tar.gz
             artifacts/release/*.sha256
             scripts/install-release.ps1
+            scripts/install-release.sh

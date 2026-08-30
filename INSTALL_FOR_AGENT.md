@@ -27,8 +27,8 @@ invoke npm, pnpm, or install a global Node.js package.
    user installation.
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha21.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.21/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha22.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.22/install-release.ps1" -OutFile $installer
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -37,9 +37,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File $installer
    same persistent bootstrap contract. Success additionally reports
    `runtime_mode=bundled_python` and `bundled_runtime=true`.
 
-3. Only use the source bootstrap when the user explicitly requests source
-   development/audit, supplies a local source checkout, or is using the macOS
-   Technical Preview:
+3. On macOS, use the self-contained Release installer. It detects Apple Silicon
+   or Intel, downloads only the matching `tar.gz` and checksum, and installs the
+   bundled Python runtime without Git, Homebrew, system Python, Node.js, pnpm, or
+   Wenyan:
+
+```bash
+installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
+curl -fsSL "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/scripts/install-release.sh" -o "$installer"
+bash "$installer"
+```
+
+   Parse the final JSON and require `runtime_mode=bundled_python` and
+   `bundled_runtime=true`. Open `workbench_url` with the default browser after the
+   health check succeeds.
+
+4. Only use the source bootstrap when the user explicitly requests source
+   development/audit or supplies a complete local source checkout:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
@@ -49,20 +63,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
 bash scripts/bootstrap.sh
 ```
 
-4. Parse only the final JSON written to stdout. Progress text is written to
+5. Parse only the final JSON written to stdout. Progress text is written to
    stderr. Do not infer readiness merely because a port or browser page opens.
-5. Success requires all of the following:
+6. Success requires all of the following:
    - `ok=true`;
    - `installation.persistent=true`;
    - `installation.version_match=true`;
    - `capabilities.host_skill_registered=true`.
-6. Follow `next_action`:
+7. Follow `next_action`:
    - `create_article`: accept the user's topic, sources, or Markdown and use the
      registered `wechat-visual-director` Skill;
    - `configure_image_provider` or `configure_wechat_publisher`: give the user
      `settings_url`. The user enters private credentials in the local page;
      never ask them to paste those values into the conversation.
-7. Only after a successful first installation, return a concise first-use receipt
+8. Only after a successful first installation, return a concise first-use receipt
    instead of replying with only "installed". Keep it to no more than five lines
    and use `first_run_guide` from the bootstrap result when available. Tell the
    user, in their language:
@@ -73,7 +87,7 @@ bash scripts/bootstrap.sh
    - private image API and WeChat credentials belong only in Local Settings, and
      the product creates drafts rather than mass publishing automatically.
    Do not repeat this tutorial after an upgrade, repair, or existing-install check.
-8. After first installation, tell the user to start a new host conversation if
+9. After first installation, tell the user to start a new host conversation if
    the host only discovers Skills at startup.
 
 ## Built-in WeChat publisher
@@ -135,5 +149,6 @@ Both modes remove host Skill registrations. Neither mode may delete the Git
 source repository supplied by the user.
 
 On macOS use the stable `visual-director` and `uninstall.sh` files under the
-Application Support install root. macOS support remains Technical Preview until
-the release has passed a real-device end-to-end review.
+Application Support install root. The self-contained Agent installation is the
+default path; source checkout is development-only. macOS remains Technical Preview
+until the Release package has passed a real-device end-to-end review.

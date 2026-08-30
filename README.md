@@ -6,7 +6,7 @@
 [![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/zhouke0929/wechat-visual-director)](LICENSE)
 [![Platform](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
-[![macOS](https://img.shields.io/badge/macOS-technical_preview-777777)](#macos-技术预览)
+[![macOS](https://img.shields.io/badge/macOS-agent_portable_preview-777777)](#macos-agent-便携安装)
 
 `wechat-visual-director` 面向公众号运营、新媒体团队和使用 AI Agent 提效的内容创作者，是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染；运营只需要确认整篇主题、图片与封面。模型不会自由生成整段 HTML/CSS，也不会绕过人工确认自动群发。
 
@@ -81,11 +81,11 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.21**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.22**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
-## Windows 普通用户：开箱安装
+## Windows 与 macOS：交给 Agent 开箱安装
 
-Windows x64 Release 已包含 Python 3.11.9、后端依赖和构建后的工作台。普通用户把 Releases 页面链接和安装提示词交给 Agent 后，不需要预先安装 Git、系统 Python、Node.js、pnpm 或 Wenyan。安装器会校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
+Windows x64 与 macOS Release 都包含 Python、后端依赖和构建后的工作台。普通用户把 Releases 页面链接和安装提示词交给 Agent 后，不需要预先安装 Git、Homebrew、系统 Python、Node.js、pnpm 或 Wenyan。安装器会识别系统与处理器架构、校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
 
 - 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
 - 生成图片：按需配置图片 Provider、直接人工上传；Codex 等具备原生生图工具的 Agent 也可在主题确认后按用户对话指令生成并插入；
@@ -97,9 +97,9 @@ AppSecret 和访问令牌不会写入任务数据库；访问令牌只保存在�
 
 | 使用目标 | Visual Director | 额外运行环境 | 图片模型 Key | 公众号 AppID / AppSecret | IP 白名单 |
 |---|---:|---:|---:|---:|---:|
-| 只做排版与预览 | 必需 | Windows 无 | 不需要 | 不需要 | 不需要 |
-| 排版 + AI 生图 | 必需 | Windows 无 | 可选，人工上传可替代 | 不需要 | 不需要 |
-| 完整写入公众号草稿箱 | 必需 | Windows 无 | 可选 | **必需** | **必需** |
+| 只做排版与预览 | 必需 | Windows / macOS 无 | 不需要 | 不需要 | 不需要 |
+| 排版 + AI 生图 | 必需 | Windows / macOS 无 | 可选，人工上传可替代 | 不需要 | 不需要 |
+| 完整写入公众号草稿箱 | 必需 | Windows / macOS 无 | 可选 | **必需** | **必需** |
 
 无论选择哪一层，最终群发都必须由用户在微信公众号后台人工完成。
 
@@ -139,7 +139,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 富文本复制、Markdown/HTML/图片交付包；
 - 内置微信官方 API 发布器写入微信公众号草稿箱；
 - 具备终端与 Skill 能力的宿主 Agent 可复用现有文本模型，无需重复配置文本模型 Key；
-- Windows 持久安装与升级，macOS 技术预览安装；
+- Windows 与 macOS 自包含便携安装、持久升级和稳定启动；
 - 历史数据扫描、完整备份、显式恢复与批量任务清理。
 
 ### 内容结构有什么用
@@ -188,7 +188,7 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”，一键复制下面这段不绑定具体版本的提示词：
 
 ```text
-请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 优先下载 Release 中带 SHA-256 校验的 x64 便携包，不要 clone 源码，也不要安装 Git、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。如果确认这是本机首次安装，完成后请用不超过五行说明最关键的用法：我可以直接给出文章主题或 Markdown；成稿后会获得本地工作台链接；如果当前 Agent 支持生图，确认主题后可以要求它按照当前主题生成并插入配图；密钥只在本地设置填写；系统只创建草稿、不自动群发。升级、修复或检测到已经安装时不要重复这段教程。
+请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 或 macOS 都优先下载 Release 中带 SHA-256 校验、与当前系统及处理器匹配的自包含便携包，不要 clone 源码，也不要安装 Git、Homebrew、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。如果确认这是本机首次安装，完成后请用不超过五行说明最关键的用法：我可以直接给出文章主题或 Markdown；成稿后会获得本地工作台链接；如果当前 Agent 支持生图，确认主题后可以要求它按照当前主题生成并插入配图；密钥只在本地设置填写；系统只创建草稿、不自动群发。升级、修复或检测到已经安装时不要重复这段教程。
 https://github.com/zhouke0929/wechat-visual-director/releases
 ```
 
@@ -199,13 +199,24 @@ https://github.com/zhouke0929/wechat-visual-director/releases
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha21.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.21/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha22.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.22/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
 
-源码克隆只用于开发、审计或 macOS 技术预览，不是 Windows 普通用户的默认安装路径。
+### 方式三：macOS Agent 便携安装
+
+通常只需要把上面的仓库链接交给 Agent。需要直接执行时，下面的固定入口会自动识别 Apple Silicon 或 Intel，下载对应 `tar.gz` 与校验文件，再使用包内 Python 完成持久安装：
+
+```bash
+installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
+curl -fsSL "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/scripts/install-release.sh" -o "$installer"
+bash "$installer"
+"$HOME/Library/Application Support/wechat-visual-director/visual-director" doctor --json
+```
+
+普通安装不 clone 仓库；源码克隆只用于开发或审计。
 
 默认安装位置：
 
@@ -296,12 +307,19 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 
 ## 系统要求
 
-### 基础排版
+### Windows 基础排版
 
 - Windows 10/11 x64；
 - PowerShell 5.1 或更高版本；
 - 能访问 GitHub Release，并能打开本机 `127.0.0.1` 地址的网络与浏览器；
 - 不要求预装 Git、Python、Node.js、pnpm 或 Wenyan。
+
+### macOS Agent 便携安装
+
+- Apple Silicon（M 系列）或 Intel Mac；
+- 能访问 GitHub Release，并能打开本机 `127.0.0.1` 地址的网络与浏览器；
+- 只使用 macOS 自带的 Bash、`curl`、`tar` 与 `shasum` 完成下载安装；
+- 不要求预装 Git、Homebrew、Python、Node.js、pnpm 或 Wenyan。
 
 ### 公众号草稿交付附加要求
 
@@ -309,15 +327,7 @@ Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内�
 - AppID、AppSecret；
 - 当前公网出口 IP 已加入白名单。
 
-### macOS 技术预览
-
-```bash
-git clone --branch v0.1.0-alpha.21 --depth 1 https://github.com/zhouke0929/wechat-visual-director.git
-cd wechat-visual-director
-bash scripts/bootstrap.sh
-```
-
-稳定入口位于 `~/Library/Application Support/wechat-visual-director/visual-director`。正常安装与公众号草稿交付均不需要 Node.js。macOS 在真实设备完成完整人工验收前标记为 **Technical Preview**。
+macOS 稳定入口位于 `~/Library/Application Support/wechat-visual-director/visual-director`。安装器与 Windows 一样使用版本目录保存程序，并把任务、图片和私密配置放在版本目录之外。当前自包含包在真实 Apple Silicon 与 Intel 设备完成完整人工验收前仍标记为 **Technical Preview**，但普通用户安装不再依赖源码环境。
 
 ## 常见问题
 
@@ -440,7 +450,7 @@ corepack pnpm@11.7.0 --dir apps/web typecheck
 corepack pnpm@11.7.0 --dir apps/web build
 ```
 
-Windows 与 macOS 的核心测试、静态工作台构建和安装脚本校验由 GitHub Actions 持续执行。Windows 是正式支持平台；macOS 当前为技术预览。
+Windows 与 macOS 的核心测试、静态工作台构建和安装脚本校验由 GitHub Actions 持续执行。Release 工作流分别构建 Windows x64、macOS Apple Silicon 和 macOS Intel 自包含包，并在无系统 Python 的隔离目录完成安装、启动、诊断和卸载冒烟测试。Windows 是正式支持平台；macOS 当前为便携安装技术预览。
 
 ## License
 

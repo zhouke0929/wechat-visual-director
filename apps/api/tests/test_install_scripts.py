@@ -146,17 +146,51 @@ def test_uninstall_preserves_data_and_removes_host_registration(tmp_path: Path) 
 
 
 def test_macos_scripts_are_present_and_do_not_depend_on_powershell() -> None:
-    for name in ("install.sh", "uninstall.sh", "bootstrap.sh", "persistent-launcher.sh", "visual-director.sh"):
+    for name in (
+        "install.sh",
+        "install-release.sh",
+        "uninstall.sh",
+        "bootstrap.sh",
+        "build-macos-package.sh",
+        "test-macos-package.sh",
+        "persistent-launcher.sh",
+        "visual-director.sh",
+    ):
         content = (REPOSITORY_ROOT / "scripts" / name).read_text(encoding="utf-8")
         assert content.startswith("#!/usr/bin/env bash")
         assert "powershell" not in content.lower()
 
 
 def test_user_installers_never_invoke_node_package_managers() -> None:
-    for name in ("install.ps1", "install.sh"):
+    for name in ("install.ps1", "install.sh", "install-release.sh"):
         content = (REPOSITORY_ROOT / "scripts" / name).read_text(encoding="utf-8")
         assert "corepack pnpm@" not in content
         assert "npm install" not in content
+
+
+def test_macos_release_installer_is_agent_managed_and_self_contained() -> None:
+    installer = (REPOSITORY_ROOT / "scripts" / "install-release.sh").read_text(encoding="utf-8")
+    assert "uname -m" in installer
+    assert "shasum -a 256" in installer
+    assert "runtime/python/bin/python3" in installer
+    assert "git clone" not in installer
+    assert "brew install" not in installer
+
+    persistent_installer = (REPOSITORY_ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
+    assert "rsync " not in persistent_installer
+
+    launcher = (REPOSITORY_ROOT / "scripts" / "persistent-launcher.sh").read_text(encoding="utf-8")
+    assert "current-root" in launcher
+    assert 'runtime/python/bin/python3' in launcher
+
+
+def test_release_workflow_builds_both_macos_architectures() -> None:
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    assert "runner: macos-15" in workflow
+    assert "runner: macos-15-intel" in workflow
+    assert "architecture: arm64" in workflow
+    assert "architecture: x64" in workflow
+    assert "test-macos-package.sh" in workflow
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
