@@ -23,6 +23,24 @@ from .theme_extensions import (
 )
 
 
+EMPTY_DECORATIVE_NODE_RE = re.compile(
+    r'(<(?P<tag>span|p)\b(?=[^>]*\bstyle="[^"]*(?:background(?:-color)?|border(?:-[a-z-]+)?|width|height)\s*:)[^>]*>)\s*(</(?P=tag)>)',
+    flags=re.IGNORECASE,
+)
+
+
+def preserve_wechat_decorative_nodes(document: str) -> str:
+    """Keep CSS-only ornaments from being removed as empty tags by WeChat."""
+
+    def replace(match: re.Match[str]) -> str:
+        opening = match.group(1)
+        if "font-size:" not in opening.lower():
+            opening = opening.replace('style="', 'style="font-size:0;line-height:0;', 1)
+        return f"{opening}&#160;{match.group(3)}"
+
+    return EMPTY_DECORATIVE_NODE_RE.sub(replace, document)
+
+
 EXPLICIT_HEADING_NUMBER_RE = re.compile(
     r"^\s*(?:[^\w\u4e00-\u9fff]{0,4}\s*)?"
     r"(?:PART\s*\d+|第[一二三四五六七八九十百0-9]+(?:章|节|部分|步|问)|"
@@ -1140,6 +1158,7 @@ def render_preview(
         f'{hero}<main style="box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:0 0 34px;">'
         f'{"".join(body)}{cta}</main></body></html>'
     )
+    document = preserve_wechat_decorative_nodes(document)
     lowered = document.lower()
     if "<script" in lowered or re.search(r"\son[a-z]+\s*=", lowered):
         raise ValueError("渲染产物包含禁止脚本或事件属性")

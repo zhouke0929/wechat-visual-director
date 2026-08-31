@@ -9,7 +9,12 @@ from typing import Any
 
 
 PUBLICATION_SCHEMA_VERSION = "publication_revision.v0.8"
-COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.mock.v0.1"
+COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.mock.v0.2"
+
+EMPTY_DECORATIVE_NODE_RE = re.compile(
+    r'<(?P<tag>span|p)\b(?=[^>]*\bstyle="[^"]*(?:background(?:-color)?|border(?:-[a-z-]+)?|width|height)\s*:)[^>]*>\s*</(?P=tag)>',
+    flags=re.IGNORECASE,
+)
 
 
 def canonical_json(value: Any) -> str:
@@ -58,6 +63,9 @@ def check_frozen_html(document: str) -> CompatibilityReport:
         "no_event_handlers": "pass" if not re.search(r"\son[a-z]+\s*=", lowered) else "blocking",
         "no_waiting_source_images": "pass" if "source image · waiting" not in lowered else "blocking",
         "no_waiting_planned_images": "pass" if "image plan ·" not in lowered else "blocking",
+        "no_empty_decorative_nodes": (
+            "pass" if not EMPTY_DECORATIVE_NODE_RE.search(document) else "blocking"
+        ),
         "controlled_image_sources": "pass",
     }
     image_sources = re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', document, flags=re.IGNORECASE)

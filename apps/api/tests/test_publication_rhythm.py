@@ -1,4 +1,9 @@
-from visual_director.publication import _materialized_image_markup, _placeholder_metadata
+from visual_director.publication import (
+    _materialized_image_markup,
+    _placeholder_metadata,
+    check_frozen_html,
+)
+from visual_director.renderer import preserve_wechat_decorative_nodes
 
 
 def test_placeholder_metadata_preserves_theme_frame_and_reliable_caption() -> None:
@@ -39,3 +44,17 @@ def test_source_image_keeps_verified_alt_as_low_emphasis_caption() -> None:
     assert 'data-content-role="image-caption"' in document
     assert "志愿核对流程示意" in document
     assert "font-size:11px" in document
+
+
+def test_wechat_decorative_nodes_are_nonempty_before_publication() -> None:
+    unsafe = (
+        '<main><p style="margin:12px 0 0;">'
+        '<span style="display:inline-block;width:42px;height:3px;background-color:#D98268;"></span>'
+        '<span style="display:inline-block;width:10px;height:10px;background-color:#DDBD61;"></span>'
+        "</p></main>"
+    )
+    assert check_frozen_html(unsafe).checks["no_empty_decorative_nodes"] == "blocking"
+
+    preserved = preserve_wechat_decorative_nodes(unsafe)
+    assert preserved.count("&#160;") == 2
+    assert check_frozen_html(preserved).status == "pass"

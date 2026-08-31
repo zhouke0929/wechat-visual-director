@@ -23,6 +23,10 @@ THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 
 ## 先理解问题，再决定行动
 
+### 为什么信息越多，读者反而越难行动？
+
+因为材料数量不会自动形成判断顺序。没有层级和停顿时，读者看见了所有信息，却不知道应该先理解什么。
+
 当信息越来越多，读者真正缺少的往往不是更多材料，而是判断材料的顺序。
 
 ### 什么是视觉节奏
@@ -35,12 +39,36 @@ THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 - 再选择与内容匹配的视觉主题
 - 最后只在关键位置使用强调组件
 
+1. 先确认读者需要完成的判断
+2. 再把原文关系映射为合适组件
+3. 最后回到完整文章检查阅读节奏
+
+### 案例：把课程作业整理成作品集
+
+一份普通课程作业保留了问题、过程和结果后，就能从文件夹里的交付物变成可以解释能力的项目案例。
+
 过去常见的做法是每一段都叠加醒目的装饰。
 
 更合适的做法是让正文承担叙事，让组件只服务于重点。
 
 组件不得增加正文中不存在的事实、判断或行动建议。
 """
+
+
+SEMANTIC_COMPONENT_GUIDANCE = {
+    "question_hook": ("让真正面向读者的问题成为阅读入口。", "疑问式 H3 小标题"),
+    "numbered_insight": ("把并列观点整理成可快速扫描的索引。", "包含 2–5 项的观点列表"),
+    "evidence_callout": ("突出原文已有的证据、引文或关键判断。", "Markdown 引用块"),
+    "before_after_timeline": ("呈现原文明确存在的前后变化。", "相邻的改革前后或旧新状态"),
+    "logic_path": ("把有先后关系的行动步骤变成阅读路径。", "包含 3–5 项的有序列表"),
+    "concept_explainer": ("为抽象概念提供标题与定义的视觉容器。", "H3 概念标题及紧随解释段"),
+    "case_card": ("把具体案例从论述中清晰分离出来。", "案例型 H3 标题及紧随正文"),
+    "warning_note": ("保留限制条件、风险与适用边界。", "原文明确的风险提示段"),
+    "action_checklist": ("把可执行事项整理为核对清单。", "行动或检查语义列表"),
+    "faq_card": ("用问答结构回应一个明确的读者问题。", "问题型 H3 与紧随回答"),
+    "comparison_card": ("让原文中的两种状态或观点形成对照。", "明确的双方语义或对照列表"),
+    "section_summary": ("在章节末回收已经出现的关键要点。", "原文已有的总结列表"),
+}
 
 
 def _first_block(
@@ -60,26 +88,34 @@ def _first_block(
 
 def _fixture_bindings(parsed: ParsedArticle) -> dict[str, dict[str, str | list[str]]]:
     paragraphs = [block for block in parsed.blocks if block.type == "paragraph"]
-    concept_title = _first_block(parsed, "heading", level=3)
+    question_title = _first_block(parsed, "heading", level=3)
+    concept_title = _first_block(parsed, "heading", level=3, skip=1)
+    case_title = _first_block(parsed, "heading", level=3, skip=2)
     evidence = _first_block(parsed, "quote")
     items = _first_block(parsed, "unordered_list")
+    ordered_items = _first_block(parsed, "ordered_list")
     item_refs = [f"{items.id}:item:{index}" for index in range(len(items.content))]
+    route_refs = [f"{ordered_items.id}:item:{index}" for index in range(len(ordered_items.content))]
     return {
+        "question_hook": {"title": question_title.id},
         "numbered_insight": {"items": item_refs},
         "concept_explainer": {
             "title": concept_title.id,
-            "definition": paragraphs[2].id,
+            "definition": paragraphs[3].id,
         },
         "evidence_callout": {"evidence": evidence.id},
         "action_checklist": {"items": item_refs},
         "before_after_timeline": {
-            "before": paragraphs[3].id,
-            "after": paragraphs[4].id,
+            "before": paragraphs[5].id,
+            "after": paragraphs[6].id,
         },
-        "warning_note": {"body": paragraphs[5].id},
+        "logic_path": {"items": route_refs},
+        "case_card": {"title": case_title.id, "body": paragraphs[4].id},
+        "warning_note": {"body": paragraphs[7].id},
+        "faq_card": {"question": question_title.id, "answer": paragraphs[1].id},
         "comparison_card": {
-            "left": paragraphs[3].id,
-            "right": paragraphs[4].id,
+            "left": paragraphs[5].id,
+            "right": paragraphs[6].id,
         },
         "section_summary": {"items": item_refs},
     }
@@ -93,6 +129,7 @@ def _component_specimen(
     bindings: dict[str, dict[str, str | list[str]]],
 ) -> dict[str, Any]:
     variant = visual_system_variant(component_type, visual_system)
+    purpose, use_when = SEMANTIC_COMPONENT_GUIDANCE[component_type]
     return {
         "component_type": component_type,
         "label": COMPONENT_CATALOG[component_type]["label"],
@@ -101,6 +138,8 @@ def _component_specimen(
         "status": COMPONENT_CATALOG[component_type]
         .get("variant_statuses", {})
         .get(variant, COMPONENT_CATALOG[component_type]["status"]),
+        "purpose": purpose,
+        "use_when": use_when,
         "html": render_component(
             {
                 "component_type": component_type,
@@ -737,6 +776,7 @@ def build_theme_gallery() -> list[dict[str, Any]]:
                 "id": visual_system,
                 **metadata,
                 "core_component_count": len(specimens),
+                "semantic_component_count": len(specimens),
                 "configuration": {
                     "heading_variant": configuration["heading_variant"],
                     "quote_variant": configuration["quote_variant"],

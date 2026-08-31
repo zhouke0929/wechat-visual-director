@@ -695,7 +695,11 @@ def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> 
             and item["production_trigger"]
             for item in theme["rhythm_primitives"]
         )
-        assert len({component["variant"] for component in theme["components"]}) == 8
+        assert len(theme["components"]) == 12
+        assert len({component["component_type"] for component in theme["components"]}) == 12
+        assert len({component["variant"] for component in theme["components"]}) == 12
+        assert theme["semantic_component_count"] == 12
+        assert all(component["purpose"] and component["use_when"] for component in theme["components"])
     for theme_id in ("light_reading", "structured_grid"):
         theme = themes[theme_id]
         assert all(component["variant"] not in {

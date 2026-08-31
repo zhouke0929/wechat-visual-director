@@ -799,6 +799,20 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
         body = _inline(_one(parsed, bindings, "body"))
         if variant == "plain_case":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{surface};"><strong style="color:{primary};">案例｜{title}</strong><p style="margin:8px 0 0;color:{ink};font-size:15px;line-height:1.8;">{body}</p></section>'
+        if variant == "airy_story_note":
+            return (
+                f'<section style="margin:31px 0;padding:18px 18px 19px;border:1px solid {sky};border-radius:4px 24px 24px 24px;background-color:{surface};box-shadow:6px 6px 0 {sky_pale};">'
+                f'<p style="margin:-27px 0 14px;"><span style="display:inline-block;padding:5px 11px;border-radius:14px 3px 14px 3px;background-color:{primary};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.14em;">STORY NOTE</span></p>'
+                f'<p style="margin:0 0 10px;color:{primary};font-family:Georgia,\'Noto Serif SC\',serif;font-size:18px;font-weight:750;line-height:1.58;">{title}</p>'
+                f'<p style="margin:0;padding-top:11px;border-top:1px dotted {sky};color:{ink};font-size:15px;line-height:1.86;">{body}</p></section>'
+            )
+        if variant == "memory_story_note":
+            return (
+                f'<section style="margin:32px 0;padding:4px 3px 17px 18px;border-left:6px solid {accent};border-bottom:1px solid {secondary};background-color:{surface};">'
+                f'<p style="margin:-11px 0 14px -19px;"><span style="display:inline-block;padding:5px 12px;background-color:{secondary};color:{primary};font-size:9px;font-weight:800;letter-spacing:.13em;transform:rotate(-2deg);">STORY FILE</span></p>'
+                f'<p style="margin:0 0 9px;color:{primary};font-family:Georgia,\'Noto Serif SC\',serif;font-size:18px;font-weight:750;line-height:1.58;">{title}</p>'
+                f'<p style="margin:0;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:15px;line-height:1.88;">{body}</p></section>'
+            )
         if variant == "polaroid_story":
             return (
                 f'<section style="margin:33px 8px 32px;padding:15px 15px 21px;background-color:{surface};box-shadow:8px 9px 0 {sky_pale};transform:rotate(-1deg);">'
@@ -821,6 +835,21 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<p style="margin:-24px 0 14px;"><span style="display:inline-block;padding:5px 11px;border-radius:13px 3px 13px 3px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;transform:rotate(-2deg);">案例观察</span></p>'
                 f'<p style="margin:0 0 10px;color:{ink};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
                 f'<p style="margin:0;padding-top:11px;border-top:1px solid {sky};color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
+            )
+        if variant == "editorial_case_file":
+            return (
+                f'<section style="margin:31px 0;border-top:11px solid {ink};border-bottom:3px solid {ink};background-color:{surface};">'
+                f'<section style="padding:8px 0;border-bottom:1px solid {ink};white-space:normal;"><span style="display:inline-block;width:23%;color:{accent};font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.14em;vertical-align:top;">CASE FILE</span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:77%;padding-left:13px;border-left:4px solid {accent};color:{ink};font-size:18px;line-height:1.55;vertical-align:top;">{title}</strong></section>'
+                f'<p style="margin:0;padding:15px 2px 17px;color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
+            )
+        if variant == "case_register":
+            return (
+                f'<section style="margin:29px 0;border:1px solid {primary};background-color:{surface};">'
+                f'<p style="height:7px;margin:0;background-color:{primary};"><span style="display:block;width:27%;height:7px;background-color:{secondary};">&#160;</span></p>'
+                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="display:inline-block;width:25%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">CASE / 01</span>'
+                f'<strong style="box-sizing:border-box;display:inline-block;width:75%;padding:13px 13px;border-left:1px solid #B7C5C0;color:{primary};font-size:17px;line-height:1.55;vertical-align:top;">{title}</strong></section>'
+                f'<p style="margin:0;padding:15px 16px 17px;color:{ink};font-size:15px;line-height:1.84;">{body}</p></section>'
             )
         if variant == "signal_case_file":
             return (

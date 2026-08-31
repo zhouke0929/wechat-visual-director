@@ -14,6 +14,10 @@ export default function ThemeGalleryPage() {
     getThemeGallery().then(setThemes).catch((reason: Error) => setError(reason.message));
   }, []);
 
+  const specimenCount = themes[0]
+    ? themes[0].components.length + themes[0].rhythm_primitives.length
+    : 18;
+
   return (
     <main className={styles.page}>
       <header className={styles.topbar}>
@@ -33,8 +37,8 @@ export default function ThemeGalleryPage() {
             新主题会持续加入，同一篇文章也可以在工作台即时切换。
           </p>
           <dl>
-            <div><dt>当前主题</dt><dd>{String(themes.length || 6).padStart(2, "0")}</dd></div>
-            <div><dt>单套部件</dt><dd>14</dd></div>
+            <div><dt>当前主题</dt><dd>{String(themes.length || 12).padStart(2, "0")}</dd></div>
+            <div><dt>单套样本</dt><dd>{specimenCount}</dd></div>
             <div><dt>更新方式</dt><dd>持续</dd></div>
           </dl>
         </div>
@@ -43,7 +47,7 @@ export default function ThemeGalleryPage() {
       {error ? <p className={styles.error}>{error}</p> : null}
       {!error && themes.length === 0 ? <p className={styles.loading}>正在装订主题样本……</p> : null}
 
-      <section className={styles.themeGrid} aria-label="现有六套视觉主题">
+      <section className={styles.themeGrid} aria-label={`现有${themes.length || 12}套视觉主题`}>
         {themes.map((theme, index) => (
           <Link className={styles.themeCard} href={`/theme-gallery/${theme.id}`} key={theme.id}>
             <div className={styles.cardTop}>
@@ -59,7 +63,7 @@ export default function ThemeGalleryPage() {
               {theme.ideal_for.map((item) => <span key={item}>{item}</span>)}
             </div>
             <footer>
-              <span>6 个节奏部件 + 8 个语义组件</span>
+              <span>{theme.rhythm_primitives.length} 类骨架 + {theme.components.length} 类语义组件</span>
               <strong>查看完整主题 →</strong>
             </footer>
           </Link>

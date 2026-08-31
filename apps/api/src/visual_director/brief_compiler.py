@@ -18,6 +18,7 @@ from .editorial_brief import (
     SectionBrief,
     adjacent_concept_pairs,
     adjacent_comparison_pair,
+    surrounding_parallel_concept_series,
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
@@ -320,7 +321,30 @@ def _compile_slots(
             )
             continue
         family = semantic_family.get(section.component_intent, section.component_intent)
-        if selected_type_counts[section.component_intent] >= 2 or selected_family_counts[family] >= 2:
+        parallel_series_repeat = False
+        if section.component_intent == "concept_explainer":
+            series = surrounding_parallel_concept_series(
+                section.source_block_ids,
+                {block.id: block for block in parsed.blocks},
+            )
+            series_ids = {block.id for pair in series for block in pair}
+            existing_concepts = [
+                slot for slot in slots
+                if slot["component_type"] == "concept_explainer"
+            ]
+            parallel_series_repeat = bool(
+                len(series) >= 3
+                and existing_concepts
+                and all(
+                    set(slot["consume_block_ids"]).issubset(series_ids)
+                    for slot in existing_concepts
+                )
+                and selected_type_counts[section.component_intent] < len(series)
+            )
+        if (
+            selected_type_counts[section.component_intent] >= 2
+            or selected_family_counts[family] >= 2
+        ) and not parallel_series_repeat:
             adjustments.append(
                 {
                     "code": "repeated_component_lowered_to_plain",

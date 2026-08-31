@@ -6,6 +6,12 @@ import { getThemeGallery } from "@/lib/api";
 import type { ThemeGalleryItem } from "@/lib/types";
 import styles from "./theme-detail.module.css";
 
+const compatibilityLabel = (status: string) => {
+  if (status === "wechat_verified") return "公众号已验证";
+  if (status === "candidate_theme_lab") return "主题实验 · 待验证";
+  return "公众号候选 · 待验证";
+};
+
 export default function ThemeDetailPage() {
   const themeId = useRouteParam("theme-gallery");
   const [themes, setThemes] = useState<ThemeGalleryItem[]>([]);
@@ -50,7 +56,7 @@ export default function ThemeDetailPage() {
           <span>浏览方式</span>
           <ol>
             <li>先看整篇样张，感受标题、正文与留白节奏</li>
-            <li>再浏览主题部件，了解同一设计语言如何组织不同内容</li>
+            <li>再浏览 6 类骨架与 12 类语义组件，理解它们各自的触发条件</li>
             <li>实际文章会根据原文语义选用其中一部分，不会全部堆叠</li>
           </ol>
         </aside>
@@ -99,15 +105,22 @@ export default function ThemeDetailPage() {
           ))}
           <header className={styles.libraryDivider}>
             <span>SEMANTIC COMPONENTS / 02</span>
-            <h2>八类语义，八种内容轮廓。</h2>
-            <p>组件只组织原文已经存在的关系；真实文章根据内容选择，不会为了装饰机械套用。</p>
+            <h2>十二类语义，覆盖完整内容关系。</h2>
+            <p>每个组件都标明触发语义与公众号兼容状态；真实文章只选择原文需要的部分，不会为了装饰机械套用。</p>
           </header>
           {theme.components.map((component, index) => (
             <article className={styles.specimen} key={component.component_type}>
               <div className={styles.specimenInfo}>
                 <span>{String(index + 1).padStart(2, "0")} / {component.component_type}</span>
                 <h2>{component.label}</h2>
-                <p>{component.variant_label}</p>
+                <p className={styles.variantName}>{component.variant_label}</p>
+                <span className={`${styles.compatibilityBadge} ${component.status === "wechat_verified" ? styles.verifiedBadge : styles.candidateBadge}`}>
+                  {compatibilityLabel(component.status)}
+                </span>
+                <dl className={styles.componentGuide}>
+                  <div><dt>它解决什么</dt><dd>{component.purpose}</dd></div>
+                  <div><dt>何时触发</dt><dd>{component.use_when}</dd></div>
+                </dl>
               </div>
               <div className={styles.componentStage}>
                 <div className={styles.componentCanvas} dangerouslySetInnerHTML={{ __html: component.html }} />

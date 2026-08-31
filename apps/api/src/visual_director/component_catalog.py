@@ -119,12 +119,16 @@ for _theme_id, _theme_kit in EXTENDED_THEME_KITS.items():
     }
 
 CORE_THEME_COMPONENTS = (
+    "question_hook",
     "numbered_insight",
-    "concept_explainer",
     "evidence_callout",
-    "action_checklist",
     "before_after_timeline",
+    "logic_path",
+    "concept_explainer",
+    "case_card",
     "warning_note",
+    "action_checklist",
+    "faq_card",
     "comparison_card",
     "section_summary",
 )
@@ -310,11 +314,19 @@ COMPONENT_CATALOG: dict[str, dict[str, Any]] = {
         "fallback_variant": "plain_case",
         "fallback_label": "朴素案例",
         "system_variants": {
+            "light_reading": {"value": "airy_story_note", "label": "轻盈·留白故事页"},
+            "warm_humanist": {"value": "memory_story_note", "label": "人文·手札故事页"},
             "youth_campus": {"value": "polaroid_story", "label": "校园·相册故事页"},
+            "editorial_contrast": {"value": "editorial_case_file", "label": "编辑·案例档案"},
+            "structured_grid": {"value": "case_register", "label": "网格·案例登记"},
             "future_tech": {"value": "prototype_file", "label": "科技·原型档案"},
         },
         "variant_statuses": {
+            "airy_story_note": "wechat_candidate",
+            "memory_story_note": "wechat_candidate",
             "polaroid_story": "wechat_candidate",
+            "editorial_case_file": "wechat_candidate",
+            "case_register": "wechat_candidate",
             "prototype_file": "wechat_candidate",
             "plain_case": "wechat_verified",
         },

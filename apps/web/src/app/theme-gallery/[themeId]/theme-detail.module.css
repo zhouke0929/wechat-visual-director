@@ -78,6 +78,23 @@
 .specimenInfo > span { color: var(--theme-primary); font: 850 8px/1.2 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
 .specimenInfo h2 { margin: 18px 0 0; font: 750 clamp(34px, 4vw, 56px)/1.2 "Noto Serif SC", "Songti SC", serif; }
 .specimenInfo > p { margin: 11px 0 0; color: #66716d; font-size: 13px; }
+.variantName { font-weight: 750; }
+.specimenInfo > .compatibilityBadge {
+  width: fit-content;
+  margin-top: 18px;
+  padding: 6px 9px;
+  display: inline-block;
+  border: 1px solid currentColor;
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+.specimenInfo > .compatibilityBadge.verifiedBadge { color: #117c73; background: #eaf6f2; }
+.specimenInfo > .compatibilityBadge.candidateBadge { color: #9a5d20; background: #fff5de; }
+.componentGuide { margin: 31px 0 0; border-top: 1px solid var(--line); }
+.componentGuide div { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.componentGuide dt { color: #78827e; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
+.componentGuide dd { margin: 7px 0 0; color: #46534f; font-size: 12px; line-height: 1.7; }
 .decisionGroup, .themeDecisions { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #8f9a95; }
 .decisionGroup button, .themeDecisions button { min-height: 46px; border: 0; border-right: 1px solid #8f9a95; background: transparent; color: #53605c; font-size: 11px; font-weight: 800; }
 .decisionGroup button:last-child, .themeDecisions button:nth-child(3) { border-right: 0; }

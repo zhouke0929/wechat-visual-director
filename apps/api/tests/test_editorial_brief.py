@@ -243,6 +243,95 @@ def test_normalizer_expands_one_selected_concept_to_consecutive_sibling_group() 
     assert "普通正文从这里继续" in preview
 
 
+def test_parallel_h3_series_keeps_all_members_in_place_and_drops_conflicting_warning() -> None:
+    parsed = parse_markdown(
+        """# 夜间服务观察
+
+## 三种让短暂停留发生的机制
+
+### 时间上的可进入性
+
+稳定开放让非标准作息的人仍能进入一个确定、可预期的地方，并降低深夜做决定的成本。
+
+补充说明一继续保留为普通正文。
+
+补充说明二继续保留为普通正文。
+
+### 低压力的短暂停留
+
+洗衣天然提供了一个不必解释的停留理由，让不同状态的人可以在同一空间里安静等待。
+
+低压力来自空间允许不同状态共存，而不是依靠豪华装修。
+
+这里的重点是保留不被打扰的自主性，不应把每一分钟停留都转成额外消费。
+
+### 与周边服务产生连接
+
+门店可以成为周边夜宵、补给和短暂避雨等服务之间的一个轻量节点。
+
+这种连接不需要虚构复杂的商业联盟。
+
+稳定但克制的关联让夜间路线多一个停靠点。
+
+## 经营边界
+
+商业门店不能替代正式公共服务。
+"""
+    )
+    request = TextPlannerRequest(
+        parsed=parsed,
+        article_type="viewpoint_trend",
+        history_window=5,
+        recent_summaries=[],
+        brand_config={},
+    )
+    raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    raw["sections"] = [
+        {
+            "source_block_ids": ["block-003", "block-004"],
+            "semantic_role": "concept",
+            "visual_priority": "high",
+            "component_intent": "concept_explainer",
+            "reasoning": "宿主只选择了并列机制中的第一项。",
+        },
+        {
+            "source_block_ids": ["block-010"],
+            "semantic_role": "warning",
+            "visual_priority": "medium",
+            "component_intent": "warning_note",
+            "reasoning": "提醒不要把停留强制转化为消费。",
+        },
+    ]
+    raw["image_intents"] = []
+
+    normalized, adjustments = normalize_editorial_brief_for_article(raw, parsed)
+    assert any(
+        item["code"] == "parallel_concept_series_expanded"
+        for item in adjustments
+    )
+
+    plan = compile_editorial_brief(parsed, normalized, 5, [])
+    concepts = [
+        slot for slot in plan["slots"]
+        if slot["component_type"] == "concept_explainer"
+    ]
+    assert [slot["anchor_block_id"] for slot in concepts] == [
+        "block-003",
+        "block-007",
+        "block-011",
+    ]
+    assert not [
+        slot for slot in plan["slots"]
+        if slot["component_type"] == "warning_note"
+        and "block-010" in slot["consume_block_ids"]
+    ]
+
+    preview = render_preview(parsed, plan)
+    assert preview.index("时间上的可进入性") < preview.index("补充说明一")
+    assert preview.index("补充说明二") < preview.index("低压力的短暂停留")
+    assert preview.index("不被打扰的自主性") < preview.index("与周边服务产生连接")
+
+
 def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> None:
     request = _request(_dev_samples()[4])
     raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")

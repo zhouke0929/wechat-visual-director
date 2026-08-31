@@ -401,6 +401,72 @@ def surrounding_concept_group(
     return []
 
 
+def surrounding_parallel_concept_series(
+    source_block_ids: list[str],
+    blocks: dict[str, object],
+) -> list[tuple[object, object]]:
+    """Return a dispersed three-to-four item H3 concept series.
+
+    Some analytical sections use one H3 and several explanatory paragraphs per
+    item. The extra prose correctly prevents the items from being collapsed
+    into one glossary card, but the sibling headings still form one parallel
+    visual series. If the host selects one member, keep all members visually
+    consistent while leaving every intervening paragraph in its original
+    position.
+    """
+    requested = set(source_block_ids)
+    ordered = list(blocks.values())
+    anchor_position = next(
+        (
+            index
+            for index, block in enumerate(ordered)
+            if block.id in requested and _is_component_heading(block)
+        ),
+        None,
+    )
+    if anchor_position is None:
+        return []
+
+    anchor = ordered[anchor_position]
+    level = int(anchor.level or 0)
+    parent_position = -1
+    parent_level = 0
+    for index in range(anchor_position - 1, -1, -1):
+        candidate = ordered[index]
+        candidate_level = int(candidate.level or 0)
+        if candidate.type == "heading" and 0 < candidate_level < level:
+            parent_position = index
+            parent_level = candidate_level
+            break
+    if parent_position < 0:
+        return []
+
+    end = len(ordered)
+    for index in range(anchor_position + 1, len(ordered)):
+        candidate = ordered[index]
+        if candidate.type == "heading" and int(candidate.level or 0) <= parent_level:
+            end = index
+            break
+
+    pairs: list[tuple[object, object]] = []
+    for index in range(parent_position + 1, end - 1):
+        heading = ordered[index]
+        paragraph = ordered[index + 1]
+        if not (
+            heading.type == "heading"
+            and int(heading.level or 0) == level
+            and paragraph.type == "paragraph"
+            and is_concept_pair(str(heading.content), str(paragraph.content))
+        ):
+            continue
+        pairs.append((heading, paragraph))
+
+    if not 3 <= len(pairs) <= 4:
+        return []
+    pair_ids = {block.id for pair in pairs for block in pair}
+    return pairs if requested.intersection(pair_ids) else []
+
+
 def _adjacent_concept_pair(
     source_block_ids: list[str],
     blocks: dict[str, object],
@@ -606,6 +672,45 @@ def normalize_editorial_brief_for_article(
 
     normalized = contract.model_copy(deep=True)
     consumed: set[str] = set()
+
+    # A host may correctly select one item from a parallel H3 analysis series
+    # while leaving its siblings plain. Expand dispersed series into separate
+    # components so their intervening prose keeps its original order. Directly
+    # consecutive H3+paragraph pairs still use the existing single glossary
+    # component path below.
+    parallel_sections: list[SectionBrief] = []
+    remaining_sections: list[SectionBrief] = []
+    expanded_series: set[tuple[str, ...]] = set()
+    for index, section in enumerate(normalized.sections):
+        if section.component_intent != "concept_explainer":
+            remaining_sections.append(section)
+            continue
+        consecutive_group = surrounding_concept_group(section.source_block_ids, blocks)
+        parallel_group = (
+            []
+            if len(consecutive_group) > 1
+            else surrounding_parallel_concept_series(section.source_block_ids, blocks)
+        )
+        if len(parallel_group) < 3:
+            remaining_sections.append(section)
+            continue
+        series_key = tuple(pair[0].id for pair in parallel_group)
+        if series_key in expanded_series:
+            continue
+        expanded_series.add(series_key)
+        for heading, paragraph in parallel_group:
+            member = section.model_copy(deep=True)
+            member.source_block_ids = [heading.id, paragraph.id]
+            parallel_sections.append(member)
+        adjustments.append(
+            {
+                "code": "parallel_concept_series_expanded",
+                "location": f"sections[{index}].source_block_ids",
+                "from": ",".join(section.source_block_ids),
+                "reason": f"同一主章节下存在 {len(parallel_group)} 个并列分析小节，分别保留原位并使用一致组件样式。",
+            }
+        )
+    normalized.sections = [*parallel_sections, *remaining_sections]
 
     for index, section in enumerate(normalized.sections):
         missing = set(section.source_block_ids) - block_ids

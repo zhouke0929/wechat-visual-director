@@ -48,6 +48,8 @@ export type ThemeComponentSpecimen = {
   variant: string;
   variant_label: string;
   status: "wechat_verified" | "wechat_candidate" | string;
+  purpose: string;
+  use_when: string;
   html: string;
 };
 
@@ -66,7 +68,13 @@ export type ThemeGalleryItem = {
     | "youth_campus"
     | "editorial_contrast"
     | "structured_grid"
-    | "future_tech";
+    | "future_tech"
+    | "oriental_archive"
+    | "vintage_press"
+    | "pop_poster"
+    | "natural_atlas"
+    | "business_review"
+    | "cinematic_story";
   label: string;
   english: string;
   description: string;
@@ -75,6 +83,7 @@ export type ThemeGalleryItem = {
   palette: string[];
   status: string;
   core_component_count: number;
+  semantic_component_count: number;
   configuration: {
     heading_variant: string;
     quote_variant: string;
