@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
+
+import { ArticlePreviewModeContext } from "@/components/article-preview-viewport";
 
 type Props = {
   src: string;
@@ -14,12 +16,51 @@ function withRetryToken(src: string, retry: number): string {
   return `${withoutHash}${separator}preview_retry=${retry}${hash ? `#${hash}` : ""}`;
 }
 
+const PROOF_FONT_SCALE = 1.06;
+
+function applyWorkbenchPreviewProfile(frame: HTMLIFrameElement, mode: "proof" | "mobile") {
+  let document: Document | null;
+  try {
+    document = frame.contentDocument;
+  } catch {
+    return;
+  }
+  if (!document?.documentElement) return;
+
+  let normalization = document.querySelector<HTMLStyleElement>("style[data-workbench-preview-normalization]");
+  if (!normalization) {
+    normalization = document.createElement("style");
+    normalization.dataset.workbenchPreviewNormalization = "";
+    normalization.textContent = "*,*::before,*::after{box-sizing:border-box!important;}";
+    document.head?.append(normalization);
+  }
+
+  document.documentElement.dataset.workbenchPreviewMode = mode;
+  document.querySelectorAll<HTMLElement>("[style]").forEach((element) => {
+    if (!element.dataset.workbenchOriginalFontSize) {
+      const original = element.style.fontSize;
+      if (!original || !original.endsWith("px")) return;
+      element.dataset.workbenchOriginalFontSize = original;
+    }
+    const original = element.dataset.workbenchOriginalFontSize;
+    if (!original) return;
+    if (mode === "proof") {
+      const pixels = Number.parseFloat(original);
+      element.style.fontSize = pixels > 0 ? `${Math.round(pixels * PROOF_FONT_SCALE * 100) / 100}px` : original;
+    } else {
+      element.style.fontSize = original;
+    }
+  });
+}
+
 export function ResilientPreviewFrame({ src, title }: Props) {
+  const previewMode = useContext(ArticlePreviewModeContext);
   const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const retryRef = useRef(0);
   const loadVersionRef = useRef(0);
+  const frameRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
     loadVersionRef.current += 1;
@@ -28,6 +69,10 @@ export function ResilientPreviewFrame({ src, title }: Props) {
     setLoading(true);
     setFailed(false);
   }, [src]);
+
+  useEffect(() => {
+    if (frameRef.current) applyWorkbenchPreviewProfile(frameRef.current, previewMode);
+  }, [previewMode, retry]);
 
   function retryOrFail(loadVersion: number) {
     if (loadVersion !== loadVersionRef.current) return;
@@ -43,6 +88,7 @@ export function ResilientPreviewFrame({ src, title }: Props) {
 
   function handleLoad(event: React.SyntheticEvent<HTMLIFrameElement>) {
     const frame = event.currentTarget;
+    applyWorkbenchPreviewProfile(frame, previewMode);
     const loadVersion = loadVersionRef.current;
     let images: HTMLImageElement[];
     try {
@@ -89,6 +135,7 @@ export function ResilientPreviewFrame({ src, title }: Props) {
       <iframe
         className="preview-frame"
         onLoad={handleLoad}
+        ref={frameRef}
         scrolling="yes"
         src={withRetryToken(src, retry)}
         title={title}

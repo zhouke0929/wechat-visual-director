@@ -12,6 +12,7 @@ from visual_director.component_catalog import (
     component_options,
 )
 from visual_director.brief_compiler import (
+    apply_visual_system,
     recommend_visual_system,
     visual_system_configuration,
     visual_system_variant,
@@ -674,11 +675,7 @@ def test_editorial_comparison_uses_mobile_safe_columns() -> None:
 
 def test_rebuilt_theme_kits_include_rhythm_primitives_and_new_morphologies() -> None:
     themes = {item["id"]: item for item in build_theme_gallery()}
-    assert {theme["status"] for theme in themes.values()} == {
-        "theme_kit_v1_review",
-        "candidate_approved",
-        "candidate_theme_lab",
-    }
+    assert {theme["status"] for theme in themes.values()} == {"theme_kit_v1_review"}
     for theme_id in VISUAL_SYSTEM_ORDER:
         theme = themes[theme_id]
         assert len(theme["rhythm_primitives"]) == 6
@@ -973,6 +970,105 @@ def test_renderer_does_not_inject_decorative_semantic_slogans() -> None:
         "EVIDENCE REGISTER",
     }
     assert all(copy not in source for copy in banned_copy)
+
+
+def test_light_reading_h2_uses_wechat_stable_thin_border() -> None:
+    article = parse_markdown(
+        """# 细线兼容性测试
+
+导语保持普通正文。
+
+## 先看清楚标题
+
+正文继续。
+"""
+    )
+    plan = copy.deepcopy(generate_plans(article, "viewpoint_trend", 5)[0])
+    plan["slots"] = []
+    plan["image_slots"] = []
+    plan = apply_visual_system(plan, "light_reading", recent_summaries=[])
+
+    document = render_preview(article, plan)
+
+    assert "border-top:1px solid #DDBD61" in document
+    assert "height:1px;margin:10px 0 0;background-color:#DDBD61" not in document
+    assert "font-size:0;line-height:0" in document
+
+
+def test_all_theme_semantic_variants_are_wechat_verified() -> None:
+    gallery = build_theme_gallery()
+    themes = {theme["id"]: theme for theme in gallery}
+
+    assert set(themes) == set(VISUAL_SYSTEM_ORDER)
+    for visual_system, theme in themes.items():
+        assert theme["status"] == "theme_kit_v1_review"
+        assert len(theme["components"]) == len(CORE_THEME_COMPONENTS) == 12
+        assert all(
+            COMPONENT_CATALOG[component_type]["variant_statuses"][
+                visual_system_variant(component_type, visual_system)
+            ]
+            == "wechat_verified"
+            for component_type in CORE_THEME_COMPONENTS
+        )
+        assert all(
+            component["status"] == "wechat_verified"
+            for component in theme["components"]
+        )
+
+
+def test_youth_campus_question_hook_uses_wechat_stable_rule() -> None:
+    article = parse_markdown(
+        """# 青春校园兼容测试
+
+### 为什么有人需要一间不必消费太多的共享书房？
+"""
+    )
+    question = next(
+        block
+        for block in article.blocks
+        if block.type == "heading" and block.level == 3
+    )
+
+    document = render_component(
+        {
+            "component_type": "question_hook",
+            "variant": "campus_notice_prompt",
+            "content_bindings": {"title": question.id},
+        },
+        article,
+    )
+
+    assert "border-top:1px solid #58B9E4" in document
+    assert "border-top:4px solid #F06A4B" in document
+    assert "height:1px;margin:14px 0 0;background-color:#58B9E4" not in document
+
+
+def test_editorial_question_mark_stays_on_one_line_in_wechat() -> None:
+    article = parse_markdown(
+        """# 编辑对比兼容测试
+
+### 为什么有人需要一间不必消费太多的共享书房？
+"""
+    )
+    question = next(
+        block
+        for block in article.blocks
+        if block.type == "heading" and block.level == 3
+    )
+
+    document = render_component(
+        {
+            "component_type": "question_hook",
+            "variant": "editorial_deck_question",
+            "content_bindings": {"title": question.id},
+        },
+        article,
+    )
+
+    assert "width:18%" in document
+    assert "white-space:nowrap;word-break:keep-all" in document
+    assert ">Q.</span>" in document
+    assert "width:52px" not in document
 
 
 def test_theme_kits_do_not_inject_unbound_decorative_numbers() -> None:

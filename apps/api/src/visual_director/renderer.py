@@ -230,7 +230,7 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
             f'style="margin:43px 0 21px;padding-left:13px;border-left:3px solid {accent};">'
             f'<p style="margin:0 0 6px;color:#76837E;font-family:Georgia,serif;font-size:9px;font-weight:700;letter-spacing:.18em;">{section_label}</p>'
             f'<strong style="display:block;color:#14201F;font-family:Georgia,\'Noto Serif SC\',serif;font-size:22px;line-height:1.5;">{_inline(content)}</strong>'
-            f'<p style="height:1px;margin:10px 0 0;background-color:{secondary};"><span style="display:block;width:14px;height:8px;margin-left:-2px;border-radius:12px 2px 12px 2px;background-color:{accent};transform:rotate(-16deg);"></span></p>'
+            f'<p style="margin:10px 0 0;border-top:1px solid {secondary};font-size:0;line-height:0;"><span style="display:block;width:14px;height:8px;margin-left:-2px;border-radius:12px 2px 12px 2px;background-color:{accent};font-size:0;line-height:0;transform:rotate(-16deg);">&#160;</span></p>'
             "</section>"
         )
 

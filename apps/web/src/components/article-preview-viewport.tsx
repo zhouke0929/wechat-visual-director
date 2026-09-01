@@ -1,15 +1,21 @@
 "use client";
 
 import "@sneas/telephone/iphone-16-max";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { createContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 type PreviewMode = "proof" | "mobile";
+
+export const ArticlePreviewModeContext = createContext<PreviewMode>("proof");
 
 type Props = {
   accountLabel?: string;
   children: ReactNode;
   label?: string;
 };
+
+const WECHAT_EDITOR_CONTENT_WIDTH = 600;
+const PROOF_SOURCE_WIDTH = WECHAT_EDITOR_CONTENT_WIDTH + 48;
+const MOBILE_SOURCE_WIDTH = 405;
 
 function BackIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>;
@@ -25,11 +31,15 @@ function WechatActionIcon({ kind }: { kind: "like" | "share" | "recommend" }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20.2 4.6 13A4.8 4.8 0 0 1 11.4 6l.6.7.6-.7a4.8 4.8 0 0 1 6.8 7Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>;
 }
 
-export function ArticlePreviewViewport({ accountLabel = "公众号预览", children, label = "390px · 模拟预览" }: Props) {
+export function ArticlePreviewViewport({ accountLabel = "公众号预览", children, label }: Props) {
   const [mode, setMode] = useState<PreviewMode>("proof");
-  const [mobileViewportScale, setMobileViewportScale] = useState(1);
+  const [previewScale, setPreviewScale] = useState(1);
   const deviceFrameRef = useRef<HTMLElement>(null);
   const previewSlotRef = useRef<HTMLDivElement>(null);
+  const sourceWidth = mode === "proof" ? PROOF_SOURCE_WIDTH : MOBILE_SOURCE_WIDTH;
+  const simulationLabel = label ?? (mode === "proof"
+    ? `${WECHAT_EDITOR_CONTENT_WIDTH}px 内容区 · 对齐公众号后台`
+    : `${MOBILE_SOURCE_WIDTH}px 视口 · 对齐实机`);
 
   useEffect(() => {
     const deviceFrame = deviceFrameRef.current;
@@ -62,16 +72,23 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
     if (!previewSlot) return;
 
     const updateScale = () => {
-      setMobileViewportScale(Math.min(1, previewSlot.clientWidth / 390));
+      setPreviewScale(Math.min(1, previewSlot.clientWidth / sourceWidth));
     };
     const observer = new ResizeObserver(updateScale);
     observer.observe(previewSlot);
     updateScale();
     return () => observer.disconnect();
-  }, []);
+  }, [sourceWidth]);
 
   return (
-    <div className={`article-preview-viewport preview-mode-${mode}`}>
+    <ArticlePreviewModeContext.Provider value={mode}>
+    <div
+      className={`article-preview-viewport preview-mode-${mode}`}
+      style={{
+        "--article-preview-scale": previewScale,
+        "--article-preview-source-width": `${sourceWidth}px`,
+      } as CSSProperties}
+    >
       <div className="article-preview-toolbar">
         <div aria-label="切换文章预览方式" className="preview-mode-switch" role="tablist">
           <button
@@ -93,7 +110,7 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
             手机预览
           </button>
         </div>
-        <span className="preview-simulation-note">{label}</span>
+        <span className="preview-simulation-note">{simulationLabel}</span>
       </div>
 
       <div className="article-preview-stage">
@@ -112,7 +129,6 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
                 <div
                   className="article-preview-frame-slot"
                   ref={previewSlotRef}
-                  style={{ "--mobile-preview-scale": mobileViewportScale } as CSSProperties}
                 >
                   {children}
                 </div>
@@ -131,5 +147,6 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
         </div>
       </div>
     </div>
+    </ArticlePreviewModeContext.Provider>
   );
 }

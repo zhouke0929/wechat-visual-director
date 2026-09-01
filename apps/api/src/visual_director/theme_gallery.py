@@ -173,7 +173,7 @@ def _rhythm_primitives(
                     f'<section style="margin:39px 0 18px;padding-left:13px;border-left:3px solid {primary};">'
                     '<p style="margin:0 0 5px;color:#76837E;font-family:Georgia,serif;font-size:9px;font-weight:700;letter-spacing:.18em;">SECTION</p>'
                     f'<strong style="display:block;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:21px;line-height:1.5;">先看清问题，再决定行动</strong>'
-                    f'<p style="height:1px;margin:9px 0 0;background-color:{sky};"><span style="display:block;width:14px;height:8px;margin-left:-2px;border-radius:12px 2px 12px 2px;background-color:{primary};transform:rotate(-16deg);"></span></p></section>'
+                    f'<p style="margin:9px 0 0;border-top:1px solid {sky};font-size:0;line-height:0;"><span style="display:block;width:14px;height:8px;margin-left:-2px;border-radius:12px 2px 12px 2px;background-color:{primary};font-size:0;line-height:0;transform:rotate(-16deg);">&#160;</span></p></section>'
                 ),
             },
             {

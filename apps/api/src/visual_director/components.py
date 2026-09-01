@@ -250,13 +250,13 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
                 f'<section style="padding:20px 18px 18px;border:2px solid {primary};border-radius:3px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
                 f'<span style="display:inline-block;width:18px;height:18px;margin-right:12px;border:5px solid {accent};border-radius:50%;vertical-align:top;"></span>'
                 f'<strong style="display:inline-block;width:82%;color:{ink};font-size:19px;line-height:1.62;vertical-align:top;">{title}</strong>'
-                f'<p style="height:1px;margin:14px 0 0;background-color:{sky};"><span style="display:block;width:31%;height:4px;background-color:{accent};"></span></p>'
+                f'<p style="margin:14px 0 0;border-top:1px solid {sky};font-size:0;line-height:0;"><span style="display:block;width:31%;height:0;border-top:4px solid {accent};font-size:0;line-height:0;">&#160;</span></p>'
                 f'</section></section>'
             )
         if variant == "editorial_deck_question":
             return (
                 f'<section style="margin:30px 0 27px;padding:16px 0;border-top:4px solid {ink};border-bottom:1px solid {ink};white-space:normal;">'
-                f'<span style="display:inline-block;width:52px;color:{accent};font-family:Georgia,serif;font-size:48px;font-weight:700;line-height:.9;vertical-align:top;">Q.</span>'
+                f'<span style="box-sizing:border-box;display:inline-block;width:18%;color:{accent};font-family:Georgia,serif;font-size:48px;font-weight:700;line-height:.9;white-space:nowrap;word-break:keep-all;vertical-align:top;">Q.</span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:82%;padding-left:15px;border-left:1px solid #C8C4BA;vertical-align:top;">'
                 f'<p style="margin:0;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:20px;font-weight:750;line-height:1.65;">{title}</p>'
                 f'</section></section>'

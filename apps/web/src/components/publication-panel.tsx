@@ -210,9 +210,9 @@ export function PublicationPanel({
           <section className="frozen-preview-workspace">
             <header>
               <div><span>FINAL MOBILE PREVIEW</span><strong>冻结版本</strong></div>
-              <p>390px · 微信兼容检查 {revision.compatibility_status === "pass" ? "通过" : "未通过"}</p>
+              <p>双视口 · 微信兼容检查 {revision.compatibility_status === "pass" ? "通过" : "未通过"}</p>
             </header>
-            <ArticlePreviewViewport label="冻结版本 · 390px 模拟预览">
+            <ArticlePreviewViewport>
               <ResilientPreviewFrame
                 src={absoluteApiUrl(revision.preview_url)}
                 title={`${revision.title} 最终移动端预览`}

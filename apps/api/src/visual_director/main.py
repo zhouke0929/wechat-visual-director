@@ -221,13 +221,13 @@ class ContinueEditingRequest(BaseModel):
 
 class CreateMockDraftRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
-    draft_slot: str = Field(pattern=r"^(primary|draft-[2-9][0-9]*)$")
+    draft_slot: str = Field(pattern=r"^(primary|draft-(?:[2-9]|[1-9][0-9]+))$")
     simulation_mode: str = Field(default="success", pattern="^(success|fail_once|unknown)$")
 
 
 class CreateWechatDraftRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
-    draft_slot: str = Field(pattern=r"^(primary|draft-[2-9][0-9]*)$")
+    draft_slot: str = Field(pattern=r"^(primary|draft-(?:[2-9]|[1-9][0-9]+))$")
 
 
 class RetryMockDraftRequest(BaseModel):

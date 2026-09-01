@@ -4,7 +4,13 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from visual_director.main import _crop_cover, _fit_cover, create_app
+from visual_director.main import (
+    CreateMockDraftRequest,
+    CreateWechatDraftRequest,
+    _crop_cover,
+    _fit_cover,
+    create_app,
+)
 from visual_director.wechat_publisher import WechatPublishResult
 from visual_director.image_provider import ManualImageProvider, MockImageProvider
 from visual_director.text_planner import MockTextPlannerProvider
@@ -30,6 +36,18 @@ class _SuccessfulWechatPublisher:
         assert revision["id"]
         assert assets
         return WechatPublishResult(status="succeeded", media_id="REAL_MEDIA_001", error=None)
+
+
+def test_draft_requests_accept_double_and_triple_digit_slots() -> None:
+    for draft_slot in ("draft-2", "draft-9", "draft-10", "draft-19", "draft-100"):
+        assert CreateMockDraftRequest(
+            expected_task_version=1,
+            draft_slot=draft_slot,
+        ).draft_slot == draft_slot
+        assert CreateWechatDraftRequest(
+            expected_task_version=1,
+            draft_slot=draft_slot,
+        ).draft_slot == draft_slot
 
 
 def test_cover_fit_preserves_both_edges_of_wide_source() -> None:
