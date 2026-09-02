@@ -102,6 +102,34 @@ export type PublicationMetadata = {
   show_cover_pic: boolean;
 };
 
+export type EditableContentValue = string | string[] | string[][];
+
+export type ContentEditorBlock = {
+  block_id: string;
+  type:
+    | "heading"
+    | "paragraph"
+    | "quote"
+    | "source"
+    | "ordered_list"
+    | "unordered_list"
+    | "reference_list"
+    | "table";
+  level: number | null;
+  content: EditableContentValue;
+};
+
+export type ContentEditorDocument = {
+  schema_version: "content_editor_document.v0.1";
+  task_id: string;
+  plan_id: string;
+  revision: number;
+  title: string;
+  preview_url: string;
+  blocks: ContentEditorBlock[];
+  saved_at?: string;
+};
+
 export type ProgressStep = {
   key: string;
   label: string;

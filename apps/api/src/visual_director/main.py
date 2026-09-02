@@ -19,6 +19,12 @@ from pydantic import BaseModel, Field
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .component_catalog import COMPONENT_CATALOG, allowed_variants, component_options
+from .content_editor import (
+    EDITABLE_BLOCK_TYPES,
+    apply_content_edits,
+    content_editor_document,
+    validate_content_for_block,
+)
 from .brand import brand_asset_path, load_brand_profile, public_brand_profile
 from .blind_review import BLIND_REVIEW_DIMENSIONS, BlindReviewDataset, load_blind_review_dataset
 from .parser import classify_article, parse_markdown
@@ -68,6 +74,7 @@ from .ocr_verifier import verify_locked_copy, verify_no_text
 from .image_intent import (
     apply_theme_to_image_slot,
     build_art_direction_snapshot,
+    build_visual_grammar,
     evaluate_theme_compatibility,
     resolve_display_copy,
 )
@@ -83,6 +90,7 @@ from .publication import (
     materialize_preview_document,
     render_frozen_asset_urls,
     replace_asset_urls,
+    strip_workbench_editor_attributes,
     sha256_text,
     structure_hash,
 )
@@ -210,8 +218,16 @@ class PublicationMetadataRequest(BaseModel):
     show_cover_pic: bool = True
 
 
+class ContentEditRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    target: str = Field(pattern="^(title|block)$")
+    block_id: str | None = Field(default=None, pattern=r"^block-\d{3}$")
+    content: Any
+
+
 class FreezePublicationRequest(BaseModel):
     expected_task_version: int = Field(ge=1)
+    expected_content_revision: int | None = Field(default=None, ge=0)
     metadata: PublicationMetadataRequest = Field(default_factory=PublicationMetadataRequest)
 
 
@@ -279,6 +295,7 @@ def _public_task(task: dict[str, Any]) -> dict[str, Any]:
             "input_summary",
             "last_error",
             "selection_change_count",
+            "content_edits",
         }
     } | {"publication_mode": "local"}
 
@@ -550,6 +567,56 @@ def create_app(
         allow_headers=["*"],
     )
 
+    def parsed_task_article(task: dict[str, Any]):
+        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        return apply_content_edits(parsed, task.get("content_edits"))
+
+    def rebind_plan_image_facts(plan: dict[str, Any], parsed: Any) -> dict[str, Any]:
+        """Keep structured-image facts aligned when operators edit their source copy."""
+        rebound = copy.deepcopy(plan)
+        blocks = {block.id: block for block in parsed.blocks}
+
+        def resolve_reference(reference: str | None) -> str | None:
+            if not reference:
+                return None
+            match = re.fullmatch(r"(block-\d{3})(?::item:(\d+))?", reference)
+            if not match:
+                return None
+            block = blocks.get(match.group(1))
+            if block is None:
+                return None
+            item_index = match.group(2)
+            if item_index is None:
+                return str(block.content).strip() if isinstance(block.content, str) else None
+            if not isinstance(block.content, list) or int(item_index) >= len(block.content):
+                return None
+            value = block.content[int(item_index)]
+            return str(value).strip() if not isinstance(value, list) else None
+
+        for image_slot in rebound.get("image_slots") or []:
+            if image_slot.get("purpose") != "structured_infographic":
+                continue
+            bindings = image_slot.get("fact_bindings") or {}
+            anchors = [
+                value
+                for value in (resolve_reference(reference) for reference in bindings.get("item_refs") or [])
+                if value
+            ]
+            if not anchors:
+                continue
+            visual_intent = image_slot.setdefault("visual_intent", {})
+            visual_intent["fact_anchors"] = anchors
+            title = resolve_reference(bindings.get("title_ref"))
+            if title:
+                visual_intent["subject"] = title
+            visual_intent["visual_grammar"] = build_visual_grammar(
+                layout_family=str(visual_intent.get("layout_family") or "structural_breakdown"),
+                fact_anchors=anchors,
+                style_family=str(visual_intent.get("style_family") or "editorial_paper_cut"),
+                article_type=str(visual_intent.get("article_type") or "viewpoint_trend"),
+            )
+        return rebound
+
     @app.exception_handler(NotFoundError)
     async def not_found_handler(_: Request, exc: NotFoundError) -> JSONResponse:
         return _error(404, "not_found", str(exc))
@@ -652,7 +719,7 @@ def create_app(
                 "cover",
                 "replace_asset",
             )
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         source_blocks = [item for item in parsed.blocks if item.type == "image_reference"]
         replacement_by_block = {
             str(item["block_id"]): item
@@ -909,7 +976,7 @@ def create_app(
                 for item in asset_sources
                 if item.get("source_url")
             }
-            frozen_html = replace_asset_urls(document, url_to_token)
+            frozen_html = strip_workbench_editor_attributes(replace_asset_urls(document, url_to_token))
             compatibility = check_frozen_html(frozen_html).to_dict()
             compatibility["preflight_status"] = (
                 "REVIEW_RESOLVED" if report.get("status") == "REVIEW" else str(report.get("status") or "PASS")
@@ -1745,6 +1812,93 @@ def create_app(
             operator_id=operator_id,
         )
 
+    @app.get("/api/v1/article-tasks/{task_id}/content-editor")
+    def get_content_editor(task_id: str) -> Any:
+        task = repository.get_task(task_id)
+        if not task.get("selected_plan_id"):
+            return _error(409, "plan_not_selected", "请先生成并选定视觉方案")
+        plan = repository.get_plan(task_id, task["selected_plan_id"])
+        parsed = parsed_task_article(task)
+        return content_editor_document(
+            parsed,
+            task["content_edits"],
+            task_id=task_id,
+            plan_id=plan["id"],
+            preview_url=f'/api/v1/render-artifacts/{plan["preview_artifact_id"]}/content',
+        )
+
+    @app.patch("/api/v1/article-tasks/{task_id}/content-editor")
+    def save_content_editor(
+        task_id: str,
+        payload: ContentEditRequest,
+        operator_id: str = Header("operator", alias="X-Operator-Id"),
+    ) -> Any:
+        if operator_id not in {"operator", "product_owner"}:
+            return _error(422, "invalid_operator", "请选择有效的操作身份")
+        repository.assert_task_editable(task_id)
+        task = repository.get_task(task_id)
+        base_parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        edits = copy.deepcopy(task["content_edits"])
+        title = task["title"]
+        block_id: str | None = None
+        normalized_content: Any = None
+        if payload.target == "title":
+            if payload.block_id is not None or not isinstance(payload.content, str):
+                return _error(422, "invalid_content_edit", "标题编辑参数无效")
+            title = payload.content.strip()
+            if not title or len(title) > 120:
+                return _error(422, "invalid_content_edit", "标题不能为空，且不能超过 120 字")
+        else:
+            if payload.block_id is None:
+                return _error(422, "invalid_content_edit", "正文编辑必须指定内容块")
+            block = next((item for item in base_parsed.blocks if item.id == payload.block_id), None)
+            if block is None or block.type not in EDITABLE_BLOCK_TYPES:
+                return _error(422, "invalid_content_edit", "该内容块不存在或不可编辑")
+            block_id = block.id
+            try:
+                normalized_content = validate_content_for_block(block, payload.content)
+            except ValueError as error:
+                return _error(422, "invalid_content_edit", str(error))
+            edits.setdefault("blocks", {})[block_id] = normalized_content
+
+        proposed_task = {**task, "title": title, "content_edits": edits}
+        parsed = parsed_task_article(proposed_task)
+        rendered_plans = []
+        try:
+            for plan in repository.list_plans(task_id):
+                validated = validate_plan_for_article(rebind_plan_image_facts(plan, parsed), parsed)
+                rendered_plans.append(
+                    (
+                        plan["id"],
+                        validated,
+                        render_preview(parsed, validated, brand_profile=app.state.brand_profile),
+                    )
+                )
+        except (ValueError, IndexError) as error:
+            return _error(422, "content_edit_breaks_layout", f"这次修改无法保持现有组件结构：{error}")
+
+        saved = repository.save_content_edit_and_refresh_previews(
+            task_id=task_id,
+            expected_revision=payload.expected_revision,
+            title=title,
+            block_id=block_id,
+            content=normalized_content,
+            rendered_plans=rendered_plans,
+            operator_id=operator_id,
+        )
+        selected = next(
+            plan for plan in saved["plans"] if plan["id"] == task["selected_plan_id"]
+        )
+        current_task = repository.get_task(task_id)
+        current_parsed = parsed_task_article(current_task)
+        return content_editor_document(
+            current_parsed,
+            saved["content_edits"],
+            task_id=task_id,
+            plan_id=selected["id"],
+            preview_url=f'/api/v1/render-artifacts/{selected["preview_artifact_id"]}/content',
+        ) | {"saved_at": saved["saved_at"]}
+
     @app.get("/api/v1/article-tasks/{task_id}/publication-readiness")
     def get_publication_readiness(task_id: str) -> dict[str, Any]:
         readiness, _ = publication_readiness(task_id)
@@ -1775,6 +1929,7 @@ def create_app(
         request_value = {
             "task_id": task_id,
             "expected_task_version": payload.expected_task_version,
+            "expected_content_revision": payload.expected_content_revision,
             "metadata": payload.metadata.model_dump(mode="json"),
         }
         request_hash = hash_json(request_value)
@@ -1804,6 +1959,11 @@ def create_app(
         task = prepared["task"]
         if task["version"] != payload.expected_task_version:
             raise VersionConflictError("任务已被更新，请刷新后重试")
+        if (
+            payload.expected_content_revision is not None
+            and int(task["content_edits"].get("revision") or 0) != payload.expected_content_revision
+        ):
+            raise VersionConflictError("正文仍有较新的自动保存结果，请刷新后再冻结")
         revision_id = str(uuid.uuid4())
         extension_by_type = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
         stored_assets: list[dict[str, Any]] = []
@@ -1834,7 +1994,13 @@ def create_app(
             "id": revision_id,
             "plan_id": prepared["plan"]["id"],
             "plan_revision": prepared["plan"]["revision"],
-            "normalized_hash": task["normalized_hash"],
+            "normalized_hash": hash_json(
+                {
+                    "base_normalized_hash": task["normalized_hash"],
+                    "title": task["title"],
+                    "content_edits": task["content_edits"],
+                }
+            ),
             "preflight_report_hash": hash_json(prepared["report"]),
             "visual_plan": prepared["plan"],
             "visual_plan_hash": hash_json(prepared["plan"]),
@@ -1852,6 +2018,7 @@ def create_app(
         revision, updated_task = repository.create_publication_revision(
             task_id=task_id,
             expected_task_version=payload.expected_task_version,
+            expected_content_revision=payload.expected_content_revision,
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             revision=revision_payload,
@@ -2245,7 +2412,7 @@ def create_app(
                 details={"findings": pending_planning_findings},
             )
         analyzing = repository.start_generation(task_id, payload.expected_task_version)
-        parsed = parse_markdown(analyzing["normalized_markdown"], analyzing["title"])
+        parsed = parsed_task_article(analyzing)
         recent_summaries = repository.list_recent_component_summaries(analyzing["account_id"], analyzing["history_window"])
         brand_config = public_brand_profile(app.state.brand_profile)
         request = TextPlannerRequest(
@@ -2342,7 +2509,7 @@ def create_app(
     @app.get("/api/v1/article-tasks/{task_id}/editorial-brief/context")
     def get_editorial_brief_context(task_id: str) -> dict[str, Any]:
         task = repository.get_task(task_id)
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         recent_summaries = repository.list_recent_component_summaries(
             task["account_id"],
             task["history_window"],
@@ -2366,7 +2533,7 @@ def create_app(
         task = repository.get_task(task_id)
         if task["version"] != payload.expected_task_version:
             raise VersionConflictError("任务已被更新，请刷新后重试")
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         recent_summaries = repository.list_recent_component_summaries(task["account_id"], task["history_window"])
         brand_config = public_brand_profile(app.state.brand_profile)
         request = TextPlannerRequest(
@@ -2521,7 +2688,7 @@ def create_app(
         previous_variant = revised_slot["variant"]
         revised_slot["variant"] = payload.variant
         task = repository.get_task(task_id)
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         revised = validate_plan_for_article(revised, parsed)
         document = render_preview(parsed, revised, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
@@ -2574,7 +2741,7 @@ def create_app(
         )
         revised["revision"] = current["revision"] + 1
         revised["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         revised = validate_plan_for_article(revised, parsed)
         document = render_preview(parsed, revised, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
@@ -2621,7 +2788,7 @@ def create_app(
         restored["revision"] = current["revision"] + 1
         restored["undo_stack"] = undo_stack[:-1]
         task = repository.get_task(task_id)
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         restored = validate_plan_for_article(restored, parsed)
         document = render_preview(parsed, restored, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
@@ -2660,7 +2827,7 @@ def create_app(
         restored["revision"] = current["revision"] + 1
         restored["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
         task = repository.get_task(task_id)
-        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+        parsed = parsed_task_article(task)
         restored = validate_plan_for_article(restored, parsed)
         document = render_preview(parsed, restored, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
@@ -2774,7 +2941,7 @@ def create_app(
                 infographic_items: list[str] | None = None
                 if image_slot["purpose"] == "structured_infographic":
                     if parsed is None:
-                        parsed = parse_markdown(task["normalized_markdown"], task["title"])
+                        parsed = parsed_task_article(task)
                     infographic_title, infographic_items = resolve_overlay_copy(
                         parsed,
                         image_slot["fact_bindings"],
@@ -3744,7 +3911,7 @@ def create_app(
             infographic_title: str | None = None
             infographic_items: list[str] | None = None
             if image_slot["purpose"] == "structured_infographic":
-                parsed = parse_markdown(task["normalized_markdown"], task["title"])
+                parsed = parsed_task_article(task)
                 infographic_title, infographic_items = resolve_overlay_copy(
                     parsed,
                     image_slot["fact_bindings"],

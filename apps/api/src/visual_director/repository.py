@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .visual_dna import build_visual_signature
+from .content_editor import empty_content_edits
 
 
 DEFAULT_PUBLICATION_DRAFT_METADATA = {
@@ -75,6 +76,7 @@ class Repository:
               progress_json TEXT NOT NULL,
               last_error_json TEXT,
               publication_draft_metadata_json TEXT,
+              content_edits_json TEXT NOT NULL DEFAULT '{"schema_version":"content_edits.v0.1","revision":0,"blocks":{}}',
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL
             );
@@ -350,6 +352,8 @@ class Repository:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN active_publication_revision_id TEXT")
         if "publication_draft_metadata_json" not in task_columns:
             self.connection.execute("ALTER TABLE tasks ADD COLUMN publication_draft_metadata_json TEXT")
+        if "content_edits_json" not in task_columns:
+            self.connection.execute("ALTER TABLE tasks ADD COLUMN content_edits_json TEXT")
         history_columns = {
             row["name"]
             for row in self.connection.execute("PRAGMA table_info(recent_article_component_summaries)").fetchall()
@@ -367,6 +371,10 @@ class Repository:
         self.connection.execute(
             "UPDATE tasks SET publication_draft_metadata_json = ? WHERE publication_draft_metadata_json IS NULL",
             (json.dumps(DEFAULT_PUBLICATION_DRAFT_METADATA, ensure_ascii=False),),
+        )
+        self.connection.execute(
+            "UPDATE tasks SET content_edits_json = ? WHERE content_edits_json IS NULL",
+            (json.dumps(empty_content_edits(), ensure_ascii=False),),
         )
         self.connection.commit()
         self._backfill_frozen_visual_history()
@@ -971,6 +979,11 @@ class Repository:
                 json.loads(row["publication_draft_metadata_json"])
                 if row["publication_draft_metadata_json"]
                 else dict(DEFAULT_PUBLICATION_DRAFT_METADATA)
+            ),
+            "content_edits": (
+                json.loads(row["content_edits_json"])
+                if row["content_edits_json"]
+                else empty_content_edits()
             ),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -1800,6 +1813,68 @@ class Repository:
         if task.get("active_publication_revision_id"):
             raise PublicationLockedError("当前版本已冻结，请先选择继续修改")
 
+    def save_content_edit_and_refresh_previews(
+        self,
+        *,
+        task_id: str,
+        expected_revision: int,
+        title: str,
+        block_id: str | None,
+        content: Any,
+        rendered_plans: list[tuple[str, dict[str, Any], str]],
+        operator_id: str,
+    ) -> dict[str, Any]:
+        self.assert_task_editable(task_id)
+        now = utc_now()
+        with self.lock:
+            row = self.connection.execute(
+                "SELECT content_edits_json FROM tasks WHERE id = ?",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                raise NotFoundError("任务不存在")
+            edits = json.loads(row["content_edits_json"]) if row["content_edits_json"] else empty_content_edits()
+            if int(edits.get("revision") or 0) != expected_revision:
+                raise VersionConflictError("正文已在其他位置更新，请刷新后继续编辑")
+            if block_id is not None:
+                edits.setdefault("blocks", {})[block_id] = content
+            edits["revision"] = expected_revision + 1
+
+            refreshed: list[dict[str, Any]] = []
+            for plan_id, plan, document in rendered_plans:
+                artifact_id = str(uuid.uuid4())
+                payload = {
+                    **plan,
+                    "preview_artifact_id": artifact_id,
+                    "preview_content_hash": hashlib.sha256(document.encode("utf-8")).hexdigest(),
+                }
+                self.connection.execute(
+                    "INSERT INTO artifacts VALUES (?, ?, ?, ?, ?)",
+                    (artifact_id, task_id, plan_id, document, now),
+                )
+                self.connection.execute(
+                    "UPDATE plans SET plan_json = ?, artifact_id = ? WHERE task_id = ? AND id = ?",
+                    (json.dumps(payload, ensure_ascii=False), artifact_id, task_id, plan_id),
+                )
+                refreshed.append(payload)
+
+            self.connection.execute(
+                "UPDATE tasks SET title = ?, content_edits_json = ?, updated_at = ? WHERE id = ?",
+                (title, json.dumps(edits, ensure_ascii=False), now, task_id),
+            )
+            self._record_event_locked(
+                task_id,
+                "article_content_autosaved",
+                {
+                    "operator_id": operator_id,
+                    "content_edit_revision": edits["revision"],
+                    "target": "title" if block_id is None else block_id,
+                },
+                now,
+            )
+            self.connection.commit()
+        return {"content_edits": edits, "plans": refreshed, "saved_at": now}
+
     def _idempotent_resource(
         self,
         *,
@@ -1945,6 +2020,7 @@ class Repository:
         *,
         task_id: str,
         expected_task_version: int,
+        expected_content_revision: int | None,
         idempotency_key: str,
         request_hash: str,
         revision: dict[str, Any],
@@ -1975,6 +2051,11 @@ class Repository:
                 task = self.get_task(task_id)
                 if task["version"] != expected_task_version:
                     raise VersionConflictError("任务已被更新，请刷新后重试")
+                if (
+                    expected_content_revision is not None
+                    and int(task["content_edits"].get("revision") or 0) != expected_content_revision
+                ):
+                    raise VersionConflictError("正文仍有较新的自动保存结果，请刷新后再冻结")
                 if task.get("active_publication_revision_id"):
                     raise VersionConflictError("已有有效冻结版本")
                 revision_number = int(

@@ -81,7 +81,7 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.23**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.24**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 与 macOS：交给 Agent 开箱安装
 
@@ -124,7 +124,8 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 - 12 套视觉系统：轻盈阅读、温暖人文、编辑对比、理性网格、青春校园、未来科技、新中式雅集、复古报刊、波普海报、自然图鉴、商业画报、电影叙事；
 - 12 类语义组件，由当前整篇主题统一决定视觉形态；
 - 连续概念词条组、长清单、真实对比段和长文节奏识别；
-- 一份自动选中的视觉推荐稿、390px 内容校对视图与拟真手机预览；
+- 一份自动选中的视觉推荐稿、对齐公众号后台的 600px 可编辑内容校对视图与 405px 拟真手机预览；
+- 内容校对支持像公众号后台一样在原文位置直接修改标题、正文、组件文案、列表项与表格单元格，不再弹出二级编辑窗口；自动保存后实时同步手机预览，组件结构、装饰与图片位置保持锁定；
 - 12 套完整主题可即时切换和回退，不重新调用文本模型或图片模型；
 - 最终冻结稿进入最近五篇主题历史，优先避免连续重复；
 - 正文配图、结构信息图、人工上传与封面候选；
@@ -199,8 +200,8 @@ https://github.com/zhouke0929/wechat-visual-director/releases
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha23.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.23/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha24.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.24/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```

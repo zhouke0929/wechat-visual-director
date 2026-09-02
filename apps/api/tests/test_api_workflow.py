@@ -198,6 +198,82 @@ def _freeze_publication(client: TestClient, task: dict, key: str = "freeze-publi
     return response.json()
 
 
+def test_content_editor_autosaves_blocks_refreshes_preview_and_freezes_clean_html(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "content-editor.db"))
+    with TestClient(app) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        editor = client.get(f'/api/v1/article-tasks/{task["id"]}/content-editor')
+        assert editor.status_code == 200
+        editor_document = editor.json()
+        paragraph = next(item for item in editor_document["blocks"] if item["type"] == "paragraph")
+
+        preview = client.get(editor_document["preview_url"])
+        assert preview.status_code == 200
+        assert 'data-editor-title="true"' in preview.text
+        assert f'data-editor-block-ids="{paragraph["block_id"]}"' in preview.text
+
+        edited_copy = "这是运营在内容校对画布中修改并自动保存的新段落。"
+        saved = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/content-editor',
+            headers={"X-Operator-Id": "operator"},
+            json={
+                "expected_revision": editor_document["revision"],
+                "target": "block",
+                "block_id": paragraph["block_id"],
+                "content": edited_copy,
+            },
+        )
+        assert saved.status_code == 200
+        saved_document = saved.json()
+        assert saved_document["revision"] == editor_document["revision"] + 1
+        assert next(
+            item for item in saved_document["blocks"] if item["block_id"] == paragraph["block_id"]
+        )["content"] == edited_copy
+        assert edited_copy in client.get(saved_document["preview_url"]).text
+
+        ordered = next(item for item in saved_document["blocks"] if item["type"] == "ordered_list")
+        edited_steps = ["明确新的目标院校", *ordered["content"][1:]]
+        saved_image_fact = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/content-editor',
+            headers={"X-Operator-Id": "operator"},
+            json={
+                "expected_revision": saved_document["revision"],
+                "target": "block",
+                "block_id": ordered["block_id"],
+                "content": edited_steps,
+            },
+        )
+        assert saved_image_fact.status_code == 200
+        saved_document = saved_image_fact.json()
+        refreshed_plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
+        structured_slots = [
+            slot for slot in refreshed_plan["image_slots"]
+            if slot["purpose"] == "structured_infographic" and ordered["block_id"] in slot["source_block_ids"]
+        ]
+        assert structured_slots
+        assert edited_steps[0] in structured_slots[0]["visual_intent"]["fact_anchors"]
+        assert edited_steps[0] in client.get(saved_document["preview_url"]).text
+
+        stale = client.patch(
+            f'/api/v1/article-tasks/{task["id"]}/content-editor',
+            json={
+                "expected_revision": editor_document["revision"],
+                "target": "title",
+                "content": "过期窗口不应覆盖新内容",
+            },
+        )
+        assert stale.status_code == 409
+
+        frozen = _freeze_publication(client, task, key="freeze-edited-content")
+        frozen_html = client.get(
+            f'/api/v1/publication-revisions/{frozen["revision"]["id"]}/content'
+        ).text
+        assert edited_copy in frozen_html
+        assert "data-editor-title" not in frozen_html
+        assert "data-editor-block-ids" not in frozen_html
+        assert frozen["revision"]["plan_id"] == plan["id"]
+
+
 def test_publication_readiness_reports_missing_cover_once_with_specific_action(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "publication-missing-cover.db"))
     with TestClient(app) as client:

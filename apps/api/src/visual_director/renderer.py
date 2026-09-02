@@ -59,6 +59,17 @@ ACTION_LIST_CONTEXT_RE = re.compile(
 )
 
 
+def _mark_editor_target(markup: str, block_ids: list[str], block_type: str) -> str:
+    """Attach inert workbench hooks without changing WeChat layout markup."""
+    if not markup or not block_ids:
+        return markup
+    attributes = (
+        f' data-editor-block-ids="{html.escape(",".join(block_ids))}"'
+        f' data-editor-block-type="{html.escape(block_type)}"'
+    )
+    return re.sub(r"<([a-zA-Z][\w:-]*)\b", rf"<\1{attributes}", markup, count=1)
+
+
 def _inline(value: str) -> str:
     escaped = html.escape(value)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
@@ -892,8 +903,13 @@ def render_preview(
     opening_highlight_id, opening_highlight_label = _opening_highlight(parsed)
 
     for block_index, block in enumerate(parsed.blocks):
+        editor_start = len(body)
+        editor_block_ids: list[str] = []
+        editor_block_type = block.type
         if block.id in slots_by_anchor:
             slot = slots_by_anchor[block.id]
+            editor_block_ids = list(slot["consume_block_ids"])
+            editor_block_type = f'component:{slot["component_type"]}'
             body.append(
                 f'<section id="{html.escape(slot["slot_id"])}" class="component-anchor" style="scroll-margin-top:18px;">'
                 f'{render_component(slot, parsed, palette)}</section>'
@@ -1068,6 +1084,15 @@ def render_preview(
             body.append(_render_thematic_break(config))
         elif block.type == "image_reference":
             body.append(_render_source_image_placeholder(block, config))
+        if len(body) > editor_start:
+            if not editor_block_ids and block.type not in {"thematic_break", "image_reference"}:
+                editor_block_ids = [block.id]
+            if editor_block_ids:
+                body[editor_start] = _mark_editor_target(
+                    body[editor_start],
+                    editor_block_ids,
+                    editor_block_type,
+                )
         for image_slot in image_slots_by_anchor.get(block.id, []):
             body.append(_render_image_placeholder(image_slot, config))
 
@@ -1147,6 +1172,7 @@ def render_preview(
             f'<p style="width:32%;height:3px;margin:18px 0 0;background-color:{palette.get("secondary", accent)};"></p>'
             "</header>"
         )
+    hero = re.sub(r"<h1\b", '<h1 data-editor-title="true"', hero, count=1)
     footer = profile.get("fixed_footer") if isinstance(profile.get("fixed_footer"), dict) else {}
     cta = _render_fixed_footer(footer, config)
     document = (

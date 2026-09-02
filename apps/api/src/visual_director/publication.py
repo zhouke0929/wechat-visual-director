@@ -87,6 +87,16 @@ def replace_asset_urls(document: str, url_to_token: dict[str, str]) -> str:
     return result
 
 
+def strip_workbench_editor_attributes(document: str) -> str:
+    """Remove preview-only editing hooks before freezing publication HTML."""
+    return re.sub(
+        r'\sdata-editor-(?:title|block-ids|block-type)="[^"]*"',
+        "",
+        document,
+        flags=re.IGNORECASE,
+    )
+
+
 def render_frozen_asset_urls(document: str, token_to_url: dict[str, str]) -> str:
     result = document
     for token, target_url in token_to_url.items():

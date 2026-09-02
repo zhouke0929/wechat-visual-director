@@ -7,7 +7,11 @@ import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { PublicationPanel } from "@/components/publication-panel";
-import { ResilientPreviewFrame } from "@/components/resilient-preview-frame";
+import {
+  ResilientPreviewFrame,
+  type InlineSaveState,
+  type PreviewEditTarget,
+} from "@/components/resilient-preview-frame";
 import { ArticlePreviewViewport } from "@/components/article-preview-viewport";
 import { StatusPill } from "@/components/status-pill";
 import {
@@ -25,6 +29,7 @@ import {
   getDraftOperations,
   getClipboardPayload,
   getCoverWorkspace,
+  getContentEditor,
   getImageSlots,
   getPlans,
   getPublicationReadiness,
@@ -38,6 +43,7 @@ import {
   replaceImageSlot,
   reuseCoverCandidate,
   savePublicationDraft,
+  saveContentEdit,
   selectPlan,
   selectCoverCandidate,
   skipImageSlot,
@@ -49,6 +55,7 @@ import type {
   CoverCandidate,
   CoverReuseSource,
   CoverWorkspace,
+  ContentEditorDocument,
   DraftOperation,
   ImageCandidate,
   ImageSlotList,
@@ -59,6 +66,7 @@ import type {
   PublicationMetadata,
   PublicationRevision,
   TaskDetail,
+  EditableContentValue,
   VisualPlan,
   WechatPublisherStatus,
 } from "@/lib/types";
@@ -92,6 +100,13 @@ export default function TaskReviewPage() {
   const [restoring, setRestoring] = useState("");
   const [imageReview, setImageReview] = useState<ImageSlotList | null>(null);
   const [coverReview, setCoverReview] = useState<CoverWorkspace | null>(null);
+  const [contentEditor, setContentEditor] = useState<ContentEditorDocument | null>(null);
+  const contentEditorRef = useRef<ContentEditorDocument | null>(null);
+  const [contentSaveState, setContentSaveState] = useState<InlineSaveState>("idle");
+  const [contentSaveMessage, setContentSaveMessage] = useState("");
+  const [contentPreviewRefreshToken, setContentPreviewRefreshToken] = useState(0);
+  const previewInlineEditingRef = useRef(false);
+  const appliedContentRevisionRef = useRef(0);
   const [coverBusy, setCoverBusy] = useState("");
   const [imageBusy, setImageBusy] = useState<string[]>([]);
   const imageBusyRef = useRef(new Set<string>());
@@ -130,14 +145,20 @@ export default function TaskReviewPage() {
       try {
         const nextImageReview = await getImageSlots(taskId, selectedPlanId);
         const nextCoverReview = await getCoverWorkspace(taskId, selectedPlanId);
+        const nextContentEditor = await getContentEditor(taskId);
         if (requestId === imageWorkspaceRequestRef.current) {
           setImageReview(nextImageReview);
           setCoverReview(nextCoverReview);
+          contentEditorRef.current = nextContentEditor;
+          appliedContentRevisionRef.current = nextContentEditor.revision;
+          setContentEditor(nextContentEditor);
         }
       } catch {
         if (requestId === imageWorkspaceRequestRef.current) {
           setImageReview(null);
           setCoverReview(null);
+          contentEditorRef.current = null;
+          setContentEditor(null);
           warnings.push("图片与封面工作区暂时未加载，可稍后重试");
         }
       }
@@ -145,6 +166,8 @@ export default function TaskReviewPage() {
       imageWorkspaceRequestRef.current += 1;
       setImageReview(null);
       setCoverReview(null);
+      contentEditorRef.current = null;
+      setContentEditor(null);
     }
 
     if (selectedPlanId || nextDetail.task.active_publication_revision_id) {
@@ -531,6 +554,45 @@ export default function TaskReviewPage() {
     await savePublicationDraft(taskId, metadata);
   }
 
+  async function handleContentSave(target: PreviewEditTarget, content: EditableContentValue) {
+    const current = contentEditorRef.current;
+    if (!current) throw new Error("文字编辑器尚未就绪，请刷新后重试");
+    const blockId = target.kind === "blocks" ? target.blockIds[0] : undefined;
+    const next = await saveContentEdit(taskId, {
+      expected_revision: current.revision,
+      target: target.kind === "title" ? "title" : "block",
+      block_id: blockId,
+      content,
+    });
+    contentEditorRef.current = next;
+    setContentEditor(next);
+    if (!previewInlineEditingRef.current) applyContentPreview(next);
+    if (target.kind === "title" && typeof content === "string") {
+      setDetail((currentDetail) => currentDetail ? {
+        ...currentDetail,
+        task: { ...currentDetail.task, title: content.trim() },
+      } : currentDetail);
+    }
+  }
+
+  function applyContentPreview(next: ContentEditorDocument) {
+    if (appliedContentRevisionRef.current >= next.revision) return;
+    appliedContentRevisionRef.current = next.revision;
+    setPlanList((currentPlans) => currentPlans ? {
+      ...currentPlans,
+      plans: currentPlans.plans.map((plan) => plan.id === next.plan_id ? {
+        ...plan,
+        preview_url: next.preview_url,
+      } : plan),
+    } : currentPlans);
+    setContentPreviewRefreshToken(next.revision);
+  }
+
+  function handleInlineEditingChange(editing: boolean) {
+    previewInlineEditingRef.current = editing;
+    if (!editing && contentEditorRef.current) applyContentPreview(contentEditorRef.current);
+  }
+
   async function handleFreezePublication(metadata: PublicationMetadata) {
     if (!detail) return;
     setPublicationBusy("freeze");
@@ -538,7 +600,7 @@ export default function TaskReviewPage() {
     setNotice("");
     try {
       await savePublicationDraft(taskId, metadata);
-      const frozen = await freezePublication(detail.task, metadata);
+      const frozen = await freezePublication(detail.task, metadata, contentEditorRef.current?.revision);
       if (wechatPublisher?.ready) {
         setPublicationBusy("publish");
         const result = await createWechatDraft(frozen.task, frozen.revision);
@@ -695,7 +757,7 @@ export default function TaskReviewPage() {
   function focusedPreviewUrl(plan: VisualPlan) {
     const url = absoluteApiUrl(plan.preview_url);
     const slotId = focusSlotByPlan[plan.id];
-    const refreshQuery = `?content_revision=${imageRefreshToken + sourceAssetRefreshToken}`;
+    const refreshQuery = `?content_revision=${imageRefreshToken + sourceAssetRefreshToken + contentPreviewRefreshToken}`;
     return slotId ? `${url}${refreshQuery}#${slotId}` : `${url}${refreshQuery}`;
   }
 
@@ -931,8 +993,20 @@ export default function TaskReviewPage() {
               </aside>
 
               <section className="preview-workspace" id={`preview-${activePlan.id}`}>
-                <ArticlePreviewViewport>
+                <ArticlePreviewViewport
+                  editingEnabled={Boolean(activePlanSelected && contentEditor)}
+                  editingMessage={contentSaveMessage}
+                  editingState={contentSaveState}
+                >
                   <ResilientPreviewFrame
+                    editable={Boolean(activePlanSelected && contentEditor)}
+                    editorDocument={contentEditor}
+                    onEditingChange={handleInlineEditingChange}
+                    onSave={handleContentSave}
+                    onSaveStateChange={(state, message) => {
+                      setContentSaveState(state);
+                      setContentSaveMessage(message ?? "");
+                    }}
                     src={focusedPreviewUrl(activePlan)}
                     title={`${activePlan.plan_name} 公众号移动端预览`}
                   />

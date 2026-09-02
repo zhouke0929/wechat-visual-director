@@ -3,6 +3,8 @@ import type {
   BlindReviewSubmission,
   ClipboardPayload,
   CapabilitySettings,
+  ContentEditorDocument,
+  EditableContentValue,
   CoverWorkspace,
   DraftOperation,
   ImageProviderMode,
@@ -144,6 +146,30 @@ export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
     themes: ThemeGalleryItem[];
   }>(response);
   return payload.themes;
+}
+
+export async function getContentEditor(taskId: string): Promise<ContentEditorDocument> {
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/content-editor`, {
+    cache: "no-store",
+  });
+  return parseResponse<ContentEditorDocument>(response);
+}
+
+export async function saveContentEdit(
+  taskId: string,
+  payload: {
+    expected_revision: number;
+    target: "title" | "block";
+    block_id?: string;
+    content: EditableContentValue;
+  },
+): Promise<ContentEditorDocument> {
+  const response = await fetch(`${API_BASE}/article-tasks/${taskId}/content-editor`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "X-Operator-Id": "operator" },
+    body: JSON.stringify(payload),
+  });
+  return parseResponse<ContentEditorDocument>(response);
 }
 
 export async function getImageProviderSettings(): Promise<ImageProviderSettings> {
@@ -604,6 +630,7 @@ export async function getPublicationRevisions(taskId: string): Promise<Publicati
 export async function freezePublication(
   task: Task,
   metadata: PublicationMetadata,
+  expectedContentRevision?: number,
 ): Promise<{ revision: PublicationRevision; task: Task }> {
   const response = await fetch(`${API_BASE}/article-tasks/${task.id}/publication-revisions`, {
     method: "POST",
@@ -612,7 +639,11 @@ export async function freezePublication(
       "Idempotency-Key": crypto.randomUUID(),
       "X-Operator-Id": "operator",
     },
-    body: JSON.stringify({ expected_task_version: task.version, metadata }),
+    body: JSON.stringify({
+      expected_task_version: task.version,
+      expected_content_revision: expectedContentRevision,
+      metadata,
+    }),
   });
   return parseResponse(response);
 }

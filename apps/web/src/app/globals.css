@@ -988,7 +988,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   min-height: 48px;
   padding: 7px 10px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid #b9bfba;
@@ -999,6 +999,12 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .preview-mode-switch button + button { border-left: 1px solid #89938f; }
 .preview-mode-switch button.active { background: var(--ink); color: #fff; box-shadow: inset 0 -3px 0 #f1c94f; }
 .preview-simulation-note { overflow: hidden; color: #65706d; font-size: 9px; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.preview-editing-note { padding: 6px 9px; border: 1px solid rgba(17,124,115,.42); color: var(--teal); background: #f7fffc; font-size: 8px; font-weight: 850; letter-spacing: .04em; white-space: nowrap; }
+.preview-editing-note[data-state="editing"] { border-color: rgba(215,168,63,.72); color: #7a5a12; background: #fff9e8; }
+.preview-editing-note[data-state="saving"] { border-color: rgba(215,168,63,.72); color: #7a5a12; background: linear-gradient(90deg,#fff9e8 0,#fff3c8 48%,#fff9e8 100%); background-size: 200% 100%; animation: inline-save-pulse 1.1s linear infinite; }
+.preview-editing-note[data-state="saved"] { border-color: rgba(17,124,115,.52); color: #0d665f; background: #e9f7f3; }
+.preview-editing-note[data-state="error"] { max-width: 230px; overflow: hidden; border-color: #c65449; color: #8d251c; background: #fff0ed; text-overflow: ellipsis; }
+@keyframes inline-save-pulse { to { background-position:-200% 0; } }
 .article-preview-stage {
   min-height: 0;
   padding: 14px 18px 18px;

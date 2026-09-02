@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1.0-alpha.23",
+    [string]$Version = "0.1.0-alpha.24",
     [string]$InstallRoot = "",
     [string]$HostHome = "",
     [switch]$KeepDownload

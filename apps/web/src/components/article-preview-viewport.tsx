@@ -3,14 +3,18 @@
 import "@sneas/telephone/iphone-16-max";
 import { createContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-type PreviewMode = "proof" | "mobile";
+export type PreviewMode = "proof" | "mobile";
 
 export const ArticlePreviewModeContext = createContext<PreviewMode>("proof");
 
 type Props = {
   accountLabel?: string;
   children: ReactNode;
+  editingEnabled?: boolean;
+  editingMessage?: string;
+  editingState?: "idle" | "editing" | "saving" | "saved" | "error";
   label?: string;
+  onModeChange?: (mode: PreviewMode) => void;
 };
 
 const WECHAT_EDITOR_CONTENT_WIDTH = 600;
@@ -31,7 +35,15 @@ function WechatActionIcon({ kind }: { kind: "like" | "share" | "recommend" }) {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20.2 4.6 13A4.8 4.8 0 0 1 11.4 6l.6.7.6-.7a4.8 4.8 0 0 1 6.8 7Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg>;
 }
 
-export function ArticlePreviewViewport({ accountLabel = "公众号预览", children, label }: Props) {
+export function ArticlePreviewViewport({
+  accountLabel = "公众号预览",
+  children,
+  editingEnabled = false,
+  editingMessage,
+  editingState = "idle",
+  label,
+  onModeChange,
+}: Props) {
   const [mode, setMode] = useState<PreviewMode>("proof");
   const [previewScale, setPreviewScale] = useState(1);
   const deviceFrameRef = useRef<HTMLElement>(null);
@@ -94,7 +106,10 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
           <button
             aria-selected={mode === "proof"}
             className={mode === "proof" ? "active" : ""}
-            onClick={() => setMode("proof")}
+            onClick={() => {
+              setMode("proof");
+              onModeChange?.("proof");
+            }}
             role="tab"
             type="button"
           >
@@ -103,7 +118,10 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
           <button
             aria-selected={mode === "mobile"}
             className={mode === "mobile" ? "active" : ""}
-            onClick={() => setMode("mobile")}
+            onClick={() => {
+              setMode("mobile");
+              onModeChange?.("mobile");
+            }}
             role="tab"
             type="button"
           >
@@ -111,6 +129,19 @@ export function ArticlePreviewViewport({ accountLabel = "公众号预览", child
           </button>
         </div>
         <span className="preview-simulation-note">{simulationLabel}</span>
+        {editingEnabled ? (
+          <span className="preview-editing-note" data-state={editingState}>
+            {editingState === "saving"
+              ? "正在自动保存…"
+              : editingState === "saved"
+                ? "已自动保存"
+                : editingState === "error"
+                  ? editingMessage || "自动保存失败"
+                  : editingState === "editing"
+                    ? "正在原文修改 · 停顿后保存"
+                    : "点击文字直接修改 · 自动保存"}
+          </span>
+        ) : null}
       </div>
 
       <div className="article-preview-stage">
