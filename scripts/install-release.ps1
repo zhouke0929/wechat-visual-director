@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1.0-alpha.24",
+    [string]$Version = "",
     [string]$InstallRoot = "",
     [string]$HostHome = "",
     [switch]$KeepDownload
@@ -24,6 +24,15 @@ function Write-InstallFailure([string]$Code, [string]$Message, [hashtable]$Detai
 
 if (-not [Environment]::Is64BitOperatingSystem) {
     Write-InstallFailure "windows_x64_required" "The current release package supports 64-bit Windows only."
+}
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    try {
+        $Version = (Invoke-WebRequest -UseBasicParsing -Uri "https://raw.githubusercontent.com/$Repository/main/VERSION").Content.Trim()
+    } catch {
+        Write-InstallFailure "release_version_unavailable" "The current release version could not be resolved." @{
+            reason = $_.Exception.Message
+        }
+    }
 }
 if ($Version -notmatch "^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$") {
     Write-InstallFailure "version_invalid" "The requested release version is invalid." @{ version = $Version }

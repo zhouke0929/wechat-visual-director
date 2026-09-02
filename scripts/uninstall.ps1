@@ -161,6 +161,7 @@ if ([string]::IsNullOrWhiteSpace($HostHome)) {
 }
 $HostHome = [IO.Path]::GetFullPath($HostHome)
 $RegistrationTargets = @(
+    (Join-Path $HostHome ".codex\skills\wechat-visual-director"),
     (Join-Path $HostHome ".agents\skills\wechat-visual-director"),
     (Join-Path $HostHome ".config\opencode\skills\wechat-visual-director"),
     (Join-Path $HostHome ".config\opencode\commands\wechat-visual-director.md")
@@ -177,7 +178,8 @@ $ProgramTargets = @(
 if ($Purge) {
     $ProgramTargets += @(
         (Join-Path $InstallRoot "data"),
-        (Join-Path $InstallRoot "config")
+        (Join-Path $InstallRoot "config"),
+        (Join-Path $InstallRoot "backups")
     )
 }
 

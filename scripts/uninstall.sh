@@ -66,7 +66,7 @@ payload = {
 Path(result_path).write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 PY
 
-rm -rf "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"
+rm -rf "$HOST_HOME/.codex/skills/wechat-visual-director" "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"
 rm -f "$HOST_HOME/.config/opencode/commands/wechat-visual-director.md"
 rm -rf "$INSTALL_ROOT/versions" "$INSTALL_ROOT/runtime"
 rm -f "$INSTALL_ROOT/visual-director" "$INSTALL_ROOT/uninstall.sh" "$INSTALL_ROOT/install.json" "$CURRENT_ROOT_FILE"

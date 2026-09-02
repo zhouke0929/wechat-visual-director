@@ -152,33 +152,25 @@ function Copy-SkillRegistration(
     [string]$ApplicationRoot,
     [string]$DestinationRoot
 ) {
-    $SkillFile = Join-Path $ApplicationRoot "SKILL.md"
-    $ReferencesRoot = Join-Path $ApplicationRoot "references"
-    $AgentsRoot = Join-Path $ApplicationRoot "agents"
-    $InstallGuide = Join-Path $ApplicationRoot "INSTALL_FOR_AGENT.md"
+    $SkillSourceRoot = Join-Path $ApplicationRoot "skills\wechat-visual-director"
+    $SkillFile = Join-Path $SkillSourceRoot "SKILL.md"
     if (-not (Test-Path -LiteralPath $SkillFile -PathType Leaf)) {
-        Write-Failure "skill_file_missing" "SKILL.md was not found in the installed application." @{
-            application_root = $ApplicationRoot
+        Write-Failure "skill_file_missing" "The lightweight wechat-visual-director Skill package was not found in the installed application." @{
+            expected = $SkillFile
         }
+    }
+    if (Test-Path -LiteralPath $DestinationRoot) {
+        $ExistingDestination = Get-Item -Force -LiteralPath $DestinationRoot
+        if ($ExistingDestination.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Write-Failure "host_skill_registration_reparse_point" "Refusing to replace a redirected Agent Skill directory." @{
+                destination = $DestinationRoot
+            }
+        }
+        Remove-Item -LiteralPath $DestinationRoot -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $DestinationRoot | Out-Null
-    Copy-Item -LiteralPath $SkillFile -Destination (Join-Path $DestinationRoot "SKILL.md") -Force
-    if (Test-Path -LiteralPath $ReferencesRoot -PathType Container) {
-        $TargetReferences = Join-Path $DestinationRoot "references"
-        New-Item -ItemType Directory -Force -Path $TargetReferences | Out-Null
-        foreach ($Item in Get-ChildItem -Force -LiteralPath $ReferencesRoot) {
-            Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $TargetReferences $Item.Name) -Recurse -Force
-        }
-    }
-    if (Test-Path -LiteralPath $InstallGuide -PathType Leaf) {
-        Copy-Item -LiteralPath $InstallGuide -Destination (Join-Path $DestinationRoot "INSTALL_FOR_AGENT.md") -Force
-    }
-    if (Test-Path -LiteralPath $AgentsRoot -PathType Container) {
-        $TargetAgents = Join-Path $DestinationRoot "agents"
-        New-Item -ItemType Directory -Force -Path $TargetAgents | Out-Null
-        foreach ($Item in Get-ChildItem -Force -LiteralPath $AgentsRoot) {
-            Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $TargetAgents $Item.Name) -Recurse -Force
-        }
+    foreach ($Item in Get-ChildItem -Force -LiteralPath $SkillSourceRoot) {
+        Copy-Item -LiteralPath $Item.FullName -Destination (Join-Path $DestinationRoot $Item.Name) -Recurse -Force
     }
 }
 
@@ -197,12 +189,14 @@ function Register-HostSkill(
         Write-Failure "user_home_missing" "A user home directory is required to register the Agent Skill."
     }
     $UserHome = [IO.Path]::GetFullPath($UserHome)
+    $CodexSkillRoot = Join-Path $UserHome ".codex\skills\wechat-visual-director"
     $GenericSkillRoot = Join-Path $UserHome ".agents\skills\wechat-visual-director"
     $OpenCodeSkillRoot = Join-Path $UserHome ".config\opencode\skills\wechat-visual-director"
     $OpenCodeCommandRoot = Join-Path $UserHome ".config\opencode\commands"
     $OpenCodeCommand = Join-Path $OpenCodeCommandRoot "wechat-visual-director.md"
 
     try {
+        Copy-SkillRegistration -ApplicationRoot $ApplicationRoot -DestinationRoot $CodexSkillRoot
         Copy-SkillRegistration -ApplicationRoot $ApplicationRoot -DestinationRoot $GenericSkillRoot
         Copy-SkillRegistration -ApplicationRoot $ApplicationRoot -DestinationRoot $OpenCodeSkillRoot
         New-Item -ItemType Directory -Force -Path $OpenCodeCommandRoot | Out-Null
@@ -217,12 +211,14 @@ $ARGUMENTS
 '@ | Set-Content -Encoding UTF8 -LiteralPath $OpenCodeCommand
     } catch {
         Write-Failure "host_skill_registration_failed" "The application was installed, but the host Agent Skill could not be registered." @{
+            codex_skill_root = $CodexSkillRoot
             generic_skill_root = $GenericSkillRoot
             opencode_skill_root = $OpenCodeSkillRoot
             reason = $_.Exception.Message
         }
     }
     return [ordered]@{
+        codex_skill_root = $CodexSkillRoot
         generic_skill_root = $GenericSkillRoot
         opencode_skill_root = $OpenCodeSkillRoot
         opencode_command = $OpenCodeCommand

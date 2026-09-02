@@ -158,6 +158,7 @@ if ($FirstInstallation) {
     uninstaller = [string]$InstallResult.uninstaller
     api_base = [string]$ServeResult.api_base
     web_base = [string]$ServeResult.web_base
+    workbench_url = [string]$ServeResult.web_base
     settings_url = [string]$DoctorResult.setup.settings_url
     next_action = $NextAction
     first_install = [bool]$FirstInstallation

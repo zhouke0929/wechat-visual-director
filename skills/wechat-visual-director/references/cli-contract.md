@@ -1,6 +1,6 @@
 # CLI 调用契约
 
-首次安装或显式升级从 Windows `{baseDir}/scripts/bootstrap.ps1` 或 macOS `{baseDir}/scripts/bootstrap.sh` 的最终 JSON 读取稳定 `launcher`；使用 CMD 的宿主还可以读取 `launcher_cmd`。后续只调用稳定入口，不要继续调用临时下载目录，也不要手动启动系统 Python、uvicorn、Next.js 或 Vite。完整安装、恢复和卸载规则见 `INSTALL_FOR_AGENT.md`。
+首次安装或显式升级先读取同目录的 `install.md`，并从 Release 安装器最终 JSON 中取得稳定 `launcher`；使用 Windows CMD 的宿主还可以读取 `launcher_cmd`。后续只调用稳定入口，不要继续调用临时下载目录，也不要手动启动系统 Python、uvicorn、Next.js 或 Vite。
 
 ## 常用命令
 
@@ -78,4 +78,4 @@
 
 退出码：`0` 成功；`2` 输入/配置错误；`3` 本地服务不可用；`4` Preflight 阻断；`5` 规划或 Provider 失败；`6` 安全停止拒绝；`10` 未知内部错误。
 
-不要解析人类可读文案，不要从 stderr 提取任务信息。完整技术契约见 `{baseDir}/docs/V1.0-Agent调用与CLI契约.md`。
+不要解析人类可读文案，不要从 stderr 提取任务信息。需要审计实现时再查看源码仓库中的 [完整技术契约](https://github.com/zhouke0929/wechat-visual-director/blob/main/docs/V1.0-Agent调用与CLI契约.md)；普通使用不需要克隆源码。

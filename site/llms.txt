@@ -21,6 +21,8 @@ WeChat Visual Director（微信公众号 AI 排版 Skill）是一个本地优先
 ## Links
 
 - Product showcase: https://zhouke0929.github.io/wechat-visual-director/
+- Agent full-product installer: https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
+- Lightweight Skill only: https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director
 - GitHub repository: https://github.com/zhouke0929/wechat-visual-director
 - Releases: https://github.com/zhouke0929/wechat-visual-director/releases
 - License: Apache-2.0

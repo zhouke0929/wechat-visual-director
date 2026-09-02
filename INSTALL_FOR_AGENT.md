@@ -1,9 +1,19 @@
 # Install WeChat Visual Director for an Agent
 
-Use this file when a user gives you this repository and asks you to install,
-upgrade, diagnose, or open WeChat Visual Director. The user should not need to
-know the Python or process-management details. Normal installation must not
-invoke npm, pnpm, or install a global Node.js package.
+This is the canonical one-link installation entry for the complete product. Use
+it when a user gives you this document or repository and asks you to install,
+upgrade, diagnose, or open WeChat Visual Director. A successful installation
+must include both the lightweight Agent Skill and the local workbench; copying
+the repository into a Skill directory is not a completed installation. The user
+should not need to know the Python or process-management details. Normal
+installation must not invoke npm, pnpm, or install a global Node.js package.
+
+Do not pass the repository root to a generic Skill installer. The repository is
+the development source tree, not the distributable Skill folder. The optional
+Skill-only compatibility URL is
+`https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director`,
+but ordinary installation must use the Release flow below so the workbench is
+installed and the lightweight Skill is registered together.
 
 ## Safety boundary
 
@@ -21,14 +31,15 @@ invoke npm, pnpm, or install a global Node.js package.
 1. If `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` exists and the
    user did not ask to upgrade, run `doctor --json` first. A new conversation is
    not a reason to reinstall.
-2. On Windows x64, prefer the fixed GitHub Release package. It already contains
+2. On Windows x64, use the stable Agent installer entry. It resolves the current
+   public version and downloads the matching GitHub Release package. It contains
    Python 3.11.9, backend dependencies, and the built workbench. Do not clone the
    repository and do not install Git, Python, Node.js, pnpm, or Wenyan for a normal
    user installation.
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha24.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.24/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install.ps1"
+Invoke-WebRequest "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/scripts/install-release.ps1" -OutFile $installer
 powershell -NoProfile -ExecutionPolicy Bypass -File $installer
 ```
 
@@ -69,7 +80,11 @@ bash scripts/bootstrap.sh
    - `ok=true`;
    - `installation.persistent=true`;
    - `installation.version_match=true`;
+   - `installation.runtime_match=true`;
    - `capabilities.host_skill_registered=true`.
+   The installer registers the same lightweight package under Codex, the generic
+   Agent Skill directory, and OpenCode. It must not copy `apps/`, `docs/` or
+   `.github/` into any Skill directory.
 7. Follow `next_action`:
    - `create_article`: accept the user's topic, sources, or Markdown and use the
      registered `wechat-visual-director` Skill;
@@ -87,8 +102,9 @@ bash scripts/bootstrap.sh
    - private image API and WeChat credentials belong only in Local Settings, and
      the product creates drafts rather than mass publishing automatically.
    Do not repeat this tutorial after an upgrade, repair, or existing-install check.
-9. After first installation, tell the user to start a new host conversation if
-   the host only discovers Skills at startup.
+9. Open `workbench_url` immediately when it is returned. After first installation,
+   tell the user to start a new host conversation only if that host discovers
+   Skills at startup.
 
 ## Built-in WeChat publisher
 

@@ -242,6 +242,7 @@ def _host_skill_registration_summary() -> dict[str, Any]:
         if explicit_home
         else Path.home().resolve()
     )
+    codex_root = user_home / ".codex" / "skills" / "wechat-visual-director"
     generic_root = user_home / ".agents" / "skills" / "wechat-visual-director"
     opencode_root = user_home / ".config" / "opencode" / "skills" / "wechat-visual-director"
     opencode_command = user_home / ".config" / "opencode" / "commands" / "wechat-visual-director.md"
@@ -256,10 +257,15 @@ def _host_skill_registration_summary() -> dict[str, Any]:
             return False
         return bool(re.search(r"(?m)^name:\s*wechat-visual-director\s*$", header))
 
+    codex_registered = registered(codex_root)
     generic_registered = registered(generic_root)
     opencode_registered = registered(opencode_root)
     return {
-        "registered": generic_registered or opencode_registered,
+        "registered": codex_registered or generic_registered or opencode_registered,
+        "codex": {
+            "registered": codex_registered,
+            "root": str(codex_root),
+        },
         "generic": {
             "registered": generic_registered,
             "root": str(generic_root),

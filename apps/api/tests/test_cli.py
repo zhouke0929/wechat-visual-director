@@ -413,7 +413,7 @@ def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys
 
 
 def test_doctor_reports_registered_host_skill(tmp_path: Path, monkeypatch, capsys) -> None:
-    skill_root = tmp_path / ".agents" / "skills" / "wechat-visual-director"
+    skill_root = tmp_path / ".codex" / "skills" / "wechat-visual-director"
     skill_root.mkdir(parents=True)
     (skill_root / "SKILL.md").write_text(
         "---\nname: wechat-visual-director\ndescription: test\n---\n",
@@ -435,7 +435,7 @@ def test_doctor_reports_registered_host_skill(tmp_path: Path, monkeypatch, capsy
     assert cli.run(["doctor", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["capabilities"]["host_skill_registered"] is True
-    assert payload["host_integrations"]["skill"]["generic"]["registered"] is True
+    assert payload["host_integrations"]["skill"]["codex"]["registered"] is True
 
 
 def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, capsys) -> None:

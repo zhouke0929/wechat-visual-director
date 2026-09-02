@@ -39,6 +39,20 @@ try {
     if (@($BootstrapResult.first_run_guide.lines).Count -ne 4) {
         throw "First-run guide must remain concise."
     }
+    foreach ($SkillRoot in @(
+        (Join-Path $HostHome ".codex\skills\wechat-visual-director"),
+        (Join-Path $HostHome ".agents\skills\wechat-visual-director"),
+        (Join-Path $HostHome ".config\opencode\skills\wechat-visual-director")
+    )) {
+        if (-not (Test-Path -LiteralPath (Join-Path $SkillRoot "SKILL.md") -PathType Leaf)) {
+            throw "Lightweight Skill registration is missing: $SkillRoot"
+        }
+        foreach ($Forbidden in @("apps", "docs", ".github")) {
+            if (Test-Path -LiteralPath (Join-Path $SkillRoot $Forbidden)) {
+                throw "Source directory leaked into lightweight Skill registration: $Forbidden"
+            }
+        }
+    }
 
     $Launcher = [string]$BootstrapResult.launcher
     $DoctorRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher doctor --json
@@ -52,6 +66,9 @@ try {
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher stop --json | Out-Null
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallRoot "uninstall.ps1") -InstallRoot $InstallRoot -HostHome $HostHome -Purge | Out-Null
+    if (Test-Path -LiteralPath (Join-Path $HostHome ".codex\skills\wechat-visual-director")) {
+        throw "Codex Skill registration survived purge uninstall."
+    }
 
     [ordered]@{
         ok = $true

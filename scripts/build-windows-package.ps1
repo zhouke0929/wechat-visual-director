@@ -81,7 +81,6 @@ if (-not $SkipWorkbenchBuild) {
 
 $RequiredFiles = @(
     "VERSION",
-    "SKILL.md",
     "INSTALL_FOR_AGENT.md",
     "README.md",
     "LICENSE",
@@ -97,8 +96,7 @@ $RequiredFiles = @(
     "apps\api\pyproject.toml",
     "apps\api\.env.example",
     "apps\web\dist",
-    "references",
-    "agents",
+    "skills\wechat-visual-director",
     "assets",
     "contracts",
     "samples\skill-alpha"

@@ -141,13 +141,12 @@ cp "$VERSION_ROOT/scripts/uninstall.sh" "$INSTALL_ROOT/uninstall.sh"
 chmod +x "$INSTALL_ROOT/visual-director" "$INSTALL_ROOT/uninstall.sh" "$VERSION_ROOT/scripts/visual-director.sh"
 printf '%s\n' "$VERSION_ROOT" > "$CURRENT_ROOT_FILE"
 
-for SKILL_ROOT in "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"; do
+SKILL_SOURCE="$VERSION_ROOT/skills/wechat-visual-director"
+[[ -f "$SKILL_SOURCE/SKILL.md" ]] || { printf '%s\n' '{"ok":false,"error":{"code":"skill_file_missing"}}'; exit 2; }
+for SKILL_ROOT in "$HOST_HOME/.codex/skills/wechat-visual-director" "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"; do
+  rm -rf "$SKILL_ROOT"
   mkdir -p "$SKILL_ROOT"
-  cp "$VERSION_ROOT/SKILL.md" "$SKILL_ROOT/SKILL.md"
-  rm -rf "$SKILL_ROOT/references" "$SKILL_ROOT/agents"
-  [[ -d "$VERSION_ROOT/references" ]] && cp -R "$VERSION_ROOT/references" "$SKILL_ROOT/references"
-  [[ -d "$VERSION_ROOT/agents" ]] && cp -R "$VERSION_ROOT/agents" "$SKILL_ROOT/agents"
-  [[ -f "$VERSION_ROOT/INSTALL_FOR_AGENT.md" ]] && cp "$VERSION_ROOT/INSTALL_FOR_AGENT.md" "$SKILL_ROOT/INSTALL_FOR_AGENT.md"
+  cp -R "$SKILL_SOURCE/." "$SKILL_ROOT/"
 done
 mkdir -p "$HOST_HOME/.config/opencode/commands"
 printf '%s\n' '---' 'description: 创建、排版或继续处理微信公众号视觉主编任务' '---' '' '加载并使用 `wechat-visual-director` Skill 处理下面的请求。严格遵守 Skill 的人工确认与密钥安全门禁。' '' '$ARGUMENTS' > "$HOST_HOME/.config/opencode/commands/wechat-visual-director.md"
@@ -173,6 +172,7 @@ manifest = {
     "uninstaller": f"{install_root}/uninstall.sh",
     "runtime_mode": runtime_mode,
     "host_registration": {
+        "codex_skill_root": f"{host_home}/.codex/skills/wechat-visual-director",
         "generic_skill_root": f"{host_home}/.agents/skills/wechat-visual-director",
         "opencode_skill_root": f"{host_home}/.config/opencode/skills/wechat-visual-director",
         "opencode_command": f"{host_home}/.config/opencode/commands/wechat-visual-director.md",
@@ -218,6 +218,7 @@ payload = {
     "uninstaller": f"{install_root}/uninstall.sh",
     "skill_root": f"{host_home}/.agents/skills/wechat-visual-director",
     "host_registration": {
+        "codex_skill_root": f"{host_home}/.codex/skills/wechat-visual-director",
         "generic_skill_root": f"{host_home}/.agents/skills/wechat-visual-director",
         "opencode_skill_root": f"{host_home}/.config/opencode/skills/wechat-visual-director",
         "opencode_command": f"{host_home}/.config/opencode/commands/wechat-visual-director.md",

@@ -12,6 +12,7 @@ import pytest
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 INSTALLER = REPOSITORY_ROOT / "scripts" / "install.ps1"
 UNINSTALLER = REPOSITORY_ROOT / "scripts" / "uninstall.ps1"
+SKILL_SOURCE = REPOSITORY_ROOT / "skills" / "wechat-visual-director"
 
 
 def _manifest(install_root: Path) -> None:
@@ -84,6 +85,9 @@ def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
 ) -> None:
     install_root = tmp_path / "installed"
     host_home = tmp_path / "host"
+    stale_codex_skill = host_home / ".codex" / "skills" / "wechat-visual-director"
+    (stale_codex_skill / "apps").mkdir(parents=True)
+    (stale_codex_skill / "apps" / "old-source.py").write_text("stale", encoding="utf-8")
 
     first_completed, first = _run_installer(
         "-InstallRoot",
@@ -96,6 +100,7 @@ def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
     assert first["ok"] is True
     assert first["legacy_data_migration_requested"] is False
     assert first["migrated"]["database"] is False
+    assert first["host_registration"]["codex_skill_root"] == str(stale_codex_skill)
     assert not (install_root / "data" / "visual-director.db").exists()
     version_root = Path(first["app_root"])
     assert not (version_root / ".runtime").exists()
@@ -115,13 +120,39 @@ def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
     assert not stale_marker.exists()
     assert not (version_root / ".runtime").exists()
 
+    expected_files = {
+        path.relative_to(SKILL_SOURCE)
+        for path in SKILL_SOURCE.rglob("*")
+        if path.is_file()
+    }
+    assert expected_files
+    for registration in (
+        host_home / ".codex" / "skills" / "wechat-visual-director",
+        host_home / ".agents" / "skills" / "wechat-visual-director",
+        host_home / ".config" / "opencode" / "skills" / "wechat-visual-director",
+    ):
+        actual_files = {
+            path.relative_to(registration)
+            for path in registration.rglob("*")
+            if path.is_file()
+        }
+        assert actual_files == expected_files
+        assert not (registration / "apps").exists()
+        assert not (registration / "docs").exists()
+        assert not (registration / ".github").exists()
+
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
 def test_uninstall_preserves_data_and_removes_host_registration(tmp_path: Path) -> None:
     install_root = tmp_path / "installed"
     host_home = tmp_path / "host"
-    registration = host_home / ".agents" / "skills" / "wechat-visual-director"
-    registration.mkdir(parents=True)
+    registrations = (
+        host_home / ".codex" / "skills" / "wechat-visual-director",
+        host_home / ".agents" / "skills" / "wechat-visual-director",
+        host_home / ".config" / "opencode" / "skills" / "wechat-visual-director",
+    )
+    for registration in registrations:
+        registration.mkdir(parents=True)
     _manifest(install_root)
 
     completed, payload = _run_uninstaller(
@@ -141,8 +172,8 @@ def test_uninstall_preserves_data_and_removes_host_registration(tmp_path: Path) 
     assert history["last_version"] == "0.1.0-test"
     assert history["data_root"] == str(install_root / "data")
     assert not (install_root / "versions").exists()
-    assert not registration.exists()
-    assert REPOSITORY_ROOT.joinpath("SKILL.md").is_file()
+    assert all(not registration.exists() for registration in registrations)
+    assert SKILL_SOURCE.joinpath("SKILL.md").is_file()
 
 
 def test_macos_scripts_are_present_and_do_not_depend_on_powershell() -> None:
@@ -183,6 +214,10 @@ def test_macos_release_installer_is_agent_managed_and_self_contained() -> None:
     assert "current-root" in launcher
     assert 'runtime/python/bin/python3' in launcher
 
+    windows_installer = (REPOSITORY_ROOT / "scripts" / "install-release.ps1").read_text(encoding="utf-8")
+    assert '[string]$Version = ""' in windows_installer
+    assert "raw.githubusercontent.com/$Repository/main/VERSION" in windows_installer
+
 
 def test_release_workflow_builds_both_macos_architectures() -> None:
     workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
@@ -201,6 +236,9 @@ def test_installed_uninstaller_detects_adjacent_root_and_purges(tmp_path: Path) 
     install_root = tmp_path / "custom-install"
     host_home = tmp_path / "host"
     _manifest(install_root)
+    backup_root = install_root / "backups"
+    backup_root.mkdir()
+    (backup_root / "old-task.zip").write_text("delete", encoding="utf-8")
     installed_uninstaller = install_root / "uninstall.ps1"
     shutil.copy2(UNINSTALLER, installed_uninstaller)
 
@@ -216,4 +254,16 @@ def test_installed_uninstaller_detects_adjacent_root_and_purges(tmp_path: Path) 
     assert payload["mode"] == "purge"
     assert Path(payload["install_root"]) == install_root
     assert not install_root.exists()
-    assert REPOSITORY_ROOT.joinpath("SKILL.md").is_file()
+    assert SKILL_SOURCE.joinpath("SKILL.md").is_file()
+
+
+def test_lightweight_skill_is_not_the_repository_root() -> None:
+    assert not REPOSITORY_ROOT.joinpath("SKILL.md").exists()
+    assert SKILL_SOURCE.joinpath("SKILL.md").is_file()
+    assert SKILL_SOURCE.joinpath("agents", "openai.yaml").is_file()
+    assert SKILL_SOURCE.joinpath("references", "install.md").is_file()
+    assert not SKILL_SOURCE.joinpath("apps").exists()
+    assert not SKILL_SOURCE.joinpath("docs").exists()
+    assert not SKILL_SOURCE.joinpath(".github").exists()
+    total_bytes = sum(path.stat().st_size for path in SKILL_SOURCE.rglob("*") if path.is_file())
+    assert total_bytes < 250_000

@@ -62,10 +62,10 @@ copy_release_path() {
 }
 
 REQUIRED_PATHS=(
-  VERSION SKILL.md INSTALL_FOR_AGENT.md README.md LICENSE THIRD_PARTY_NOTICES.md .env.example
+  VERSION INSTALL_FOR_AGENT.md README.md LICENSE THIRD_PARTY_NOTICES.md .env.example
   scripts/bootstrap.sh scripts/install.sh scripts/persistent-launcher.sh scripts/visual-director.sh scripts/uninstall.sh
   apps/api/pyproject.toml apps/api/.env.example apps/web/dist
-  references agents assets contracts samples/skill-alpha
+  skills/wechat-visual-director assets contracts samples/skill-alpha
 )
 for RELATIVE_PATH in "${REQUIRED_PATHS[@]}"; do
   copy_release_path "$RELATIVE_PATH"

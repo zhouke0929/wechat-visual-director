@@ -5,13 +5,13 @@ description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_arti
 
 # WeChat Visual Director
 
-把宿主 Agent 同时作为内容编辑和默认语义规划器，把本仓库 CLI 作为校验、视觉编译与交付入口。宿主 Agent 负责生成规范 Markdown，并基于核心返回的安全块上下文生成受控 EditorialBrief；核心只校验、规范化和确定性渲染，不会再次调用文本模型。宿主无法提供合格 Brief 时使用规则规划兜底，不要求用户重复配置文本模型 Key。不要自行生成整段 HTML/CSS，也不要把公众号密钥或模型 Key 放进文章、提示词或命令行。
+把宿主 Agent 同时作为内容编辑和默认语义规划器，把正式安装的本地 CLI 与工作台作为校验、视觉编译与交付入口。这个目录是轻量 Skill 发行包，不是源码仓库，也不包含工作台运行时。宿主 Agent 负责生成规范 Markdown，并基于核心返回的安全块上下文生成受控 EditorialBrief；核心只校验、规范化和确定性渲染，不会再次调用文本模型。宿主无法提供合格 Brief 时使用规则规划兜底，不要求用户重复配置文本模型 Key。不要自行生成整段 HTML/CSS，也不要把公众号密钥或模型 Key 放进文章、提示词或命令行。
 
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
 2. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，直接使用它。Windows CMD 还可记录同目录的 `visual-director.cmd`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
-3. 只有稳定入口不存在，或用户明确要求升级时，才读取 [Agent 安装与恢复说明](INSTALL_FOR_AGENT.md)。Windows x64 与 macOS 普通安装都优先使用带 SHA-256 校验的 GitHub Release 便携包；它们已内置 Python、后端依赖和生产工作台，不得为普通用户 clone 源码或安装 Git、Homebrew、Python、Node.js、pnpm、Wenyan。macOS Agent 使用固定入口下载安装器，由脚本自动识别 Apple Silicon 或 Intel：
+3. 只有稳定入口不存在，或用户明确要求升级时，才读取 [完整产品安装与恢复说明](references/install.md)。Windows x64 与 macOS 普通安装都优先使用带 SHA-256 校验的 GitHub Release 便携包；它们已内置 Python、后端依赖和生产工作台，不得为普通用户 clone 源码、把整个源码仓库复制进 Skill 目录，或安装 Git、Homebrew、Python、Node.js、pnpm、Wenyan。macOS Agent 使用固定入口下载安装器，由脚本自动识别 Apple Silicon 或 Intel：
 
 ```bash
 installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
@@ -19,16 +19,16 @@ curl -fsSL "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/
 bash "$installer"
 ```
 
-仅当用户明确要求源码开发/审计，或已经提供完整本地源码时，才从源码运行统一入口：
+仅当用户明确要求源码开发/审计，或已经提供完整本地源码检出时，才从那个源码仓库根目录运行统一入口；不要把当前 `{baseDir}` 当成源码根目录：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/bootstrap.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "<source-repository>/scripts/bootstrap.ps1"
 ```
 
 macOS 源码开发使用：
 
 ```bash
-bash "{baseDir}/scripts/bootstrap.sh"
+bash "<source-repository>/scripts/bootstrap.sh"
 ```
 
 4. Release 安装器或源码 bootstrap 都只解析 stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。Windows 与 macOS Release 安装都必须确认 `runtime_mode=bundled_python` 与 `bundled_runtime=true`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。安装结果含 `workbench_url` 时立即用系统默认浏览器打开；稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行，立即停止等待，不得轮询或等待 API 进程退出。

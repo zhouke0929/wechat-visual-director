@@ -52,6 +52,14 @@ assert payload["installation"]["runtime_match"] is True, payload
 assert payload["capabilities"]["host_skill_registered"] is True, payload
 PY
 
+for SKILL_ROOT in "$HOST_HOME/.codex/skills/wechat-visual-director" "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"; do
+  [[ -f "$SKILL_ROOT/SKILL.md" ]] || { printf 'Lightweight Skill registration is missing: %s\n' "$SKILL_ROOT" >&2; exit 2; }
+  [[ ! -e "$SKILL_ROOT/apps" && ! -e "$SKILL_ROOT/docs" && ! -e "$SKILL_ROOT/.github" ]] || {
+    printf 'Source directories leaked into lightweight Skill registration: %s\n' "$SKILL_ROOT" >&2
+    exit 2
+  }
+done
+
 "$INSTALL_ROOT/visual-director" doctor --json > "$TEMP_ROOT/doctor.json"
 "$PACKAGE_PYTHON" - "$TEMP_ROOT/doctor.json" <<'PY'
 import json, sys
@@ -63,6 +71,7 @@ PY
 printf 'preserve-me\n' > "$INSTALL_ROOT/data/package-test-marker.txt"
 "$INSTALL_ROOT/visual-director" stop --json >/dev/null
 bash "$INSTALL_ROOT/uninstall.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME" > "$TEMP_ROOT/uninstall.json"
+[[ ! -e "$HOST_HOME/.codex/skills/wechat-visual-director" ]] || { printf 'Codex Skill registration survived uninstall.\n' >&2; exit 2; }
 "$PACKAGE_PYTHON" - "$TEMP_ROOT/uninstall.json" "$INSTALL_ROOT/data/package-test-marker.txt" <<'PY'
 import json, pathlib, sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))

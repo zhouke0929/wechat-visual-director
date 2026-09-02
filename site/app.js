@@ -11,8 +11,8 @@ const installCopyHint = document.querySelector("#installCopyHint");
 let themes = [];
 let selectedThemeId = "youth_campus";
 
-const installPrompt = `请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 或 macOS 都优先下载 Release 中带 SHA-256 校验、与当前系统及处理器匹配的自包含便携包，不要 clone 源码，也不要安装 Git、Homebrew、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。如果确认这是本机首次安装，完成后请用不超过五行说明最关键的用法：我可以直接给出文章主题或 Markdown；成稿后会获得本地工作台链接；如果当前 Agent 支持生图，确认主题后可以要求它按照当前主题生成并插入配图；密钥只在本地设置填写；系统只创建草稿、不自动群发。升级、修复或检测到已经安装时不要重复这段教程。
-https://github.com/zhouke0929/wechat-visual-director/releases`;
+const installPrompt = `请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。不要读取或回显任何密钥。
+https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md`;
 
 function renderTheme(theme) {
   selectedThemeId = theme.id;

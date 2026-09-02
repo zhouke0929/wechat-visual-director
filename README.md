@@ -81,11 +81,11 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.24**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.25**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 与 macOS：交给 Agent 开箱安装
 
-Windows x64 与 macOS Release 都包含 Python、后端依赖和构建后的工作台。普通用户把 Releases 页面链接和安装提示词交给 Agent 后，不需要预先安装 Git、Homebrew、系统 Python、Node.js、pnpm 或 Wenyan。安装器会识别系统与处理器架构、校验下载包的 SHA-256，再写入本机持久目录。公众号草稿交付由项目内置的微信官方 API 发布器完成。
+Windows x64 与 macOS Release 都包含 Python、后端依赖和构建后的工作台。普通用户把统一安装说明链接交给 Agent 后，不需要预先安装 Git、Homebrew、系统 Python、Node.js、pnpm 或 Wenyan。安装器会识别系统与处理器架构、校验下载包的 SHA-256，再写入本机持久目录，并同时注册轻量 Skill。公众号草稿交付由项目内置的微信官方 API 发布器完成。
 
 - 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
 - 生成图片：按需配置图片 Provider、直接人工上传；Codex 等具备原生生图工具的 Agent 也可在主题确认后按用户对话指令生成并插入；
@@ -184,31 +184,31 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 
 ## 快速开始
 
-### 方式一：把仓库链接交给 Agent
+### 方式一：把统一安装链接交给 Agent
 
-适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”，一键复制下面这段不绑定具体版本的提示词：
+适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”。推荐分享下面这一条安装说明链接；它要求 Agent 在同一轮完成轻量 Skill、正式 Release 工作台、健康检查与首次教程，而不是把源码仓库整体复制进 Skill 目录：
 
 ```text
-请安装或升级 wechat-visual-director 到 GitHub Releases 页面中版本号最高的最新发布包。先阅读该版本的 INSTALL_FOR_AGENT.md；Windows 或 macOS 都优先下载 Release 中带 SHA-256 校验、与当前系统及处理器匹配的自包含便携包，不要 clone 源码，也不要安装 Git、Homebrew、Python、Node.js、pnpm 或 Wenyan。安装后运行 doctor --json，使用内置样例创建任务并打开本地工作台。不要读取或回显任何 API Key、AppSecret 或 Cookie；需要生图或公众号草稿交付时，只把本地设置地址和必须由我完成的配置步骤告诉我。如果确认这是本机首次安装，完成后请用不超过五行说明最关键的用法：我可以直接给出文章主题或 Markdown；成稿后会获得本地工作台链接；如果当前 Agent 支持生图，确认主题后可以要求它按照当前主题生成并插入配图；密钥只在本地设置填写；系统只创建草稿、不自动群发。升级、修复或检测到已经安装时不要重复这段教程。
-https://github.com/zhouke0929/wechat-visual-director/releases
+请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。不要读取或回显任何密钥。
+https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
 ```
 
-安装完成后，请重启宿主 Agent 或新开对话，使它重新扫描本机 Skill 目录。进入新对话不等于重新安装；Agent 应先执行 `doctor --json`。
+安装完成后，当前 Agent 会直接打开工作台并返回最短教程。只有宿主在启动时扫描 Skill 时才需要重启应用或新开对话；进入新对话不等于重新安装，Agent 应先执行 `doctor --json`。
 
 ### 方式二：Windows PowerShell 一行安装
 
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha24.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.24/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha25.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.25/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
 
 ### 方式三：macOS Agent 便携安装
 
-通常只需要把上面的仓库链接交给 Agent。需要直接执行时，下面的固定入口会自动识别 Apple Silicon 或 Intel，下载对应 `tar.gz` 与校验文件，再使用包内 Python 完成持久安装：
+通常只需要把上面的统一安装说明链接交给 Agent。需要直接执行时，下面的固定入口会自动识别 Apple Silicon 或 Intel，下载对应 `tar.gz` 与校验文件，再使用包内 Python 完成持久安装：
 
 ```bash
 installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
@@ -266,7 +266,7 @@ host_skill_registered=true
 | `mock` | 本地占位图与交互验收 | 否 |
 | `images_api` | GPT Image、Nano Banana、Seedream、通义万相及兼容中转站 | 是 |
 
-真实生图只有一个连接入口：填写厂商提供的**完整 Endpoint**、Model ID、API Key，并选择 1K（推荐）或 2K。系统不会自动补全 URL；火山方舟、阿里云 DashScope 和 Agnes 等已知接口由隐藏 Adapter 处理，Google 官方 OpenAI 兼容接口与未知兼容中转按标准 OpenAI Images JSON 请求。Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“是否已配置”，不会回显原值。详细规则见 [图片 Provider 说明](references/image-providers.md)。
+真实生图只有一个连接入口：填写厂商提供的**完整 Endpoint**、Model ID、API Key，并选择 1K（推荐）或 2K。系统不会自动补全 URL；火山方舟、阿里云 DashScope 和 Agnes 等已知接口由隐藏 Adapter 处理，Google 官方 OpenAI 兼容接口与未知兼容中转按标准 OpenAI Images JSON 请求。Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“是否已配置”，不会回显原值。详细规则见 [图片 Provider 说明](skills/wechat-visual-director/references/image-providers.md)。
 
 如果当前宿主本身提供可调用的原生生图工具，用户可先在工作台确认主题，再直接在原 Agent 对话中说“为当前工作台任务生成并插入配图”。Agent 会在后台读取与当前任务、主题和图片槽绑定的受控请求，生成并导入待审核候选；工作台不再提供需要来回复制粘贴的交接按钮。生成期间即使切换主题（包括切走后切回），图片仍会回到工作台成为候选，并按当前主题显示兼容度；只有正文锚点、图片任务或图片槽状态真正变化时才会拒绝错挂。该能力不要求额外填写项目图片 API Key，但会使用宿主自身的图片额度，通常也比工作台直连 API 慢。没有原生生图工具时，继续使用工作台 Provider、人工上传、沿用原图或跳过，不会静默调用收费 API。Agnes 等服务可能提供免费或低成本额度，但具体可用性、限额与条款以服务商当前规则为准。
 
@@ -361,7 +361,7 @@ next_action
 
 ### 新对话找不到 Skill
 
-安装器会注册通用 Agent Skill 和 OpenCode 命令。部分宿主只在启动时扫描 Skill；请完全重启宿主应用或新开对话，然后让 Agent 先运行 `doctor --json`。不要重新执行临时源码中的 `uvicorn`、`pnpm dev` 或旧启动脚本。
+安装器会注册 Codex Skill、通用 Agent Skill 和 OpenCode 命令。部分宿主只在启动时扫描 Skill；请完全重启宿主应用或新开对话，然后让 Agent 先运行 `doctor --json`。不要重新执行临时源码中的 `uvicorn`、`pnpm dev` 或旧启动脚本。
 
 ### 工作台打不开
 
@@ -429,13 +429,14 @@ fallback_used=false
 ## 仓库结构
 
 ```text
-├── SKILL.md                 # Agent 触发条件、工作流与安全门禁
-├── INSTALL_FOR_AGENT.md     # Agent 安装、升级、诊断与恢复说明
-├── agents/openai.yaml       # Skill UI 元数据
+├── INSTALL_FOR_AGENT.md     # 一条链接完成 Skill、工作台、诊断与首次教程
+├── skills/wechat-visual-director/
+│   ├── SKILL.md             # 轻量 Skill 触发条件、工作流与安全门禁
+│   ├── agents/openai.yaml   # Skill UI 元数据
+│   └── references/          # 安装、文章、CLI 与图片 Provider 协议
 ├── scripts/                 # 安装器、稳定启动器和公开验证脚本
 ├── apps/api/                # FastAPI、SQLite、规划、组件与发布适配器
 ├── apps/web/                # React/Vite 源码与预构建静态工作台
-├── references/              # 文章协议、CLI 契约、图片 Provider 说明
 ├── samples/                 # 中性公开样例与回归样本
 ├── contracts/               # EditorialBrief、OpenAPI 等契约
 ├── assets/brand/            # 不含真实企业资料的示例品牌
