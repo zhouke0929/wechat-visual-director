@@ -210,7 +210,7 @@ img { max-width: 100%; }
 @media (max-width: 1100px) {
   .hero { grid-template-columns: 1fr; }
   .hero-stage { width: min(760px, 100%); margin: 0 auto; }
-  .theme-workbench { grid-template-columns: 1fr; }
+  .theme-workbench { grid-template-columns: minmax(0, 1fr); }
   .theme-index { grid-template-columns: repeat(3, 1fr); border-right: 0; }
   .theme-button { grid-template-columns: 32px 1fr; }
   .theme-button .mini-swatches { display: none; }
@@ -235,7 +235,7 @@ img { max-width: 100%; }
   .dna-flow li:last-child { border-bottom: 0; }
   .dna-flow li:not(:last-child)::after { content: "↓"; right: 22px; }
   .theme-index { grid-template-columns: repeat(2, 1fr); }
-  .theme-demo { grid-template-columns: 1fr; }
+  .theme-demo { grid-template-columns: minmax(0, 1fr); }
   .demo-meta, .demo-copy, .preview-shell { grid-column: 1; }
   .preview-shell { grid-row: auto; width: 390px; max-width: 100%; margin: 42px auto 0; }
   .difference-grid { grid-template-columns: 1fr; }

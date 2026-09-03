@@ -53,6 +53,7 @@ samples/evaluation/v0.6-blind-visual-manifest.json
 
 # Historical internal reports remain in the working copy; only V1 public docs are released.
 docs/*
+!docs/usage-guide.md
 !docs/V1.0-Agent调用与CLI契约.md
 !docs/V1.0-Skill封装与本地验收记录.md
 !docs/V1.0规范化文章输入协议.md

@@ -1,482 +1,212 @@
 # WeChat Visual Director — 微信公众号 AI 排版 Skill
 
-> 开源微信公众号排版 Skill：把主题、资料或 Markdown 初稿转换为可换主题、可配图、可手机预览，并能写入微信公众号草稿箱的视觉文章。
-
-**第一次安装或使用：** 可以复制下面[完整安装提示词](#快速开始)，让 Agent 安装并打开工作台；也可以把本仓库链接交给 Agent 安装 Skill，添加后直接说「打开公众号工作台」或「帮我写一篇关于××的公众号文章」。首次使用会自动准备本地工作台。
-
-**给安装 Agent：** 当前 Skill 在 [`skills/wechat-visual-director/`](skills/wechat-visual-director/)，根目录没有 `SKILL.md`。通用安装器（包括 Codex 的 skill-installer）复制文件后，请读取该文件，接续工作台准备、检查和上手回执；完整流程见 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)。只有用户明确只要文件或执行受限时才以交接说明结束，不把文件已复制当成工作台已就绪。
+> 先让 Agent 读懂文章，再把文章排好。你在工作台定稿，交付到公众号。
 
 [![Release](https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&label=release)](https://github.com/zhouke0929/wechat-visual-director/releases)
 [![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/zhouke0929/wechat-visual-director)](LICENSE)
-[![Platform](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
-[![macOS](https://img.shields.io/badge/macOS-agent_portable_preview-777777)](#macos-agent-便携安装)
+[![Windows](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
+[![macOS](https://img.shields.io/badge/macOS-Technical_Preview-777777)](#系统要求)
 
-`wechat-visual-director` 面向公众号运营、新媒体团队和使用 AI Agent 提效的内容创作者，是一个本地优先的开源 Skill + 可视化工作台。宿主 Agent 负责理解文章，本地核心负责结构校验、主题选择、组件编译和微信兼容渲染；运营只需要确认整篇主题、图片与封面。模型不会自由生成整段 HTML/CSS，也不会绕过人工确认自动群发。
+一篇内容写好了，真正发出去之前，往往还要花时间分层级、挑样式、找配图、裁封面，再来回检查手机效果。
 
-它覆盖微信公众号文章排版、Markdown 转微信兼容 HTML、AI 配图、拟真手机预览、富文本复制和公众号草稿箱交付；既可以零 Key 只做排版，也可以按需连接图片模型和微信官方 API。
+**WeChat Visual Director（公众号视觉主编）是一套开源的微信公众号 AI 排版 Skill + 本地可视化工作台。** 把选题、资料或已有文章交给 Agent，它负责整理内容、规划版式；你在工作台直接修改原文、切换主题、审核配图与封面，最后复制、导出，或保存到微信公众号草稿箱。
+
+适合公众号运营、新媒体团队，以及希望把 AI 初稿进一步打磨成可交付推文的创作者。
+
+从选题起稿时，写作由你使用的 Agent 完成；本产品提供的是从结构规划、视觉排版到审核交付的工作流程。
 
 <p align="center">
-  <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>在线浏览产品与 12 套主题</b></a>
-  ·
-  <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>下载最新 Release</b></a>
-  ·
   <a href="#快速开始"><b>交给 Agent 安装</b></a>
+  · <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>先看完整文章与主题效果</b></a>
+  · <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>版本与更新记录</b></a>
 </p>
 
-![WeChat Visual Director 产品展示](docs/assets/readme/product-showcase-hero.png)
+> **给安装 Agent：** 用户要求安装本产品时，请完整执行 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)，完成轻量 Skill、本地工作台、检查、打开页面和上手说明；不要只回复“Skill 已下载”。首次安装或明确升级使用当前安装入口，不从旧 README、截图或历史发布说明选版本。只下载文件或无法执行时，如实说明下一步。
 
-## 一句话理解
+## 先看成稿，再决定要不要试
 
-它不是给 Markdown 固定换一件衣服，而是先让 Agent 理解“这篇文章在解释什么关系”，再用确定性的主题和组件把重点、证据、步骤与节奏呈现出来。
-
-```text
-主题 / 资料 / Markdown
-          ↓
-宿主 Agent：理解内容，生成受控 EditorialBrief
-          ↓
-本地核心：保护事实与结构，编译主题、组件和图片意图
-          ↓
-人工工作台：换主题、确认图片、裁封面、手机预览
-          ↓
-复制全文 / 下载交付包 / 创建微信公众号草稿
-```
-
-## 三篇完整展示案例
-
-下面三篇是为公开展示准备的完整示例，不使用公司内部稿件或运营数据。它们使用同一套核心，但分别选择「青春校园」「温暖人文」「波普海报」。这也是项目最重要的差异：不是让所有内容长得一样，而是让视觉语言服务文章本身。
+同一套排版能力，可以用于教程、商业分析和品牌观点。下面是三篇完整的公开示例，点击即可阅读，无需安装或配置 Key。
 
 <table>
   <tr>
-    <td width="33%"><img src="site/assets/generated/campus-portfolio-steps.webp" alt="青春校园作品集改造案例"></td>
-    <td width="33%"><img src="site/assets/generated/coffee-repeat-scene.webp" alt="温暖人文社区咖啡店案例"></td>
-    <td width="33%"><img src="site/assets/generated/pop-collaboration-memory.webp" alt="波普海报品牌联名案例"></td>
+    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html"><img src="site/assets/generated/campus-portfolio-steps.webp" alt="青春校园主题：把课程作业改造成作品集的信息图"></a></td>
+    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html"><img src="site/assets/generated/coffee-repeat-scene.webp" alt="温暖人文主题：社区咖啡店的场景配图"></a></td>
+    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html"><img src="site/assets/generated/pop-collaboration-memory.webp" alt="波普海报主题：品牌联名的视觉隐喻配图"></a></td>
   </tr>
   <tr>
-    <td><b>教程步骤</b><br>把课程作业改造成作品集</td>
-    <td><b>本地商业</b><br>社区咖啡店如何让客人再来</td>
-    <td><b>品牌观点</b><br>联名越做越多为何反而记不住</td>
-  </tr>
-  <tr>
-    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html">查看完整排版</a></td>
-    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html">查看完整排版</a></td>
-    <td><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html">查看完整排版</a></td>
+    <td><b>把课程作业变成作品集</b><br>教程步骤 · 青春校园<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html">阅读完整推文 →</a></td>
+    <td><b>社区咖啡店，如何让客人再来</b><br>本地商业 · 温暖人文<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html">阅读完整推文 →</a></td>
+    <td><b>联名越做越多，为何反而记不住</b><br>品牌观点 · 波普海报<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html">阅读完整推文 →</a></td>
   </tr>
 </table>
 
-案例图片由 OpenAI 图像生成能力产生，并作为人工候选插入文章；结构信息图仍需要用户核对文字后才能进入最终交付。
+示例为公开演示内容，不含公司内部稿件或运营数据；配图为 AI 生成并经人工选用。在线展示是静态样例，实际编辑在安装后的本地工作台进行。
 
-## 图片也有文章级 Visual DNA
+## 让内容、排版和配图一起服务阅读
 
-配图并不是每个章节各自“抽卡”。Visual Director 会先从原文提取内容事实与语义关系，再由当前文章主题编译色板、画材、表面语言和构图气质。正文插图与 AI 封面共享同一份文章级 Visual DNA；已经生成或采用的图片不会因为换主题被静默删除或重复计费。
+### 先理解信息关系，再安排版式
+
+“这三点是并列观点，还是必须依次执行的步骤？”“这一段是证据，还是结论？”
+
+Agent 先回答这些问题，再选择适合的呈现方式：让对比有边界、步骤有顺序、摘录有出处、重点容易被看见。现有 **12 类语义组件、6 类文章骨架**，按内容需要组合，不把每个段落都塞进卡片。
+
+Agent 输出结构化规划，本地程序用受控组件渲染，完成 Markdown 到微信兼容 HTML 的转换。你不必先把文章手工整理成完美的 Markdown，也不需要让模型从零拼出整页 HTML。
+
+### 12 套主题，换的是整篇文章的阅读气质
+
+从轻盈阅读、温暖人文，到编辑对比、新中式雅集、未来科技；每套主题都有自己的标题、色彩、留白、章节节奏和组件样式。
+
+可以在工作台整篇切换，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
+
+[![12 套真实主题的在线样本册](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
+
+[打开在线主题样本册，比较同一篇文章的不同表达 →](https://zhouke0929.github.io/wechat-visual-director/#themes)
+
+### 在成稿上直接改字，不用退回一个小窗口
+
+内容校对页支持在正文位置编辑，自动保存；切到手机预览，就能检查修改后的阅读效果。主题、图片、封面与最近任务也都在同一个工作台里。
+
+桌面校对使用 **600px 内容区**，手机预览使用 **405px 画布**，参考实际微信展示校准。它是受控的文章编辑器，不是任意拖拽页面设计器：编辑的是标题和正文等内容，装饰、组件结构与图片走各自的审核操作。
+
+微信版本、设备宽度和字体仍可能带来差异；最终发送前，建议再用公众号后台和手机预览核对。
+
+### 正文配图与封面，共享一份美术方向
+
+文章决定画什么，主题决定色彩、材质和构图气质。结构信息图解释步骤与关系，场景图承接叙事，视觉隐喻图表达抽象观点；封面与正文配图共享文章级视觉方向。
 
 ![结构信息图、场景氛围图与视觉隐喻图](docs/assets/readme/product-showcase-images.png)
 
-结构信息图负责把步骤、对比和关系转成可扫读画面；场景氛围图用环境、人物动作与光线承接叙事；视觉隐喻图则用主题专属画材表达抽象观点。文章决定“画什么、解释什么关系”，主题决定“用什么视觉语言”。系统只允许模型使用原文已经存在的事实与短标签，所有候选仍需人工确认后才能进入最终交付。可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/#image-system)查看完整案例组合。
+如果 Agent 本身支持可调用的原生生图工具，确认主题后可以直接让它生成正文与封面候选；也可以连接图片模型 API，或上传自己的图片。候选需要你审核后采用，封面显示区可以调整。
 
-## 它和普通 Markdown 排版工具有什么不同
+**生图不是必选项。** 没有生图工具或图片 Key，也能完成排版、编辑、预览和导出。AI 图中的文字、事实和细节仍需人工检查。
 
-| 维度 | 固定主题渲染 | WeChat Visual Director |
-|---|---|---|
-| 内容理解 | 主要依赖 Markdown 标签 | 内容结构、读者任务、章节关系与语义组件 |
-| 视觉变化 | 切换 CSS 或整套模板 | 12 套完整视觉系统 + 主题内节奏原语与组件变体 |
-| 稳定性 | 自由 HTML 容易漂移 | LLM 只输出结构化意图，本地组件确定性渲染 |
-| 历史感知 | 通常无 | 最终冻结稿进入最近五篇主题历史，减少连续重复 |
-| 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
-| 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
+## 从一个选题，到一篇待发布的推文
 
-当前可下载 Release：**v0.1.0-alpha.27**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+1. **在 Agent 对话里开始。** 给一个选题、一组资料，或粘贴现成的纯文本 / Markdown。Agent 整理结构、完成语义规划，再返回本地任务链接。
+2. **在工作台里定稿。** 换主题、原文编辑、审核正文图片、选封面，来回检查桌面校对与手机预览。不需要在首页手动上传 Markdown。
+3. **选择交付方式。** 复制全文、下载交付包，或配置微信连接后创建公众号草稿。最终群发仍由你在微信中确认。
 
-## Windows 与 macOS：交给 Agent 开箱安装
-
-Windows x64 与 macOS Release 都包含 Python、后端依赖和构建后的工作台。普通用户把统一安装说明链接交给 Agent 后，不需要预先安装 Git、Homebrew、系统 Python、Node.js、pnpm 或 Wenyan。安装器会识别系统与处理器架构、校验下载包的 SHA-256，再写入本机持久目录，并同时注册轻量 Skill。公众号草稿交付由项目内置的微信官方 API 发布器完成。
-
-- 只做排版、换主题、富文本复制和交付包下载：不需要任何外部发布工具；
-- 生成图片：按需配置图片 Provider、直接人工上传；Codex 等具备原生生图工具的 Agent 也可在主题确认后按用户对话指令生成并插入；
-- 保存到微信公众号草稿箱：只需在本地设置中配置 AppID、AppSecret，并把当前公网出口 IP 加入白名单。
-
-AppSecret 和访问令牌不会写入任务数据库；访问令牌只保存在当前后台进程内存中。
-
-## 能力分层
-
-| 使用目标 | Visual Director | 额外运行环境 | 图片模型 Key | 公众号 AppID / AppSecret | IP 白名单 |
-|---|---:|---:|---:|---:|---:|
-| 只做排版与预览 | 必需 | Windows / macOS 无 | 不需要 | 不需要 | 不需要 |
-| 排版 + AI 生图 | 必需 | Windows / macOS 无 | 可选，人工上传可替代 | 不需要 | 不需要 |
-| 完整写入公众号草稿箱 | 必需 | Windows / macOS 无 | 可选 | **必需** | **必需** |
-
-无论选择哪一层，最终群发都必须由用户在微信公众号后台人工完成。
-
-## 它解决什么问题
-
-- 固定 Markdown 主题长期使用后，标题、卡片和点缀高度同质化；
-- 图片与文章章节关联弱，需要运营逐张复制内容、生成和插入；
-- 弱模型可能漏选组件、误判标题层级或破坏正文结构；
-- 排版完成后仍要在多个编辑器之间来回复制；
-- API Key、公众号密钥和历史任务不适合交给远程 Agent 托管。
-
-Visual Director 将这些问题拆成两层：
-
-1. **Agent 理解语义**：把真实内容整理为规范 Markdown，并生成结构化视觉意图；
-2. **本地核心确定性执行**：只使用经过验证的主题、组件和内联样式完成渲染与交付。
-
-H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文已经存在的语义，不会为了视觉效果补造概念、比较、结论或数据。
-
-## 当前能力
-
-- 4 类内容结构：数据解读、步骤指南、趋势分析、案例叙事；
-- 12 套视觉系统：轻盈阅读、温暖人文、编辑对比、理性网格、青春校园、未来科技、新中式雅集、复古报刊、波普海报、自然图鉴、商业画报、电影叙事；
-- 12 类语义组件，由当前整篇主题统一决定视觉形态；
-- 连续概念词条组、长清单、真实对比段和长文节奏识别；
-- 一份自动选中的视觉推荐稿、对齐公众号后台的 600px 可编辑内容校对视图与 405px 拟真手机预览；
-- 内容校对支持像公众号后台一样在原文位置直接修改标题、正文、组件文案、列表项与表格单元格，不再弹出二级编辑窗口；自动保存后实时同步手机预览，组件结构、装饰与图片位置保持锁定；
-- 12 套完整主题可即时切换和回退，不重新调用文本模型或图片模型；
-- 最终冻结稿进入最近五篇主题历史，优先避免连续重复；
-- 正文配图、结构信息图、人工上传与封面候选；
-- 每个正文图片槽可持续抽卡追加候选，不设置三张上限，旧候选和已采用图片始终保留；
-- `image_visual_intent.v3` 插画型信息图、文章级 Visual DNA 与短标签事实锁定；
-- 正文配图与 AI 封面共享整篇美术方向，换主题时保留既有候选并只对明显冲突做轻提示；
-- AI 封面以文章真实场景为内容锚点，主题只提供无字的材质与构图；OCR 结果仅作为内部诊断，不增加额外采用门槛；
-- 人工、Mock 与统一图片模型 API；支持 GPT Image、Nano Banana、Seedream、通义万相及 OpenAI Images 兼容中转；
-- 可选的宿主原生配图与封面：主题确认后，用户可直接在原 Agent 对话中要求继续生成正文候选或封面；已有采用结果不会被覆盖，生成结果仍回到工作台人工审核；
-- 本地任务、历史方案、图片选择与冻结版本持久化；
-- 历史任务服务端分页（默认每页 8 篇）与当前页批量清理；
-- 富文本复制、Markdown/HTML/图片交付包；
-- 内置微信官方 API 发布器写入微信公众号草稿箱；
-- 具备终端与 Skill 能力的宿主 Agent 可复用现有文本模型，无需重复配置文本模型 Key；
-- Windows 与 macOS 自包含便携安装、持久升级和稳定启动；
-- 历史数据扫描、完整备份、显式恢复与批量任务清理。
-
-### 内容结构有什么用
-
-“内容结构”描述文章组织信息的方式，不是教育、科技、商业等行业分类。它是视觉规划的软路由，不会修改原文内容，也不会把文章锁死在一套模板里。它目前影响：
-
-- 单稿主题推荐顺序（先避开上一篇，再参考最近五篇使用次数）；
-- EditorialBrief 的受众任务、叙事语气与组件视觉样式；
-- 配图与封面的视觉概念、色彩和叙事气质。
-
-具体使用哪个组件，仍主要由正文里的步骤、证据、对比、概念、案例等真实语义结构决定；内容结构不会凭空添加组件。
-
-| 内容结构 | 默认视觉倾向 |
-|---|---|
-| 数据解读 | 证据、数据核验、审慎决策 |
-| 步骤指南 | 顺序、清单、行动复核 |
-| 趋势分析 | 观点解释、逻辑路径、现实影响 |
-| 案例叙事 | 场景、案例、体验与成长变化 |
-
-工作台默认自动识别。只有自动判断明显不符合文章意图时，才需要人工指定；手动选择只是纠错入口。
-
-![单稿主题与配图工作台](docs/assets/readme/article-review.png)
-
-## 工作流
-
-```text
-运营提出主题或提供资料
-        ↓
-宿主 Agent 生成规范 Markdown + EditorialBrief
-        ↓
-本地核心校验事实、标题层级和组件绑定
-        ↓
-确定性组件库生成一份自动选中的推荐稿
-        ↓
-运营确认整篇主题、图片和封面；不满意可即时换主题或回退
-        ↓
-冻结最终版本
-        ↓
-复制全文 / 下载交付包 / 写入微信公众号草稿箱
-```
+第一次可以只体验排版，满意后再开通图片和草稿交付能力，不必一上来配置所有服务。
 
 ## 快速开始
 
-### 方式一：把统一安装链接交给 Agent
+安装器会注册 Codex、通用 Agent Skill 目录与 OpenCode。其他宿主需要支持读取 Skill 和执行本机命令；是否有原生生图工具，取决于宿主而不是本 Skill。
 
-适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”。推荐分享下面这一条安装说明链接；它要求 Agent 在同一轮完成轻量 Skill、正式 Release 工作台、健康检查与首次教程，而不是把源码仓库整体复制进 Skill 目录：
+可以从能操作本机的 Codex 桌面端 / CLI 或 OpenCode 开始；只有网页聊天、无法操作本机文件和命令的环境，不能直接完成这套本地安装。请先完成宿主自身的模型配置、登录和额度准备。
+
+### 把这段话发给你的 Agent
 
 ```text
-请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。完成后给我工作台链接和不超过五行的上手说明，包括下一句可以怎么使用；如果受限未完成，说明当前状态和下一步，不要只回复已安装。不要读取或回显任何密钥。
+请为我安装或升级完整的 wechat-visual-director，并打开本地工作台。
+请先完整阅读并执行下面的安装说明，使用当前安装入口，不要沿用旧文档里的固定版本：
 https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
+
+需要同时安装轻量 Skill 和工作台，运行 doctor --json 确认就绪；
+不要只下载 Skill 文本，也不要把整个源码仓库放进 Skill 目录。
+完成后返回实际安装版本、工作台链接，以及不超过五行的上手说明和下一句使用示例。
+如果受限未完成，请说明停在哪一步。不要读取或回显任何密钥。
 ```
 
-这段提示词面向完整产品安装，检查成功后 Agent 应打开工作台并返回最短教程。直接发仓库链接的用户也可以先添加 Skill，再在下一条消息说「打开公众号工作台」或直接提出写作任务，由 Skill 的准备脚本补齐工作台。各宿主的通用 Skill 安装器是否读取上手说明由宿主决定，项目文件无法强制改写它的安装回执；只有宿主明确要求重新加载时才需要重启或新开对话。
+安装器会读取 [main/VERSION](https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/VERSION)，下载对应的已发布 Release 包并校验 SHA-256；Windows 与 macOS 都使用不写死版本的入口。若对应包还未发布或无法下载，应报告失败，不悄悄换成历史版本。日常“打开工作台”复用已有安装，不强制升级。
 
-不想复制长提示词，也可以说：
+普通安装无需预装 Git、Python、Node.js、pnpm 或 Homebrew。完整安装包括本地程序及运行环境，**不只是一个 `SKILL.md` 文件**。需要自己执行命令时，见[安装与维护指南](docs/usage-guide.md#手动安装与升级)。
+
+只把仓库链接发给 Agent，说“帮我安装这个 Skill”也可以；不同宿主的安装行为不完全一致。如果它只回复“Skill 已添加”，下一句说：
+
+> 打开公众号工作台，并简单告诉我怎么开始。
+
+支持的首次使用流程会继续准备工作台。完整提示词能更明确地表达“装好并打开”的要求，但不能替代宿主的执行权限或保证每个 Agent 都自动接续。
+
+### 安装后，试着发出第一条需求
 
 ```text
-帮我安装并打开这个公众号工作台，完成后简单告诉我怎么开始：
-https://github.com/zhouke0929/wechat-visual-director
+请用 wechat-visual-director，帮我写一篇关于“社区咖啡店如何让客人愿意再来”的公众号文章。
+先整理内容和结构、完成语义规划，再打开本机工作台让我编辑和审核。
+不要虚构经营数据，暂时不要生成图片或创建公众号草稿。
 ```
 
-### 打开后怎么开始（Alpha.27）
+已有文章可以这样说：
 
-- 没有原稿：在首页选择「我有一个选题」，复制指令并回到 Agent 对话填写主题后发送；也可以直接对 Agent 说明需求，不必照抄。
-- 已有原稿：选择「我有一篇文章」，将指令和原文或 Markdown 文件一起发给 Agent。它先保留事实、整理结构并完成语义规划，再打开工作台；不需要用户自己整理 Markdown 格式。
-- 工作台不提供手动上传 Markdown 或示例导入入口。文章统一由 Agent 创建；顶部「最近任务」和「继续已有任务」进入独立任务页，继续正文编辑、主题、图片与交付审核。
-- 首页在常见桌面窗口内完整呈现，不再向下堆叠任务列表。简要说明融入「Agent 规划 → 工作台编辑 → 预览与交付」三步流程；具备原生生图能力的 Agent 可在主题确认后生成候选。
-- 复制指令后按钮短暂显示「已复制」，不会新增提示行或推动页面；复制失败时选中指令供手动复制。
-- 首页简要流程始终可见，无需点击「我已了解」或完成任何确认；流程标题和说明适度放大，保持桌面一屏布局。安装和首次使用时由 Agent 简短介绍，普通再次打开不重复教程。
+> 用 wechat-visual-director 帮我排版下面这篇文章。保留原意和事实，先整理结构、完成规划，再打开工作台让我确认。［粘贴文章或附上文件］
 
-这层工作台引导独立于 Agent 的安装回复，即使宿主只说“安装完成”，进入工作台后也能知道下一步。
+主题确认后，若 Agent 支持原生生图，再说：
 
-### 方式二：Windows PowerShell 一行安装
+> 按当前主题，为这篇文章的正文和封面生成候选，放回工作台让我审核。
 
-下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
+首页也保留简短流程与可复制指令；离开后可从“最近任务”继续，不必重新生成文章。
 
-```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha26.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.27/install-release.ps1" -OutFile $installer
-$result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
-powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
-```
+## 需要配置什么？
 
-### 方式三：macOS Agent 便携安装
+| 你想做到哪一步 | 需要准备什么 |
+|---|---|
+| 整理内容、排版、编辑、预览、复制或导出 | 一个能使用本 Skill、执行本机命令的 Agent；项目无需额外文本模型 Key |
+| 让宿主 Agent 生成正文图片与封面 | 宿主有可调用的生图工具及可用额度；不必另填项目图片 Key |
+| 让工作台直连图片模型 | 在“本地设置”填写图片 Endpoint、模型和 API Key |
+| 保存到微信公众号草稿箱 | 账号具有相应接口权限；在本地设置配置 AppID、AppSecret 和公网 IP 白名单，并通过连接检测 |
 
-通常只需要把上面的统一安装说明链接交给 Agent。需要直接执行时，下面的固定入口会自动识别 Apple Silicon 或 Intel，下载对应 `tar.gz` 与校验文件，再使用包内 Python 完成持久安装：
+“无需额外 Key”不代表模型使用免费；Agent 订阅、模型与图片服务费用由对应服务商计收。上传自己的图片不需要图片 API。
 
-```bash
-installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
-curl -fsSL "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/scripts/install-release.sh" -o "$installer"
-bash "$installer"
-"$HOME/Library/Application Support/wechat-visual-director/visual-director" doctor --json
-```
+未配置微信连接时，可以复制排版后的富文本到公众号后台，或下载交付包后自行处理。剪贴板和微信编辑器可能限制外链图片，粘贴后仍需核对图片；直接草稿交付需要表中的微信配置。
 
-普通安装不 clone 仓库；源码克隆只用于开发或审计。
+[查看图片连接、公众号配置与排障 →](docs/usage-guide.md)
 
-默认安装位置：
+## 本地优先，也保留必要的人工确认
 
-```text
-%LOCALAPPDATA%\wechat-visual-director\
-├── versions\              # 各程序版本
-├── data\                  # 任务、图片和冻结产物
-├── config\                # 本地私有配置
-├── backups\               # 数据恢复前的完整备份
-├── runtime\               # PID 与运行日志
-├── visual-director.ps1     # PowerShell 稳定入口
-├── visual-director.cmd     # CMD / 桌面 Agent 兼容入口
-└── uninstall.ps1          # 安全卸载入口
-```
+- **数据保存在自己的电脑。** 程序版本与任务、图片、私有配置分开存放；正常升级保留数据，普通卸载也可保留数据。
+- **本地不等于离线。** 提交给 Agent 的文章受宿主服务的数据政策约束；启用图片服务或微信交付时，相应内容会发送到对应服务。
+- **凭据只填本地设置。** 不把 API Key、AppSecret、Cookie 或 Token 粘贴进 Agent 对话，也不提交到仓库。
+- **草稿不等于发布。** 配图、封面与最终稿由你确认；创建草稿不自动群发。事实、图片文字与素材权利仍需发布者核对。
 
-升级不会清空 `data/`、`config/` 或 `runtime/`。`doctor --json` 的核心字段应为：
-
-```text
-core_ready=true
-workbench_ready=true
-persistent=true
-version_match=true
-runtime_match=true
-host_skill_registered=true
-```
-
-## 首次配置
-
-打开工作台右上角的“本地设置”，先选择这台电脑要做到哪一步：
-
-- **只做排版**：零外部服务配置，可以立即创建任务；
-- **排版 + 生图**：配置图片 Provider，或保留人工上传；
-- **完整交付**：在图片能力之外，再连接微信公众号官方 API。
-
-设置属于本机，不属于某个对话。换一个 Agent 窗口后不需要重新填写。
-
-![本地能力分层设置](docs/assets/readme/local-settings.png)
-
-### 图片 Provider
-
-工作台 `/settings` 支持以下模式：
-
-| 模式 | 用途 | 是否需要 Key |
-|---|---|---:|
-| `manual` | 人工上传、沿用原图或跳过 | 否 |
-| `mock` | 本地占位图与交互验收 | 否 |
-| `images_api` | GPT Image、Nano Banana、Seedream、通义万相及兼容中转站 | 是 |
-
-真实生图只有一个连接入口：填写厂商提供的**完整 Endpoint**、Model ID、API Key，并选择 1K（推荐）或 2K。系统不会自动补全 URL；火山方舟、阿里云 DashScope 和 Agnes 等已知接口由隐藏 Adapter 处理，Google 官方 OpenAI 兼容接口与未知兼容中转按标准 OpenAI Images JSON 请求。Key 只保存在 Git 忽略的本机私有配置中；页面与 API 只返回“是否已配置”，不会回显原值。详细规则见 [图片 Provider 说明](skills/wechat-visual-director/references/image-providers.md)。
-
-如果当前宿主本身提供可调用的原生生图工具，用户可先在工作台确认主题，再直接在原 Agent 对话中说“为当前工作台任务生成并插入配图”。Agent 会在后台读取与当前任务、主题和图片槽绑定的受控请求，生成并导入待审核候选；工作台不再提供需要来回复制粘贴的交接按钮。生成期间即使切换主题（包括切走后切回），图片仍会回到工作台成为候选，并按当前主题显示兼容度；只有正文锚点、图片任务或图片槽状态真正变化时才会拒绝错挂。该能力不要求额外填写项目图片 API Key，但会使用宿主自身的图片额度，通常也比工作台直连 API 慢。没有原生生图工具时，继续使用工作台 Provider、人工上传、沿用原图或跳过，不会静默调用收费 API。Agnes 等服务可能提供免费或低成本额度，但具体可用性、限额与条款以服务商当前规则为准。
-
-封面候选保留 1080×864（5:4）原始母图，候选卡片和编辑器用可移动的“封面显示区”标明公众号头条常用的 900×383（约 2.35:1）范围。用户可以调整范围大小和位置；保存时只更新显示参数与受控发布封面，不会裁掉、覆盖或复制候选原图。微信开放接口只接收封面素材 ID，并不规定展示比例；次条和部分分享入口仍可能按 1:1 截取，因此生成 Prompt 继续要求主体靠近中央安全区域。
-
-同一篇文章的正文插图与 AI 封面会复用一份文章级 Visual DNA：文章决定“画什么、解释什么关系”，当前主题只影响推荐画材、色板、表面语言和构图气质。封面会优先复用文章已经规划的具体氛围场景，主题中的栏目、表格、坐标或报告等排版语言只会转换为无字的材质、留白和空间关系，不会作为画面文案交给模型。换主题不会删除已生成或已采用的图片，也不会自动再次扣费；尚未生成的新候选才按当前主题编译。
-
-AI 封面始终按“无字底图”生成，正文标题由确定性组件渲染，不依赖图片模型写字。本机 OCR 结果只保留为内部诊断：候选卡片维持“调整封面显示区 / 直接采用”的普通审核流程，不用不确定的自动识别结果制造额外焦虑或操作门槛。
-
-结构信息图只允许绘制来自原文的标题与短标签，完整事实锚点仍保存在任务中用于核对。系统会把场景隐喻、连接关系和装饰语法作为“只画不写”的视觉脚本，减少长句卡片和提示词说明被误画进图片。
-
-![可拖动的公众号封面裁切](docs/assets/readme/cover-crop.png)
-
-### 微信公众号草稿箱
-
-在本地设置页选择“完整交付”，按页面引导完成：
-
-1. 在微信开发者后台的“开发接口管理 / 账号开发信息”中取得 AppID，并生成或重置 AppSecret；栏目名称以微信当前页面为准；
-2. 点击“检测当前公网 IP”，把结果加入微信开发者后台的 IP 白名单；`192.168.x.x` 等局域网地址不能作为公网出口 IP。设置页不再要求人工勾选“已加入白名单”，后续连接检测会直接调用微信接口验证凭据与当前出口 IP；
-3. 只在本地设置页填写 AppID 与 AppSecret，不要粘贴到 Agent 对话；
-4. 保存后点击“检测连接（不建草稿）”；
-5. 只有连接检测通过，冻结页才会启用“保存到微信公众号草稿箱”。
-
-微信 access token 的接口规则见[微信官方文档](https://developers.weixin.qq.com/doc/offiaccount/Basic_Information/Get_access_token.html)。
-
-![微信公众号草稿交付配置](docs/assets/readme/wechat-publisher-setup.png)
-
-Visual Director 会冻结文章、生成微信兼容内联 HTML，并通过内置微信官方 API 发布器上传图片与创建草稿。只有界面返回真实 Media ID，才表示草稿已写入公众号后台。
-
-如果结果显示“未知”，先去公众号草稿箱核对，不要立即重复点击，以免创建重复草稿。无论草稿交付成功、失败还是未知，冻结页仍会保留“复制全文”和“下载交付包”，这两个操作不会再次调用微信接口。
-
-## 主题样册
-
-主题不是简单换色。每套主题拥有统一的设计基因、章节装饰和语义组件，规划器会参考最近 5 篇历史视觉摘要，减少连续文章重复使用同一套表达。
-
-[在线主题样册](https://zhouke0929.github.io/wechat-visual-director/#themes)直接使用当前版本导出的 12 套真实主题数据；点击左侧主题，即可在 390px 文章预览中观察同一份内容如何改变标题、留白、组件轮廓和阅读节奏。它不需要后端、账号或 API Key。
-
-![在线主题样册与即时预览](docs/assets/readme/product-showcase-themes.png)
+项目已用于真实公众号交付，但仍处于 Alpha 阶段。项目与腾讯、微信官方无隶属或背书关系。
 
 ## 系统要求
 
-### Windows 基础排版
+- **Windows：** Windows 10/11 x64，PowerShell 5.1 或更新版本，正式支持。
+- **macOS：** Apple Silicon 与 Intel 提供自包含安装包，目前为 Technical Preview；尚不等同于两种架构均完成真实设备完整人工验收。
+- **宿主与网络：** Agent 能读取 Skill、执行本机命令；可访问 GitHub 下载入口，浏览器能打开本机 `127.0.0.1` 地址。Linux 暂无本文承诺的便携安装流程。
 
-- Windows 10/11 x64；
-- PowerShell 5.1 或更高版本；
-- 能访问 GitHub Release，并能打开本机 `127.0.0.1` 地址的网络与浏览器；
-- 不要求预装 Git、Python、Node.js、pnpm 或 Wenyan。
+[安装版本与资产](https://github.com/zhouke0929/wechat-visual-director/releases) · [升级、排障与卸载](docs/usage-guide.md#升级卸载与数据保留) · [Agent 完整安装协议](INSTALL_FOR_AGENT.md)
 
-### macOS Agent 便携安装
+## 开发与贡献
 
-- Apple Silicon（M 系列）或 Intel Mac；
-- 能访问 GitHub Release，并能打开本机 `127.0.0.1` 地址的网络与浏览器；
-- 只使用 macOS 自带的 Bash、`curl`、`tar` 与 `shasum` 完成下载安装；
-- 不要求预装 Git、Homebrew、Python、Node.js、pnpm 或 Wenyan。
+欢迎反馈实际公众号后台或手机端的兼容问题，也欢迎贡献主题、组件样式和图片风格。反馈时请附主题名、复现步骤与已脱敏截图；不要上传密钥、任务数据库或未公开稿件。新增语义组件需要同时维护规划、渲染与验证，当前还不是免代码的扩展包安装功能。
 
-### 公众号草稿交付附加要求
+<details>
+<summary>展开源码结构与开发验证</summary>
 
-- 具有相应开发接口权限的微信公众号；
-- AppID、AppSecret；
-- 当前公网出口 IP 已加入白名单。
+普通用户使用上面的 Release 安装流程；下面面向源码开发者。
 
-macOS 稳定入口位于 `~/Library/Application Support/wechat-visual-director/visual-director`。安装器与 Windows 一样使用版本目录保存程序，并把任务、图片和私密配置放在版本目录之外。当前自包含包在真实 Apple Silicon 与 Intel 设备完成完整人工验收前仍标记为 **Technical Preview**，但普通用户安装不再依赖源码环境。
+- `skills/wechat-visual-director/`：可分发的轻量 Skill、首次使用脚本与协议参考。
+- `apps/api/`：本地服务、规划校验、组件渲染、数据与草稿交付。
+- `apps/web/`：工作台源码及预构建产物。
+- `scripts/`：安装、启动、打包与验证脚本。
+- `site/`：无需后端的公开产品页、主题样册和完整文章。
+- `contracts/`、`samples/`、`docs/`：接口契约、中性样例与设计 / 发布记录。
 
-## 常见问题
-
-### 安装后为什么不能保存到公众号草稿箱？
-
-先运行：
+准备好 Python 与 Node.js 开发环境并安装项目依赖后：
 
 ```powershell
-& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
-```
-
-重点查看：
-
-```text
-capabilities.wechat_draft
-publishers.wechat.provider
-publishers.wechat.transport
-publishers.wechat.ready
-next_action
-```
-
-常见情况：
-
-| 现象 | 原因 | 处理 |
-|---|---|---|
-| `publishers.wechat.ready=false` | AppID / AppSecret 未配置 | 打开本地设置，选择“完整交付”并填写凭据 |
-| 连接检测提示 IP 错误 | 当前公网出口 IP 未加白名单 | 复制设置页检测到的公网 IP，加入微信开发者后台 |
-| 草稿结果为 `unknown` | 创建草稿时网络中断，结果无法确认 | 先人工检查公众号草稿箱；找到草稿就点“后台已找到草稿”，确认没有则点“后台确认无草稿，解除锁定”，之后才可重新保存 |
-| 复制全文缺少部分图片 | 浏览器剪贴板与微信编辑器对外链图片有额外限制 | 优先使用内置官方 API 草稿交付或下载交付包 |
-
-### 新对话找不到 Skill
-
-安装器会注册 Codex Skill、通用 Agent Skill 和 OpenCode 命令。部分宿主只在启动时扫描 Skill；请完全重启宿主应用或新开对话，然后让 Agent 先运行 `doctor --json`。不要重新执行临时源码中的 `uvicorn`、`pnpm dev` 或旧启动脚本。
-
-### 工作台打不开
-
-让 Agent 使用稳定入口诊断：
-
-```powershell
-& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
-```
-
-不要手工同时启动多个 API / Web 服务。当前版本使用单个本地 FastAPI 服务托管 API 和静态工作台，正常运行不依赖 3000 端口。`doctor --json` 还会校验 `runtime_match=true`；若同版本源码服务占用了 8000 端口，它会明确返回 `core_runtime_mismatch`，不会把源码测试库误认成正式数据。
-
-日常启动会在 Windows 使用无控制台后台进程，不需要保留空白终端窗口。任务规划完成后，Agent 应使用 `--open` 自动打开默认浏览器，并始终把 `review_url` 返回给用户作为兜底。后台日志写入 `runtime/logs/api.log`，单文件上限 5 MB，保留 3 份备份，总量约不超过 20 MB；日志不记录 API Key、AppSecret 或完整文章正文。
-
-安装器默认不会把源码目录 `apps/api/data/` 中的测试任务静默复制到正式数据目录。确需迁移旧源码数据时，应先用 `data scan --json` 核对来源，再使用数据恢复命令；只有人工确认的安装场景才可显式传入 `-MigrateLegacyData`（macOS 为 `--migrate-legacy-data`）。
-
-### 重装后看不到旧任务
-
-先停止服务并只读扫描旧数据，**不要只复制 SQLite 文件**：
-
-```powershell
-& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" stop --json
-& "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" data scan --candidate "C:\旧源码\apps\api\data" --json
-```
-
-数据集由数据库、`image-assets` 和 `publication-assets` 共同组成。恢复前程序会创建完整备份；目标已有任务时必须由用户核对扫描结果并明确确认。
-
-## 升级、卸载与数据保留
-
-普通卸载会移除程序和宿主 Skill 注册，但保留任务、图片与本机私有配置：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1"
-```
-
-只有明确不再保留任何本机数据时才使用：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1" -Purge
-```
-
-两种方式都不会删除用户自己的 Git 源码目录。
-
-## 文本规划
-
-作为 Skill 使用时，默认复用宿主 Agent 已配置的文本模型。核心只向宿主提供安全文章块、公开品牌规则和最近视觉摘要；宿主返回 `EditorialBrief` 后，本地执行 Schema 校验、结构规范化和确定性编译。
-
-满足以下条件，才表示本次确实使用了宿主规划：
-
-```text
-planner_provider=host_agent
-fallback_used=false
-```
-
-若宿主输出不合法，系统会标记 `fallback_used=true` 并退回只使用原稿事实的规则方案，Agent 必须如实说明。规则方案是内部容错，不是面向用户的独立上传排版入口。已有文章也应先交给 Agent 做结构整理和语义规划；本地核心不会再要求或调用独立文本模型 Key。
-
-## 数据与安全边界
-
-- `.env.local`、本地配置、任务数据库、图片、诊断产物和内部文章均被 Git 忽略；
-- 不要把 AppSecret、API Key、Cookie 或 Token 发给 Agent；
-- 真实品牌图、二维码、公司名称与内部评测材料不进入公开仓库；
-- 图片候选必须经过人工确认；
-- 同一输入默认复用既有任务，避免 Agent 重试制造重复草稿；
-- 创建公众号草稿不等于最终群发，最终发布始终保留人工门禁。
-
-## 仓库结构
-
-```text
-├── INSTALL_FOR_AGENT.md     # 一条链接完成 Skill、工作台、诊断与首次教程
-├── skills/wechat-visual-director/
-│   ├── SKILL.md             # 轻量 Skill 触发条件、工作流与安全门禁
-│   ├── agents/openai.yaml   # Skill UI 元数据
-│   ├── scripts/             # 首次使用准备工作台，已有安装直接启动检查
-│   └── references/          # 安装、文章、CLI 与图片 Provider 协议
-├── scripts/                 # 安装器、稳定启动器和公开验证脚本
-├── apps/api/                # FastAPI、SQLite、规划、组件与发布适配器
-├── apps/web/                # React/Vite 源码与预构建静态工作台
-├── samples/                 # 中性公开样例与回归样本
-├── contracts/               # EditorialBrief、OpenAPI 等契约
-├── assets/brand/            # 不含真实企业资料的示例品牌
-└── docs/                    # 产品决策、质量基线、截图与发布记录
-```
-
-## 开发验证
-
-```powershell
-$env:PYTHONPATH="apps/api/src"
+python -m pip install -e "apps/api[dev]"
 python -m pytest apps/api/tests -q
+corepack pnpm@11.7.0 --dir apps/web install --frozen-lockfile
 corepack pnpm@11.7.0 --dir apps/web typecheck
 corepack pnpm@11.7.0 --dir apps/web build
+python scripts/export_theme_gallery.py --check
 ```
 
-Windows 与 macOS 的核心测试、静态工作台构建和安装脚本校验由 GitHub Actions 持续执行。Release 工作流分别构建 Windows x64、macOS Apple Silicon 和 macOS Intel 自包含包，并在无系统 Python 的隔离目录完成安装、启动、诊断和卸载冒烟测试。Windows 是正式支持平台；macOS 当前为便携安装技术预览。
+测试也会检查公开安装入口，防止 README 和安装指南重新写死某个版本。历史版本的固定命令只保留在 `docs/releases/`，用于追溯该版本，不作为首次安装入口。
+
+Windows 与 macOS 的 CI 执行核心测试和工作台构建；Release 流程构建三种平台包并进行隔离安装冒烟测试。
+
+</details>
 
 ## License
 
-本项目采用 [Apache License 2.0](LICENSE)。第三方依赖和外部服务仍分别受其自身许可证与使用条款约束。
+[Apache License 2.0](LICENSE)。第三方依赖和外部服务分别受其自身许可证与条款约束。
+
+---
+
+**想先看看效果？** [打开在线样本册](https://zhouke0929.github.io/wechat-visual-director/#themes)。
+
+**想用自己的文章试一遍？** [复制安装提示词](#快速开始)，把第一篇文章交给 Agent。

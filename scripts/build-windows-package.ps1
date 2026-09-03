@@ -83,6 +83,7 @@ $RequiredFiles = @(
     "VERSION",
     "INSTALL_FOR_AGENT.md",
     "README.md",
+    "docs\usage-guide.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     ".env.example",

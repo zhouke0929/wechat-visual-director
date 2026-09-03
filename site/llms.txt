@@ -1,36 +1,46 @@
-# WeChat Visual Director
+# WeChat Visual Director — 微信公众号 AI 排版 Skill
 
-WeChat Visual Director（微信公众号 AI 排版 Skill）是一个本地优先的开源 Agent Skill 与可视化工作台。
+> WeChat Visual Director（公众号视觉主编，wechat-visual-director）是一套 Apache-2.0 开源的 Agent Skill 与本地可视化工作台，面向公众号运营、新媒体团队和内容创作者。Agent 整理主题、资料或 Markdown，工作台负责编辑、视觉审核与交付。
 
-它把公众号主题、资料或 Markdown 初稿转换为微信兼容视觉文章，提供 12 套可切换视觉主题、语义组件、AI 配图、封面裁切、390px 内容校对、拟真手机预览、富文本复制、交付包下载和微信公众号草稿箱写入。
+项目仍处于 Alpha 阶段，与腾讯、微信官方无隶属或背书关系。
 
-## 适合谁
+## 产品能力
 
-- 希望使用 AI Agent 提升公众号生产效率的运营和新媒体团队
-- 需要将 Markdown 转换为微信公众号兼容排版的内容创作者
-- 希望保留人工审核，同时减少重复排版、配图和草稿上传工作的团队
+- 输入：选题、资料、现成纯文本或 Markdown，先交给 Agent 整理结构并完成语义规划，不在首页直接上传跳过规划。
+- 排版：Markdown 转微信兼容 HTML，12 套视觉主题、12 类语义组件、6 类文章骨架；Agent 输出结构化规划，由本地程序用受控组件渲染。
+- 编辑：600px 内容校对画布，支持在成稿上编辑标题与正文、自动保存；405px 手机预览同步修改。不是任意拖拽的页面设计器，最终效果仍需在实际微信端核对。
+- 图片：可用宿主原生生图工具或工作台图片 API 生成正文与封面候选，也可人工上传。正文配图与封面共享文章级视觉方向，采用前需人工审核。
+- 切换主题：保留正文和已有图片，不自动再次生图或计费；需要新风格时由用户主动生成。
+- 交付：富文本复制、交付包下载、通过内置微信官方 API 创建公众号草稿；不会自动群发。
+- 公开在线样册和文章是静态展示，编辑功能在本地安装的工作台中。
 
-## 产品边界
+## 安装与版本
 
-- 宿主 Agent 理解文章并生成结构化视觉意图
-- 本地核心使用确定性组件渲染，不允许模型自由生成整段 HTML/CSS
-- 图片候选、封面和最终草稿均保留人工确认
-- 创建公众号草稿不等于最终群发
-- 本地配置、任务数据库和密钥不会进入公开仓库
+- 完整安装以 main/INSTALL_FOR_AGENT.md 为准，同时安装轻量 Skill 和本地工作台，运行 doctor --json、打开页面，再返回实际版本、工作台链接与不超过五行的上手说明。
+- 首次安装或明确升级使用 main/scripts/install-release.ps1 或 main/scripts/install-release.sh；它们读取 main/VERSION 并下载对应已发布包，校验 SHA-256。不从旧 README、搜索摘要、截图或历史发布说明复制固定版本。
+- 若 VERSION 对应的 Release 包尚未发布或无法下载，报告未完成，不悄悄降级；用户明确指定历史版本除外。日常打开复用现有安装，不强制升级。
+- 轻量 Skill 位于 skills/wechat-visual-director/，仓库根目录不是 Skill 包。注册目标包含 Codex、通用 Agent Skill 目录与 OpenCode；其他宿主需支持读取 Skill 和执行本机命令。
+- 若宿主只添加了 Skill 文件，下一句说“打开公众号工作台，并告诉我怎么开始”；首次使用助手会尝试继续准备工作台。自动接续取决于宿主执行能力，不把“文件已添加”说成“工作台已就绪”。
+- Windows 10/11 x64 正式支持，macOS Apple Silicon 与 Intel 自包含包为 Technical Preview。普通安装无需预装 Git、Python、Node.js、pnpm 或 Homebrew。
 
-## 安装和第一次使用
+## 费用、数据与边界
 
-- 完整安装：执行 INSTALL_FOR_AGENT.md，安装 Release 与轻量 Skill、检查并打开工作台，返回真实链接和不超过五行的上手说明。
-- 只给仓库链接安装 Skill：正确目录为 skills/wechat-visual-director，不是仓库根目录。安装结束前阅读 SKILL.md 开头的简短回执，不要只说已安装。
-- 用户下一句可直接说「打开公众号工作台」或给出文章主题。Skill 自带 scripts/ensure-workbench.ps1 / ensure-workbench.sh，首次使用时安装，已有工作台只启动检查。
-- 当前 Agent 支持原生生图时，用户确认文章主题后可以让它生成正文配图和封面候选。
-- 不把 Skill 文件已添加等同于工作台已就绪；只有宿主明确需要重新加载时才提示重启。
+- 排版复用宿主文本模型，无需另配项目文本模型 Key，但宿主模型使用并不因此免费。
+- 原生生图需要宿主有可调用工具和额度；工作台直连图片服务需要该服务的 Endpoint、模型和 Key；人工上传不需要图片 Key。
+- 未连接公众号也能复制或导出。直传草稿需要账号接口权限、本地 AppID / AppSecret 配置、公网 IP 白名单及连接检测。
+- 任务、图片、配置保存在本机。交给 Agent、图片服务或微信的内容仍会发送到对应服务，本地优先不是离线承诺。
+- 密钥只填本地设置，不放进对话或公开仓库。图片文字、内容事实、素材权利与最终发布由用户审核。
+- 正常升级保留数据，普通卸载可保留数据；永久清理需用户明确要求。源码开发目录与正式安装分离。
 
-## Links
+## 权威入口
 
-- Product showcase: https://zhouke0929.github.io/wechat-visual-director/
-- Agent full-product installer: https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
-- Lightweight Skill with first-use setup: https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director
-- GitHub repository: https://github.com/zhouke0929/wechat-visual-director
-- Releases: https://github.com/zhouke0929/wechat-visual-director/releases
-- License: Apache-2.0
+- [产品页与在线主题样册](https://zhouke0929.github.io/wechat-visual-director/): 无需安装即可查看公开效果。
+- [完整产品安装协议](https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md): 安装、版本选择、验证、打开与首次使用回执。
+- [当前目标版本](https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/VERSION): 使用前核对对应已发布 Release 资产，不在本摘要重复固定版本。
+- [已发布安装包](https://github.com/zhouke0929/wechat-visual-director/releases): Windows x64、macOS arm64 与 macOS x64 包及校验文件。
+- [README 与源码](https://github.com/zhouke0929/wechat-visual-director): 产品定位、案例与快速开始。
+- [安装、配置与维护指南](https://github.com/zhouke0929/wechat-visual-director/blob/main/docs/usage-guide.md): 手动命令、图片与公众号配置、排障和卸载。
+- [轻量 Skill](https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director): 宿主可加载包，不是完整运行环境。
+- [公开教程案例](https://zhouke0929.github.io/wechat-visual-director/articles/campus.html): 青春校园主题。
+- [公开商业案例](https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html): 温暖人文主题。
+- [公开品牌案例](https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html): 波普海报主题。

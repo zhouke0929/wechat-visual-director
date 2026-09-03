@@ -20,6 +20,9 @@ at `skills/wechat-visual-director/`; read its opening onboarding instructions.
 For installation or first use, run its `scripts/ensure-workbench.ps1` or
 `scripts/ensure-workbench.sh` to install only if missing, start, check and open it.
 The full-product installation flow below remains the preferred one-turn path.
+If an existing installation needs an explicitly requested upgrade, use the
+current Release installer below; the default ensure-workbench flow reuses an
+existing installation and is not a substitute for that upgrade.
 
 Do not pass the repository root to a generic Skill installer. The repository is
 the development source tree, not the distributable Skill folder. The optional
@@ -38,6 +41,34 @@ below when you can complete the full installation in this turn.
   `~/Library/Application Support/wechat-visual-director` on macOS.
 - Creating a WeChat draft still requires explicit confirmation in the workbench;
   final mass publishing is outside this installer.
+
+## Version selection: do not inherit a stale documentation pin
+
+For a fresh installation or an explicit upgrade, the version source of truth is
+`https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/VERSION`,
+not a version copied from a README, search snippet, screenshot, old conversation,
+or historical release note. Use the current `main/scripts/install-release.ps1`
+or `main/scripts/install-release.sh` entry below, with no version override.
+These installers resolve `main/VERSION` themselves and verify the matching
+Release package's SHA-256. Do not reuse an installer downloaded for an old test.
+
+Confirm that tag `v<version>` has a published Release with the package and checksum
+for this machine. Do not use GitHub's `/releases/latest` as the only version
+source: the project currently publishes prereleases. If VERSION and the available
+assets disagree, or a download fails, report that installation is incomplete;
+do not silently downgrade or fall back to a source checkout. If two reads disagree,
+re-fetch the raw source or GitHub Contents API with cache revalidation rather than
+trusting a cached rendered page.
+
+After installation, compare the actual installed version in the result / doctor
+output with the intended version as well as checking `version_match=true`.
+That flag alone only establishes consistency within the installation; it does
+not prove that the intended current public version was selected. Include the
+actual installed version in the completion receipt.
+
+Exceptions: honor a version explicitly requested by the user; ordinary reopening
+reuses a healthy existing installation and is not a request to upgrade. Historical
+documents under `docs/releases/` describe their own release, not today's default.
 
 ## Install or upgrade
 
@@ -77,7 +108,7 @@ bash "$installer"
    health check succeeds.
 
 4. Only use the source bootstrap when the user explicitly requests source
-   development/audit or supplies a complete local source checkout:
+   development/audit and supplies a complete local source checkout:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\bootstrap.ps1"
@@ -149,8 +180,7 @@ When the user asks for full WeChat draft delivery:
 ## Diagnose an existing installation
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File \
-  "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
 ```
 
 Use the returned error code and action. Do not work around a version mismatch
@@ -170,16 +200,14 @@ Preserve tasks, images, and private configuration so a later reinstall can
 continue where the user stopped:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File \
-  "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1"
 ```
 
 Permanently remove the installed program, tasks, images, and private
 configuration only when the user explicitly requests a complete purge:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File \
-  "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1" -Purge
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\uninstall.ps1" -Purge
 ```
 
 Both modes remove host Skill registrations. Neither mode may delete the Git

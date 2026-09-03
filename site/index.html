@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="开源微信公众号 AI 排版 Skill：让 Agent 将主题、资料或 Markdown 转成 12 套可切换主题的微信兼容文章，支持 AI 配图、手机预览、富文本复制和公众号草稿箱交付。"
+      content="公众号视觉主编是开源微信公众号 AI 排版 Skill 与本地工作台。让 Agent 整理主题、资料或 Markdown，支持 12 套主题、原文编辑、手机预览、AI 正文配图与封面，以及公众号草稿箱交付。"
     />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <link rel="canonical" href="https://zhouke0929.github.io/wechat-visual-director/" />
@@ -13,23 +13,25 @@
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="WeChat Visual Director" />
     <meta property="og:title" content="微信公众号 AI 排版 Skill | WeChat Visual Director" />
-    <meta property="og:description" content="理解文章后再排版：12 套视觉主题、AI 配图、拟真手机预览与微信公众号草稿箱交付。" />
+    <meta property="og:description" content="先让 Agent 读懂文章，再在本地工作台定稿：12 套主题、原文编辑、手机预览、正文配图与封面候选，交付公众号草稿。" />
     <meta property="og:url" content="https://zhouke0929.github.io/wechat-visual-director/" />
     <meta property="og:image" content="https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/docs/assets/readme/product-showcase-hero.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="微信公众号 AI 排版 Skill | WeChat Visual Director" />
-    <meta name="twitter:description" content="把主题、资料或 Markdown 转成可换主题、可配图、可发布到公众号草稿箱的视觉文章。" />
+    <meta name="twitter:description" content="开源公众号 AI 排版 Skill + 本地工作台：Agent 规划、原文编辑、手机预览、AI 配图与封面，人工确认后创建草稿。" />
     <meta name="twitter:image" content="https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/docs/assets/readme/product-showcase-hero.png" />
     <title>微信公众号 AI 排版 Skill | WeChat Visual Director</title>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
+        "@type": ["SoftwareApplication", "SoftwareSourceCode"],
+        "@id": "https://zhouke0929.github.io/wechat-visual-director/#software",
         "name": "WeChat Visual Director",
-        "alternateName": "微信公众号 AI 排版 Skill",
+        "alternateName": ["公众号视觉主编", "微信公众号 AI 排版 Skill", "wechat-visual-director"],
         "applicationCategory": "DesignApplication",
         "operatingSystem": "Windows; macOS Technical Preview",
-        "description": "开源微信公众号排版 Skill，将主题、资料或 Markdown 转换为可换主题、可配图、可手机预览并能写入公众号草稿箱的微信兼容文章。",
+        "description": "开源微信公众号 AI 排版 Skill 与本地可视化工作台。Agent 整理主题、资料或 Markdown，支持 12 套主题、原文编辑、手机预览、AI 正文配图与封面，以及人工确认后的公众号草稿箱交付。",
+        "featureList": ["Agent 语义规划与 Markdown 转微信兼容 HTML", "12 套主题、12 类语义组件与 6 类文章骨架", "600px 内容校对与原文编辑、405px 手机预览", "宿主原生生图或图片 API 生成正文与封面候选", "富文本复制、交付包下载与微信公众号草稿箱交付"],
         "url": "https://zhouke0929.github.io/wechat-visual-director/",
         "downloadUrl": "https://github.com/zhouke0929/wechat-visual-director/releases",
         "codeRepository": "https://github.com/zhouke0929/wechat-visual-director",
@@ -37,7 +39,7 @@
         "isAccessibleForFree": true
       }
     </script>
-    <link rel="stylesheet" href="./styles.css?v=20260820-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260903-1" />
   </head>
   <body>
     <header class="site-nav">
@@ -59,21 +61,21 @@
     <main id="top">
       <section class="hero section-pad">
         <div class="hero-copy">
-          <p class="eyebrow">AI AGENT SKILL · OPEN-SOURCE · LOCAL-FIRST</p>
+          <p class="eyebrow">微信公众号 AI 排版 SKILL · OPEN SOURCE</p>
           <h1>不是给 Markdown<br />换一件衣服。</h1>
           <p class="hero-thesis">而是先理解文章，再决定视觉节奏。</p>
           <p class="hero-desc">
-            一套面向公众号运营和新媒体团队的微信公众号 AI 排版 Skill：宿主 Agent 理解内容，本地核心守住结构与事实，运营在工作台确认主题、配图和封面，最后写入微信公众号草稿箱。
+            WeChat Visual Director（公众号视觉主编）是一套开源的微信公众号 AI 排版 Skill 与本地工作台：Agent 整理主题、资料或 Markdown 并规划版式，你在成稿上直接编辑、确认配图与封面，检查手机效果，再复制、导出或创建公众号草稿。
           </p>
           <div class="hero-actions" aria-describedby="installCopyHint">
             <a class="button primary" href="#cases">看真实文章</a>
             <button class="button secondary" id="heroCopyInstallPrompt" type="button" data-copy-install>交给 Agent 安装</button>
           </div>
-          <p class="install-copy-hint" id="installCopyHint" aria-live="polite">复制提示词，让 Agent 安装并打开工作台；如果已通过仓库链接添加 Skill，直接说「打开公众号工作台」即可开始。</p>
+          <p class="install-copy-hint" id="installCopyHint" aria-live="polite">复制提示词交给 Agent 安装；若已添加 Skill，可让支持本机执行的 Agent 继续「打开公众号工作台」。</p>
           <dl class="hero-stats">
             <div><dt>12</dt><dd>完整视觉主题</dd></div>
             <div><dt>12</dt><dd>语义组件类型</dd></div>
-            <div><dt>390px</dt><dd>微信内容预览</dd></div>
+            <div><dt>6</dt><dd>文章骨架类型</dd></div>
           </dl>
         </div>
 
@@ -89,7 +91,7 @@
             <footer><span class="avatar">V</span><b>公众号预览</b><span>赞　分享　推荐</span></footer>
           </article>
           <img class="stage-image" src="./assets/generated/campus-portfolio-scene.webp" alt="学生整理课程项目作品集的编辑插画" />
-          <div class="stage-note note-bottom">正文不改写 · 主题可切换 · 图片需确认</div>
+          <div class="stage-note note-bottom">排版保留原文 · 主题可切换 · 图片需确认</div>
         </div>
       </section>
 
@@ -104,7 +106,7 @@
       <section class="cases section-pad" id="cases">
         <header class="section-head">
           <div><p class="eyebrow">REAL ARTICLE SHOWCASE / 03</p><h2>三种内容，不用同一种模板硬套。</h2></div>
-          <p>以下案例由当前版本的结构规划器、主题系统和微信渲染器生成。配图来自本轮 OpenAI 图像生成，并作为人工候选插入文章。</p>
+          <p>以下是使用本项目排版能力制作的公开示例，不含内部稿件或运营数据。配图为 AI 生成并经人工选用。在线展示为静态样例，编辑需要安装本地工作台。</p>
         </header>
 
         <div class="case-list">
@@ -126,12 +128,12 @@
             <div class="case-copy">
               <p class="case-no">CASE 02 · LOCAL BUSINESS</p>
               <h3>社区咖啡店<br />如何让客人再来</h3>
-              <p>本地商业观点内容选择「温暖人文」：真实生活场景承接情绪，闭环路径解释一次活动如何留下下一次到店的理由。</p>
-              <ul><li>主题：温暖人文</li><li>信息关系：复访闭环</li><li>配图：真实场景 + 关系路径</li></ul>
+              <p>本地商业观点内容选择「温暖人文」：生活场景插画承接情绪，闭环路径解释一次活动如何留下下一次到店的理由。</p>
+              <ul><li>主题：温暖人文</li><li>信息关系：复访闭环</li><li>配图：AI 场景配图 + 关系路径</li></ul>
               <a href="./articles/coffee.html" target="_blank">打开完整排版 ↗</a>
             </div>
             <div class="case-media split-media">
-              <img src="./assets/generated/coffee-repeat-scene.webp" alt="清晨社区咖啡店的真实生活场景" />
+              <img src="./assets/generated/coffee-repeat-scene.webp" alt="清晨社区咖啡店的 AI 场景配图" />
               <img src="./assets/generated/coffee-repeat-path.webp" alt="社区咖啡店旧书交换活动的复访路径图" />
             </div>
           </article>
@@ -167,7 +169,7 @@
             <div><span>01 / STRUCTURE</span><h3>结构信息图</h3><p>把步骤、对比和关系变成可扫读的画面，不把整段正文塞进图片。</p></div>
           </article>
           <article class="visual-card visual-scene">
-            <figure><img src="./assets/generated/coffee-repeat-scene.webp" alt="社区咖啡店活动的真实生活场景插画" /></figure>
+            <figure><img src="./assets/generated/coffee-repeat-scene.webp" alt="社区咖啡店活动的 AI 场景插画" /></figure>
             <div><span>02 / ATMOSPHERE</span><h3>场景氛围图</h3><p>用环境、人物动作和光线承接情绪，让图片服务叙事而不是只做装饰。</p></div>
           </article>
           <article class="visual-card visual-metaphor">
@@ -197,7 +199,7 @@
             </div>
             <div class="demo-copy"><h3 id="themeLabel">青春校园</h3><p id="themeDescription"></p></div>
             <div class="preview-shell">
-              <span class="preview-badge">真实主题 · 所见即所得</span>
+              <span class="preview-badge">真实主题 · 静态样例</span>
               <div class="preview-scroll" id="themePreview"></div>
             </div>
           </div>
@@ -209,9 +211,9 @@
           <div><p class="eyebrow">WHY DIFFERENT</p><h2>让模型负责理解，<br />让程序负责稳定。</h2></div>
         </header>
         <div class="difference-grid">
-          <article><span>01</span><h3>不是自由生成 HTML</h3><p>模型只输出受控 EditorialBrief；标题层级、数字、来源和正文结构由本地核心保护。</p></article>
-          <article><span>02</span><h3>不是固定模板复用</h3><p>12 套主题各自拥有章节装饰、节奏原语和组件变体，并参考最近五篇减少连续重复。</p></article>
-          <article><span>03</span><h3>不是生成后自动发布</h3><p>图片、封面和最终稿必须经过人工确认；只有用户主动操作才会创建公众号草稿。</p></article>
+          <article><span>01</span><h3>先规划，再稳定渲染</h3><p>Agent 输出受控的结构化规划，本地程序用组件完成 Markdown 转微信兼容 HTML；事实与来源仍由发布者核对。</p></article>
+          <article><span>02</span><h3>主题服务内容关系</h3><p>12 套主题、12 类语义组件与 6 类文章骨架，让并列、步骤、证据和对比拥有不同表达。换主题保留正文与已有图片，不自动重新生图。</p></article>
+          <article><span>03</span><h3>你来编辑，你来确认</h3><p>600px 内容校对支持原文编辑与自动保存，405px 手机预览同步修改。图片、封面与最终稿由你确认，预览差异仍需在实际微信端核对。</p></article>
         </div>
       </section>
 
@@ -220,16 +222,30 @@
         <h2>从一个选题，到公众号草稿箱。</h2>
         <ol>
           <li><b>01</b><span><strong>提出主题或资料</strong>宿主 Agent 生成规范 Markdown 与视觉意图。</span></li>
-          <li><b>02</b><span><strong>打开本地工作台</strong>立即查看主题、组件、图片和手机端效果。</span></li>
+          <li><b>02</b><span><strong>打开本地工作台</strong>直接修改原文，切换主题，检查手机预览。</span></li>
           <li><b>03</b><span><strong>人工确认关键资产</strong>可换主题、换图、裁封面或跳过不必要的图片。</span></li>
           <li><b>04</b><span><strong>交付到公众号</strong>复制全文、下载交付包或调用官方 API 创建草稿。</span></li>
         </ol>
       </section>
 
+      <section class="difference section-pad" id="faq">
+        <header class="section-head">
+          <div><p class="eyebrow">BEFORE YOU START</p><h2>开始之前，你可能想知道</h2></div>
+        </header>
+        <div class="difference-grid">
+          <article><span>01</span><h3>已有 Markdown 或纯文本也能排版吗？</h3><p>可以。把文章交给 Agent，它先整理结构、完成语义规划，再送入工作台。首页不提供绕过规划的直接上传入口。</p></article>
+          <article><span>02</span><h3>Codex、OpenCode 能用吗？</h3><p>安装器注册 Codex、通用 Agent Skill 目录与 OpenCode。宿主需支持读取 Skill 和执行本机命令；只有提供原生生图工具时，才可直接生成正文与封面候选。</p></article>
+          <article><span>03</span><h3>必须配置 Key 或连接公众号吗？</h3><p>排版无需另配文本模型 Key，但宿主模型使用仍受自身额度与收费规则约束。生图可用宿主工具、图片 API 或人工上传；连接公众号是可选项，未连接也能复制与导出。</p></article>
+        </div>
+        <p>直接创建草稿需要公众号具有相应接口权限，在本地配置 AppID、AppSecret 和公网 IP 白名单，并通过连接检测。未连接微信时，也可以复制排版后的内容到公众号后台，粘贴后核对图片。</p>
+        <p>程序采用 Apache-2.0 开源协议；任务与配置保存在本机，但交给 Agent、图片服务或微信的内容会发送到对应服务。API Key 与 AppSecret 只填本地设置，创建草稿不自动群发。本项目与腾讯、微信官方无隶属或背书关系。</p>
+      </section>
+
       <section class="final-cta section-pad">
         <p class="eyebrow">OPEN SOURCE · ALPHA</p>
         <h2>把统一安装链接交给 Agent，<br />让它一次装好 Skill 与工作台。</h2>
-        <p>Windows 与 macOS 便携版无需预装 Git、Python、Node.js、pnpm 或 Wenyan。也可以先通过仓库链接添加 Skill，再说「打开公众号工作台」或给出文章主题，首次使用时会准备工作台。</p>
+        <p>Windows x64 正式支持，macOS Apple Silicon / Intel 为 Technical Preview。无需预装 Git、Python、Node.js、pnpm 或 Homebrew。安装入口读取 main/VERSION，下载对应已发布包并校验，不沿用旧文档中的固定版本。</p>
+        <p>如果宿主只回复「Skill 已添加」，下一句说「打开公众号工作台，并告诉我怎么开始」。完整提示词要求安装、检查并打开页面；实际能否自动接续取决于宿主的执行能力。<a href="https://github.com/zhouke0929/wechat-visual-director/blob/main/docs/usage-guide.md">查看安装、配置与维护指南 →</a></p>
         <div class="hero-actions">
           <a class="button primary" href="https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md" target="_blank" rel="noreferrer">打开统一安装说明 ↗</a>
           <a class="button secondary dark" href="https://github.com/zhouke0929/wechat-visual-director" target="_blank" rel="noreferrer">Star on GitHub</a>
@@ -239,6 +255,6 @@
 
     <div class="copy-toast" id="copyToast" role="status" aria-live="polite">已复制，可直接粘贴给 Agent</div>
     <footer class="site-footer"><span>WECHAT VISUAL DIRECTOR</span><span>LOCAL-FIRST · OPEN SOURCE · HUMAN REVIEW</span><span>2026</span></footer>
-    <script src="./app.js?v=20260903-1" type="module"></script>
+    <script src="./app.js?v=20260903-2" type="module"></script>
   </body>
 </html>
