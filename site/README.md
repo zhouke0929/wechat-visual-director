@@ -52,7 +52,14 @@ article links. `--refresh-promotional-assets` explicitly refreshes the hero,
 article-card gallery and theme screenshots used in README/social sharing; do not
 overwrite approved art. README keeps three visual groups: finished editions,
 theme switching and the real editing workbench. Avoid repeating the same image
-examples in another large feature panel.
+examples in another large feature panel; the three article links retain compact
+image thumbnails. Promotional screenshots render at 3x device pixel density so
+GitHub can display them clearly across large and high-density screens.
+
+Product-facing prose describes capabilities and user outcomes. Do not import
+internal iteration history or compare the product against its own old interface
+(for example, a removed editing popup or Markdown-upload entry). Keep necessary
+installation, cost and permission boundaries, expressed as current behavior.
 
 `python scripts/capture_readme_workbench.py` refreshes `article-review.png` from
 the real built workbench. It uses only the public campus sample and curated local

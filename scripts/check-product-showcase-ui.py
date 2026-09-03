@@ -48,7 +48,12 @@ def main() -> None:
                 context.route(LOCAL_URL + "**", local_asset)
             return context
 
-        context = new_context(permissions=["clipboard-read", "clipboard-write"])
+        # Render source text and vectors at high density, rather than upscaling
+        # a low-resolution crop when GitHub expands the README image.
+        context = new_context(
+            permissions=["clipboard-read", "clipboard-write"],
+            device_scale_factor=3 if args.refresh_promotional_assets else 1,
+        )
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))

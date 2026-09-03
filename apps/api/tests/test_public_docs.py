@@ -173,3 +173,16 @@ def test_showcase_article_width_matches_workbench_mobile_viewport() -> None:
     gallery_css = (ROOT / "site/styles.css").read_text(encoding="utf-8")
     iframe_rule = re.search(r"\.edition-preview iframe\s*\{([^}]+)\}", gallery_css).group(1)
     assert f"width: {width}px;" in iframe_rule
+
+
+def test_readme_article_presentation_has_clear_images_and_current_product_copy() -> None:
+    from PIL import Image
+
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert "### 原文编辑与双端预览" in text
+    for obsolete_copy in ("不用退回一个小窗口", "不需要在首页手动上传 Markdown", "不只是一个 `SKILL.md` 文件"):
+        assert obsolete_copy not in text
+    for image in ("campus-portfolio-steps.webp", "coffee-repeat-scene.webp", "pop-collaboration-memory.webp"):
+        assert f'src="site/assets/generated/{image}"' in text
+    with Image.open(ROOT / "docs/assets/readme/product-showcase-articles.png") as gallery:
+        assert gallery.width >= 2400, "Render the gallery at high density for README display"
