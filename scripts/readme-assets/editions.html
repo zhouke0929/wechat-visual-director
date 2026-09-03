@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>公众号成稿示例</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f1e7; color: #172b28; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+    .sheet { width: 1440px; padding: 44px 48px 34px; }
+    .sheet > header { display: flex; justify-content: space-between; align-items: end; margin-bottom: 30px; }
+    .eyebrow { margin: 0 0 10px; color: #66776c; font: 11px Georgia, serif; letter-spacing: .2em; }
+    .sheet > header h1 { margin: 0; font: 500 29px/1.4 SimSun, serif; }
+    .sheet > header > p { margin: 0; font-size: 12px; color: #66776c; }
+    .editions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: stretch; }
+    .edition { min-width: 0; display: grid; grid-template-rows: auto 1fr auto auto; background: #fff; border: 1px solid #d9ddd3; box-shadow: 0 16px 24px -22px #172b2877; }
+    .edition-label { display: flex; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #e8e9e2; color: var(--accent); font-size: 11px; letter-spacing: .1em; }
+    .edition-label b { font: 18px/1 Georgia, serif; }
+    .excerpt { padding: 24px 22px 22px; }
+    .article-heading > header { margin: 0 !important; }
+    .intro { margin-top: 18px; }
+    .intro > p { margin: 0 !important; }
+    .art { display: block; width: calc(100% - 44px); height: auto; aspect-ratio: 16 / 9; object-fit: contain; margin: 0 22px; background: #faf9f5; }
+    .edition-footer { padding: 20px 22px; display: flex; justify-content: space-between; align-items: center; color: var(--accent); font-size: 12px; }
+    .edition-footer b { font-size: 23px; font-weight: 400; }
+    .note { display: flex; justify-content: space-between; border-top: 1px solid #d6dbd0; margin: 28px 0 0; padding-top: 18px; font-size: 11px; color: #66776c; }
+  </style>
+</head>
+<body>
+  <main class="sheet">
+    <header><div><p class="eyebrow">SELECTED EDITIONS / 01 — 03</p><h1>让不同的内容，找到自己的表达。</h1></div><p>青春校园 · 温暖人文 · 波普海报</p></header>
+    <div class="editions"></div>
+    <p class="note"><span>真实主题 · 标题与导语节选 · AI 配图</span><span>阅读完整推文，见下方入口 ↗</span></p>
+  </main>
+</body>
+</html>

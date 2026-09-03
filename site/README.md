@@ -49,20 +49,28 @@ preview or the deployed site. It checks six viewport widths, 12 themes, keyboard
 selection, phone scroll boundaries and narrow-screen fit, copy layout stability,
 manual-copy fallback, catalog retry and no-JS
 article links. `--refresh-promotional-assets` explicitly refreshes the hero,
-article-card gallery and theme screenshots used in README/social sharing; do not
+article excerpts and theme screenshots used in README/social sharing; do not
 overwrite approved art. README keeps three visual groups: finished editions,
 theme switching and the real editing workbench. Avoid repeating the same image
 examples in another large feature panel; the three article links retain compact
 image thumbnails. Promotional screenshots render at 3x device pixel density so
 GitHub can display them clearly across large and high-density screens.
+README uses a dedicated three-column composition from `scripts/readme-assets/editions.html`:
+the actual article heading and complete first paragraph flow above the curated
+image, with consistent gutters and aligned image rows. Do not splice artwork
+onto a clipped live-iframe paragraph or reuse the tilted website crop here.
 
 Product-facing prose describes capabilities and user outcomes. Do not import
 internal iteration history or compare the product against its own old interface
 (for example, a removed editing popup or Markdown-upload entry). Keep necessary
 installation, cost and permission boundaries, expressed as current behavior.
 
-`python scripts/capture_readme_workbench.py` refreshes `article-review.png` from
-the real built workbench. It uses only the public campus sample and curated local
+`python scripts/capture_readme_workbench.py` refreshes `article-review.png` and
+`article-mobile-review.png` from the real built workbench. README shows two full
+screenshots vertically: editing first, mobile preview below. Both retain the
+image-review workspace on the left and show the same article on the right;
+do not crop out the phone or combine the views into a promotional board.
+It uses only the public campus sample and curated local
 images, a fresh test database and a loopback service that stops after capture.
 It never uses saved credentials, existing tasks or model/publishing requests.
 API dependencies, Playwright and Edge must be available in the chosen Python.

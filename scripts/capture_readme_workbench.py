@@ -76,7 +76,7 @@ def main() -> None:
         assert server.started
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, channel="msedge")
-            context = browser.new_context(viewport={"width": 1600, "height": 1000}, reduced_motion="reduce")
+            context = browser.new_context(viewport={"width": 1600, "height": 1000}, device_scale_factor=2, reduced_motion="reduce")
             # The screenshot may access only this isolated loopback service.
             context.route("**/*", lambda route: route.continue_() if route.request.url.startswith(base + "/") else route.abort())
             page = context.new_page()
@@ -89,7 +89,10 @@ def main() -> None:
             page.screenshot(path=str(ROOT / "docs/assets/readme/article-review.png"))
             page.get_by_role("tab", name="手机预览", exact=True).click()
             page.locator(".preview-mode-mobile").wait_for(state="visible")
+            preview.locator("main").wait_for(state="visible")
+            page.evaluate("() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
             page.screenshot(path=str(runtime / "mobile-review.png"))
+            page.screenshot(path=str(ROOT / "docs/assets/readme/article-mobile-review.png"))
             context.close()
             browser.close()
         print(f"Captured real workbench: {runtime.name}")

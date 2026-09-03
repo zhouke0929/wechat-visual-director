@@ -186,3 +186,9 @@ def test_readme_article_presentation_has_clear_images_and_current_product_copy()
         assert f'src="site/assets/generated/{image}"' in text
     with Image.open(ROOT / "docs/assets/readme/product-showcase-articles.png") as gallery:
         assert gallery.width >= 2400, "Render the gallery at high density for README display"
+    assert "workbench-dual-preview.png" not in text
+    for name in ("article-review.png", "article-mobile-review.png"):
+        assert f"docs/assets/readme/{name}" in text
+        with Image.open(ROOT / "docs/assets/readme" / name) as preview:
+            assert preview.width >= 2400 and preview.width > preview.height
+    assert text.index("docs/assets/readme/article-review.png") < text.index("docs/assets/readme/article-mobile-review.png")

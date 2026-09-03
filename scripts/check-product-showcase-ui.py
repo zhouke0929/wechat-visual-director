@@ -19,6 +19,58 @@ SITE = ROOT / "site"
 LOCAL_URL = "http://127.0.0.1:8765/"
 
 
+def capture_readme_editions(context, gallery_page, url):
+    """Compose complete excerpt blocks, never clip a live paragraph above art."""
+    editions = []
+    for name, accent, description in (
+        ("campus", "#2d6cdf", "青春校园 / 把灵感展开"),
+        ("coffee", "#925744", "温暖人文 / 日常的温度"),
+        ("pop", "#243463", "波普海报 / 让观点出场"),
+    ):
+        card = gallery_page.locator(f".edition-{name}")
+        frame = card.frame_locator("iframe")
+        excerpt = frame.locator(".wechat-document").evaluate("""el => ({
+            heading: el.querySelector('[data-content-role="article-metadata-preview"]').outerHTML,
+            headingFont: getComputedStyle(el.querySelector('h1')).fontFamily,
+            intro: el.querySelector(':scope > main > p').outerHTML,
+        })""")
+        editions.append({
+            **excerpt, "accent": accent, "description": description,
+            "label": card.locator(".edition-top span").inner_text(),
+            "image": urljoin(url, card.locator(":scope > img").get_attribute("src")),
+        })
+    sheet = context.new_page()
+    sheet.set_viewport_size({"width": 1440, "height": 1100})
+    sheet.set_content((ROOT / "scripts/readme-assets/editions.html").read_text(encoding="utf-8"))
+    sheet.evaluate("""items => {
+        const container = document.querySelector('.editions');
+        items.forEach((item, index) => {
+            const card = document.createElement('article');
+            card.className = 'edition';
+            card.style.setProperty('--accent', item.accent);
+            card.innerHTML = `<div class="edition-label"><span>${item.label}</span><b>0${index + 1}</b></div>
+                <div class="excerpt"><div class="article-heading">${item.heading}</div><div class="intro">${item.intro}</div></div>
+                <img class="art" src="${item.image}" alt="${item.description}">
+                <div class="edition-footer"><span>${item.description}</span><b>↗</b></div>`;
+            card.querySelector('.article-heading').style.fontFamily = item.headingFont;
+            container.append(card);
+        });
+    }""", editions)
+    sheet.wait_for_load_state("networkidle")
+    sheet.locator(".art").evaluate_all("els => Promise.all(els.map(el => el.decode()))")
+    assert sheet.locator(".article-heading h1").count() == 3
+    geometry = sheet.locator(".edition").evaluate_all("""cards => cards.map(card => {
+        const intro = card.querySelector('.intro').getBoundingClientRect();
+        const art = card.querySelector('.art').getBoundingClientRect();
+        const heading = card.querySelector('.article-heading').getBoundingClientRect();
+        return {gap: art.top - intro.bottom, left: art.left - heading.left, right: art.right - heading.right, imageTop: art.top};
+    })""")
+    assert all(item["gap"] >= 20 and abs(item["left"]) < 1 and abs(item["right"]) < 1 for item in geometry), geometry
+    assert max(item["imageTop"] for item in geometry) - min(item["imageTop"] for item in geometry) < 1, geometry
+    sheet.locator(".sheet").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-articles.png"))
+    sheet.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--channel", default="msedge")
@@ -105,13 +157,7 @@ def main() -> None:
         if args.refresh_promotional_assets:
             page.evaluate("window.scrollTo(0,0)")
             page.locator(".hero").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-hero.png"))
-            # Include the rotated cards' protruding edges, not just their parent box.
-            gallery = page.locator(".edition-gallery").bounding_box()
-            clip_x = max(0, gallery["x"] - 45)
-            page.screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-articles.png"), clip={
-                "x": clip_x, "y": gallery["y"] - 12,
-                "width": min(1440 - clip_x, gallery["width"] + 90), "height": gallery["height"] + 24,
-            })
+            capture_readme_editions(context, page, url)
         for button in page.locator(".theme-button").all():
             button.click()
             assert button.get_attribute("aria-pressed") == "true"
