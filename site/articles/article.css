@@ -1,0 +1,19 @@
+:root {
+  /* Keep aligned with MOBILE_SOURCE_WIDTH in ArticlePreviewViewport. */
+  --article-preview-width: 405px;
+}
+* { box-sizing: border-box; }
+html, body { background: #eef0ed; }
+body { margin: 0; color: #17211f; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+.article-bar { position: sticky; top: 0; z-index: 20; min-height: 58px; padding: 0 clamp(16px, 4vw, 48px); display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #14242026; background: #f8f6f0f0; backdrop-filter: blur(12px); }
+.article-bar a { font-size: 11px; font-weight: 800; text-decoration: none; }
+.article-bar span { color: #66736e; font-size: 9px; letter-spacing: .13em; }
+.article-wrap { padding: 34px 24px 70px; }
+.article-stage { width: var(--article-preview-width); max-width: 100%; min-height: 100vh; margin: 0 auto; background: #fff; box-shadow: 0 18px 65px #14242029; }
+.wechat-document { width: 100%; padding: 0 24px; background: #fff; }
+.article-stage img { max-width: 100%; height: auto; }
+@media (max-width: 480px) {
+  .article-bar { display: none; }
+  .article-wrap { padding: 0; }
+  .article-stage { box-shadow: none; }
+}

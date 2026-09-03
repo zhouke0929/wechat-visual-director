@@ -132,9 +132,10 @@ def main() -> int:
             )
             if replacement_count != 1:
                 raise RuntimeError("showcase document missing: pop-collaboration.html")
-            updated = updated.replace(
-                "未来科技 · 390PX WECHAT PREVIEW",
-                "波普海报 · 390PX WECHAT PREVIEW",
+            updated = re.sub(
+                r"未来科技( · \d+PX WECHAT PREVIEW)",
+                r"波普海报\1",
+                updated,
             )
         else:
             updated, replacement_count = HERO_PATTERN.subn(

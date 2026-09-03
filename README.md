@@ -7,6 +7,7 @@
 [![License](https://img.shields.io/github/license/zhouke0929/wechat-visual-director)](LICENSE)
 [![Windows](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
 [![macOS](https://img.shields.io/badge/macOS-Technical_Preview-777777)](#系统要求)
+[![GitHub Stars](https://img.shields.io/github/stars/zhouke0929/wechat-visual-director?style=flat&label=Star)](https://github.com/zhouke0929/wechat-visual-director/stargazers)
 
 一篇内容写好了，真正发出去之前，往往还要花时间分层级、挑样式、找配图、裁封面，再来回检查手机效果。
 
@@ -28,16 +29,13 @@
 
 同一套排版能力，可以用于教程、商业分析和品牌观点。下面是三篇完整的公开示例，点击即可阅读，无需安装或配置 Key。
 
+[![三篇公众号成稿：青春校园、温暖人文与波普海报的真实排版及 AI 配图](docs/assets/readme/product-showcase-articles.png)](https://zhouke0929.github.io/wechat-visual-director/)
+
 <table>
   <tr>
-    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html"><img src="site/assets/generated/campus-portfolio-steps.webp" alt="青春校园主题：把课程作业改造成作品集的信息图"></a></td>
-    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html"><img src="site/assets/generated/coffee-repeat-scene.webp" alt="温暖人文主题：社区咖啡店的场景配图"></a></td>
-    <td width="33%"><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html"><img src="site/assets/generated/pop-collaboration-memory.webp" alt="波普海报主题：品牌联名的视觉隐喻配图"></a></td>
-  </tr>
-  <tr>
-    <td><b>把课程作业变成作品集</b><br>教程步骤 · 青春校园<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html">阅读完整推文 →</a></td>
-    <td><b>社区咖啡店，如何让客人再来</b><br>本地商业 · 温暖人文<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html">阅读完整推文 →</a></td>
-    <td><b>联名越做越多，为何反而记不住</b><br>品牌观点 · 波普海报<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html">阅读完整推文 →</a></td>
+    <td width="33%"><b>把课程作业变成作品集</b><br>教程步骤 · 青春校园<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/campus.html">阅读完整推文 →</a></td>
+    <td width="33%"><b>社区咖啡店，如何让客人再来</b><br>本地商业 · 温暖人文<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html">阅读完整推文 →</a></td>
+    <td width="33%"><b>联名越做越多，为何反而记不住</b><br>品牌观点 · 波普海报<br><a href="https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html">阅读完整推文 →</a></td>
   </tr>
 </table>
 
@@ -67,6 +65,10 @@ Agent 输出结构化规划，本地程序用受控组件渲染，完成 Markdow
 
 内容校对页支持在正文位置编辑，自动保存；切到手机预览，就能检查修改后的阅读效果。主题、图片、封面与最近任务也都在同一个工作台里。
 
+[![本地工作台真实截图：左侧审核正文配图，右侧在 600px 内容校对中直接编辑文章标题](docs/assets/readme/article-review.png)](#快速开始)
+
+*公开示例在当前工作台中的真实界面；图中配图为已导入素材。在线能看效果，安装后就能用自己的文章换主题、改文字、审图片。*
+
 桌面校对使用 **600px 内容区**，手机预览使用 **405px 画布**，参考实际微信展示校准。它是受控的文章编辑器，不是任意拖拽页面设计器：编辑的是标题和正文等内容，装饰、组件结构与图片走各自的审核操作。
 
 微信版本、设备宽度和字体仍可能带来差异；最终发送前，建议再用公众号后台和手机预览核对。
@@ -74,8 +76,6 @@ Agent 输出结构化规划，本地程序用受控组件渲染，完成 Markdow
 ### 正文配图与封面，共享一份美术方向
 
 文章决定画什么，主题决定色彩、材质和构图气质。结构信息图解释步骤与关系，场景图承接叙事，视觉隐喻图表达抽象观点；封面与正文配图共享文章级视觉方向。
-
-![结构信息图、场景氛围图与视觉隐喻图](docs/assets/readme/product-showcase-images.png)
 
 如果 Agent 本身支持可调用的原生生图工具，确认主题后可以直接让它生成正文与封面候选；也可以连接图片模型 API，或上传自己的图片。候选需要你审核后采用，封面显示区可以调整。
 
@@ -171,6 +171,8 @@ https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT
 ## 开发与贡献
 
 欢迎反馈实际公众号后台或手机端的兼容问题，也欢迎贡献主题、组件样式和图片风格。反馈时请附主题名、复现步骤与已脱敏截图；不要上传密钥、任务数据库或未公开稿件。新增语义组件需要同时维护规划、渲染与验证，当前还不是免代码的扩展包安装功能。
+
+如果你也希望把时间留给内容，而不是反复调格式，欢迎点一下仓库右上角的 **Star ⭐**。既方便下次找到，也让我知道这个方向值得继续打磨。用过后的一条真实反馈，同样很有帮助。
 
 <details>
 <summary>展开源码结构与开发验证</summary>

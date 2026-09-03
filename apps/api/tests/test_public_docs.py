@@ -141,3 +141,35 @@ def test_public_sitemap_points_to_real_canonical_pages() -> None:
         assert (ROOT / "site" / path).is_file()
     robots = (ROOT / "site/robots.txt").read_text(encoding="utf-8")
     assert "Sitemap: " + SITE_URL + "sitemap.xml" in robots
+
+
+def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
+    text = (ROOT / "site/index.html").read_text(encoding="utf-8")
+    assert len(re.findall(r"<section\b", text)) == 3
+    assert '<aside class="product-notes" id="faq" aria-labelledby="notes-title">' in text
+    assert '<summary' not in text
+    header = text.split('<header class="site-nav">', 1)[1].split('</header>', 1)[0]
+    assert '看成稿' not in header and '换主题' not in header
+    assert text.count('class="edition edition-') == 3
+    assert text.count("data-copy-install") == 3
+    for attribute, link in re.findall(r'(src|href)="([^"]+)"', text):
+        if link.startswith("./"):
+            assert (ROOT / "site" / link.split("?", 1)[0]).exists(), (attribute, link)
+        elif link.startswith("#"):
+            assert f'id="{link[1:]}"' in text, link
+
+
+def test_showcase_article_width_matches_workbench_mobile_viewport() -> None:
+    viewport = (ROOT / "apps/web/src/components/article-preview-viewport.tsx").read_text(encoding="utf-8")
+    width = re.search(r"const MOBILE_SOURCE_WIDTH = (\d+);", viewport).group(1)
+    stylesheet = (ROOT / "site/articles/article.css").read_text(encoding="utf-8")
+    assert f"--article-preview-width: {width}px;" in stylesheet
+    assert "width: var(--article-preview-width); max-width: 100%" in stylesheet
+    for path in (ROOT / "site/articles").glob("*.html"):
+        text = path.read_text(encoding="utf-8")
+        assert 'href="./article.css?' in text
+        assert f"{width}PX WECHAT PREVIEW" in text
+        assert "390PX" not in text and "width:390px" not in text
+    gallery_css = (ROOT / "site/styles.css").read_text(encoding="utf-8")
+    iframe_rule = re.search(r"\.edition-preview iframe\s*\{([^}]+)\}", gallery_css).group(1)
+    assert f"width: {width}px;" in iframe_rule
