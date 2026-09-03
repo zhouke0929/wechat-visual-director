@@ -2,6 +2,10 @@
 
 > 开源微信公众号排版 Skill：把主题、资料或 Markdown 初稿转换为可换主题、可配图、可手机预览，并能写入微信公众号草稿箱的视觉文章。
 
+**第一次安装或使用：** 可以复制下面[完整安装提示词](#快速开始)，让 Agent 安装并打开工作台；也可以把本仓库链接交给 Agent 安装 Skill，添加后直接说「打开公众号工作台」或「帮我写一篇关于××的公众号文章」。首次使用会自动准备本地工作台。
+
+**给安装 Agent：** 当前 Skill 在 [`skills/wechat-visual-director/`](skills/wechat-visual-director/)，根目录没有 `SKILL.md`。安装结束前请阅读该文件开头的上手回执：只复制文件时告诉用户下一句怎么使用；用户要求完整安装时执行 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)，检查成功后提供真实工作台链接。
+
 [![Release](https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&label=release)](https://github.com/zhouke0929/wechat-visual-director/releases)
 [![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
 [![License](https://img.shields.io/github/license/zhouke0929/wechat-visual-director)](LICENSE)
@@ -81,7 +85,7 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.25**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.26**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 与 macOS：交给 Agent 开箱安装
 
@@ -189,19 +193,19 @@ H1/H2、数字、来源和事实关系始终受保护。组件只能绑定原文
 适用于 OpenCode、Claude Code、Codex、Trae、WorkBuddy、OpenClaw 或其他具备终端能力、支持 Skill 的 Agent。也可以在[在线产品展示页](https://zhouke0929.github.io/wechat-visual-director/)顶部点击“交给 Agent 安装”。推荐分享下面这一条安装说明链接；它要求 Agent 在同一轮完成轻量 Skill、正式 Release 工作台、健康检查与首次教程，而不是把源码仓库整体复制进 Skill 目录：
 
 ```text
-请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。不要读取或回显任何密钥。
+请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。完成后给我工作台链接和不超过五行的上手说明，包括下一句可以怎么使用；如果受限未完成，说明当前状态和下一步，不要只回复已安装。不要读取或回显任何密钥。
 https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
 ```
 
-安装完成后，当前 Agent 会直接打开工作台并返回最短教程。只有宿主在启动时扫描 Skill 时才需要重启应用或新开对话；进入新对话不等于重新安装，Agent 应先执行 `doctor --json`。
+这段提示词面向完整产品安装，检查成功后 Agent 应打开工作台并返回最短教程。直接发仓库链接的用户也可以先添加 Skill，再在下一条消息说「打开公众号工作台」或直接提出写作任务，由 Skill 的准备脚本补齐工作台。各宿主的通用 Skill 安装器是否读取上手说明由宿主决定，项目文件无法强制改写它的安装回执；只有宿主明确要求重新加载时才需要重启或新开对话。
 
 ### 方式二：Windows PowerShell 一行安装
 
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
-$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha25.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.25/install-release.ps1" -OutFile $installer
+$installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha26.ps1"
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.26/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
@@ -433,6 +437,7 @@ fallback_used=false
 ├── skills/wechat-visual-director/
 │   ├── SKILL.md             # 轻量 Skill 触发条件、工作流与安全门禁
 │   ├── agents/openai.yaml   # Skill UI 元数据
+│   ├── scripts/             # 首次使用准备工作台，已有安装直接启动检查
 │   └── references/          # 安装、文章、CLI 与图片 Provider 协议
 ├── scripts/                 # 安装器、稳定启动器和公开验证脚本
 ├── apps/api/                # FastAPI、SQLite、规划、组件与发布适配器

@@ -1,38 +1,38 @@
 ---
 name: wechat-visual-director
-description: 将公众号主题、资料或 Markdown 初稿整理为 wechat_article.v1，生成一份可即时换主题的视觉推荐稿并打开人工评审与草稿交付工作台。Make sure to use this Skill whenever the user asks to write, generate, structure, visually typeset, review, continue, or deliver a WeChat Official Account article; mentions 公众号推文、公众号排版、视觉主编、公众号草稿箱; or supplies a topic, source material, or .md file for a WeChat article, even if they do not name the Skill. Do not use for final mass publishing without explicit human confirmation.
+description: 将主题、资料或 Markdown 整理为公众号推文，在本地工作台排版、编辑、审核配图与封面并交付草稿。用于安装或开始使用 wechat-visual-director、打开公众号工作台，以及公众号写作、排版、配图、继续任务和草稿交付；首次使用可自动准备工作台。Use for WeChat Official Account articles and workbench setup, even when the user does not name the Skill. 最终群发由人工完成。
 ---
 
 # WeChat Visual Director
 
-把宿主 Agent 同时作为内容编辑和默认语义规划器，把正式安装的本地 CLI 与工作台作为校验、视觉编译与交付入口。这个目录是轻量 Skill 发行包，不是源码仓库，也不包含工作台运行时。宿主 Agent 负责生成规范 Markdown，并基于核心返回的安全块上下文生成受控 EditorialBrief；核心只校验、规范化和确定性渲染，不会再次调用文本模型。宿主无法提供合格 Brief 时使用规则规划兜底，不要求用户重复配置文本模型 Key。不要自行生成整段 HTML/CSS，也不要把公众号密钥或模型 Key 放进文章、提示词或命令行。
+安装者：若本轮只复制了 Skill 文件，请返回下面三行；若工作台已通过检查，改为给出真实工作台链接。只有宿主明确要求重启时才提示重启，不默认要求新开对话。
+
+> 公众号视觉主编已添加。接下来直接说「打开公众号工作台」，或「帮我写一篇关于××的公众号文章」。
+> 第一次使用时会自动下载并准备本地工作台，完成后会打开页面供你排版、编辑和审核。
+> 如果当前 Agent 支持生图，确认文章主题后还可以让它生成正文配图和封面候选。
+
+上面的「已添加」仅表示 Skill 文件已安装，不代表工作台已启动。只下载文件时不报工作台就绪，也不用“缺少运行时”作为没有下一步的结束语；准备失败时说明具体步骤并保留重试入口。
+
+宿主 Agent 负责内容编辑与语义规划，正式本地 CLI 负责校验、视觉编译与交付。宿主生成规范 Markdown 和受控 EditorialBrief；核心确定性渲染，无法提供合格 Brief 时使用规则兜底，不要求重复配置文本模型 Key。不要自行生成整段 HTML/CSS，也不要把密钥放进文章、提示词或命令行。
 
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，直接把它记为 `{launcher}`；macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，直接使用它。Windows CMD 还可记录同目录的 `visual-director.cmd`。不要因为进入新对话而重复安装，先执行 `doctor --json`。
-3. 只有稳定入口不存在，或用户明确要求升级时，才读取 [完整产品安装与恢复说明](references/install.md)。Windows x64 与 macOS 普通安装都优先使用带 SHA-256 校验的 GitHub Release 便携包；它们已内置 Python、后端依赖和生产工作台，不得为普通用户 clone 源码、把整个源码仓库复制进 Skill 目录，或安装 Git、Homebrew、Python、Node.js、pnpm、Wenyan。macOS Agent 使用固定入口下载安装器，由脚本自动识别 Apple Silicon 或 Intel：
-
-```bash
-installer="$(mktemp -t wechat-visual-director-install.XXXXXX)"
-curl -fsSL "https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/scripts/install-release.sh" -o "$installer"
-bash "$installer"
-```
-
-仅当用户明确要求源码开发/审计，或已经提供完整本地源码检出时，才从那个源码仓库根目录运行统一入口；不要把当前 `{baseDir}` 当成源码根目录：
+2. 用户要求打开工作台、写作或排版时，先运行随 Skill 分发的准备入口。用户已经提出使用需求，不需要再让其学习安装命令。如果用户明确只下载文件，按上面的回执结束，不自动启动；若宿主权限阻止执行则如实告知。Windows：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "<source-repository>/scripts/bootstrap.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/ensure-workbench.ps1"
 ```
 
-macOS 源码开发使用：
+macOS：
 
 ```bash
-bash "<source-repository>/scripts/bootstrap.sh"
+bash "{baseDir}/scripts/ensure-workbench.sh"
 ```
 
-4. Release 安装器或源码 bootstrap 都只解析 stdout 的最终 JSON，把返回的绝对 `launcher` 记为 `{launcher}`。Windows 与 macOS Release 安装都必须确认 `runtime_mode=bundled_python` 与 `bundled_runtime=true`。后续必须调用稳定入口，不再调用临时下载目录中的脚本。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。安装结果含 `workbench_url` 时立即用系统默认浏览器打开；稳定入口返回 `command_completed=true` 后命令已经结束，后台 API 会独立运行，立即停止等待，不得轮询或等待 API 进程退出。
-5. 确认 `installation.persistent=true`、`installation.version_match=true`、`installation.runtime_match=true` 和 `capabilities.host_skill_registered=true`。`runtime_match` 会校验正式安装模式与实际数据库路径，避免误连源码/测试库。若出现版本、契约或运行身份不匹配，不得继续创建任务；只按结构化错误中的动作恢复。不得改用系统 Python、全局 uvicorn 或 `pnpm dev`。正式启动器会把 API 作为无控制台后台进程运行；不要另开一个持续占用终端的前台服务。
+3. 准备入口只在稳定启动器缺失时下载校验过的正式 Release；已有安装直接启动并运行 doctor，不自动升级。用户明确要求升级时传 `-Upgrade` / `--upgrade`。只需要后台准备、马上还要打开文章任务时，可传 `-NoOpen` / `--no-open`，避免先打开空工作台。脚本不需要系统 Python、Node.js 或 Git。安装失败、受限或需要源码开发时再读 [安装与恢复说明](references/install.md)。
+4. 只解析 stdout 的最终 JSON。`ok=true` 且 `workbench_ready=true` 后，把绝对 `launcher` 记为 `{launcher}`，后续调用这个稳定入口。未主动使用 `NoOpen` 而 `browser_opened=false` 时，由宿主打开 `workbench_url`；为创建文章使用 `NoOpen` 时先继续文章流程，之后打开具体任务。用户只要求打开工作台时，返回链接即完成，不额外生成文章。用户要求文章时不停在安装成功。返回 `command_completed=true` 表示命令已结束，后台 API 独立运行，不要等待 API 进程退出。
+5. 准备入口会校验 `installation.persistent`、`version_match`、`runtime_match` 与 `capabilities.host_skill_registered`；失败时不得继续创建任务或声称工作台就绪。不要自行改用源码/测试服务。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
 7. 仅在首次安装成功后，根据安装结果的 `first_run_guide` 向用户返回不超过五行的首次使用说明：可以直接给主题或 Markdown；成稿后会得到本地工作台链接；若当前 Agent 原生支持生图，确认主题后可要求它“按照当前主题为文章生成并插入配图”；密钥只在“本地设置”填写；系统只创建草稿、不自动群发。升级、修复、换对话或既有安装检查时不要重复展示。
 8. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。

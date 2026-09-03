@@ -1,6 +1,12 @@
 # 完整产品安装与恢复
 
-wechat-visual-director 由轻量 Skill 与本地工作台组成。普通用户安装必须同时完成两者；不要只复制 Skill，也不要克隆源码作为运行环境。
+wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准备工作台两条路径。完整安装必须检查工作台；通用安装器只复制 Skill 时返回 `SKILL.md` 开头的简短回执，明确用户下一句可说「打开公众号工作台」或直接给文章主题。不要把文件已复制报成工作台已就绪。
+
+## 用户开始使用
+
+运行当前 Skill 内的 `scripts/ensure-workbench.ps1`（Windows）或 `scripts/ensure-workbench.sh`（macOS）。脚本缺少正式启动器时才下载 Release，已有安装只启动并检查，成功后打开工作台；只打开工作台时返回链接即可，用户已给文章需求时继续完成文章。`-NoOpen` / `--no-open` 可后台准备，`-Upgrade` / `--upgrade` 仅用于用户明确要求升级。
+
+成功回执为 `workbench_ready.v0.1`，含 `workbench_ready=true`、稳定 `launcher`、`workbench_url`、`browser_opened` 和 `first_install`。若默认打开失败，由宿主打开返回的本地链接；主动使用 `NoOpen` 时继续文章流程，最后只打开具体任务。`ok=false` 时说明具体失败步骤并提供重试动作。不要为了进入工作台要求用户先配置图片或公众号凭据。
 
 ## 安装或升级
 

@@ -8,12 +8,21 @@ the repository into a Skill directory is not a completed installation. The user
 should not need to know the Python or process-management details. Normal
 installation must not invoke npm, pnpm, or install a global Node.js package.
 
+If a generic Skill installer only copies the Skill, end with a useful handoff:
+"公众号视觉主编已添加。接下来直接说‘打开公众号工作台’，或给出文章主题；第一次使用时会自动准备本地工作台。支持生图的 Agent 还可以生成正文配图和封面候选。"
+Do not claim the workbench is ready without checking it. Do not require a new
+conversation unless the host actually needs a reload. The distributable Skill is
+at `skills/wechat-visual-director/`; read its opening onboarding instructions.
+When the user asks to use it, run its `scripts/ensure-workbench.ps1` or
+`scripts/ensure-workbench.sh` to install only if missing, start, check and open it.
+The full-product installation flow below remains the preferred one-turn path.
+
 Do not pass the repository root to a generic Skill installer. The repository is
 the development source tree, not the distributable Skill folder. The optional
 Skill-only compatibility URL is
 `https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director`,
-but ordinary installation must use the Release flow below so the workbench is
-installed and the lightweight Skill is registered together.
+and its first-use helper completes the workbench later. Prefer the Release flow
+below when you can complete the full installation in this turn.
 
 ## Safety boundary
 

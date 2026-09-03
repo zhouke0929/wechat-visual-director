@@ -18,11 +18,19 @@ WeChat Visual Director（微信公众号 AI 排版 Skill）是一个本地优先
 - 创建公众号草稿不等于最终群发
 - 本地配置、任务数据库和密钥不会进入公开仓库
 
+## 安装和第一次使用
+
+- 完整安装：执行 INSTALL_FOR_AGENT.md，安装 Release 与轻量 Skill、检查并打开工作台，返回真实链接和不超过五行的上手说明。
+- 只给仓库链接安装 Skill：正确目录为 skills/wechat-visual-director，不是仓库根目录。安装结束前阅读 SKILL.md 开头的简短回执，不要只说已安装。
+- 用户下一句可直接说「打开公众号工作台」或给出文章主题。Skill 自带 scripts/ensure-workbench.ps1 / ensure-workbench.sh，首次使用时安装，已有工作台只启动检查。
+- 当前 Agent 支持原生生图时，用户确认文章主题后可以让它生成正文配图和封面候选。
+- 不把 Skill 文件已添加等同于工作台已就绪；只有宿主明确需要重新加载时才提示重启。
+
 ## Links
 
 - Product showcase: https://zhouke0929.github.io/wechat-visual-director/
 - Agent full-product installer: https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
-- Lightweight Skill only: https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director
+- Lightweight Skill with first-use setup: https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director
 - GitHub repository: https://github.com/zhouke0929/wechat-visual-director
 - Releases: https://github.com/zhouke0929/wechat-visual-director/releases
 - License: Apache-2.0

@@ -41,6 +41,7 @@ jobs:
           bash -n scripts/test-macos-package.sh
           bash -n scripts/persistent-launcher.sh
           bash -n scripts/visual-director.sh
+          bash -n skills/wechat-visual-director/scripts/ensure-workbench.sh
       - name: macOS isolated install smoke test
         if: runner.os == 'macOS'
         run: |

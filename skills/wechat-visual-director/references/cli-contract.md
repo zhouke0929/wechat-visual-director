@@ -1,6 +1,6 @@
 # CLI 调用契约
 
-首次安装或显式升级先读取同目录的 `install.md`，并从 Release 安装器最终 JSON 中取得稳定 `launcher`；使用 Windows CMD 的宿主还可以读取 `launcher_cmd`。后续只调用稳定入口，不要继续调用临时下载目录，也不要手动启动系统 Python、uvicorn、Next.js 或 Vite。
+首次使用先运行 Skill 内 `scripts/ensure-workbench.ps1` 或 `scripts/ensure-workbench.sh`：缺失时安装正式包，已有时启动检查；成功 JSON 的 `launcher` 为后续稳定入口，`workbench_url` 为用户入口。失败或显式安装恢复时读取同目录的 `install.md`。不要手动启动系统 Python、uvicorn、Next.js 或 Vite。
 
 ## 常用命令
 
