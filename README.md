@@ -4,7 +4,7 @@
 
 **第一次安装或使用：** 可以复制下面[完整安装提示词](#快速开始)，让 Agent 安装并打开工作台；也可以把本仓库链接交给 Agent 安装 Skill，添加后直接说「打开公众号工作台」或「帮我写一篇关于××的公众号文章」。首次使用会自动准备本地工作台。
 
-**给安装 Agent：** 当前 Skill 在 [`skills/wechat-visual-director/`](skills/wechat-visual-director/)，根目录没有 `SKILL.md`。安装结束前请阅读该文件开头的上手回执：只复制文件时告诉用户下一句怎么使用；用户要求完整安装时执行 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)，检查成功后提供真实工作台链接。
+**给安装 Agent：** 当前 Skill 在 [`skills/wechat-visual-director/`](skills/wechat-visual-director/)，根目录没有 `SKILL.md`。通用安装器（包括 Codex 的 skill-installer）复制文件后，请读取该文件，接续工作台准备、检查和上手回执；完整流程见 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)。只有用户明确只要文件或执行受限时才以交接说明结束，不把文件已复制当成工作台已就绪。
 
 [![Release](https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&label=release)](https://github.com/zhouke0929/wechat-visual-director/releases)
 [![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
@@ -85,7 +85,7 @@
 | 图片 | 手动插入或单次生图 | 章节锚点、Visual DNA、结构图/氛围图与人工确认 |
 | 交付 | 复制 HTML | 富文本复制、交付包、微信官方 API 草稿写入 |
 
-当前可下载 Release：**v0.1.0-alpha.26**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
+当前可下载 Release：**v0.1.0-alpha.27**。项目已在真实公众号生产流程中完成文章交付，但仍处于 Alpha 阶段；它不是 SaaS。主分支可能包含尚未打包的新展示与文档改进，普通用户应优先安装 Releases 页面中版本号最高的发布包。项目与腾讯、微信官方无隶属或背书关系。
 
 ## Windows 与 macOS：交给 Agent 开箱安装
 
@@ -199,13 +199,31 @@ https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT
 
 这段提示词面向完整产品安装，检查成功后 Agent 应打开工作台并返回最短教程。直接发仓库链接的用户也可以先添加 Skill，再在下一条消息说「打开公众号工作台」或直接提出写作任务，由 Skill 的准备脚本补齐工作台。各宿主的通用 Skill 安装器是否读取上手说明由宿主决定，项目文件无法强制改写它的安装回执；只有宿主明确要求重新加载时才需要重启或新开对话。
 
+不想复制长提示词，也可以说：
+
+```text
+帮我安装并打开这个公众号工作台，完成后简单告诉我怎么开始：
+https://github.com/zhouke0929/wechat-visual-director
+```
+
+### 打开后怎么开始（Alpha.27）
+
+- 没有原稿：在首页选择「我有一个选题」，复制指令并回到 Agent 对话填写主题后发送；也可以直接对 Agent 说明需求，不必照抄。
+- 已有原稿：选择「我有一篇文章」，将指令和原文或 Markdown 文件一起发给 Agent。它先保留事实、整理结构并完成语义规划，再打开工作台；不需要用户自己整理 Markdown 格式。
+- 工作台不提供手动上传 Markdown 或示例导入入口。文章统一由 Agent 创建；顶部「最近任务」和「继续已有任务」进入独立任务页，继续正文编辑、主题、图片与交付审核。
+- 首页在常见桌面窗口内完整呈现，不再向下堆叠任务列表。简要说明融入「Agent 规划 → 工作台编辑 → 预览与交付」三步流程；具备原生生图能力的 Agent 可在主题确认后生成候选。
+- 复制指令后按钮短暂显示「已复制」，不会新增提示行或推动页面；复制失败时选中指令供手动复制。
+- 首页简要流程始终可见，无需点击「我已了解」或完成任何确认；流程标题和说明适度放大，保持桌面一屏布局。安装和首次使用时由 Agent 简短介绍，普通再次打开不重复教程。
+
+这层工作台引导独立于 Agent 的安装回复，即使宿主只说“安装完成”，进入工作台后也能知道下一步。
+
 ### 方式二：Windows PowerShell 一行安装
 
 下面的命令只下载固定标签的安装脚本；脚本随后下载 Windows x64 便携包和校验文件，验证 SHA-256 后完成持久安装：
 
 ```powershell
 $installer = Join-Path $env:TEMP "wechat-visual-director-install-alpha26.ps1"
-Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.26/install-release.ps1" -OutFile $installer
+Invoke-WebRequest "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.27/install-release.ps1" -OutFile $installer
 $result = powershell -NoProfile -ExecutionPolicy Bypass -File $installer | ConvertFrom-Json
 powershell -NoProfile -ExecutionPolicy Bypass -File $result.launcher doctor --json
 ```
@@ -419,7 +437,7 @@ planner_provider=host_agent
 fallback_used=false
 ```
 
-若宿主输出不合法，系统会标记 `fallback_used=true` 并退回只使用原稿事实的规则方案。只上传 Markdown 也可以零配置使用规则规划；本地核心不会再要求或调用独立文本模型 Key。
+若宿主输出不合法，系统会标记 `fallback_used=true` 并退回只使用原稿事实的规则方案，Agent 必须如实说明。规则方案是内部容错，不是面向用户的独立上传排版入口。已有文章也应先交给 Agent 做结构整理和语义规划；本地核心不会再要求或调用独立文本模型 Key。
 
 ## 数据与安全边界
 

@@ -80,7 +80,8 @@ try:
             "installation": doctor.get("installation", {}),
             "capabilities": doctor.get("capabilities", {}),
             "first_install": False,
-            "first_run_guide": None,
+            "onboarding_pending": bool(doctor.get("setup", {}).get("onboarding_pending")),
+            "first_run_guide": doctor.get("setup", {}).get("first_run_guide"),
         }
     installation = result.get("installation", {})
     if result.get("ok") is not True or not all(installation.get(key) is True for key in ("persistent", "version_match", "runtime_match")) or result.get("capabilities", {}).get("host_skill_registered") is not True:

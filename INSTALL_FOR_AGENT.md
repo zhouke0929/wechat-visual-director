@@ -8,12 +8,16 @@ the repository into a Skill directory is not a completed installation. The user
 should not need to know the Python or process-management details. Normal
 installation must not invoke npm, pnpm, or install a global Node.js package.
 
-If a generic Skill installer only copies the Skill, end with a useful handoff:
+After a generic Skill installer copies the Skill, read its `SKILL.md` and run the
+bundled `ensure-workbench` helper below to finish setup in the same turn. This
+includes Codex's `skill-installer`: copying files is a step, not proof that the
+workbench is ready. Do not edit the host's system installer. If the user explicitly
+wants files only, or execution is unavailable, end with a useful handoff instead:
 "公众号视觉主编已添加。接下来直接说‘打开公众号工作台’，或给出文章主题；第一次使用时会自动准备本地工作台。支持生图的 Agent 还可以生成正文配图和封面候选。"
 Do not claim the workbench is ready without checking it. Do not require a new
 conversation unless the host actually needs a reload. The distributable Skill is
 at `skills/wechat-visual-director/`; read its opening onboarding instructions.
-When the user asks to use it, run its `scripts/ensure-workbench.ps1` or
+For installation or first use, run its `scripts/ensure-workbench.ps1` or
 `scripts/ensure-workbench.sh` to install only if missing, start, check and open it.
 The full-product installation flow below remains the preferred one-turn path.
 
@@ -100,17 +104,25 @@ bash scripts/bootstrap.sh
    - `configure_image_provider` or `configure_wechat_publisher`: give the user
      `settings_url`. The user enters private credentials in the local page;
      never ask them to paste those values into the conversation.
-8. Only after a successful first installation, return a concise first-use receipt
+8. After successful installation or first-use setup, return a concise receipt
    instead of replying with only "installed". Keep it to no more than five lines
    and use `first_run_guide` from the bootstrap result when available. Tell the
    user, in their language:
    - they can ask for a WeChat article by topic or provide Markdown for typesetting;
+     existing plain text or Markdown is given to the Agent for structure cleanup
+     and semantic planning, not uploaded directly to the workbench;
    - the Agent will return a local workbench link for theme, image, and cover review;
    - if the current Agent supports native image generation, after confirming the
      theme they can ask it to generate and insert images for the current article;
    - private image API and WeChat credentials belong only in Local Settings, and
      the product creates drafts rather than mass publishing automatically.
-   Do not repeat this tutorial after an upgrade, repair, or existing-install check.
+   The homepage now shows its brief guide without an acknowledgement button.
+   `onboarding_pending` remains a compatibility field, not a reason to repeat the
+   tutorial. Use `first_run_guide` for installation or initial use, once per turn.
+   Do not repeat it during ordinary reopening, upgrades, repairs, article work or
+   image generation. Never acknowledge it on the user's behalf.
+   A successful `command_completed=true` result needs no second setup invocation.
+   Older releases without `onboarding_pending` still use `first_install`.
 9. Open `workbench_url` immediately when it is returned. After first installation,
    tell the user to start a new host conversation only if that host discovers
    Skills at startup.

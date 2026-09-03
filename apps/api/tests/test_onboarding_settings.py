@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from visual_director import cli
 from visual_director.main import create_app
-from visual_director.onboarding import PublicIpProbe, WechatConnectionProbe
+from visual_director.onboarding import PublicIpProbe, WechatConnectionProbe, read_workbench_onboarding
 from visual_director.settings import read_env_file
 
 
@@ -120,6 +120,66 @@ def test_setup_preferences_are_machine_scoped_and_local_only(monkeypatch, tmp_pa
     assert public_ip_probe.calls == 0
     preferences_path = tmp_path / "private" / "setup-preferences.json"
     assert json.loads(preferences_path.read_text(encoding="utf-8"))["target_mode"] == "full_delivery"
+
+
+def test_guide_survives_reads_restart_and_only_user_acknowledges(monkeypatch, tmp_path: Path) -> None:
+    app, env_file, wechat_probe, public_ip_probe = _app(monkeypatch, tmp_path)
+    state_path = env_file.parent / "workbench-onboarding.json"
+    with TestClient(app) as client:
+        initial = client.get("/api/v1/settings/onboarding").json()["onboarding"]
+        assert initial["pending"] is True and len(initial["guide"]["lines"]) == 4
+        assert client.get("/api/v1/settings/setup-preferences").json()["onboarding"] == initial
+        assert client.get("/api/v1/settings/onboarding").json()["onboarding"] == initial
+        assert not state_path.exists()
+        assert client.post("/api/v1/settings/onboarding/acknowledge").status_code == 403
+        assert client.post("/api/v1/settings/onboarding/acknowledge", headers={
+            "X-Settings-Intent": "local-operator", "Origin": "https://example.com",
+        }).status_code == 403
+        assert not state_path.exists()
+        response = client.post("/api/v1/settings/onboarding/acknowledge", headers={"X-Settings-Intent": "local-operator"})
+        assert response.status_code == 200
+        acknowledged = response.json()["onboarding"]
+        assert acknowledged["pending"] is False and acknowledged["acknowledged_at"]
+        assert acknowledged["guide"] == initial["guide"]  # Reopening help still works.
+        assert client.post("/api/v1/settings/onboarding/acknowledge", headers={"X-Settings-Intent": "local-operator"}).json()["onboarding"] == acknowledged
+    restarted, _, _, _ = _app(monkeypatch, tmp_path)
+    with TestClient(restarted) as client:
+        assert client.get("/api/v1/settings/onboarding").json()["onboarding"] == acknowledged
+    stored = json.loads(state_path.read_text(encoding="utf-8"))
+    assert set(stored) == {"schema_version", "acknowledged_at"}
+    assert wechat_probe.calls == 0 and public_ip_probe.calls == 0
+
+
+def test_invalid_guide_state_recovers_without_hiding_help(tmp_path: Path) -> None:
+    path = tmp_path / "workbench-onboarding.json"
+    for content in (b"not json", b"[]", b"\xff", b'{"schema_version":"unknown","acknowledged_at":"old"}'):
+        path.write_bytes(content)
+        state = read_workbench_onboarding(path)
+        assert state["pending"] is True
+        assert state["guide"]["lines"]
+        assert path.read_bytes() == content  # Reads do not rewrite user settings.
+
+
+def test_doctor_preserves_pending_guide_and_omits_acknowledged_one(monkeypatch) -> None:
+    onboarding = read_workbench_onboarding(Path("nonexistent-test-guide-state"))
+    monkeypatch.setattr(cli, "_installation_summary", lambda: {"persistent": False, "version": "test"})
+    monkeypatch.setattr(cli, "_runtime_identity_match", lambda *_: (True, {}, {}))
+    monkeypatch.setattr(cli, "_host_skill_registration_summary", lambda: {"registered": True})
+    monkeypatch.setattr(cli, "_probe_http", lambda *_: True)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_: True)
+    def probe(url, **_kwargs):
+        if url.endswith("setup-preferences"):
+            return {"settings": {"target_mode": "typeset_only"}, "onboarding": onboarding}
+        return {"status": "ok"}
+    monkeypatch.setattr(cli, "_probe_json", probe)
+    for _ in range(2):
+        payload, code = cli._doctor("http://127.0.0.1:8000/api/v1", "http://127.0.0.1:8000")
+        assert code == 0
+        assert payload["setup"]["onboarding_pending"] is True
+        assert payload["setup"]["first_run_guide"] == onboarding["guide"]
+    onboarding["pending"] = False
+    payload, _ = cli._doctor("http://127.0.0.1:8000/api/v1", "http://127.0.0.1:8000")
+    assert payload["setup"]["first_run_guide"] is None
 
 
 def test_wechat_credentials_are_write_only_and_probe_creates_no_draft(monkeypatch, tmp_path: Path) -> None:

@@ -633,6 +633,13 @@ export type ImageProviderSettings = {
 
 export type SetupTargetMode = "typeset_only" | "images" | "full_delivery";
 
+export type WorkbenchOnboarding = {
+  schema_version: "workbench_onboarding.v0.1";
+  pending: boolean;
+  acknowledged_at: string | null;
+  guide: { schema_version: "first_run_guide.v0.1"; title: string; lines: string[] };
+};
+
 export type SetupPreferences = {
   schema_version: "setup_preferences.v0.1";
   target_mode: SetupTargetMode;

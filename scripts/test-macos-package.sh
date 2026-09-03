@@ -50,6 +50,8 @@ assert payload["installation"]["persistent"] is True, payload
 assert payload["installation"]["version_match"] is True, payload
 assert payload["installation"]["runtime_match"] is True, payload
 assert payload["capabilities"]["host_skill_registered"] is True, payload
+assert payload["onboarding_pending"] is True, payload
+assert len(payload["first_run_guide"]["lines"]) == 4, payload
 PY
 
 for SKILL_ROOT in "$HOST_HOME/.codex/skills/wechat-visual-director" "$HOST_HOME/.agents/skills/wechat-visual-director" "$HOST_HOME/.config/opencode/skills/wechat-visual-director"; do
@@ -66,6 +68,8 @@ import json, sys
 payload = json.load(open(sys.argv[1], encoding="utf-8"))
 assert payload["ok"] is True, payload
 assert payload["installation"]["runtime_match"] is True, payload
+assert payload["setup"]["onboarding_pending"] is True, payload
+assert len(payload["setup"]["first_run_guide"]["lines"]) == 4, payload
 PY
 
 printf 'preserve-me\n' > "$INSTALL_ROOT/data/package-test-marker.txt"

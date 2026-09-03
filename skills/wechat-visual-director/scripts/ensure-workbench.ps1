@@ -61,7 +61,8 @@ try {
             installation = $Doctor.installation
             capabilities = $Doctor.capabilities
             first_install = $false
-            first_run_guide = $null
+            onboarding_pending = [bool]$Doctor.setup.onboarding_pending
+            first_run_guide = $Doctor.setup.first_run_guide
         }
     }
     if ($Result.installation.persistent -ne $true -or

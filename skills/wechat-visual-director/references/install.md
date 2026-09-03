@@ -1,12 +1,12 @@
 # 完整产品安装与恢复
 
-wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准备工作台两条路径。完整安装必须检查工作台；通用安装器只复制 Skill 时返回 `SKILL.md` 开头的简短回执，明确用户下一句可说「打开公众号工作台」或直接给文章主题。不要把文件已复制报成工作台已就绪。
+wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准备工作台两条路径。用户要求安装产品时，通用安装器复制 Skill 后继续运行准备入口、检查并打开工作台，再返回上手说明。用户明确只下载文件或当前无法继续执行时才返回 `SKILL.md` 开头的交接回执。不要把文件已复制报成工作台已就绪，也不要修改宿主系统安装器来强迫接续流程。
 
 ## 用户开始使用
 
 运行当前 Skill 内的 `scripts/ensure-workbench.ps1`（Windows）或 `scripts/ensure-workbench.sh`（macOS）。脚本缺少正式启动器时才下载 Release，已有安装只启动并检查，成功后打开工作台；只打开工作台时返回链接即可，用户已给文章需求时继续完成文章。`-NoOpen` / `--no-open` 可后台准备，`-Upgrade` / `--upgrade` 仅用于用户明确要求升级。
 
-成功回执为 `workbench_ready.v0.1`，含 `workbench_ready=true`、稳定 `launcher`、`workbench_url`、`browser_opened` 和 `first_install`。若默认打开失败，由宿主打开返回的本地链接；主动使用 `NoOpen` 时继续文章流程，最后只打开具体任务。`ok=false` 时说明具体失败步骤并提供重试动作。不要为了进入工作台要求用户先配置图片或公众号凭据。
+成功回执为 `workbench_ready.v0.1`，含 `workbench_ready=true`、稳定 `launcher`、`workbench_url`、`browser_opened`、`first_install`、`onboarding_pending` 和 `first_run_guide`。一次成功即足够，不再重复执行准备入口。`onboarding_pending` 保留用于兼容；首页常显简要流程，无需确认已读。若默认打开失败，由宿主打开返回的本地链接；主动使用 `NoOpen` 时继续文章流程，最后只打开具体任务。`ok=false` 时说明具体失败步骤并提供重试动作。不要为了进入工作台要求用户先配置图片或公众号凭据。
 
 ## 安装或升级
 
@@ -28,7 +28,7 @@ bash "$installer"
 ```
 
 4. 只解析 stdout 的最终 JSON。成功必须满足 `ok=true`、`runtime_mode=bundled_python`、`bundled_runtime=true`、`installation.persistent=true`、`installation.version_match=true`、`installation.runtime_match=true` 和 `capabilities.host_skill_registered=true`。
-5. 安装结果提供 `workbench_url` 时立即打开。仅在 `first_install=true` 时按 `first_run_guide` 返回不超过五行的首次教程；升级、修复和既有安装检查不重复。
+5. 安装结果提供 `workbench_url` 时立即打开。安装或初次使用时参考 `first_run_guide` 返回不超过五行的教程，同轮不重复。普通再次打开、升级、修复和任务检查不主动重复教程，不以 `onboarding_pending` 决定重复提醒。工作台首页常显简要流程，顶部「最近任务」进入独立任务页；Agent 不调用已读接口代用户确认。
 6. 普通安装不得安装 Git、Homebrew、系统 Python、Node.js、pnpm 或 Wenyan，也不得手动启动 `uvicorn`、Vite 或源码开发服务。
 
 只有用户明确要求源码开发或审计，并已经提供独立源码检出时，才运行该源码根目录的 `scripts/bootstrap.ps1` 或 `scripts/bootstrap.sh`。当前 Skill 目录永远不视为源码仓库。

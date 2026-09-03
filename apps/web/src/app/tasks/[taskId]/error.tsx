@@ -25,7 +25,7 @@ export default function TaskReviewError({
           <button className="primary-button" type="button" onClick={reset}>
             重新加载
           </button>
-          <a className="back-link" href="/">
+          <a className="back-link" href="/tasks">
             返回任务列表
           </a>
         </div>

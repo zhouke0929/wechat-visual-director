@@ -776,7 +776,7 @@ export default function TaskReviewPage() {
   }
 
   if (error && !detail) {
-    return <main className="review-loading"><p role="alert">{error}</p><Link href="/">返回任务台</Link></main>;
+    return <main className="review-loading"><p role="alert">{error}</p><Link href="/tasks">返回最近任务</Link></main>;
   }
 
   if (!detail) return null;
@@ -810,7 +810,7 @@ export default function TaskReviewPage() {
   return (
     <main className={`review-page${activePlan && !activeRevision && !showPreflight ? " review-page-workbench" : ""}`}>
       <header className="review-topbar">
-        <Link className="back-link" href="/"><BackIcon />任务台</Link>
+        <Link className="back-link" href="/tasks"><BackIcon />最近任务</Link>
         <div className="review-title">
           <p>VISUAL REVIEW / {taskId.slice(0, 8).toUpperCase()}</p>
           <h1>{detail.task.title}</h1>
@@ -858,7 +858,7 @@ export default function TaskReviewPage() {
       ) : detail.task.status === "created" ? (
         <section className="not-ready-state legacy-preflight-state">
           <p>这个旧任务创建于 Preflight 上线之前，没有可审计的预检报告。</p>
-          <Link href="/">重新上传 Markdown 并创建新任务</Link>
+          <Link href="/">回到首页，将原稿交给 Agent 整理并创建新任务</Link>
         </section>
       ) : null}
 

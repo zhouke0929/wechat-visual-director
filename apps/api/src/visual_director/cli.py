@@ -898,6 +898,9 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         and isinstance(preference_response.get("settings"), dict)
         else {}
     )
+    onboarding = preference_response.get("onboarding") if isinstance(preference_response, dict) else None
+    if not isinstance(onboarding, dict):
+        onboarding = {}
     warnings: list[str] = []
     if api_health is None:
         warnings.append("core_api_not_running")
@@ -983,6 +986,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             "complete_for_target": setup_complete,
             "next_action": setup_next_action,
             "settings_url": f"{web_base.rstrip('/')}/settings",
+            "onboarding_pending": onboarding.get("pending", False),
+            "first_run_guide": onboarding.get("guide") if onboarding.get("pending") else None,
         },
         "warnings": warnings,
         "api_base": api_base,

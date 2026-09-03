@@ -24,6 +24,7 @@ import type {
   WechatConnectionProbe,
   WechatPublisherSettings,
   WechatPublisherStatus,
+  WorkbenchOnboarding,
 } from "./types";
 
 // Browser traffic stays on the workbench origin and is forwarded by the
@@ -210,6 +211,19 @@ export async function getCapabilitySettings(): Promise<CapabilitySettings> {
   return payload.settings;
 }
 
+export async function getWorkbenchOnboarding(): Promise<WorkbenchOnboarding> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/onboarding`, { cache: "no-store" });
+  return (await parseResponse<{ onboarding: WorkbenchOnboarding }>(response)).onboarding;
+}
+
+export async function acknowledgeWorkbenchOnboarding(): Promise<WorkbenchOnboarding> {
+  const response = await fetchWithTimeout(`${API_BASE}/settings/onboarding/acknowledge`, {
+    method: "POST",
+    headers: { "X-Settings-Intent": "local-operator" },
+  });
+  return (await parseResponse<{ onboarding: WorkbenchOnboarding }>(response)).onboarding;
+}
+
 export async function saveSetupPreferences(targetMode: SetupTargetMode): Promise<CapabilitySettings> {
   const response = await fetchWithTimeout(`${API_BASE}/settings/setup-preferences`, {
     method: "PUT",
@@ -260,20 +274,6 @@ export async function probePublicIp(): Promise<PublicIpProbe> {
     headers: { "X-Settings-Intent": "local-operator" },
   }, 15_000);
   return parseResponse<PublicIpProbe>(response);
-}
-
-export async function createTask(file: File, articleType: string): Promise<Task> {
-  const form = new FormData();
-  form.append("account_id", "default");
-  form.append("markdown_file", file);
-  if (articleType) form.append("article_type", articleType);
-  const response = await fetch(`${API_BASE}/article-tasks`, {
-    method: "POST",
-    body: form,
-    headers: { "Idempotency-Key": crypto.randomUUID() },
-  });
-  const payload = await parseResponse<{ task: Task }>(response);
-  return payload.task;
 }
 
 export async function generatePlans(task: Task): Promise<void> {

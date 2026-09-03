@@ -194,7 +194,7 @@ export function PreflightPanel({
                     ) : finding.block_id && hasPreview ? (
                       <button className="locate-finding" onClick={() => onLocate(finding.block_id!)} type="button">定位到文章</button>
                     ) : finding.planning_blocking ? (
-                      <Link href="/">返回修改并重新上传</Link>
+                      <Link href="/">回到首页，交给 Agent 修正原稿</Link>
                     ) : (
                       <span className="finding-pending">保留到发布准备阶段</span>
                     )}
@@ -220,7 +220,7 @@ export function PreflightPanel({
               {planningBusy ? "正在生成推荐稿…" : report.status === "PASS" ? "生成视觉推荐稿" : "进入受限规划"}
             </button>
           ) : (
-            <Link href="/">选择修改后的 Markdown</Link>
+            <Link href="/">回到首页，交给 Agent 整理修改后的原稿</Link>
           )}
         </footer>
       ) : null}

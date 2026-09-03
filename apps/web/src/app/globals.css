@@ -51,6 +51,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 }
 
 .desk-page { min-height: 100vh; }
+.home-page { min-height: 100dvh; display: flex; flex-direction: column; }
 
 .topbar,
 .review-topbar {
@@ -71,6 +72,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .topbar-actions { display: flex; align-items: center; gap: 10px; }
 .gallery-link { min-height: 34px; padding: 6px 11px; display: inline-flex; align-items: center; border-bottom: 2px solid var(--coral); color: var(--ink); font-size: 12px; font-weight: 750; transition: color 180ms ease, background-color 180ms ease; }
 .gallery-link:hover { background: #fff6ef; color: #a84524; }
+.gallery-link[aria-current="page"] { color: var(--teal); border-color: var(--teal); background: var(--teal-soft); }
 
 .baseline-badge,
 .status-pill {
@@ -87,13 +89,12 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 }
 
 .hero-grid {
-  min-height: 560px;
-  padding: clamp(48px, 7vw, 104px) clamp(20px, 6vw, 96px);
+  flex: 1;
+  padding: clamp(20px, 4vh, 48px) clamp(24px, 5vw, 80px);
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.75fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 0.9fr);
   align-items: center;
-  gap: clamp(40px, 8vw, 120px);
-  border-bottom: 1px solid rgba(19, 32, 31, 0.2);
+  gap: clamp(32px, 5vw, 80px);
 }
 
 .eyebrow {
@@ -107,7 +108,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   max-width: 760px;
   margin: 0;
   font-family: "Noto Serif SC", "Songti SC", Georgia, serif;
-  font-size: clamp(42px, 6vw, 78px);
+  font-size: clamp(42px, 4.4vw, 68px);
   line-height: 1.12;
   letter-spacing: -0.055em;
   font-weight: 750;
@@ -115,45 +116,43 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 
 .hero-copy > p:not(.eyebrow) {
   max-width: 650px;
-  margin: 28px 0 0;
+  margin: 20px 0 0;
   color: var(--muted);
-  font-size: clamp(16px, 1.5vw, 19px);
+  font-size: clamp(15px, 1.3vw, 18px);
 }
 
-.hero-metrics {
-  display: flex;
-  gap: clamp(28px, 5vw, 72px);
-  margin: 44px 0 0;
+.desk-recent-link { display: inline-flex; align-items: center; gap: 30px; margin-top: 16px; padding: 10px 0; border-bottom: 1px solid var(--teal); color: var(--teal); font-size: 14px; font-weight: 700; }
+.desk-recent-link:hover { color: var(--ink); border-color: var(--ink); }
+.agent-start { min-width: 0; padding: clamp(24px, 2.5vw, 32px); border-top: 5px solid var(--ink); background: var(--surface); box-shadow: var(--shadow); }
+.agent-start > .eyebrow { color: var(--coral); margin-bottom: 12px; }
+.agent-start h2 { margin: 0; font: 750 26px/1.4 "Noto Serif SC", "Songti SC", serif; }
+.agent-start-hint { margin: 10px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+.agent-start-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.agent-start-modes button { min-height: 44px; padding: 10px 4px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; }
+.agent-start-modes button[aria-pressed="true"] { color: var(--teal); border-bottom-color: var(--teal); background: #eef5f2; }
+.agent-start-modes button:hover { color: var(--teal); }
+.agent-start-prompt { margin-top: 16px; }
+.agent-start-prompt label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; }
+.agent-start-prompt textarea { display: block; width: 100%; height: 150px; padding: 12px; resize: none; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font: inherit; font-size: 14px; line-height: 1.8; }
+.agent-start-prompt .primary-button { width: 100%; margin-top: 18px; }
+.agent-start-prompt .primary-button.is-copied { background: var(--teal); border-color: var(--teal); }
+.agent-start-next { height: 3.6em; margin: 10px 0 0; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.getting-started { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.getting-started-steps { list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 0; margin: 0 0 16px; }
+.getting-started-steps span { color: var(--coral); font: 700 12px Georgia, serif; }
+.getting-started-steps h3 { margin: 4px 0; font-size: 16px; }
+.getting-started-steps p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+.getting-started-notes { padding-left: 12px; border-left: 2px solid var(--teal); }
+.getting-started-notes p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.8; }
+.getting-started-notes p + p { margin-top: 4px; }
+.getting-started-notes a { text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) {
+  .desk-page .topbar-actions { flex-wrap: wrap; }
+  .getting-started-steps { gap: 10px; }
 }
-.hero-metrics div { display: flex; flex-direction: column-reverse; }
-.hero-metrics dt { color: var(--muted); font-size: 12px; }
-.hero-metrics dd { margin: 0; font: 700 26px/1.3 Georgia, serif; }
 
-.import-panel {
-  padding: clamp(24px, 3vw, 38px);
-  background: var(--surface);
-  border-top: 5px solid var(--ink);
-  box-shadow: var(--shadow);
-}
 .panel-heading span { color: var(--coral); font: 700 10px Arial; letter-spacing: 0.18em; }
 .panel-heading h2 { margin: 4px 0 24px; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 28px; }
-
-.file-drop {
-  min-height: 104px;
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  border: 1px dashed #aab4b0;
-  background: #f8f7f1;
-  transition: border-color 180ms ease, background-color 180ms ease;
-}
-.file-drop:hover { border-color: var(--teal); background: #f0f7f5; }
-.file-drop > svg { color: var(--teal); flex: 0 0 auto; }
-.file-drop-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; }
-.file-drop-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.file-drop-copy small { color: var(--muted); font-size: 12px; }
-.file-action { color: var(--teal); font-size: 13px; font-weight: 700; white-space: nowrap; }
 
 .form-row { margin-top: 20px; display: grid; grid-template-columns: 90px 1fr; align-items: center; gap: 16px; }
 .form-row label { color: var(--muted); font-size: 13px; font-weight: 700; }
@@ -181,7 +180,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 
 .task-section { padding: clamp(52px, 7vw, 96px) clamp(20px, 6vw, 96px) 110px; }
 .section-title-row { display: flex; align-items: end; justify-content: space-between; gap: 40px; margin-bottom: 26px; }
-.section-title-row h2 { margin: 0; font: 750 clamp(30px, 4vw, 48px)/1.2 "Noto Serif SC", "Songti SC", serif; }
+.section-title-row h2, .recent-tasks-page .section-title-row h1 { margin: 0; font: 750 clamp(30px, 4vw, 48px)/1.2 "Noto Serif SC", "Songti SC", serif; }
 .section-title-row > p { max-width: 440px; margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
 .task-heading-actions { max-width: 440px; display: flex; align-items: flex-end; flex-direction: column; gap: 10px; }
 .task-heading-actions p { margin: 0; color: var(--muted); font-size: 13px; text-align: right; }
@@ -1355,7 +1354,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .review-page-workbench { height: auto; min-height: 100vh; overflow: visible; }
   .hero-grid { grid-template-columns: 1fr; }
   .hero-copy h1 { max-width: 760px; }
-  .import-panel { max-width: 680px; }
+  .agent-start { max-width: 680px; }
   .preflight-masthead { grid-template-columns: 84px 1fr; }
   .preflight-facts { grid-column: 1 / -1; }
   .preflight-compact .preflight-masthead { grid-template-columns: 66px 1fr; }
@@ -1389,11 +1388,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .gallery-link { font-size: 11px; }
   .hero-grid { padding: 44px 18px 58px; gap: 42px; }
   .hero-copy h1 { font-size: 42px; }
-  .hero-metrics { gap: 22px; justify-content: space-between; }
-  .hero-metrics dd { font-size: 21px; }
-  .import-panel { padding: 22px 18px; }
-  .file-drop { align-items: flex-start; }
-  .file-action { display: none; }
+  .agent-start { padding: 24px 20px; }
   .form-hint { margin-left: 0; }
   .form-actions { align-items: stretch; flex-direction: column-reverse; }
   .primary-button { width: 100%; }

@@ -89,14 +89,15 @@ serve = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
 doctor = json.loads(Path(sys.argv[3]).read_text(encoding="utf-8"))
 first_install = sys.argv[4].lower() == "true"
 next_action = doctor.get("setup", {}).get("next_action") or "create_article"
-first_run_guide = None
-if first_install:
+first_run_guide = doctor.get("setup", {}).get("first_run_guide")
+# Preserve compatibility with packages whose core predates persistent onboarding.
+if first_install and "onboarding_pending" not in doctor.get("setup", {}):
     first_run_guide = {
         "schema_version": "first_run_guide.v0.1",
         "language": "respond_in_user_language",
         "title": "WeChat Visual Director is ready",
         "lines": [
-            "Ask for a WeChat article by topic, or provide Markdown for typesetting.",
+            "Give your Agent a topic, source material, or an existing article; it organizes the content and plans the layout before opening the workbench.",
             "The Agent returns a local workbench link for theme, image, and cover review.",
             "If the current Agent supports native image generation, confirm the theme first and then ask it to generate and insert images for the current article.",
             "Enter image API and WeChat credentials only in Local Settings; the product creates drafts and never mass publishes automatically.",
@@ -116,6 +117,7 @@ payload = {
     "settings_url": doctor.get("setup", {}).get("settings_url"),
     "next_action": next_action,
     "first_install": first_install,
+    "onboarding_pending": bool(doctor.get("setup", {}).get("onboarding_pending") or first_run_guide),
     "first_run_guide": first_run_guide,
     "background": True,
     "process_mode": "detached",

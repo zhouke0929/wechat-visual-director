@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from visual_director.onboarding import read_workbench_onboarding
 
 
 REPOSITORY = Path(__file__).resolve().parents[3]
@@ -27,11 +28,13 @@ class WorkbenchFixture:
         self.helper = SKILL / "scripts" / f"ensure-workbench.{self.suffix}"
         monkeypatch.setenv("WVD_FIXTURE_ROOT", str(root))
         monkeypatch.setenv("WVD_FIXTURE_PYTHON", sys.executable)
+        guide = read_workbench_onboarding(root / "onboarding.json")["guide"]
         self.doctor = {
             "ok": True,
             "installation": {"persistent": True, "version_match": True, "runtime_match": True, "version": "test"},
             "capabilities": {"host_skill_registered": True, "image_generation": False, "wechat_draft": False},
-            "setup": {"settings_url": "http://127.0.0.1:8000/settings", "next_action": "create_article"},
+            "setup": {"settings_url": "http://127.0.0.1:8000/settings", "next_action": "create_article",
+                      "onboarding_pending": True, "first_run_guide": guide},
         }
         self.write_json("doctor.json", self.doctor)
         self.write_json("serve.json", {"ok": True, "web_base": "http://127.0.0.1:8000"})
@@ -39,7 +42,7 @@ class WorkbenchFixture:
             **self.doctor,
             "runtime_mode": "bundled_python", "bundled_runtime": True,
             "workbench_url": "http://127.0.0.1:8000", "first_install": True,
-            "first_run_guide": {"lines": ["Give a topic or Markdown."]},
+            "onboarding_pending": True, "first_run_guide": guide,
         })
         if WINDOWS:
             self._windows_fixtures()
@@ -151,7 +154,7 @@ def workbench(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> WorkbenchFixtu
     return WorkbenchFixture(tmp_path, monkeypatch)
 
 
-def test_first_use_installs_then_reuses_without_repeating_onboarding(workbench: WorkbenchFixture) -> None:
+def test_first_use_installs_then_reuses_without_consuming_onboarding(workbench: WorkbenchFixture) -> None:
     process, result = workbench.run()
     assert process.returncode == 0, process.stderr
     assert result["ok"] is True and result["workbench_ready"] is True
@@ -162,10 +165,33 @@ def test_first_use_installs_then_reuses_without_repeating_onboarding(workbench: 
     assert args == {"install_root": str(workbench.install), "host_home": str(workbench.host)}
     second, payload = workbench.run()
     assert second.returncode == 0, second.stderr
-    assert payload["first_install"] is False and payload["first_run_guide"] is None
+    assert payload["first_install"] is False
+    assert payload["onboarding_pending"] is True
+    assert payload["first_run_guide"] == result["first_run_guide"]
     assert payload["command_completed"] is True and payload["workbench_ready"] is True
     assert len((workbench.root / "downloads.log").read_text().splitlines()) == 1
     assert (workbench.root / "calls.log").read_text().splitlines() == ["serve", "doctor"]
+
+
+def test_acknowledged_guide_is_not_repeated_by_existing_helper(workbench: WorkbenchFixture) -> None:
+    workbench.existing()
+    workbench.doctor["setup"].update(onboarding_pending=False, first_run_guide=None)
+    workbench.write_json("doctor.json", workbench.doctor)
+    process, result = workbench.run()
+    assert process.returncode == 0, process.stderr
+    assert result["onboarding_pending"] is False
+    assert result["first_run_guide"] is None
+    assert not (workbench.root / "downloads.log").exists()
+
+
+def test_helper_remains_compatible_with_old_core_without_onboarding(workbench: WorkbenchFixture) -> None:
+    workbench.existing()
+    workbench.doctor["setup"].pop("onboarding_pending")
+    workbench.doctor["setup"].pop("first_run_guide")
+    workbench.write_json("doctor.json", workbench.doctor)
+    process, result = workbench.run()
+    assert process.returncode == 0, process.stderr
+    assert result["workbench_ready"] is True and result["first_run_guide"] is None
 
 
 def test_existing_install_starts_without_network_or_optional_keys(workbench: WorkbenchFixture, monkeypatch: pytest.MonkeyPatch) -> None:

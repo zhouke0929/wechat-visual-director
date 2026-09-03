@@ -5,7 +5,7 @@ description: 将主题、资料或 Markdown 整理为公众号推文，在本地
 
 # WeChat Visual Director
 
-安装者：若本轮只复制了 Skill 文件，请返回下面三行；若工作台已通过检查，改为给出真实工作台链接。只有宿主明确要求重启时才提示重启，不默认要求新开对话。
+安装者：用户要求安装本产品时，以「Skill + 工作台就绪 + 上手回执」为完成标准。通用安装器复制 Skill 后，请继续下面的准备入口；只有用户明确只要文件或当前无法执行时，才返回下面三行交接说明。不要修改宿主的系统安装器。
 
 > 公众号视觉主编已添加。接下来直接说「打开公众号工作台」，或「帮我写一篇关于××的公众号文章」。
 > 第一次使用时会自动下载并准备本地工作台，完成后会打开页面供你排版、编辑和审核。
@@ -15,10 +15,12 @@ description: 将主题、资料或 Markdown 整理为公众号推文，在本地
 
 宿主 Agent 负责内容编辑与语义规划，正式本地 CLI 负责校验、视觉编译与交付。宿主生成规范 Markdown 和受控 EditorialBrief；核心确定性渲染，无法提供合格 Brief 时使用规则兜底，不要求重复配置文本模型 Key。不要自行生成整段 HTML/CSS，也不要把密钥放进文章、提示词或命令行。
 
+新选题、资料、纯文字原稿和已有 Markdown 都先交给宿主 Agent。已有文章也要按下文做事实锁定的结构整理与语义规划，再提交核心；不要让用户自己整理 Markdown 或到工作台手动上传。工作台首页只提供对话指令示例与已有任务入口，负责后续编辑、主题、图片和交付审核；规则兜底不是面向用户的另一条创作入口。
+
 ## 首次使用
 
 1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
-2. 用户要求打开工作台、写作或排版时，先运行随 Skill 分发的准备入口。用户已经提出使用需求，不需要再让其学习安装命令。如果用户明确只下载文件，按上面的回执结束，不自动启动；若宿主权限阻止执行则如实告知。Windows：
+2. 用户要求安装本产品、打开工作台、写作或排版时，先运行随 Skill 分发的准备入口。通过 Codex 等宿主的通用安装器复制文件后，读取本文件并接续此步骤，不把「下一轮可用」作为完整安装回执。如果用户明确只下载文件，按上面的回执结束，不自动启动；若宿主权限阻止执行则如实告知。Windows：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/ensure-workbench.ps1"
@@ -31,10 +33,10 @@ bash "{baseDir}/scripts/ensure-workbench.sh"
 ```
 
 3. 准备入口只在稳定启动器缺失时下载校验过的正式 Release；已有安装直接启动并运行 doctor，不自动升级。用户明确要求升级时传 `-Upgrade` / `--upgrade`。只需要后台准备、马上还要打开文章任务时，可传 `-NoOpen` / `--no-open`，避免先打开空工作台。脚本不需要系统 Python、Node.js 或 Git。安装失败、受限或需要源码开发时再读 [安装与恢复说明](references/install.md)。
-4. 只解析 stdout 的最终 JSON。`ok=true` 且 `workbench_ready=true` 后，把绝对 `launcher` 记为 `{launcher}`，后续调用这个稳定入口。未主动使用 `NoOpen` 而 `browser_opened=false` 时，由宿主打开 `workbench_url`；为创建文章使用 `NoOpen` 时先继续文章流程，之后打开具体任务。用户只要求打开工作台时，返回链接即完成，不额外生成文章。用户要求文章时不停在安装成功。返回 `command_completed=true` 表示命令已结束，后台 API 独立运行，不要等待 API 进程退出。
+4. 只解析 stdout 的最终 JSON。`ok=true` 且 `workbench_ready=true` 后，把绝对 `launcher` 记为 `{launcher}`，后续调用这个稳定入口。未主动使用 `NoOpen` 而 `browser_opened=false` 时，由宿主打开 `workbench_url`；为创建文章使用 `NoOpen` 时先继续文章流程，之后打开具体任务。用户只要求安装或打开工作台时，返回链接和适用的简短引导，不额外生成文章。用户要求文章时不停在安装成功。返回 `command_completed=true` 表示命令已结束，后台 API 独立运行，不要等待 API 进程退出，也不要为确认成功再次执行相同准备命令。
 5. 准备入口会校验 `installation.persistent`、`version_match`、`runtime_match` 与 `capabilities.host_skill_registered`；失败时不得继续创建任务或声称工作台就绪。不要自行改用源码/测试服务。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
-7. 仅在首次安装成功后，根据安装结果的 `first_run_guide` 向用户返回不超过五行的首次使用说明：可以直接给主题或 Markdown；成稿后会得到本地工作台链接；若当前 Agent 原生支持生图，确认主题后可要求它“按照当前主题为文章生成并插入配图”；密钥只在“本地设置”填写；系统只创建草稿、不自动群发。升级、修复、换对话或既有安装检查时不要重复展示。
+7. 用户要求安装、开始使用或初次打开工作台时，参考 `first_run_guide` 返回不超过五行的简短上手说明（同一轮只讲一次）。首页常显简要流程，不再需要「我已了解」按钮；不要要求确认或代调用已读接口。`first_install` 只表示这次是否新装，`onboarding_pending` 是兼容字段，不作为反复讲教程的条件。普通再次打开、文章续写、生图、升级、诊断不主动重复整段教程；需要时提醒首页有简要流程，已有文章可从「最近任务」进入。只有宿主明确要求重新加载时才提示重启，不默认要求新开对话。
 8. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
 
 ## 创建文章任务

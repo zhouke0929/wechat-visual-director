@@ -133,14 +133,15 @@ if ([string]::IsNullOrWhiteSpace($NextAction)) {
     $NextAction = "create_article"
 }
 
-$FirstRunGuide = $null
-if ($FirstInstallation) {
+$FirstRunGuide = $DoctorResult.setup.first_run_guide
+# Compatibility for a package whose core predates persistent onboarding.
+if ($FirstInstallation -and $null -eq $FirstRunGuide -and $null -eq $DoctorResult.setup.onboarding_pending) {
     $FirstRunGuide = [ordered]@{
         schema_version = "first_run_guide.v0.1"
         language = "respond_in_user_language"
         title = "WeChat Visual Director is ready"
         lines = @(
-            "Ask for a WeChat article by topic, or provide Markdown for typesetting.",
+            "Give your Agent a topic, source material, or an existing article; it organizes the content and plans the layout before opening the workbench.",
             "The Agent returns a local workbench link for theme, image, and cover review.",
             "If the current Agent supports native image generation, confirm the theme first and then ask it to generate and insert images for the current article.",
             "Enter image API and WeChat credentials only in Local Settings; the product creates drafts and never mass publishes automatically."
@@ -162,6 +163,7 @@ if ($FirstInstallation) {
     settings_url = [string]$DoctorResult.setup.settings_url
     next_action = $NextAction
     first_install = [bool]$FirstInstallation
+    onboarding_pending = [bool]($DoctorResult.setup.onboarding_pending -or $null -ne $FirstRunGuide)
     first_run_guide = $FirstRunGuide
     background = $true
     process_mode = "detached"

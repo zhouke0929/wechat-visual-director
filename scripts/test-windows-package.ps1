@@ -39,6 +39,7 @@ try {
     if (@($BootstrapResult.first_run_guide.lines).Count -ne 4) {
         throw "First-run guide must remain concise."
     }
+    if ($BootstrapResult.onboarding_pending -ne $true) { throw "Fresh guide must remain pending until user acknowledgement." }
     foreach ($SkillRoot in @(
         (Join-Path $HostHome ".codex\skills\wechat-visual-director"),
         (Join-Path $HostHome ".agents\skills\wechat-visual-director"),
@@ -58,6 +59,9 @@ try {
     $DoctorRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher doctor --json
     $Doctor = (@($DoctorRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Doctor.ok -or -not $Doctor.core_ready -or -not $Doctor.workbench_ready) { throw "Doctor failed." }
+    if ($Doctor.setup.onboarding_pending -ne $true -or @($Doctor.setup.first_run_guide.lines).Count -ne 4) {
+        throw "A repeated health check lost the pending first-run guide."
+    }
 
     $Sample = Join-Path $PackageRoot "samples\skill-alpha\canonical-article.md"
     $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --json

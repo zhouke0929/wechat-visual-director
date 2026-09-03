@@ -80,6 +80,45 @@ def write_setup_preferences(path: Path, target_mode: str) -> dict[str, Any]:
     return payload
 
 
+def read_workbench_onboarding(path: Path) -> dict[str, Any]:
+    """Reading/health-checking never consumes the user's getting-started guide."""
+    acknowledged_at = None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if isinstance(payload, dict) and payload.get("schema_version") == "workbench_onboarding.v0.1":
+            value = payload.get("acknowledged_at")
+            if isinstance(value, str) and value.strip():
+                acknowledged_at = value
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        pass
+    return {
+        "schema_version": "workbench_onboarding.v0.1",
+        "pending": acknowledged_at is None,
+        "acknowledged_at": acknowledged_at,
+        "guide": {
+            "schema_version": "first_run_guide.v0.1",
+            "language": "respond_in_user_language",
+            "title": "公众号视觉主编已就绪",
+            "lines": [
+                "回到 Agent 对话提供选题、资料或已有文章（文本或 Markdown），由 Agent 整理结构并完成语义规划，再打开工作台。",
+                "在工作台编辑正文、切换主题、审核配图和封面，再查看手机预览。",
+                "若当前 Agent 支持原生生图，确认主题后可让它为正文和封面生成候选，由你审核采用。",
+                "排版无需 Key；图片 API 和微信凭据只在本地设置填写。可复制全文、下载交付包或确认创建公众号草稿，不自动群发。",
+            ],
+        },
+    }
+
+
+def acknowledge_workbench_onboarding(path: Path) -> dict[str, Any]:
+    state = read_workbench_onboarding(path)
+    if state["pending"]:
+        _atomic_write_json(path, {
+            "schema_version": state["schema_version"],
+            "acknowledged_at": _utc_now(),
+        })
+    return read_workbench_onboarding(path)
+
+
 def write_probe_status(path: Path, name: str, result: dict[str, Any]) -> None:
     current: dict[str, Any] = {}
     if path.is_file():

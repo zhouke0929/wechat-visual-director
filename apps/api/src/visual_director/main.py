@@ -99,7 +99,9 @@ from .onboarding import (
     CAPABILITY_SETTINGS_SCHEMA_VERSION,
     PublicIpProbe,
     WechatConnectionProbe,
+    acknowledge_workbench_onboarding,
     read_setup_preferences,
+    read_workbench_onboarding,
     write_probe_status,
     write_setup_preferences,
 )
@@ -538,6 +540,7 @@ def create_app(
     )
     app.state.public_ip_probe = public_ip_probe or PublicIpProbe()
     app.state.setup_preferences_path = app.state.runtime_env_path.parent / "setup-preferences.json"
+    app.state.onboarding_path = app.state.runtime_env_path.parent / "workbench-onboarding.json"
     app.state.provider_status_path = app.state.runtime_env_path.parent / "provider-status.json"
     blind_manifest = Path(
         blind_review_manifest_path
@@ -1397,7 +1400,26 @@ def create_app(
 
     @app.get("/api/v1/settings/setup-preferences")
     def get_setup_preferences() -> dict[str, Any]:
-        return {"settings": read_setup_preferences(app.state.setup_preferences_path)}
+        return {
+            "settings": read_setup_preferences(app.state.setup_preferences_path),
+            "onboarding": read_workbench_onboarding(app.state.onboarding_path),
+        }
+
+    @app.get("/api/v1/settings/onboarding")
+    def get_workbench_onboarding() -> dict[str, Any]:
+        return {"onboarding": read_workbench_onboarding(app.state.onboarding_path)}
+
+    @app.post("/api/v1/settings/onboarding/acknowledge")
+    def acknowledge_onboarding(
+        request: Request,
+        x_settings_intent: str | None = Header(default=None, alias="X-Settings-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_settings_intent):
+            return _error(403, "local_settings_required", "请在本机工作台收起上手指南。")
+        try:
+            return {"onboarding": acknowledge_workbench_onboarding(app.state.onboarding_path)}
+        except OSError:
+            return _error(500, "onboarding_save_failed", "暂时无法保存指南状态，请稍后重试。")
 
     @app.put("/api/v1/settings/setup-preferences")
     def update_setup_preferences(

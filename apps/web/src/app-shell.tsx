@@ -3,6 +3,7 @@ import BlindReviewPage from "@/app/blind-review/page";
 import ComponentGalleryPage from "@/app/component-gallery/page";
 import SettingsPage from "@/app/settings/page";
 import TaskReviewPage from "@/app/tasks/[taskId]/page";
+import RecentTasksPage from "@/app/tasks/page";
 import ThemeGalleryPage from "@/app/theme-gallery/page";
 import ThemeDetailPage from "@/app/theme-gallery/[themeId]/page";
 import VariantReviewPage from "@/app/variant-review/page";
@@ -11,6 +12,7 @@ import Link, { usePathname } from "@/lib/router";
 export default function AppShell() {
   const pathname = usePathname();
   if (pathname === "/") return <EditorialDeskPage />;
+  if (pathname === "/tasks") return <RecentTasksPage />;
   if (pathname === "/settings") return <SettingsPage />;
   if (pathname === "/theme-gallery") return <ThemeGalleryPage />;
   if (/^\/theme-gallery\/[^/]+$/.test(pathname)) return <ThemeDetailPage />;

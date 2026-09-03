@@ -21,6 +21,7 @@ out/
 *.local
 .runtime/
 setup-preferences.json
+workbench-onboarding.json
 provider-status.json
 
 # OS / editors
