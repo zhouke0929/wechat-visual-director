@@ -683,13 +683,21 @@ def render_extended_component(
     )
 
 
-def _theme_id(config: dict[str, Any]) -> str | None:
+def _theme_id(config: dict[str, Any], role: str | None = None) -> str | None:
+    role_themes = config.get("render_theme_roles")
+    if role and isinstance(role_themes, dict):
+        role_theme = str(role_themes.get(role) or "")
+        if role_theme in EXTENDED_THEME_KITS:
+            return role_theme
     value = str(config.get("visual_system") or config.get("theme_id") or "")
-    return value if value in EXTENDED_THEME_KITS else None
+    if value in EXTENDED_THEME_KITS:
+        return value
+    base_theme = str(config.get("base_theme") or "")
+    return base_theme if base_theme in EXTENDED_THEME_KITS else None
 
 
 def extended_inline_emphasis_style(config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "inline_emphasis")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
@@ -733,7 +741,7 @@ def _distinct_heading(content: str, level: int, section_index: int, grammar: str
 
 
 def render_extended_heading(content: str, level: int, section_index: int, config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "heading")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
@@ -811,7 +819,7 @@ def _distinct_break(grammar: str, p: dict[str, str]) -> str | None:
 
 
 def render_extended_break(config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "divider")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
@@ -838,7 +846,7 @@ def render_extended_list(
     config: dict[str, Any],
     semantic_role: str = "key_points",
 ) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "list")
     if theme_id is None:
         return None
     payload = {"kind": "list", "items": items}
@@ -888,7 +896,7 @@ def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str]) -> s
 
 
 def render_extended_table(rows: list[list[str]], config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "table")
     if theme_id is None or not rows:
         return None
     p = _palette(config["palette"])
@@ -912,14 +920,14 @@ def render_extended_table(rows: list[list[str]], config: dict[str, Any]) -> str 
 
 
 def render_extended_quote(content: str, config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "quote")
     if theme_id is None:
         return None
     return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], "evidence_callout", {"kind": "single", "body": content}, _palette(config["palette"]))
 
 
 def extended_image_frame_variant(config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "image_frame")
     return f"extended_{EXTENDED_THEME_KITS[theme_id]['grammar']}" if theme_id else None
 
 
@@ -938,7 +946,7 @@ def _distinct_image_placeholder_style(grammar: str, p: dict[str, str]) -> str | 
 
 
 def extended_image_placeholder_style(config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "image_frame")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
@@ -978,7 +986,7 @@ def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str]
 
 
 def render_extended_hero(title: str, plan_name: str, component_version: str, kicker: str, config: dict[str, Any]) -> str | None:
-    theme_id = _theme_id(config)
+    theme_id = _theme_id(config, "hero")
     if theme_id is None:
         return None
     p = _palette(config["palette"])

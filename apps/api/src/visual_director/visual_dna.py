@@ -5,6 +5,7 @@ from collections import Counter
 from typing import Any
 
 from .theme_extensions import EXTENDED_THEME_VISUAL_DNA
+from .theme_packs import theme_pack_visual_dna
 
 
 VISUAL_DNA_SCHEMA_VERSION = "visual_dna.v0.1"
@@ -502,7 +503,7 @@ def resolve_article_image_direction(
     signatures. It never stores a theme-to-style compatibility matrix.
     """
     theme_name = str(visual_system or "light_reading")
-    theme = ARTICLE_THEME_MANIFESTS.get(theme_name, ARTICLE_THEME_MANIFESTS["light_reading"])
+    theme = theme_manifest(theme_name)
     signatures = _recent_signatures(recent_summaries or [])
     scene_family = SCENE_FAMILIES.get(article_type, "editorial_transition")
     candidates: list[dict[str, Any]] = []
@@ -580,6 +581,14 @@ def resolve_article_image_direction(
 
 def theme_manifest(visual_system: str | None) -> dict[str, Any]:
     name = str(visual_system or "light_reading")
+    custom_manifest = theme_pack_visual_dna(name)
+    if custom_manifest:
+        base_manifest = ARTICLE_THEME_MANIFESTS.get(
+            str(custom_manifest.get("base_theme") or ""),
+            ARTICLE_THEME_MANIFESTS["light_reading"],
+        )
+        custom_manifest["surface_variants"] = copy.deepcopy(base_manifest["surface_variants"])
+        return copy.deepcopy(custom_manifest)
     return copy.deepcopy(ARTICLE_THEME_MANIFESTS.get(name, ARTICLE_THEME_MANIFESTS["light_reading"]))
 
 

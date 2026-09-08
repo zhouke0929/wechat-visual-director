@@ -7,9 +7,11 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .theme_delivery import legacy_drawing_present
+
 
 PUBLICATION_SCHEMA_VERSION = "publication_revision.v0.8"
-COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.mock.v0.2"
+COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.local.v0.3"
 
 EMPTY_DECORATIVE_NODE_RE = re.compile(
     r'<(?P<tag>span|p)\b(?=[^>]*\bstyle="[^"]*(?:background(?:-color)?|border(?:-[a-z-]+)?|width|height)\s*:)[^>]*>\s*</(?P=tag)>',
@@ -52,6 +54,8 @@ class CompatibilityReport:
             "ruleset_version": self.ruleset_version,
             "checks": self.checks,
             "messages": self.messages,
+            "verification_scope": "local_static_checks",
+            "wechat_saved_roundtrip": "not_verified",
         }
 
 
@@ -67,6 +71,7 @@ def check_frozen_html(document: str) -> CompatibilityReport:
             "pass" if not EMPTY_DECORATIVE_NODE_RE.search(document) else "blocking"
         ),
         "controlled_image_sources": "pass",
+        "no_legacy_positioned_drawings": "blocking" if legacy_drawing_present(document) else "pass",
     }
     image_sources = re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', document, flags=re.IGNORECASE)
     if any(not source.startswith("asset://") for source in image_sources):
@@ -123,7 +128,17 @@ def _materialized_image_markup(
     alt: str,
     frame_variant: str,
     caption_html: str = "",
+    theme_config: dict[str, Any] | None = None,
 ) -> str:
+    if theme_config:
+        from .theme_layouts import render_layout
+
+        custom = render_layout("image_caption", {
+            "caption": html.unescape(caption_html), "media": {"src": content_url, "alt": alt},
+        }, theme_config)
+        if custom is not None:
+            return (f'<section id="{html.escape(element_id, quote=True)}" class="{anchor_class}" '
+                    f'data-image-frame="custom-layout" style="scroll-margin-top:18px;">{custom}</section>')
     if frame_variant == "airy_organic":
         wrapper_style = (
             "scroll-margin-top:18px;margin:28px 0;padding:6px 0 13px;"
@@ -175,6 +190,11 @@ def _materialized_image_markup(
     )
 
 
+def _custom_image_config(markup: str) -> dict[str, Any] | None:
+    match = re.search(r'\bdata-theme-image-config="([^"]*)"', markup)
+    return json.loads(html.unescape(match.group(1))) if match else None
+
+
 def materialize_preview_document(repository: Any, artifact_id: str) -> str:
     artifact = repository.get_artifact_record(artifact_id)
     document = artifact["html"]
@@ -205,6 +225,7 @@ def materialize_preview_document(repository: Any, artifact_id: str) -> str:
                     height=image_height,
                     alt="运营已确认的文章配图",
                     frame_variant=frame_variant,
+                    theme_config=_custom_image_config(match.group(0)),
                 )
 
             document = pattern.sub(replace_generated, document)
@@ -228,6 +249,7 @@ def materialize_preview_document(repository: Any, artifact_id: str) -> str:
                 alt=html.unescape(caption_html) or "运营替换的原稿图片",
                 frame_variant=frame_variant,
                 caption_html=caption_html,
+                theme_config=_custom_image_config(match.group(0)),
             )
 
         document = pattern.sub(replace_source, document)

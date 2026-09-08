@@ -8,10 +8,11 @@ from .theme_extensions import (
     extended_component_label,
     extended_variant_name,
 )
+from .theme_packs import installed_theme_packs, resolve_theme_base, theme_pack_catalog_entry
 
 
 COMPONENT_LIBRARY_VERSION = "wechat_components.v0.13.0"
-RENDERER_VERSION = "preview_renderer.v0.18.0-theme-expansion"
+RENDERER_VERSION = "preview_renderer.v0.19.0-theme-delivery"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 
@@ -117,6 +118,34 @@ for _theme_id, _theme_kit in EXTENDED_THEME_KITS.items():
         "status": "theme_kit_v1_review",
         "auto_recommendable": _theme_id in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
     }
+
+
+def registered_visual_system_order() -> tuple[str, ...]:
+    """Return official themes followed by validated local theme packs."""
+    custom_ids = tuple(
+        manifest["id"]
+        for manifest in installed_theme_packs()
+        if manifest["id"] not in VISUAL_SYSTEM_ORDER
+    )
+    return VISUAL_SYSTEM_ORDER + custom_ids
+
+
+def registered_visual_system_catalog() -> dict[str, dict[str, Any]]:
+    catalog = {key: dict(value) for key, value in VISUAL_SYSTEM_CATALOG.items()}
+    for manifest in installed_theme_packs():
+        entry = theme_pack_catalog_entry(manifest["id"])
+        if entry:
+            catalog[manifest["id"]] = entry
+    return catalog
+
+
+def registered_visual_system(theme_id: str) -> bool:
+    return theme_id in registered_visual_system_order()
+
+
+def render_visual_system(theme_id: str) -> str:
+    """Map a user pack to the official semantic/component grammar it inherits."""
+    return resolve_theme_base(theme_id)
 
 CORE_THEME_COMPONENTS = (
     "question_hook",

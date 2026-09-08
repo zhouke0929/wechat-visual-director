@@ -1,0 +1,23 @@
+{
+  "schema_version": "editorial_brief.v0.1",
+  "article": {
+    "article_type": "tutorial_steps",
+    "audience": ["希望记录日常生活的普通读者"],
+    "reader_task": "把一次周末散步的真实观察整理成可以分享给朋友的一封信。",
+    "narrative": "从出门观察、区分感受与事实，到整理分享步骤、提醒边界，最后留下轻量的行动提醒。"
+  },
+  "sections": [
+    {"source_block_ids": ["block-013", "block-014"], "semantic_role": "concept", "visual_priority": "medium", "component_intent": "concept_explainer", "reasoning": "原文明确区分观察与解释，保留紧随其后的例子为普通正文。"},
+    {"source_block_ids": ["block-020"], "semantic_role": "logic_sequence", "visual_priority": "high", "component_intent": "logic_path", "reasoning": "四个有序步骤构成从选择片刻到邀请回应的完整写信过程。"},
+    {"source_block_ids": ["block-024"], "semantic_role": "warning", "visual_priority": "medium", "component_intent": "warning_note", "reasoning": "只突出原文明确的隐私和事实边界提醒，不扩写风险。"},
+    {"source_block_ids": ["block-029"], "semantic_role": "summary", "visual_priority": "medium", "component_intent": "section_summary", "reasoning": "结尾三项列表是全文回顾，适合简短的信笺式总结。"}
+  ],
+  "image_intents": [],
+  "art_direction": {
+    "tone": ["从容", "亲切", "细腻"],
+    "palette_roles": ["deep_navy", "warm_ivory", "coral_accent"],
+    "style_family": "editorial_paper_cut",
+    "avoid_recent_patterns": []
+  },
+  "facts_locked": true
+}

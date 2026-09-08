@@ -20,6 +20,7 @@ import type {
   TaskPage,
   TaskDetail,
   ThemeGalleryItem,
+  ThemePackManifest,
   VisualPlan,
   WechatConnectionProbe,
   WechatPublisherSettings,
@@ -147,6 +148,47 @@ export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
     themes: ThemeGalleryItem[];
   }>(response);
   return payload.themes;
+}
+
+export async function getThemePacks(): Promise<ThemePackManifest[]> {
+  const response = await fetch(`${API_BASE}/theme-packs`, { cache: "no-store" });
+  const payload = await parseResponse<{
+    schema_version: "visual_director.theme_pack.v1";
+    items: ThemePackManifest[];
+  }>(response);
+  return payload.items;
+}
+
+export async function installThemePack(file: File): Promise<ThemePackManifest> {
+  const form = new FormData();
+  form.append("theme_file", file);
+  const response = await fetch(`${API_BASE}/theme-packs`, {
+    method: "POST",
+    headers: { "X-Local-Intent": "local-operator" },
+    body: form,
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    const fieldErrors = payload?.error?.details?.field_errors;
+    const detail = Array.isArray(fieldErrors)
+      ? fieldErrors.map((item) => `${item.field}：${item.message}`).join("；")
+      : "";
+    throw new Error(detail || payload?.error?.message || `主题扩展包安装失败（${response.status}）`);
+  }
+  const payload = await response.json() as { installed: true; manifest: ThemePackManifest };
+  return payload.manifest;
+}
+
+export async function deleteThemePack(themeId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/theme-packs/${encodeURIComponent(themeId)}`, {
+    method: "DELETE",
+    headers: { "X-Local-Intent": "local-operator" },
+  });
+  await parseResponse<{ deleted: true; theme_id: string }>(response);
+}
+
+export function themePackExportUrl(themeId: string): string {
+  return `${API_BASE}/theme-packs/${encodeURIComponent(themeId)}/export`;
 }
 
 export async function getContentEditor(taskId: string): Promise<ContentEditorDocument> {
@@ -384,6 +426,7 @@ export async function switchPlanTheme(
   planId: string,
   visualSystem: string,
   expectedPlanRevision: number,
+  refreshCurrent = false,
 ): Promise<{ plan: VisualPlan; planner_called: false; images_regenerated: false }> {
   const response = await fetch(
     `${API_BASE}/article-tasks/${taskId}/plans/${planId}/theme`,
@@ -394,6 +437,7 @@ export async function switchPlanTheme(
         visual_system: visualSystem,
         expected_plan_revision: expectedPlanRevision,
         reason: "operator_theme_switch",
+        refresh_current: refreshCurrent,
       }),
     },
   );
@@ -704,9 +748,11 @@ export async function createWechatDraft(
   return parseResponse(response);
 }
 
-export async function getClipboardPayload(revisionId: string): Promise<ClipboardPayload> {
-  const response = await fetch(`${API_BASE}/publication-revisions/${revisionId}/clipboard`, {
+export async function getClipboardPayload(revisionId: string, uploadImages = false): Promise<ClipboardPayload> {
+  const response = await fetch(`${API_BASE}/publication-revisions/${revisionId}/clipboard${uploadImages ? "/wechat" : ""}`, {
     cache: "no-store",
+    method: uploadImages ? "POST" : "GET",
+    headers: uploadImages ? { "X-Local-Intent": "local-operator" } : undefined,
   });
   return parseResponse<ClipboardPayload>(response);
 }

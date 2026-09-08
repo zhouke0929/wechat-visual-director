@@ -9,10 +9,16 @@ from .component_catalog import (
     CORE_THEME_COMPONENTS,
     VISUAL_SYSTEM_CATALOG,
     VISUAL_SYSTEM_ORDER,
+    registered_visual_system_catalog,
+    registered_visual_system_order,
+    render_visual_system,
 )
 from .components import render_component
+from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
+from .theme_packs import theme_pack
+from .theme_delivery import theme_delivery_report
 
 
 THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.4"
@@ -129,15 +135,27 @@ def _component_specimen(
     bindings: dict[str, dict[str, str | list[str]]],
 ) -> dict[str, Any]:
     variant = visual_system_variant(component_type, visual_system)
+    manifest = theme_pack(visual_system)
+    variant_source = (
+        str(manifest.get("style_recipe", {}).get("component"))
+        if manifest and manifest.get("style_recipe")
+        else render_visual_system(visual_system)
+    )
     purpose, use_when = SEMANTIC_COMPONENT_GUIDANCE[component_type]
+    configuration = visual_system_configuration(visual_system)
     return {
         "component_type": component_type,
         "label": COMPONENT_CATALOG[component_type]["label"],
         "variant": variant,
-        "variant_label": COMPONENT_CATALOG[component_type]["system_variants"][visual_system]["label"],
-        "status": COMPONENT_CATALOG[component_type]
-        .get("variant_statuses", {})
-        .get(variant, COMPONENT_CATALOG[component_type]["status"]),
+        "variant_label": (
+            "自定义生成语法"
+            if manifest and manifest.get("design_system")
+            else COMPONENT_CATALOG[component_type]["system_variants"][variant_source]["label"]
+        ),
+        "status": (
+            "wechat_candidate" if manifest and manifest.get("design_system") else
+            COMPONENT_CATALOG[component_type].get("variant_statuses", {}).get(variant, COMPONENT_CATALOG[component_type]["status"])
+        ),
         "purpose": purpose,
         "use_when": use_when,
         "html": render_component(
@@ -148,6 +166,7 @@ def _component_specimen(
             },
             parsed,
             palette,
+            configuration,
         ),
     }
 
@@ -617,6 +636,40 @@ def _rhythm_primitives(
     return []
 
 
+def _theme_rhythm_primitives(
+    visual_system: str,
+    palette: dict[str, str],
+) -> list[dict[str, str]]:
+    manifest = theme_pack(visual_system)
+    if manifest and manifest.get("design_system"):
+        return generated_rhythm_primitives(visual_system_configuration(visual_system))
+    recipe = manifest.get("style_recipe") if manifest else None
+    if not isinstance(recipe, dict):
+        return _rhythm_primitives(render_visual_system(visual_system), palette)
+
+    role_source = {
+        "section_heading": "heading",
+        "subheading": "heading",
+        "inline_emphasis": "inline_emphasis",
+        "image_caption": "image_frame",
+        "divider": "divider",
+        "closing_cta": "component",
+    }
+    source_primitives: dict[str, dict[str, dict[str, str]]] = {}
+    for source in set(str(value) for value in recipe.values()):
+        source_primitives[source] = {
+            primitive["role"]: primitive
+            for primitive in _rhythm_primitives(source, palette)
+        }
+    result: list[dict[str, str]] = []
+    for role, recipe_role in role_source.items():
+        source = str(recipe[recipe_role])
+        primitive = source_primitives[source].get(role)
+        if primitive:
+            result.append(primitive)
+    return result
+
+
 def _full_preview(
     visual_system: str,
     theme: dict[str, Any],
@@ -624,20 +677,35 @@ def _full_preview(
     primitives: list[dict[str, str]],
     palette: dict[str, str],
 ) -> str:
+    render_system = render_visual_system(visual_system)
+    configuration = visual_system_configuration(visual_system)
+    def paragraph(content: str) -> str:
+        if configuration.get("generated_design_system"):
+            return render_generated_paragraph(content, configuration)
+        return f'<p style="margin:26px 0 20px;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">{content}</p>'
+
     body: list[str] = [
-        '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">'
+        f'<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:{palette["surface"] if configuration.get("generated_design_system") else "#FFFFFF"};">'
     ]
-    if visual_system in EXTENDED_THEME_IDS:
+    if configuration.get("generated_design_system"):
+        generated_hero = render_generated_hero(
+            "把复杂选择变成一条清晰的行动路线",
+            theme["english"],
+            configuration,
+        )
+        if generated_hero:
+            body.append(generated_hero)
+    elif render_system in EXTENDED_THEME_IDS or configuration.get("render_theme_roles"):
         extended_hero = render_extended_hero(
             "把复杂选择变成一条清晰的行动路线",
             theme["label"],
             COMPONENT_LIBRARY_VERSION,
             theme["english"],
-            visual_system_configuration(visual_system),
+            configuration,
         )
         if extended_hero:
             body.append(extended_hero)
-    elif theme["label"] == "轻盈阅读":
+    elif render_system == "light_reading":
         body.extend(
             [
                 f'<header data-content-role="article-metadata-preview" data-theme-grammar="airy-open-cover" style="padding:34px 0 24px;border-bottom:1px solid {palette["sky"]};">',
@@ -646,7 +714,7 @@ def _full_preview(
                 f'<p style="margin:19px 0 -7px;white-space:nowrap;"><span style="display:inline-block;width:67%;border-top:1px dotted {palette["sky"]};vertical-align:middle;"></span><span style="display:inline-block;width:28px;height:14px;margin-left:11px;border-radius:20px 3px 20px 3px;background-color:{palette["secondary"]};transform:rotate(-12deg);vertical-align:middle;"></span><span style="display:inline-block;width:7px;height:7px;margin-left:7px;border-radius:50%;background-color:{palette["accent"]};vertical-align:middle;"></span></p></header>',
             ]
         )
-    elif theme["label"] == "温暖人文":
+    elif render_system == "warm_humanist":
         body.extend(
             [
                 f'<header style="padding:0 0 24px 18px;border-left:6px solid {palette["secondary"]};border-bottom:1px solid #D7B995;">',
@@ -655,7 +723,7 @@ def _full_preview(
                 f'<p style="width:58px;height:8px;margin:18px 0 -4px;background-color:{palette["secondary"]};opacity:.72;transform:rotate(-3deg);"></p></header>',
             ]
         )
-    elif theme["label"] == "青春校园":
+    elif render_system == "youth_campus":
         body.extend(
             [
                 f'<header style="padding:0 0 24px;border-bottom:2px solid {palette["sky"]};">',
@@ -665,7 +733,7 @@ def _full_preview(
                 f'<p style="width:42%;height:3px;margin:17px 0 0;background-color:{palette["sky"]};"></p></section></header>',
             ]
         )
-    elif theme["label"] == "编辑对比":
+    elif render_system == "editorial_contrast":
         body.extend(
             [
                 f'<header style="padding:0 0 22px;border-top:13px solid {palette["ink"]};border-bottom:4px solid {palette["ink"]};">',
@@ -674,7 +742,7 @@ def _full_preview(
                 f'<p style="margin:17px 0 0;border-top:1px solid #202B33;text-align:right;"><span style="display:inline-block;width:32%;height:8px;background-color:{palette["primary"]};"></span></p></header>',
             ]
         )
-    elif theme["label"] == "未来科技":
+    elif render_system == "future_tech":
         body.extend(
             [
                 f'<header style="padding:0 0 23px;border-top:8px solid {palette["primary"]};border-bottom:1px solid #B9D8D2;">',
@@ -684,7 +752,7 @@ def _full_preview(
                 f'<p style="height:3px;margin:17px 0 0;background:linear-gradient(90deg,{palette["secondary"]} 0%,{palette["secondary"]} 28%,{palette["sky_pale"]} 28%);"></p></section></section></header>',
             ]
         )
-    elif theme["label"] == "理性网格":
+    elif render_system == "structured_grid":
         body.extend(
             [
                 f'<header style="padding:30px 0 23px;border-top:8px solid {palette["primary"]};border-bottom:1px solid #AEBBB5;">',
@@ -702,14 +770,14 @@ def _full_preview(
                 f'<p style="width:32%;height:3px;margin:18px 0 27px;background-color:{palette["secondary"]};"></p>',
             ]
         )
-    if theme.get("english") == "CAMPUS BULLETIN":
+    if not configuration.get("generated_design_system") and render_system == "youth_campus":
         body = [
             '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
             f'<header style="padding:0 8px 27px 0;"><p style="margin:0 0 -8px 19px;"><span style="display:inline-block;padding:5px 12px;background-color:{palette["secondary"]};color:{palette["ink"]};font-size:9px;font-weight:800;letter-spacing:.14em;transform:rotate(-2deg);">CAMPUS BULLETIN</span></p>',
             f'<section style="padding:22px 18px 19px 28px;border-left:11px dotted {palette["sky"]};border-bottom:4px solid {palette["primary"]};background-color:{palette["surface"]};box-shadow:8px 8px 0 {palette["secondary_pale"]};"><h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1>',
             f'<p style="margin:17px 0 0;border-top:2px dashed {palette["sky"]};"></p></section></header>',
         ]
-    elif theme.get("english") == "FUTURE EDITION":
+    elif not configuration.get("generated_design_system") and render_system == "future_tech":
         body = [
             '<main style="box-sizing:border-box;width:100%;padding:34px 25px 42px;background-color:#FFFFFF;">',
             f'<header style="padding:24px 20px 20px;border-left:6px solid {palette["primary"]};border-radius:0 62px 0 24px;background:linear-gradient(135deg,{palette["surface"]} 0%,{palette["pale"]} 48%,{palette["secondary_pale"]} 100%);box-shadow:8px 8px 0 {palette["sky_pale"]};">',
@@ -717,14 +785,14 @@ def _full_preview(
             f'<h1 style="margin:0;color:{palette["ink"]};font-size:29px;line-height:1.4;font-weight:830;">把复杂选择变成一条清晰的行动路线</h1><p style="margin:18px 0 -28px;padding-top:11px;border-top:1px solid {palette["sky"]};text-align:right;"><span style="display:inline-block;width:58px;height:10px;border-radius:16px 3px 16px 3px;background-color:{palette["secondary"]};transform:rotate(-6deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{palette["accent"]};"></span></p></header>',
         ]
     body.append(
-        f'<p style="margin:26px 0 20px;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">真正有效的排版，不是把每一段都装进卡片，而是帮助读者迅速看见重点、证据和下一步。</p>'
+        paragraph("真正有效的排版，不是把每一段都装进卡片，而是帮助读者迅速看见重点、证据和下一步。")
     )
     primitive_by_role = {item["role"]: item["html"] for item in primitives}
     body.append(primitive_by_role.get("section_heading", ""))
     for index, specimen in enumerate(specimens):
         if index == 1:
             body.append(
-                f'<p style="margin:23px 0;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">正文继续承担叙事。清楚的段落关系，不需要额外容器才能成立。</p>'
+                paragraph("正文继续承担叙事。清楚的段落关系，不需要额外容器才能成立。")
             )
             body.append(primitive_by_role.get("inline_emphasis", ""))
         if index == 3:
@@ -735,8 +803,7 @@ def _full_preview(
         body.append(specimen["html"])
         if index in {2, 5}:
             body.append(
-                f'<p style="margin:20px 0;color:{palette["ink"]};font-size:16px;line-height:1.9;text-align:justify;">'
-                "组件只在信息关系需要被看见时出现。不同轮廓交替出现，长文章也不会产生刻意堆砌的感觉。</p>"
+                paragraph("组件只在信息关系需要被看见时出现。不同轮廓交替出现，长文章也不会产生刻意堆砌的感觉。")
             )
     body.append(primitive_by_role.get("closing_cta", ""))
     body.append("</main>")
@@ -747,8 +814,11 @@ def build_theme_gallery() -> list[dict[str, Any]]:
     parsed = parse_markdown(THEME_FIXTURE)
     bindings = _fixture_bindings(parsed)
     themes: list[dict[str, Any]] = []
-    for visual_system in VISUAL_SYSTEM_ORDER:
-        metadata = VISUAL_SYSTEM_CATALOG[visual_system]
+    system_order = registered_visual_system_order()
+    system_catalog = registered_visual_system_catalog()
+    for visual_system in system_order:
+        metadata = system_catalog[visual_system]
+        render_system = render_visual_system(visual_system)
         configuration = visual_system_configuration(visual_system)
         palette = configuration["palette"]
         production_triggers = {
@@ -765,7 +835,7 @@ def build_theme_gallery() -> list[dict[str, Any]]:
                 "production_status": "production",
                 "production_trigger": production_triggers[primitive["role"]],
             }
-            for primitive in _rhythm_primitives(visual_system, palette)
+            for primitive in _theme_rhythm_primitives(visual_system, palette)
         ]
         specimens = [
             _component_specimen(parsed, component_type, visual_system, palette, bindings)
@@ -775,6 +845,9 @@ def build_theme_gallery() -> list[dict[str, Any]]:
             {
                 "id": visual_system,
                 **metadata,
+                "source": metadata.get("source", "official"),
+                "delivery_report": theme_delivery_report(theme_pack(visual_system)) if theme_pack(visual_system) else None,
+                "base_theme": metadata.get("base_theme", render_system),
                 "core_component_count": len(specimens),
                 "semantic_component_count": len(specimens),
                 "configuration": {

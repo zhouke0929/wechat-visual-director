@@ -1,0 +1,79 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "moonlit_archive",
+  "name": "月下雅集",
+  "english": "MOONLIT ARCHIVE",
+  "description": "以月白、黛青和暖金构成克制的夜间东方阅读气质，适合文化叙事与品牌故事。",
+  "version": "1.0.0",
+  "author": "WeChat Visual Director",
+  "base_theme": "oriental_archive",
+  "ideal_for": ["文化叙事", "品牌故事", "节日风物"],
+  "personality": ["安静", "东方", "克制"],
+  "palette": {
+    "primary": "#263A4A",
+    "secondary": "#B89A62",
+    "accent": "#A24B43",
+    "sky": "#738A96",
+    "pale": "#EEF1F0",
+    "secondary_pale": "#F5EEDC",
+    "accent_pale": "#F3E6E3",
+    "sky_pale": "#E8EEF0",
+    "surface": "#FFFDF8",
+    "ink": "#222A30"
+  },
+  "visual_dna": {
+    "warmth": 0.45,
+    "saturation": 0.28,
+    "contrast": 0.64,
+    "geometry": 0.31,
+    "tactility": 0.74,
+    "dimensionality": 0.12,
+    "energy": 0.30,
+    "information_density": 0.52,
+    "brand_formality": 0.82
+  },
+  "material_tags": ["rice_paper", "moonlit_ink", "aged_gold"],
+  "tone": ["月白", "安静", "雅致"],
+  "design_system": {
+    "composition": "medallion_archive",
+    "motifs": ["celestial_orbit", "wave_ripple"],
+    "frame": "open_corner",
+    "marker": "medallion",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "airy",
+      "section_gap": 52,
+      "component_gap": 30,
+      "inset": 18
+    },
+    "typography": {
+      "heading_scale": 1.08,
+      "body_scale": 1.0,
+      "letter_spacing": "relaxed",
+      "heading_weight": 680
+    },
+    "ornament": {
+      "density": 0.48,
+      "border_width": 1,
+      "corner_radius": 18
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

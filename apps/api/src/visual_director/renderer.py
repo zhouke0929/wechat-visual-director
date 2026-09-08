@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import json
 import os
 import re
 from pathlib import Path
@@ -8,6 +9,18 @@ from typing import Any
 
 from .brand import load_brand_profile
 from .components import render_component
+from .generated_theme import (
+    generated_image_frame_variant,
+    generated_image_placeholder_style,
+    generated_inline_emphasis_style,
+    render_generated_break,
+    render_generated_heading,
+    render_generated_hero,
+    render_generated_paragraph,
+    render_generated_list,
+    render_generated_quote,
+    render_generated_table,
+)
 from .parser import ContentBlock, ParsedArticle
 from .plan_schema import validate_plan_for_article
 from .theme_extensions import (
@@ -81,8 +94,11 @@ def _body_inline(value: str, config: dict[str, Any]) -> str:
     palette = config.get("palette", {})
     accent = config["accent"]
     heading_variant = config.get("heading_variant")
+    generated_style = generated_inline_emphasis_style(config)
     extended_style = extended_inline_emphasis_style(config)
-    if extended_style is not None:
+    if generated_style is not None:
+        style = generated_style
+    elif extended_style is not None:
         style = extended_style
     elif heading_variant == "botanical_section":
         style = (
@@ -125,6 +141,9 @@ def _body_inline(value: str, config: dict[str, Any]) -> str:
 
 
 def _image_frame_variant(config: dict[str, Any]) -> str:
+    generated_variant = generated_image_frame_variant(config)
+    if generated_variant is not None:
+        return generated_variant
     extended_variant = extended_image_frame_variant(config)
     if extended_variant is not None:
         return extended_variant
@@ -145,6 +164,9 @@ def _reliable_image_caption(alt: str) -> str:
 
 
 def _render_thematic_break(config: dict[str, Any]) -> str:
+    generated = render_generated_break(config)
+    if generated is not None:
+        return generated
     extended = render_extended_break(config)
     if extended is not None:
         return extended
@@ -230,6 +252,9 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
     content = str(block.content).strip()
     level = block.level or 2
 
+    generated = render_generated_heading(content, level, section_index, config)
+    if generated is not None:
+        return generated
     extended = render_extended_heading(content, level, section_index, config)
     if extended is not None:
         return extended
@@ -398,6 +423,9 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
 def _render_table(rows: list[list[str]], config: dict[str, Any]) -> str:
     if not rows:
         return ""
+    generated = render_generated_table(rows, config)
+    if generated is not None:
+        return generated
     extended = render_extended_table(rows, config)
     if extended is not None:
         return extended
@@ -566,6 +594,9 @@ def _render_list(
     config: dict[str, Any],
     semantic_role: str = "key_points",
 ) -> str:
+    generated = render_generated_list(items, ordered, config, semantic_role)
+    if generated is not None:
+        return generated
     extended = render_extended_list(items, ordered, config, semantic_role)
     if extended is not None:
         return extended
@@ -726,6 +757,9 @@ def _render_reference_list(items: list[str], config: dict[str, Any]) -> str:
 
 
 def _image_placeholder_style(config: dict[str, Any]) -> str:
+    generated = generated_image_placeholder_style(config)
+    if generated is not None:
+        return generated
     extended = extended_image_placeholder_style(config)
     if extended is not None:
         return extended
@@ -771,6 +805,17 @@ def _image_placeholder_style(config: dict[str, Any]) -> str:
     )
 
 
+def _custom_image_metadata(config: dict[str, Any]) -> str:
+    design = config.get("generated_design_system", {})
+    layout = design.get("layouts", {}).get("image_caption")
+    if layout is None:
+        return ""
+    snapshot = {"palette": config["palette"], "generated_design_system": {
+        "layouts": {"image_caption": layout}, "typography": design["typography"], "rhythm": design["rhythm"],
+    }}
+    return f'data-theme-image-config="{html.escape(json.dumps(snapshot, ensure_ascii=False), quote=True)}"'
+
+
 def _render_image_placeholder(slot: dict[str, Any], config: dict[str, Any]) -> str:
     accent = config["accent"]
     purpose_label = "结构信息图" if slot["purpose"] == "structured_infographic" else "氛围概念图"
@@ -779,7 +824,7 @@ def _render_image_placeholder(slot: dict[str, Any], config: dict[str, Any]) -> s
     frame_variant = _image_frame_variant(config)
     return (
         f'<section id="{html.escape(slot["image_slot_id"])}" class="image-slot-anchor" '
-        f'data-image-frame="{frame_variant}" data-image-caption="" '
+        f'data-image-frame="{frame_variant}" data-image-caption="" {_custom_image_metadata(config)} '
         f'style="{_image_placeholder_style(config)}">'
         f'<span style="display:inline-block;margin:0 0 10px;padding:5px 9px;border-radius:999px;'
         f'background-color:{accent};color:#fff;font-size:10px;font-weight:700;letter-spacing:.08em;">'
@@ -799,7 +844,7 @@ def _render_source_image_placeholder(block: ContentBlock, config: dict[str, Any]
     frame_variant = _image_frame_variant(config)
     return (
         f'<section id="{html.escape(block.id)}" class="source-image-anchor" '
-        f'data-image-frame="{frame_variant}" data-image-caption="{html.escape(caption, quote=True)}" '
+        f'data-image-frame="{frame_variant}" data-image-caption="{html.escape(caption, quote=True)}" {_custom_image_metadata(config)} '
         f'style="{_image_placeholder_style(config)}">'
         f'<span style="display:inline-block;margin-bottom:8px;color:{accent};font:700 10px/1.2 Arial;letter-spacing:.14em;">'
         'SOURCE IMAGE · WAITING</span>'
@@ -812,6 +857,14 @@ def _render_source_image_placeholder(block: ContentBlock, config: dict[str, Any]
 def _render_fixed_footer(footer: dict[str, Any], config: dict[str, Any]) -> str:
     if not footer.get("enabled", False):
         return ""
+    from .theme_layouts import render_layout
+
+    custom = render_layout("closing_cta", {
+        "body": str(footer.get("text") or ""),
+        "media": {"src": "/api/v1/brand-assets/current/content", "alt": footer.get("alt_text", "品牌固定页尾")} if footer.get("asset_path") else None,
+    }, config)
+    if custom is not None:
+        return f'<footer data-content-role="brand-cta">{custom}</footer>'
     palette = config.get("palette", {})
     accent = config["accent"]
     frame_variant = _image_frame_variant(config)
@@ -887,12 +940,13 @@ def render_preview(
     config = validated["configuration"]
     accent = config["accent"]
     palette = config.get("palette", {"primary": accent})
-    editorial = config["heading_variant"] in {"editorial_left_rule", "masthead_section"}
-    warm = config["heading_variant"] == "story_chapter"
-    airy = config["heading_variant"] == "botanical_section"
-    structured = config["heading_variant"] == "indexed_column"
-    campus = config["heading_variant"] == "sticker_section"
-    future = config["heading_variant"] == "signal_section"
+    generated_theme = bool(config.get("generated_design_system"))
+    editorial = not generated_theme and config["heading_variant"] in {"editorial_left_rule", "masthead_section"}
+    warm = not generated_theme and config["heading_variant"] == "story_chapter"
+    airy = not generated_theme and config["heading_variant"] == "botanical_section"
+    structured = not generated_theme and config["heading_variant"] == "indexed_column"
+    campus = not generated_theme and config["heading_variant"] == "sticker_section"
+    future = not generated_theme and config["heading_variant"] == "signal_section"
     slots_by_anchor = {slot["anchor_block_id"]: slot for slot in validated.get("slots", [])}
     image_slots_by_anchor: dict[str, list[dict[str, Any]]] = {}
     for image_slot in validated.get("image_slots", []):
@@ -912,7 +966,7 @@ def render_preview(
             editor_block_type = f'component:{slot["component_type"]}'
             body.append(
                 f'<section id="{html.escape(slot["slot_id"])}" class="component-anchor" style="scroll-margin-top:18px;">'
-                f'{render_component(slot, parsed, palette)}</section>'
+                f'{render_component(slot, parsed, palette, config)}</section>'
             )
         elif block.id in consumed:
             pass
@@ -923,7 +977,9 @@ def render_preview(
                 section_index += 1
             body.append(_render_heading(block, config, section_index))
         elif block.type == "paragraph":
-            if block.id == opening_highlight_id:
+            if generated_theme:
+                body.append(render_generated_paragraph(str(block.content), config, lead=block.id == opening_highlight_id))
+            elif block.id == opening_highlight_id:
                 if airy:
                     body.append(
                         f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
@@ -995,8 +1051,11 @@ def render_preview(
             else:
                 body.append(f'<p style="margin:0 0 18px;color:#34403E;font-size:16px;line-height:1.85;text-align:justify;">{_body_inline(str(block.content), config)}</p>')
         elif block.type == "quote":
+            generated_quote = render_generated_quote(str(block.content), config)
             extended_quote = render_extended_quote(str(block.content), config)
-            if extended_quote is not None:
+            if generated_quote is not None:
+                body.append(generated_quote)
+            elif extended_quote is not None:
                 body.append(extended_quote)
             elif config.get("quote_variant") == "floating_quote":
                 body.append(
@@ -1100,6 +1159,7 @@ def render_preview(
         profile.get("editorial_kicker" if editorial else "standard_kicker")
         or ("WECHAT · CONTENT BRIEF" if editorial else "公众号 · 阅读指南")
     )
+    generated_hero = render_generated_hero(parsed.title, kicker, config)
     extended_hero = render_extended_hero(
         parsed.title,
         validated["plan_name"],
@@ -1107,7 +1167,9 @@ def render_preview(
         kicker,
         config,
     )
-    if extended_hero is not None:
+    if generated_hero is not None:
+        hero = generated_hero
+    elif extended_hero is not None:
         hero = extended_hero
     elif airy:
         hero = (
@@ -1180,7 +1242,7 @@ def render_preview(
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<style>html{scroll-behavior:smooth}.component-anchor:target,.image-slot-anchor:target,.source-image-anchor:target{outline:2px solid #8FD6CE;outline-offset:7px;border-radius:10px}</style>'
         f'<title>{html.escape(parsed.title)}</title></head>'
-        '<body style="box-sizing:border-box;margin:0;padding:0 24px;background-color:#FFFFFF;font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
+        f'<body style="box-sizing:border-box;margin:0;padding:0 24px;background-color:{palette["surface"] if generated_theme else "#FFFFFF"};font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
         f'{hero}<main style="box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:0 0 34px;">'
         f'{"".join(body)}{cta}</main></body></html>'
     )

@@ -115,6 +115,7 @@ function wrapMatchingInlineRun(root: HTMLElement, value: string): HTMLElement | 
   const expected = renderedText(value);
   if (!expected) return null;
   const parents = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))]
+    .filter((element) => !element.closest("[data-theme-static]"))
     .sort((left, right) => elementDepth(right, root) - elementDepth(left, root));
 
   for (const parent of parents) {
@@ -159,8 +160,9 @@ function findTextElement(root: HTMLElement, value: string, used: Set<HTMLElement
   const allowed = new Set(["P", "STRONG", "H1", "H2", "H3", "H4", "H5", "H6", "LI", "TD", "TH", "BLOCKQUOTE", "SPAN"]);
   const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>("p,strong,h1,h2,h3,h4,h5,h6,li,td,th,blockquote,span"))]
     .filter((element) => !used.has(element) && allowed.has(element.tagName))
+    .filter((element) => !element.closest("[data-theme-static]"))
     .filter((element) => normalizedText(element.textContent ?? "") === expected)
-    .sort((left, right) => elementDepth(right, root) - elementDepth(left, root));
+    .sort((left, right) => Number(right.hasAttribute("data-theme-field")) - Number(left.hasAttribute("data-theme-field")) || elementDepth(right, root) - elementDepth(left, root));
   return candidates[0] ?? wrapMatchingInlineRun(root, value);
 }
 

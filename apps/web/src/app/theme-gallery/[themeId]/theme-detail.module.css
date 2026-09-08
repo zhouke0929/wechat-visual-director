@@ -7,6 +7,9 @@
   background: var(--paper);
   font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
 }
+.deliveryNote { margin-top: 26px; max-width: 680px; padding: 14px 0 14px 18px; border-left: 2px solid var(--theme-primary); }
+.deliveryNote strong { font-size: 13px; font-weight: 750; }
+.deliveryNote p { margin: 6px 0 0; color: #596560; font-size: 12px; line-height: 1.8; }
 .topbar { min-height: 72px; padding: 0 clamp(18px, 4vw, 64px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--line); background: rgba(243,239,229,.94); backdrop-filter: blur(14px); position: sticky; top: 0; z-index: 20; }
 .topbar > a { color: #55615d; font-size: 12px; font-weight: 750; }
 .topbar > div { display: flex; align-items: baseline; gap: 11px; }

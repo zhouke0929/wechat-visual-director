@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from .parser import ParsedArticle
+from .generated_theme import render_generated_component
 from .theme_extensions import render_extended_component
 
 
@@ -213,7 +214,12 @@ def _render_concept_group(
     )
 
 
-def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[str, str] | None = None) -> str:
+def render_component(
+    slot: dict[str, Any],
+    parsed: ParsedArticle,
+    palette: dict[str, str] | None = None,
+    config: dict[str, Any] | None = None,
+) -> str:
     component_type = slot["component_type"]
     variant = slot["variant"]
     bindings = slot["content_bindings"]
@@ -229,6 +235,9 @@ def render_component(slot: dict[str, Any], parsed: ParsedArticle, palette: dict[
     surface = colors["surface"]
     ink = colors["ink"]
 
+    generated = render_generated_component(slot, parsed, config or {})
+    if generated is not None:
+        return generated
     extended = render_extended_component(slot, parsed, colors)
     if extended is not None:
         return extended

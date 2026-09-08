@@ -314,6 +314,11 @@ class Repository:
               created_at TEXT NOT NULL,
               UNIQUE(scope, idempotency_key)
             );
+            CREATE TABLE IF NOT EXISTS wechat_image_upload_cache (
+              cache_key TEXT PRIMARY KEY,
+              result_json TEXT NOT NULL,
+              expires_at REAL NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS idx_tasks_updated ON tasks(updated_at DESC);
             CREATE INDEX IF NOT EXISTS idx_plans_task ON plans(task_id, plan_index);
             CREATE INDEX IF NOT EXISTS idx_plan_revisions_plan ON plan_revisions(plan_id, revision DESC);
@@ -1187,6 +1192,24 @@ class Repository:
             "INSERT INTO audit_events VALUES (?, ?, ?, ?, ?)",
             (str(uuid.uuid4()), task_id, event_type, json.dumps(payload, ensure_ascii=False), now),
         )
+
+    def get_wechat_image_upload(self, cache_key: str) -> dict[str, Any] | None:
+        with self.lock:
+            row = self.connection.execute(
+                "SELECT result_json, expires_at FROM wechat_image_upload_cache WHERE cache_key = ?",
+                (cache_key,),
+            ).fetchone()
+        return {"result": json.loads(row["result_json"]), "expires_at": row["expires_at"]} if row else None
+
+    def save_wechat_image_upload(self, cache_key: str, result: dict[str, Any], expires_at: float) -> None:
+        # Only public image references are persisted, never credentials or tokens.
+        safe_result = {key: str(result[key]) for key in ("url", "media_id") if result.get(key)}
+        with self.lock:
+            self.connection.execute(
+                "INSERT OR REPLACE INTO wechat_image_upload_cache VALUES (?, ?, ?)",
+                (cache_key, json.dumps(safe_result), expires_at),
+            )
+            self.connection.commit()
 
     def list_audit_events(self, task_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(

@@ -462,6 +462,29 @@ def _multipart_image_import(
     return b"".join(chunks), boundary
 
 
+def _multipart_theme_pack(path: Path) -> tuple[bytes, str]:
+    boundary = f"----visual-director-{uuid.uuid4().hex}"
+    content_types = {
+        ".json": "application/json",
+        ".zip": "application/zip",
+        ".vdtheme": "application/zip",
+    }
+    content_type = content_types.get(path.suffix.lower(), "application/octet-stream")
+    body = b"".join(
+        [
+            f"--{boundary}\r\n".encode(),
+            (
+                f'Content-Disposition: form-data; name="theme_file"; filename="{path.name}"\r\n'
+                f"Content-Type: {content_type}\r\n\r\n"
+            ).encode("utf-8"),
+            path.read_bytes(),
+            b"\r\n",
+            f"--{boundary}--\r\n".encode(),
+        ]
+    )
+    return body, boundary
+
+
 def _spawn_detached(
     command: list[str],
     *,
@@ -1426,6 +1449,56 @@ def _task_status(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _theme_pack_submit(args: argparse.Namespace, *, install: bool) -> dict[str, Any]:
+    path = Path(args.file).expanduser().resolve()
+    if not path.is_file():
+        raise CliError("theme_pack_file_missing", f"主题扩展包不存在：{path}", exit_code=2)
+    if not args.no_start:
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
+    body, boundary = _multipart_theme_pack(path)
+    suffix = "" if install else "/validate"
+    payload = _request_json(
+        "POST",
+        f"{args.api_base.rstrip('/')}/theme-packs{suffix}",
+        body=body,
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "X-Local-Intent": "local-operator",
+        },
+        timeout=20,
+    )
+    manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
+    theme_id = str(manifest.get("id") or "")
+    result = {
+        "ok": True,
+        "schema_version": "theme_pack_install_result.v0.1" if install else "theme_pack_validation_result.v0.1",
+        "delivery_report": payload.get("delivery_report"),
+        "valid": True,
+        "installed": bool(install),
+        "manifest": manifest,
+        "theme_id": theme_id,
+    }
+    if install:
+        result["gallery_url"] = f"{args.web_base.rstrip('/')}/theme-gallery/{theme_id}"
+        if args.open:
+            result["opened"] = bool(webbrowser.open(str(result["gallery_url"]), new=2))
+    return result
+
+
+def _theme_pack_list(args: argparse.Namespace) -> dict[str, Any]:
+    if not args.no_start:
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
+    payload = _request_json("GET", f"{args.api_base.rstrip('/')}/theme-packs")
+    items = payload.get("items") if isinstance(payload.get("items"), list) else []
+    return {
+        "ok": True,
+        "schema_version": "theme_pack_list_result.v0.1",
+        "count": len(items),
+        "items": items,
+        "gallery_url": f"{args.web_base.rstrip('/')}/theme-gallery",
+    }
+
+
 def _emit(payload: dict[str, Any], *, json_output: bool) -> None:
     if json_output:
         print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
@@ -1513,6 +1586,26 @@ def build_parser() -> argparse.ArgumentParser:
     image_import.add_argument("--no-start", action="store_true")
     image_import.add_argument("--start-timeout", type=float, default=45)
     image_import.add_argument("--json", action="store_true", dest="json_output")
+
+    theme = subparsers.add_parser("theme", help="校验、安装和查看本机主题扩展包")
+    theme_subparsers = theme.add_subparsers(dest="theme_command", required=True)
+    for command_name, command_help in (
+        ("validate", "只校验主题扩展包，不写入本机主题库"),
+        ("install", "校验并安装主题扩展包"),
+    ):
+        command = theme_subparsers.add_parser(command_name, help=command_help)
+        _add_connection_args(command)
+        command.add_argument("--file", required=True)
+        command.add_argument("--no-start", action="store_true")
+        command.add_argument("--start-timeout", type=float, default=45)
+        if command_name == "install":
+            command.add_argument("--open", action="store_true")
+        command.add_argument("--json", action="store_true", dest="json_output")
+    theme_list = theme_subparsers.add_parser("list", help="列出已安装的本机主题扩展包")
+    _add_connection_args(theme_list)
+    theme_list.add_argument("--no-start", action="store_true")
+    theme_list.add_argument("--start-timeout", type=float, default=45)
+    theme_list.add_argument("--json", action="store_true", dest="json_output")
 
     task = subparsers.add_parser("task", help="管理视觉任务")
     task_subparsers = task.add_subparsers(dest="task_command", required=True)
@@ -1603,6 +1696,12 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _image_context(args), 0
         elif args.command == "image" and args.image_command == "import":
             payload, exit_code = _image_import(args), 0
+        elif args.command == "theme" and args.theme_command == "validate":
+            payload, exit_code = _theme_pack_submit(args, install=False), 0
+        elif args.command == "theme" and args.theme_command == "install":
+            payload, exit_code = _theme_pack_submit(args, install=True), 0
+        elif args.command == "theme" and args.theme_command == "list":
+            payload, exit_code = _theme_pack_list(args), 0
         elif args.command == "task" and args.task_command == "create":
             payload, exit_code = _create_task(args), 0
         elif args.command == "task" and args.task_command == "status":

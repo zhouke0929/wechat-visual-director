@@ -62,19 +62,7 @@ export type ThemeRhythmPrimitive = {
 };
 
 export type ThemeGalleryItem = {
-  id:
-    | "light_reading"
-    | "warm_humanist"
-    | "youth_campus"
-    | "editorial_contrast"
-    | "structured_grid"
-    | "future_tech"
-    | "oriental_archive"
-    | "vintage_press"
-    | "pop_poster"
-    | "natural_atlas"
-    | "business_review"
-    | "cinematic_story";
+  id: string;
   label: string;
   english: string;
   description: string;
@@ -82,6 +70,17 @@ export type ThemeGalleryItem = {
   personality: string[];
   palette: string[];
   status: string;
+  source: "official" | "custom";
+  base_theme: string;
+  pack_version?: string;
+  delivery_report?: {
+    local_delivery: "blocking" | "review_required" | "static_pass" | "not_checked";
+    wechat_saved_roundtrip: "not_verified";
+    capabilities: Record<string, string[]>;
+    rehearsal: { status: "pass" | "blocking" | "not_applicable" };
+    findings: { code: string; role: string; path: string; message: string }[];
+  } | null;
+  author?: string;
   core_component_count: number;
   semantic_component_count: number;
   configuration: {
@@ -93,6 +92,49 @@ export type ThemeGalleryItem = {
   components: ThemeComponentSpecimen[];
   rhythm_primitives: ThemeRhythmPrimitive[];
   full_preview_html: string;
+};
+
+export type ThemePackManifest = {
+  schema_version: "visual_director.theme_pack.v1";
+  id: string;
+  name: string;
+  english: string;
+  description: string;
+  version: string;
+  author: string;
+  base_theme: string;
+  ideal_for: string[];
+  personality: string[];
+  palette: Record<string, string>;
+  visual_dna: Record<string, number>;
+  material_tags: string[];
+  tone: string[];
+  style_recipe?: {
+    hero: string;
+    heading: string;
+    list: string;
+    quote: string;
+    table: string;
+    divider: string;
+    inline_emphasis: string;
+    image_frame: string;
+    component: string;
+  };
+  design_system?: {
+    composition: "arched_editorial" | "offset_journal" | "modular_exhibit" | "ribbon_story" | "medallion_archive" | "woven_catalog";
+    motifs: Array<"botanical_vine" | "honeycomb" | "celestial_orbit" | "paper_cut" | "wave_ripple" | "architectural_grid" | "none">;
+    frame: "arched" | "double_rule" | "offset_shadow" | "stitched" | "bracketed" | "open_corner";
+    marker: "seed" | "medallion" | "ticket" | "coordinate" | "petal" | "bar";
+    surface: "quiet" | "tinted" | "layered" | "alternating";
+    rhythm: { density: "airy" | "balanced" | "compact"; section_gap: number; component_gap: number; inset: number };
+    typography: { heading_scale: number; body_scale: number; letter_spacing: "tight" | "normal" | "relaxed"; heading_weight: number };
+    ornament: { density: number; border_width: number; corner_radius: number };
+  };
+  component_contract: {
+    mode: "inherit";
+    coverage: string[];
+    edit_contract: "semantic_dom_v1";
+  };
 };
 
 export type PublicationMetadata = {
@@ -195,6 +237,7 @@ export type TaskDetail = {
 };
 
 export type VisualPlan = {
+  render_refresh_available?: boolean;
   id: string;
   plan_index: number;
   plan_name: string;
@@ -713,6 +756,9 @@ export type ClipboardPayload = {
   text: string;
   cover_url: string | null;
   warnings: string[];
+  image_count?: number;
+  image_transport?: "no_images" | "local_urls" | "wechat_hosted" | "embedded_data";
+  html_bytes?: number;
 };
 
 export type BlindReviewDimension = {

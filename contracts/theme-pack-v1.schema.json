@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/zhouke0929/wechat-visual-director/contracts/theme-pack-v1.schema.json",
+  "title": "Wechat Visual Director Theme Pack v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "id", "name", "english", "description", "version", "author",
+    "base_theme", "ideal_for", "personality", "palette", "visual_dna",
+    "material_tags", "tone", "component_contract"
+  ],
+  "allOf": [
+    { "not": { "required": ["style_recipe", "design_system"] } }
+  ],
+  "properties": {
+    "schema_version": { "const": "visual_director.theme_pack.v1" },
+    "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,47}$" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "english": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "description": { "type": "string", "minLength": 1, "maxLength": 180 },
+    "version": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "author": { "type": "string", "minLength": 1, "maxLength": 60 },
+    "base_theme": { "type": "string", "pattern": "^[a-z][a-z0-9_]{2,47}$" },
+    "ideal_for": { "$ref": "#/$defs/textList" },
+    "personality": { "$ref": "#/$defs/textList" },
+    "material_tags": { "$ref": "#/$defs/textList" },
+    "tone": { "$ref": "#/$defs/textList" },
+    "palette": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "primary", "secondary", "accent", "sky", "pale", "secondary_pale",
+        "accent_pale", "sky_pale", "surface", "ink"
+      ],
+      "properties": {
+        "primary": { "$ref": "#/$defs/color" },
+        "secondary": { "$ref": "#/$defs/color" },
+        "accent": { "$ref": "#/$defs/color" },
+        "sky": { "$ref": "#/$defs/color" },
+        "pale": { "$ref": "#/$defs/color" },
+        "secondary_pale": { "$ref": "#/$defs/color" },
+        "accent_pale": { "$ref": "#/$defs/color" },
+        "sky_pale": { "$ref": "#/$defs/color" },
+        "surface": { "$ref": "#/$defs/color" },
+        "ink": { "$ref": "#/$defs/color" }
+      }
+    },
+    "visual_dna": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "warmth", "saturation", "contrast", "geometry", "tactility",
+        "dimensionality", "energy", "information_density", "brand_formality"
+      ],
+      "properties": {
+        "warmth": { "$ref": "#/$defs/unit" },
+        "saturation": { "$ref": "#/$defs/unit" },
+        "contrast": { "$ref": "#/$defs/unit" },
+        "geometry": { "$ref": "#/$defs/unit" },
+        "tactility": { "$ref": "#/$defs/unit" },
+        "dimensionality": { "$ref": "#/$defs/unit" },
+        "energy": { "$ref": "#/$defs/unit" },
+        "information_density": { "$ref": "#/$defs/unit" },
+        "brand_formality": { "$ref": "#/$defs/unit" }
+      }
+    },
+    "style_recipe": {
+      "type": "object",
+      "description": "Optional safe composition recipe. Each role reuses a WeChat-verified official grammar while the theme keeps its own palette and visual DNA.",
+      "additionalProperties": false,
+      "required": [
+        "hero", "heading", "list", "quote", "table", "divider",
+        "inline_emphasis", "image_frame", "component"
+      ],
+      "properties": {
+        "hero": { "$ref": "#/$defs/composableTheme" },
+        "heading": { "$ref": "#/$defs/composableTheme" },
+        "list": { "$ref": "#/$defs/composableTheme" },
+        "quote": { "$ref": "#/$defs/composableTheme" },
+        "table": { "$ref": "#/$defs/composableTheme" },
+        "divider": { "$ref": "#/$defs/composableTheme" },
+        "inline_emphasis": { "$ref": "#/$defs/composableTheme" },
+        "image_frame": { "$ref": "#/$defs/composableTheme" },
+        "component": { "$ref": "#/$defs/composableTheme" }
+      }
+    },
+    "design_system": {
+      "type": "object",
+      "description": "Optional generated visual language. The core compiles these tokens into a WeChat-safe renderer without accepting user HTML or CSS.",
+      "additionalProperties": false,
+      "required": ["composition", "motifs", "frame", "marker", "surface", "rhythm", "typography", "ornament"],
+      "properties": {
+        "layouts": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"enum": ["hero", "heading", "subheading", "lead", "quote", "list", "question_hook", "numbered_insight", "evidence_callout", "before_after_timeline", "logic_path", "concept_explainer", "case_card", "warning_note", "action_checklist", "faq_card", "comparison_card", "section_summary", "divider", "image_caption", "closing_cta"]},
+          "additionalProperties": {"$ref": "#/$defs/layoutNode"}
+        },
+        "composition": { "enum": ["arched_editorial", "offset_journal", "modular_exhibit", "ribbon_story", "medallion_archive", "woven_catalog"] },
+        "motifs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": { "enum": ["botanical_vine", "honeycomb", "celestial_orbit", "paper_cut", "wave_ripple", "architectural_grid", "none"] }
+        },
+        "frame": { "enum": ["arched", "double_rule", "offset_shadow", "stitched", "bracketed", "open_corner"] },
+        "marker": { "enum": ["seed", "medallion", "ticket", "coordinate", "petal", "bar"] },
+        "surface": { "enum": ["quiet", "tinted", "layered", "alternating"] },
+        "rhythm": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["density", "section_gap", "component_gap", "inset"],
+          "properties": {
+            "density": { "enum": ["airy", "balanced", "compact"] },
+            "section_gap": { "type": "integer", "minimum": 30, "maximum": 64 },
+            "component_gap": { "type": "integer", "minimum": 18, "maximum": 44 },
+            "inset": { "type": "integer", "minimum": 10, "maximum": 28 }
+          }
+        },
+        "typography": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["heading_scale", "body_scale", "letter_spacing", "heading_weight"],
+          "properties": {
+            "heading_scale": { "type": "number", "minimum": 0.9, "maximum": 1.3 },
+            "body_scale": { "type": "number", "minimum": 0.95, "maximum": 1.1 },
+            "letter_spacing": { "enum": ["tight", "normal", "relaxed"] },
+            "heading_weight": { "type": "integer", "minimum": 500, "maximum": 900 }
+          }
+        },
+        "ornament": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["density", "border_width", "corner_radius"],
+          "properties": {
+            "density": { "type": "number", "minimum": 0, "maximum": 1 },
+            "border_width": { "type": "integer", "minimum": 1, "maximum": 4 },
+            "corner_radius": { "type": "integer", "minimum": 0, "maximum": 36 }
+          }
+        }
+      }
+    },
+    "component_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "coverage", "edit_contract"],
+      "properties": {
+        "mode": { "const": "inherit" },
+        "coverage": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "question_hook" }, { "const": "numbered_insight" },
+            { "const": "evidence_callout" }, { "const": "before_after_timeline" },
+            { "const": "logic_path" }, { "const": "concept_explainer" },
+            { "const": "case_card" }, { "const": "warning_note" },
+            { "const": "action_checklist" }, { "const": "faq_card" },
+            { "const": "comparison_card" }, { "const": "section_summary" }
+          ],
+          "minItems": 12,
+          "maxItems": 12
+        },
+        "edit_contract": { "const": "semantic_dom_v1" }
+      }
+    }
+  },
+  "$defs": {
+    "paletteRole": {"enum": ["primary", "secondary", "accent", "sky", "pale", "secondary_pale", "accent_pale", "sky_pale", "surface", "ink"]},
+    "space": {"oneOf": [
+      {"type": "number", "minimum": 0, "maximum": 64},
+      {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": 0, "maximum": 64}}
+    ]},
+    "margin": {"oneOf": [
+      {"type": "number", "minimum": -24, "maximum": 64},
+      {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number", "minimum": -24, "maximum": 64}}
+    ]},
+    "shadow": {
+      "type": "object", "additionalProperties": false, "required": ["x", "y", "blur", "color"],
+      "properties": {
+        "x": {"type": "number", "minimum": -12, "maximum": 12},
+        "y": {"type": "number", "minimum": -12, "maximum": 12},
+        "blur": {"type": "number", "minimum": 0, "maximum": 24},
+        "color": {"$ref": "#/$defs/paletteRole"}
+      }
+    },
+    "border": {
+      "type": "object", "additionalProperties": false, "required": ["width", "color", "style"],
+      "properties": {
+        "width": {"type": "number", "minimum": 0, "maximum": 8},
+        "color": {"$ref": "#/$defs/paletteRole"},
+        "style": {"enum": ["solid", "double", "dashed", "dotted"]}
+      }
+    },
+    "layoutStyle": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "color": {"$ref": "#/$defs/paletteRole"}, "background": {"$ref": "#/$defs/paletteRole"},
+        "margin": {"$ref": "#/$defs/margin"}, "padding": {"$ref": "#/$defs/space"}, "radius": {"$ref": "#/$defs/space"},
+        "rotate": {"type": "number", "minimum": -8, "maximum": 8},
+        "width": {"type": "number", "minimum": 16, "maximum": 160},
+        "fit": {"const": "content"}, "shadow": {"$ref": "#/$defs/shadow"},
+        "size": {"enum": ["body", "display", "title", "heading", "subheading", "caption", "label"]},
+        "align": {"enum": ["left", "center", "right", "justify"]},
+        "font": {"enum": ["serif", "sans", "mono"]},
+        "weight": {"type": "number", "minimum": 400, "maximum": 900},
+        "line_height": {"type": "number", "minimum": 1.35, "maximum": 2.2},
+        "border": {"$ref": "#/$defs/border"}, "border_top": {"$ref": "#/$defs/border"},
+        "border_right": {"$ref": "#/$defs/border"}, "border_bottom": {"$ref": "#/$defs/border"},
+        "border_left": {"$ref": "#/$defs/border"}
+      }
+    },
+    "drawingPoint": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "number", "minimum": 0, "maximum": 160}},
+    "drawingPart": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "stroke", "stroke_width"],
+      "properties": {
+        "kind": {"enum": ["polyline", "ellipse"]},
+        "stroke": {"$ref": "#/$defs/paletteRole"}, "fill": {"$ref": "#/$defs/paletteRole"},
+        "stroke_width": {"type": "number", "minimum": 0.5, "maximum": 4},
+        "points": {"type": "array", "minItems": 2, "maxItems": 32, "items": {"$ref": "#/$defs/drawingPoint"}},
+        "x": {"type": "number", "minimum": 0, "maximum": 160}, "y": {"type": "number", "minimum": 0, "maximum": 160},
+        "w": {"type": "number", "minimum": 1, "maximum": 160}, "h": {"type": "number", "minimum": 1, "maximum": 160}
+      },
+      "allOf": [
+        {"if": {"properties": {"kind": {"const": "polyline"}}}, "then": {"required": ["points"]}},
+        {"if": {"properties": {"kind": {"const": "ellipse"}}}, "then": {"required": ["x", "y", "w", "h"]}}
+      ]
+    },
+    "layoutNode": {
+      "type": "object", "additionalProperties": false, "required": ["type"],
+      "description": "Runtime also enforces per-role field coverage, no nested repeats, depth <= 8, nodes <= 96 and column widths totalling 100%.",
+      "properties": {
+        "type": {"enum": ["stack", "row", "text", "field", "repeat", "rule", "shape", "media", "cutout", "drawing"]},
+        "parts": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/drawingPart"}},
+        "fill": {"$ref": "#/$defs/paletteRole"},
+        "radius": {"type": "number", "minimum": 2, "maximum": 8},
+        "pitch": {"type": "number", "minimum": 12, "maximum": 32},
+        "inset": {"type": "number", "minimum": 10, "maximum": 32},
+        "style": {"$ref": "#/$defs/layoutStyle"},
+        "text": {"type": "string", "minLength": 1, "maxLength": 60},
+        "bind": {"type": "string"},
+        "children": {"type": "array", "minItems": 1, "maxItems": 16, "items": {"$ref": "#/$defs/layoutNode"}},
+        "widths": {"type": "array", "minItems": 2, "maxItems": 3, "items": {"type": "number", "minimum": 20, "maximum": 80}},
+        "width": {"type": "number", "minimum": 2, "maximum": 160},
+        "height": {"type": "number", "minimum": 2, "maximum": 160}
+      },
+      "allOf": [
+        {"if": {"properties": {"type": {"enum": ["stack", "row", "repeat", "cutout"]}}}, "then": {"required": ["children"]}},
+        {"if": {"properties": {"type": {"const": "cutout"}}}, "then": {"required": ["fill", "radius", "pitch", "inset"]}},
+        {"if": {"properties": {"type": {"const": "row"}}}, "then": {"required": ["widths"]}},
+        {"if": {"properties": {"type": {"const": "text"}}}, "then": {"required": ["text"]}},
+        {"if": {"properties": {"type": {"enum": ["field", "repeat"]}}}, "then": {"required": ["bind"]}},
+        {"if": {"properties": {"type": {"const": "shape"}}}, "then": {"required": ["width", "height"], "properties": {"width": {"maximum": 64}, "height": {"maximum": 64}}}},
+        {"if": {"properties": {"type": {"const": "drawing"}}}, "then": {"required": ["width", "height", "parts"], "properties": {"width": {"minimum": 16}, "height": {"minimum": 8}}}}
+      ]
+    },
+    "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "unit": { "type": "number", "minimum": 0, "maximum": 1 },
+    "composableTheme": {
+      "type": "string",
+      "enum": [
+        "oriental_archive", "vintage_press", "pop_poster",
+        "natural_atlas", "business_review", "cinematic_story"
+      ]
+    },
+    "textList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": { "type": "string", "minLength": 1, "maxLength": 40 }
+    }
+  }
+}

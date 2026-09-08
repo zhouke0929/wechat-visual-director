@@ -51,6 +51,16 @@ export default function ThemeDetailPage() {
           <div className={styles.tags}>
             {theme.ideal_for.map((item) => <span key={item}>{item}</span>)}
           </div>
+          {theme.delivery_report && (
+            <section className={styles.deliveryNote} aria-label="主题交付检查">
+              <strong>{theme.delivery_report.rehearsal.status === "blocking" ? "交付检查发现问题" : theme.delivery_report.rehearsal.status === "pass" ? "本地交付预检通过" : "沿用基础主题交付结构"}</strong>
+              <p>{theme.delivery_report.capabilities.raster_decoration?.length ? "装饰使用高清图片，正文保持可编辑。" : "正文与主题结构保持独立。"}微信保存后的实际效果尚待核对。</p>
+              {theme.delivery_report.findings.length > 0 && (
+                <p>本轮重点：{Array.from(new Set(theme.delivery_report.findings.map((item) => ({ gradient_edge: "凹口边缘", rotated_layout: "旋转位置", surface_shadow: "阴影", overlap_spacing: "错位留白" }[item.code] || item.code)))).join("、")}。</p>
+              )}
+              <p>保存草稿后重新打开，再检查手机预览；仅粘贴成功不代表验证完成。</p>
+            </section>
+          )}
         </div>
         <aside className={styles.reviewGuide}>
           <span>浏览方式</span>

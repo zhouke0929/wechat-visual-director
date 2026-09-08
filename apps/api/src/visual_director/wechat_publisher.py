@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import threading
 import os
 import time
 import urllib.error
@@ -12,6 +14,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .delivery import _extract_main, _responsive_delivery_document
+from .theme_delivery import legacy_drawing_present
 
 
 TOKEN_ENDPOINT = "https://api.weixin.qq.com/cgi-bin/token"
@@ -51,6 +54,8 @@ class WechatDraftPublisher:
         requester: Callable[..., Any] = urllib.request.urlopen,
         timeout_seconds: int = 90,
         clock: Callable[[], float] = time.time,
+        image_cache_get: Callable[[str], dict[str, Any] | None] | None = None,
+        image_cache_set: Callable[[str, dict[str, Any], float], None] | None = None,
     ) -> None:
         self.root = root
         self.env_file_override = env_file
@@ -62,6 +67,73 @@ class WechatDraftPublisher:
         self.timeout_seconds = timeout_seconds
         self.clock = clock
         self._token_cache: dict[str, tuple[str, float]] = {}
+        self._image_cache: dict[str, dict[str, Any]] = {}
+        self._image_cache_get = image_cache_get
+        self._image_cache_set = image_cache_set
+        self._image_upload_lock = threading.RLock()
+
+    def _upload_cached_image(self, token: str, asset: dict[str, Any], path: Path, content_type: str, *, clipboard: bool = False) -> tuple[dict[str, Any], str]:
+        content = path.read_bytes()
+        digest = hashlib.sha256(content).hexdigest()
+        if asset.get("output_sha256") and digest != asset["output_sha256"]:
+            raise ValueError("冻结图片校验失败，请重新确认最终版本")
+        app_id, _, _ = self._credentials()
+        purpose = "cover" if asset["asset_role"] == "cover" else "body"
+        key = hashlib.sha256(f"{self.api_base}|{app_id}|{purpose}|{digest}".encode()).hexdigest()
+        with self._image_upload_lock:
+            cached = (self._image_cache_get(key) if self._image_cache_get else self._image_cache.get(key)) if app_id else None
+            if cached and cached["expires_at"] > self.clock():
+                return cached["result"], token
+            filename = str(asset.get("relative_filename") or path.name)
+            if clipboard:
+                body, multipart_type = self._multipart_image(filename, content_type, content)
+                def send(current_token: str) -> dict[str, Any]:
+                    endpoint = f"{self.api_base}/media/uploadimg?{urllib.parse.urlencode({'access_token': current_token})}"
+                    request = urllib.request.Request(endpoint, data=body, headers={"Content-Type": multipart_type}, method="POST")
+                    return self._open_json(request, stage="upload_image")
+                try:
+                    uploaded = send(token)
+                except WechatApiError as error:
+                    if error.errcode not in {40014, 42001}:
+                        raise
+                    token = self._access_token(force_refresh=True)
+                    uploaded = send(token)
+            else:
+                uploaded, token = self._upload_image_with_token_refresh(token, filename=filename, content_type=content_type, content=content)
+            url = urllib.parse.urlsplit(str(uploaded.get("url") or ""))
+            if url.scheme not in {"http", "https"} or not url.hostname or (purpose == "cover" and not uploaded.get("media_id")):
+                raise ValueError("微信未返回有效图片地址，请重试图片准备")
+            safe = {k: str(uploaded[k]) for k in ("url", "media_id") if uploaded.get(k)}
+            if app_id:
+                expires = self.clock() + 86400
+                if self._image_cache_set:
+                    self._image_cache_set(key, safe, expires)
+                else:
+                    self._image_cache[key] = {"result": safe, "expires_at": expires}
+            return safe, token
+
+    def prepare_clipboard_images(self, revision: dict[str, Any], assets: list[dict[str, Any]], read_asset: Callable[[str], tuple[Path, str]]) -> dict[str, Any]:
+        """Explicit image-only action: does not create, modify, or retry a draft."""
+        if legacy_drawing_present(revision.get("frozen_html", "")):
+            return {"error": {"code": "theme_delivery_refresh_required", "message": "请先更新主题渲染并重新确认最终版本", "retryable": False}}
+        # Only upload assets actually used by the copied body; exclude cover/unused files.
+        body = _extract_main(revision["frozen_html"])
+        selected = [a for a in assets if a["asset_role"] != "cover" and f'src="asset://{a["asset_token"]}"' in body]
+        if not selected:
+            return {"asset_urls": {}}
+        if not self.status()["ready"]:
+            return {"error": {"code": "wechat_publisher_not_ready", "message": "带图复制需要在本地设置中配置微信公众号连接；也可下载交付包手动上传图片。", "retryable": True}}
+        urls: dict[str, str] = {}
+        try:
+            token = self._access_token()
+            for asset in selected:
+                path, content_type = read_asset(asset["id"])
+                uploaded, token = self._upload_cached_image(token, asset, path, content_type, clipboard=True)
+                urls[asset["id"]] = uploaded["url"]
+        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+            result = self._classified_error(error, stage="upload_image")
+            return {"error": result.error}
+        return {"asset_urls": urls}
 
     def _env_file(self) -> Path:
         if self.env_file_override is not None:
@@ -255,6 +327,12 @@ class WechatDraftPublisher:
         assets: list[dict[str, Any]],
         read_asset: Callable[[str], tuple[Path, str]],
     ) -> WechatPublishResult:
+        if legacy_drawing_present(revision.get("frozen_html", "")):
+            return WechatPublishResult(
+                status="failed", media_id=None,
+                error={"code": "theme_delivery_refresh_required", "retryable": False,
+                       "message": "此冻结稿包含旧版定位线稿，请返回工作台重新渲染并确认最终版本后再交付。"},
+            )
         if not self.status()["ready"]:
             return WechatPublishResult(
                 status="failed",
@@ -278,13 +356,10 @@ class WechatDraftPublisher:
                 path, content_type = read_asset(asset["id"])
                 digest = str(asset.get("output_sha256") or path)
                 uploaded = uploaded_by_hash.get(digest)
+                if uploaded and asset["asset_role"] == "cover" and not uploaded.get("media_id"):
+                    uploaded = None
                 if uploaded is None:
-                    uploaded, token = self._upload_image_with_token_refresh(
-                        token,
-                        filename=str(asset.get("relative_filename") or path.name),
-                        content_type=content_type,
-                        content=path.read_bytes(),
-                    )
+                    uploaded, token = self._upload_cached_image(token, asset, path, content_type)
                     uploaded_by_hash[digest] = uploaded
                 image_url = str(uploaded.get("url") or "")
                 if asset["asset_role"] == "cover":

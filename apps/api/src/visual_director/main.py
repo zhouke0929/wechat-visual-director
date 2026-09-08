@@ -18,7 +18,16 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
-from .component_catalog import COMPONENT_CATALOG, allowed_variants, component_options
+from .component_catalog import (
+    COMPONENT_CATALOG,
+    CORE_THEME_COMPONENTS,
+    RENDERER_VERSION,
+    VISUAL_SYSTEM_ORDER,
+    allowed_variants,
+    component_options,
+    registered_visual_system_catalog,
+    registered_visual_system_order,
+)
 from .content_editor import (
     EDITABLE_BLOCK_TYPES,
     apply_content_edits,
@@ -81,7 +90,19 @@ from .image_intent import (
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
 from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
+from .theme_packs import (
+    THEME_PACK_SCHEMA_VERSION,
+    THEME_PACK_MAX_BYTES,
+    ThemePackError,
+    configure_theme_packs,
+    delete_theme_pack,
+    export_theme_pack,
+    install_theme_pack_bytes,
+    installed_theme_packs,
+    validate_theme_pack_bytes,
+)
 from .theme_assets import referenced_theme_assets, theme_asset_metadata, theme_asset_path
+from .theme_delivery import compiled_decoration_assets, theme_delivery_report
 from .publication import (
     PUBLICATION_SCHEMA_VERSION,
     canonical_json,
@@ -107,6 +128,7 @@ from .onboarding import (
 )
 from .delivery import (
     build_clipboard_payload,
+    ClipboardPreparationError,
     build_delivery_files,
     build_delivery_zip,
 )
@@ -158,10 +180,9 @@ class UpdateSlotRequest(BaseModel):
 
 
 class UpdateThemeRequest(BaseModel):
-    visual_system: str = Field(
-        pattern="^(light_reading|warm_humanist|youth_campus|editorial_contrast|structured_grid|future_tech|oriental_archive|vintage_press|pop_poster|natural_atlas|business_review|cinematic_story)$"
-    )
+    visual_system: str = Field(pattern="^[a-z][a-z0-9_]{2,47}$")
     expected_plan_revision: int = Field(ge=1)
+    refresh_current: bool = False
     reason: str = Field(default="operator_theme_switch", pattern="^(operator_theme_switch|history_rotation|product_review)$")
 
 
@@ -531,6 +552,8 @@ def create_app(
         env_file=app.state.runtime_env_path,
         token_endpoint=runtime_settings.get("VISUAL_DIRECTOR_WECHAT_TOKEN_ENDPOINT"),
         api_base=runtime_settings.get("VISUAL_DIRECTOR_WECHAT_API_BASE"),
+        image_cache_get=repository.get_wechat_image_upload,
+        image_cache_set=repository.save_wechat_image_upload,
     )
     app.state.wechat_connection_probe = wechat_connection_probe or WechatConnectionProbe(
         endpoint=runtime_settings.get(
@@ -542,6 +565,17 @@ def create_app(
     app.state.setup_preferences_path = app.state.runtime_env_path.parent / "setup-preferences.json"
     app.state.onboarding_path = app.state.runtime_env_path.parent / "workbench-onboarding.json"
     app.state.provider_status_path = app.state.runtime_env_path.parent / "provider-status.json"
+    configured_theme_pack_dir = runtime_settings.get("VISUAL_DIRECTOR_THEME_PACK_DIR")
+    app.state.theme_pack_dir = (
+        Path(configured_theme_pack_dir).expanduser().resolve()
+        if configured_theme_pack_dir
+        else Path(db_path).expanduser().resolve().parent / "theme-packs"
+    )
+    configure_theme_packs(
+        app.state.theme_pack_dir,
+        reserved_ids=VISUAL_SYSTEM_ORDER,
+        core_components=CORE_THEME_COMPONENTS,
+    )
     blind_manifest = Path(
         blind_review_manifest_path
         or os.environ.get(
@@ -974,6 +1008,11 @@ def create_app(
                     height=asset_height,
                     source_url=source_url,
                 )
+            try:
+                asset_sources.extend(compiled_decoration_assets(document))
+            except (ValueError, OSError) as exc:
+                block("theme_decoration_invalid", str(exc), "theme_decoration", None, "rerender_theme")
+                checks["assets_complete"] = "blocking"
             url_to_token = {
                 item["source_url"]: item["asset_token"]
                 for item in asset_sources
@@ -985,12 +1024,13 @@ def create_app(
                 "REVIEW_RESOLVED" if report.get("status") == "REVIEW" else str(report.get("status") or "PASS")
             )
             if compatibility["status"] != "pass":
+                stale_drawing = compatibility["checks"].get("no_legacy_positioned_drawings") == "blocking"
                 block(
                     "compatibility_failed",
-                    "最终 HTML 未通过兼容性检查",
+                    "主题预览仍含旧版定位线稿，请重新渲染当前主题并确认后再保存最终版本" if stale_drawing else "最终 HTML 未通过兼容性检查",
                     "compatibility_report",
                     task_id,
-                    "review_compatibility",
+                    "rerender_theme" if stale_drawing else "review_compatibility",
                 )
                 checks["compatibility"] = "blocking"
             else:
@@ -1554,6 +1594,85 @@ def create_app(
             "themes": build_theme_gallery(),
         }
 
+    @app.get("/api/v1/theme-packs")
+    def list_theme_packs() -> dict[str, Any]:
+        return {
+            "schema_version": THEME_PACK_SCHEMA_VERSION,
+            "items": installed_theme_packs(),
+        }
+
+    @app.post("/api/v1/theme-packs/validate")
+    async def validate_theme_pack(
+        request: Request,
+        theme_file: UploadFile = File(...),
+        x_local_intent: str | None = Header(default=None, alias="X-Local-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_local_intent):
+            return _error(403, "local_operator_required", "主题扩展包只能由本机操作员校验")
+        content = await theme_file.read(THEME_PACK_MAX_BYTES + 1)
+        if len(content) > THEME_PACK_MAX_BYTES:
+            return _error(413, "theme_pack_too_large", "主题扩展包不能超过 2 MB")
+        try:
+            manifest = validate_theme_pack_bytes(content, theme_file.filename or "theme.json")
+        except ThemePackError as exc:
+            return _error(
+                422,
+                "theme_pack_invalid",
+                str(exc),
+                details={"field_errors": exc.field_errors},
+            )
+        return {"valid": True, "manifest": manifest, "delivery_report": theme_delivery_report(manifest)}
+
+    @app.post("/api/v1/theme-packs")
+    async def install_theme_pack(
+        request: Request,
+        theme_file: UploadFile = File(...),
+        x_local_intent: str | None = Header(default=None, alias="X-Local-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_local_intent):
+            return _error(403, "local_operator_required", "主题扩展包只能安装到本机")
+        content = await theme_file.read(THEME_PACK_MAX_BYTES + 1)
+        if len(content) > THEME_PACK_MAX_BYTES:
+            return _error(413, "theme_pack_too_large", "主题扩展包不能超过 2 MB")
+        try:
+            manifest = install_theme_pack_bytes(content, theme_file.filename or "theme.json")
+        except ThemePackError as exc:
+            return _error(
+                422,
+                "theme_pack_invalid",
+                str(exc),
+                details={"field_errors": exc.field_errors},
+            )
+        return {"installed": True, "manifest": manifest, "delivery_report": theme_delivery_report(manifest)}
+
+    @app.delete("/api/v1/theme-packs/{theme_id}")
+    def remove_theme_pack(
+        theme_id: str,
+        request: Request,
+        x_local_intent: str | None = Header(default=None, alias="X-Local-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_local_intent):
+            return _error(403, "local_operator_required", "主题扩展包只能从本机删除")
+        try:
+            deleted = delete_theme_pack(theme_id)
+        except ThemePackError as exc:
+            return _error(409, "theme_pack_protected", str(exc))
+        if not deleted:
+            return _error(404, "theme_pack_not_found", "主题扩展包不存在")
+        return {"deleted": True, "theme_id": theme_id}
+
+    @app.get("/api/v1/theme-packs/{theme_id}/export")
+    def download_theme_pack(theme_id: str) -> Any:
+        try:
+            content = export_theme_pack(theme_id)
+        except ThemePackError as exc:
+            return _error(404, "theme_pack_not_found", str(exc))
+        return Response(
+            content=content,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{theme_id}.vdtheme"'},
+        )
+
     @app.get("/api/v1/article-tasks")
     def list_tasks(
         page: int | None = Query(default=None, ge=1),
@@ -1992,7 +2111,7 @@ def create_app(
         manifest_items: list[dict[str, Any]] = []
         for source in prepared["assets"]:
             asset_id = str(uuid.uuid4())
-            extension = extension_by_type.get(source["content_type"], Path(source["path"]).suffix.lower())
+            extension = extension_by_type.get(source["content_type"], Path(source.get("path", "")).suffix.lower())
             relative_filename = f"{asset_id}{extension}"
             stored = {
                 **source,
@@ -2084,15 +2203,34 @@ def create_app(
         return app.state.wechat_publisher.status()
 
     @app.get("/api/v1/publication-revisions/{revision_id}/clipboard")
-    def publication_clipboard_payload(revision_id: str, request: Request) -> dict[str, Any]:
+    def publication_clipboard_payload(revision_id: str, request: Request) -> Any:
         revision = repository.get_publication_revision(revision_id)
         assets = repository.list_publication_assets(revision_id)
         base_url = str(request.base_url).rstrip("/")
-        return build_clipboard_payload(
-            revision,
-            assets,
-            lambda asset_id: f"{base_url}/api/v1/publication-assets/{asset_id}/content",
-        )
+        try:
+            payload = build_clipboard_payload(
+                revision,
+                assets,
+                lambda asset_id: f"{base_url}/api/v1/publication-assets/{asset_id}/content",
+                read_asset=repository.get_publication_asset,
+            )
+        except ClipboardPreparationError as exc:
+            return _error(409, exc.code, str(exc))
+        return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
+
+    @app.post("/api/v1/publication-revisions/{revision_id}/clipboard/wechat")
+    def prepare_wechat_clipboard(revision_id: str, request: Request, x_local_intent: str | None = Header(default=None, alias="X-Local-Intent")) -> Any:
+        if not _local_settings_request(request, x_local_intent):
+            return _error(403, "local_intent_required", "请从本机工作台明确点击上传图片并复制")
+        revision = repository.get_publication_revision(revision_id)
+        assets = repository.list_publication_assets(revision_id)
+        result = app.state.wechat_publisher.prepare_clipboard_images(revision, assets, repository.get_publication_asset)
+        if result.get("error"):
+            error = result["error"]
+            return _error(409, error["code"], error["message"], retryable=error.get("retryable", False), details=error.get("details"))
+        base_url = str(request.base_url).rstrip("/")
+        payload = build_clipboard_payload(revision, assets, lambda asset_id: f"{base_url}/api/v1/publication-assets/{asset_id}/content", hosted_asset_urls=result["asset_urls"])
+        return {**payload, "draft_created": False}
 
     @app.get("/api/v1/publication-revisions/{revision_id}/bundle")
     def download_publication_bundle(revision_id: str) -> Response:
@@ -2649,14 +2787,33 @@ def create_app(
                     "variant_options": component_options(slot["component_type"]),
                 }
             )
-        return {
+        public_plan = {
             key: value
             for key, value in plan.items()
             if key not in {"configuration", "slots"}
         } | {
             "slots": slots,
+            "render_refresh_available": plan.get("renderer_version") != RENDERER_VERSION,
             "preview_url": f'/api/v1/render-artifacts/{plan["preview_artifact_id"]}/content',
         }
+        metadata = copy.deepcopy(public_plan.get("visual_system_metadata") or {})
+        options = list(metadata.get("available_visual_systems") or [])
+        seen = {item.get("value") for item in options}
+        catalog = registered_visual_system_catalog()
+        for theme_id in registered_visual_system_order():
+            if theme_id in seen:
+                continue
+            options.append(
+                {
+                    "value": theme_id,
+                    "label": catalog[theme_id]["label"],
+                    "description": catalog[theme_id]["description"],
+                    "recent_use_count": 0,
+                }
+            )
+        metadata["available_visual_systems"] = options
+        public_plan["visual_system_metadata"] = metadata
+        return public_plan
 
     @app.get("/api/v1/article-tasks/{task_id}/plans")
     def list_plans(task_id: str) -> dict[str, Any]:
@@ -2744,7 +2901,10 @@ def create_app(
         current = repository.get_plan(task_id, plan_id)
         if current["revision"] != payload.expected_plan_revision:
             raise VersionConflictError("方案已被更新，请刷新后重试")
-        if payload.visual_system == (current.get("visual_system") or current.get("style_mode")):
+        same_theme = payload.visual_system == (current.get("visual_system") or current.get("style_mode"))
+        if payload.refresh_current and not same_theme:
+            return _error(422, "refresh_theme_mismatch", "更新渲染必须保留当前主题")
+        if same_theme and not payload.refresh_current:
             return _error(409, "theme_unchanged", "当前文章已经使用该主题")
 
         previous_visual_system = current.get("visual_system") or current.get("style_mode")
@@ -2753,7 +2913,9 @@ def create_app(
             task["account_id"],
             task["history_window"],
         )
-        revised = apply_visual_system(
+        # A renderer upgrade must not replace the saved theme configuration,
+        # component choices, or image art direction with today's catalog defaults.
+        revised = copy.deepcopy(current) if payload.refresh_current else apply_visual_system(
             current,
             payload.visual_system,
             previous_visual_system=current.get("visual_system_metadata", {}).get("previous_visual_system"),
@@ -2762,6 +2924,7 @@ def create_app(
             recent_summaries=recent_summaries,
         )
         revised["revision"] = current["revision"] + 1
+        revised["renderer_version"] = RENDERER_VERSION
         revised["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
         parsed = parsed_task_article(task)
         revised = validate_plan_for_article(revised, parsed)
@@ -2771,11 +2934,13 @@ def create_app(
             plan_id=plan_id,
             plan=revised,
             html_document=document,
-            change_reason=payload.reason,
-            event_type="visual_theme_switched",
+            change_reason="operator_render_refresh" if payload.refresh_current else payload.reason,
+            event_type="visual_theme_render_refreshed" if payload.refresh_current else "visual_theme_switched",
             event_payload={
                 "from_visual_system": previous_visual_system,
                 "to_visual_system": payload.visual_system,
+                "previous_renderer_version": current.get("renderer_version"),
+                "renderer_version": RENDERER_VERSION,
                 "planner_called": False,
                 "images_regenerated": False,
             },

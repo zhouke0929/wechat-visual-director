@@ -15,6 +15,7 @@ import type {
 
 type PublicationPanelProps = {
   busy: string;
+  copyFallbackAvailable?: boolean;
   bundleUrl: string | null;
   operation: DraftOperation | null;
   publisher: WechatPublisherStatus | null;
@@ -23,7 +24,7 @@ type PublicationPanelProps = {
   task: Task;
   onAutosave: (metadata: PublicationMetadata) => Promise<void>;
   onContinueEditing: () => Promise<void>;
-  onCopy: () => Promise<void>;
+  onCopy: (uploadImages?: boolean) => Promise<void>;
   onFreeze: (metadata: PublicationMetadata) => Promise<void>;
   onPublish: () => Promise<void>;
   onRetry: () => Promise<void>;
@@ -41,6 +42,7 @@ const checkLabels: Record<string, string> = {
 
 export function PublicationPanel({
   busy,
+  copyFallbackAvailable = false,
   bundleUrl,
   operation,
   publisher,
@@ -110,7 +112,7 @@ export function PublicationPanel({
                 ? "系统已保存本地冻结版本和真实 Media ID。请到公众号后台完成最终检查与发布。"
                 : succeeded
                   ? "这是早期测试流程留下的模拟结果，没有调用微信接口；返回工作台后可使用真实交付出口。"
-                : "发布到微信会调用内置官方 API；复制和下载不会使用 AppID 或 AppSecret。"}
+                : "可以直接保存到公众号草稿箱，也可以复制图文后到公众号后台粘贴。"}
             </p>
 
             <dl className="publication-metadata-ledger">
@@ -166,11 +168,11 @@ export function PublicationPanel({
                   ) : null}
                 </section>
                 <div className="delivery-action-stack delivery-fallback-stack">
-                  <strong>{unknown || failed ? "仍可使用安全的手动交付" : "保留一份可编辑的本地副本"}</strong>
-                  <p>下面两项不会再次调用微信接口，也不会重复创建草稿。</p>
+                  <strong>{unknown || failed ? "其他交付方式" : "复制与下载"}</strong>
+                  <p>正文、配图与主题装饰一起复制，粘贴后仍可编辑文字。</p>
                   <div className="delivery-action-row">
-                    <button disabled={Boolean(busy)} onClick={onCopy} type="button">
-                      {busy === "copy" ? "正在复制…" : "复制全文到剪贴板"}
+                    <button disabled={Boolean(busy)} onClick={() => onCopy(false)} type="button">
+                      {busy === "copy" ? "正在准备剪贴板…" : "复制图文"}
                     </button>
                     {bundleUrl ? <a download href={bundleUrl}>下载交付包</a> : null}
                   </div>
@@ -188,8 +190,8 @@ export function PublicationPanel({
                   {busy === "publish" ? "正在写入公众号草稿箱…" : "保存到微信公众号草稿箱"}
                 </button>
                 <div className="delivery-action-row">
-                  <button disabled={Boolean(busy)} onClick={onCopy} type="button">
-                    {busy === "copy" ? "正在复制…" : "复制全文到剪贴板"}
+                  <button disabled={Boolean(busy)} onClick={() => onCopy(false)} type="button">
+                    {busy === "copy" ? "正在准备剪贴板…" : "复制图文"}
                   </button>
                   {bundleUrl ? <a download href={bundleUrl}>下载交付包</a> : null}
                 </div>
@@ -198,9 +200,23 @@ export function PublicationPanel({
                     ? "内置微信官方 API · 本机凭据已配置 · 微信接口会再次校验当前出口 IP"
                     : publisher?.warnings[0] ?? "正在检查微信官方 API 配置…"}
                 </p>
-                <small>复制正文后必须在公众号后台保存、重新打开并用手机预览，重点检查图片。</small>
+                <small>正文与图片一起复制。粘贴后请保存、重新打开并检查手机预览。</small>
               </div>
             )}
+
+            {copyFallbackAvailable ? (
+              <div className="delivery-action-stack delivery-fallback-stack" role="region" aria-label="复制备用方式">
+                <strong>复制遇到问题？</strong>
+                <p>{publisher?.ready
+                  ? "可以先将图片上传到公众号，再复制图文。这会使用已配置的公众号连接，不会创建草稿。"
+                  : "如果图片过大，可以缩小图片后重试，或下载交付包后分别导入正文与图片。"}</p>
+                {publisher?.ready ? (
+                  <div className="delivery-action-row">
+                    <button disabled={Boolean(busy)} onClick={() => onCopy(true)} type="button">上传图片后复制</button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             <button className="continue-editing-button" disabled={Boolean(busy) || unknown} onClick={onContinueEditing} type="button">
               {unknown ? "先核对后台并处置结果" : busy === "continue" ? "正在恢复工作稿…" : "返回工作台继续修改"}

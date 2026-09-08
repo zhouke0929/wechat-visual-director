@@ -62,6 +62,8 @@ Agent 先回答这些问题，再选择适合的呈现方式：让对比有边�
 
 可以在工作台整篇切换，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
 
+你也可以把想要的风格、使用场景或参考图交给 Agent，创作保存在本机的主题扩展包：从参考元素延展出新的构图、纹样与组件家族，并保留正文编辑和配图管理能力。导入后会出现在主题样本册的“我的主题”；先确认代表组件和完整长文效果，再核对公众号保存后的手机预览。
+
 [![12 套真实主题的在线样本册](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
 [打开在线主题样本册，比较同一篇文章的不同表达 →](https://zhouke0929.github.io/wechat-visual-director/#themes)

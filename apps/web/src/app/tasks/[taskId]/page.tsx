@@ -116,6 +116,7 @@ export default function TaskReviewPage() {
   const [preflightBusy, setPreflightBusy] = useState("");
   const [planningBusy, setPlanningBusy] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState("");
+  const [copyFallbackRevisionId, setCopyFallbackRevisionId] = useState<string | null>(null);
   const [publicationReadiness, setPublicationReadiness] = useState<PublicationReadiness | null>(null);
   const [publicationRevisions, setPublicationRevisions] = useState<PublicationRevision[]>([]);
   const [draftOperations, setDraftOperations] = useState<DraftOperation[]>([]);
@@ -225,22 +226,29 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleThemeSwitch(plan: VisualPlan, visualSystem: string) {
-    if (visualSystem === (plan.visual_system ?? plan.style_mode)) return;
+  async function handleThemeSwitch(plan: VisualPlan, visualSystem: string, refreshCurrent = false) {
+    if (!refreshCurrent && visualSystem === (plan.visual_system ?? plan.style_mode)) return;
     setSwitchingTheme(visualSystem);
     setError("");
     setNotice("");
     try {
-      const result = await switchPlanTheme(taskId, plan.id, visualSystem, plan.revision);
+      const result = await switchPlanTheme(taskId, plan.id, visualSystem, plan.revision, refreshCurrent);
       setPlanList((current) => current ? {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
       if (detail?.task.selected_plan_id === plan.id) {
+        setPublicationReadiness(null);
         await refreshImageReview(plan.id);
+        setPublicationReadiness(await getPublicationReadiness(taskId));
       }
       setFocusSlotByPlan((current) => ({ ...current, [plan.id]: "" }));
-      setNotice(`已切换为「${styleLabels[visualSystem] ?? visualSystem}」；正文、结构和已有图片均已保留，新生成图片会采用当前主题。`);
+      const selectedTheme = plan.visual_system_metadata?.available_visual_systems?.find(
+        (item) => item.value === visualSystem,
+      );
+      setNotice(refreshCurrent
+        ? "主题渲染已更新，正文、组件和已有图片均已保留。请检查预览后重新确认最终版本。"
+        : `已切换为「${selectedTheme?.label ?? styleLabels[visualSystem] ?? visualSystem}」；正文、结构和已有图片均已保留，新生成图片会采用当前主题。`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "切换主题失败");
     } finally {
@@ -260,7 +268,9 @@ export default function TaskReviewPage() {
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
       } : current);
       if (detail?.task.selected_plan_id === plan.id) {
+        setPublicationReadiness(null);
         await refreshImageReview(plan.id);
+        setPublicationReadiness(await getPublicationReadiness(taskId));
       }
       setNotice("已回到上一个主题版本；不会在两个修订间反复切换。");
     } catch (reason) {
@@ -648,25 +658,37 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleCopyPublication(revision: PublicationRevision) {
+  async function handleCopyPublication(revision: PublicationRevision, uploadImages = false) {
     setPublicationBusy("copy");
     setError("");
     setNotice("");
+    if (!uploadImages) setCopyFallbackRevisionId(null);
+    const richClipboard = typeof navigator.clipboard?.write === "function" && typeof ClipboardItem !== "undefined";
     try {
-      const payload = await getClipboardPayload(revision.id);
-      if (navigator.clipboard.write && typeof ClipboardItem !== "undefined") {
-        await navigator.clipboard.write([
+      if (!richClipboard) {
+        throw new Error("当前浏览器不支持图文剪贴板，尚未复制。请换用支持富文本复制的浏览器，或下载交付包。");
+      }
+      const payloadPromise = getClipboardPayload(revision.id, uploadImages);
+      if (richClipboard) {
+        const htmlBlob = payloadPromise.then(payload => new Blob([payload.html], { type: "text/html" }));
+        const textBlob = payloadPromise.then(payload => new Blob([payload.text], { type: "text/plain" }));
+        // Some browsers stop reading after the first rejected representation.
+        // Observe both promises; the original rejection still reaches write and the UI.
+        void htmlBlob.catch(() => undefined);
+        void textBlob.catch(() => undefined);
+        // Start clipboard.write in the click gesture, before network image preparation.
+        const clipboardWrite = navigator.clipboard.write([
           new ClipboardItem({
-            "text/html": new Blob([payload.html], { type: "text/html" }),
-            "text/plain": new Blob([payload.text], { type: "text/plain" }),
+            "text/html": htmlBlob,
+            "text/plain": textBlob,
           }),
         ]);
-        setNotice("富文本正文已复制。粘贴到公众号后请保存、重新打开并检查图片和手机预览。");
-      } else {
-        await navigator.clipboard.writeText(payload.text);
-        setNotice("当前浏览器只支持复制纯文本，图片和样式需要在公众号后台补充。");
+        const [payload] = await Promise.all([payloadPromise, clipboardWrite]);
+        setCopyFallbackRevisionId(null);
+        setNotice(`图文已复制${payload.image_count ? `（含 ${payload.image_count} 处图片）` : ""}。${payload.warnings.length ? payload.warnings.join(" ") : "粘贴到公众号后台后，请保存并检查手机预览。"}`);
       }
     } catch (reason) {
+      if (richClipboard && !uploadImages) setCopyFallbackRevisionId(revision.id);
       setError(reason instanceof Error ? reason.message : "复制正文失败");
     } finally {
       setPublicationBusy("");
@@ -907,8 +929,16 @@ export default function TaskReviewPage() {
                       }}
                       type="button"
                     >
-                      {switchingTheme ? "换主题中…" : "换一个主题"}
+                      {switchingTheme ? "更新中…" : "换一个主题"}
                     </button>
+                    {activePlan.render_refresh_available ? (
+                      <button
+                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
+                        onClick={() => handleThemeSwitch(activePlan, activePlan.visual_system ?? activePlan.style_mode, true)}
+                        title="保留当前主题和内容，使用新版渲染器更新预览"
+                        type="button"
+                      >{switchingTheme ? "更新中…" : "更新主题渲染"}</button>
+                    ) : null}
                     {(activePlan.undo_stack ?? []).length ? (
                       <button
                         disabled={Boolean(switchingTheme) || Boolean(restoring)}
@@ -1027,6 +1057,7 @@ export default function TaskReviewPage() {
           <PublicationPanel
             busy={publicationBusy}
             bundleUrl={publicationBundleUrl(activeRevision.id)}
+            copyFallbackAvailable={copyFallbackRevisionId === activeRevision.id}
             operation={activeDraftOperation}
             publisher={wechatPublisher}
             readiness={publicationReadiness}
@@ -1034,7 +1065,7 @@ export default function TaskReviewPage() {
             task={detail.task}
             onAutosave={handlePublicationAutosave}
             onContinueEditing={() => activeRevision ? handleContinueEditing(activeRevision) : Promise.resolve()}
-            onCopy={() => handleCopyPublication(activeRevision)}
+            onCopy={(uploadImages) => handleCopyPublication(activeRevision, uploadImages)}
             onFreeze={handleFreezePublication}
             onPublish={() => handlePublishToWechat(activeRevision)}
             onRetry={() => activeDraftOperation ? handleRetryWechatDraft(activeDraftOperation) : Promise.resolve()}

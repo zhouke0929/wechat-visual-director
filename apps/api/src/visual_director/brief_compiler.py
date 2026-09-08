@@ -12,6 +12,9 @@ from .component_catalog import (
     VISUAL_SYSTEM_CATALOG,
     VISUAL_SYSTEM_ORDER,
     automatic_variants,
+    registered_visual_system_catalog,
+    registered_visual_system_order,
+    render_visual_system,
 )
 from .editorial_brief import (
     EditorialBrief,
@@ -26,6 +29,7 @@ from .image_intent import build_visual_intent
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
 from .theme_extensions import EXTENDED_THEME_KITS
+from .theme_packs import theme_pack
 from .planner import (
     component_diversity_target,
     component_opportunity_diagnostics,
@@ -577,9 +581,15 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
     """Choose the deterministic component morphology assigned to a visual system."""
     definition = COMPONENT_CATALOG[component_type]
     system_variants = definition.get("system_variants", {})
-    if visual_system in system_variants:
-        return str(system_variants[visual_system]["value"])
-    if visual_system in {"light_reading", "warm_humanist"}:
+    custom_pack = theme_pack(visual_system)
+    render_system = (
+        str(custom_pack.get("style_recipe", {}).get("component"))
+        if custom_pack and custom_pack.get("style_recipe")
+        else render_visual_system(visual_system)
+    )
+    if render_system in system_variants:
+        return str(system_variants[render_system]["value"])
+    if render_system in {"light_reading", "warm_humanist"}:
         return definition["primary_variant"]
     if definition.get("alternate_variant"):
         return definition["alternate_variant"]
@@ -587,6 +597,21 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
 
 
 def visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    custom_pack = theme_pack(visual_system)
+    if custom_pack:
+        configuration = visual_system_configuration(str(custom_pack["base_theme"]))
+        configuration["palette"] = copy.deepcopy(custom_pack["palette"])
+        configuration["accent"] = custom_pack["palette"]["primary"]
+        configuration["visual_system"] = visual_system
+        configuration["theme_id"] = visual_system
+        configuration["base_theme"] = custom_pack["base_theme"]
+        if custom_pack.get("style_recipe"):
+            configuration["render_theme_roles"] = copy.deepcopy(custom_pack["style_recipe"])
+        if custom_pack.get("design_system"):
+            configuration["generated_design_system"] = copy.deepcopy(custom_pack["design_system"])
+        configuration["theme_pack_version"] = custom_pack["version"]
+        configuration["theme_kit"] = f"user_pack:{visual_system}"
+        return configuration
     if visual_system in EXTENDED_THEME_KITS:
         configuration = copy.deepcopy(EXTENDED_THEME_KITS[visual_system]["configuration"])
         configuration["visual_system"] = visual_system
@@ -666,6 +691,7 @@ def visual_system_configuration(visual_system: str) -> dict[str, Any]:
 
 def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str]:
     counts: Counter[str] = Counter()
+    registered_systems = registered_visual_system_order()
     editorial_modes = {
         "editorial_contrast",
         "ink_navy_editorial",
@@ -674,7 +700,7 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
     }
     for summary in recent_summaries:
         value = summary.get("visual_system") or summary.get("style_mode")
-        if value in VISUAL_SYSTEM_ORDER:
+        if value in registered_systems:
             counts[str(value)] += 1
         elif value in editorial_modes:
             counts["editorial_contrast"] += 1
@@ -743,7 +769,7 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
 
 def _normalized_visual_system(summary: dict[str, Any]) -> str | None:
     value = summary.get("visual_system") or summary.get("style_mode")
-    if value in VISUAL_SYSTEM_ORDER:
+    if value in registered_visual_system_order():
         return str(value)
     if value in {
         "ink_navy_editorial",
@@ -807,7 +833,9 @@ def apply_visual_system(
     recent_summaries: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Apply a complete approved theme kit while preserving semantic structure."""
-    if visual_system not in VISUAL_SYSTEM_ORDER:
+    system_order = registered_visual_system_order()
+    system_catalog = registered_visual_system_catalog()
+    if visual_system not in system_order:
         raise EditorialBriefCompileError(f"未知视觉主题：{visual_system}")
     revised = copy.deepcopy(plan)
     existing_metadata = revised.get("visual_system_metadata", {})
@@ -842,21 +870,22 @@ def apply_visual_system(
             "selected_variant": slot["variant"],
         }
 
-    catalog = VISUAL_SYSTEM_CATALOG[visual_system]
+    catalog = system_catalog[visual_system]
     counts = recent_counts or Counter()
     if existing_options:
         available_order = [
             str(item["value"])
             for item in existing_options
-            if item.get("value") in VISUAL_SYSTEM_ORDER
+            if item.get("value") in system_order
         ]
+        available_order.extend(value for value in system_order if value not in available_order)
     else:
         alternatives = sorted(
-            (value for value in VISUAL_SYSTEM_ORDER if value != recommended_visual_system),
+            (value for value in system_order if value != recommended_visual_system),
             key=lambda value: (
                 value == previous_visual_system,
                 counts[value],
-                VISUAL_SYSTEM_ORDER.index(value),
+                system_order.index(value),
             ),
         )
         available_order = [recommended_visual_system, *alternatives]
@@ -888,8 +917,8 @@ def apply_visual_system(
         "available_visual_systems": [
             {
                 "value": value,
-                "label": VISUAL_SYSTEM_CATALOG[value]["label"],
-                "description": VISUAL_SYSTEM_CATALOG[value]["description"],
+                "label": system_catalog[value]["label"],
+                "description": system_catalog[value]["description"],
                 "recent_use_count": counts[value],
             }
             for value in available_order

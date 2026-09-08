@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -44,7 +45,7 @@ def _assets(tmp_path: Path) -> tuple[list[dict], dict[str, tuple[Path, str]]]:
             "asset_role": "cover",
             "relative_filename": "cover.png",
             "content_type": "image/png",
-            "output_sha256": "cover-hash",
+            "output_sha256": hashlib.sha256(b"cover-bytes").hexdigest(),
             "width": 1080,
             "height": 864,
         },
@@ -54,7 +55,7 @@ def _assets(tmp_path: Path) -> tuple[list[dict], dict[str, tuple[Path, str]]]:
             "asset_role": "planned_image",
             "relative_filename": "body.png",
             "content_type": "image/png",
-            "output_sha256": "body-hash",
+            "output_sha256": hashlib.sha256(b"body-bytes").hexdigest(),
             "width": 960,
             "height": 540,
         },

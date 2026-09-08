@@ -20,6 +20,7 @@ out/
 .env.local
 *.local
 .runtime/
+.visual-director-test-runtime/
 setup-preferences.json
 workbench-onboarding.json
 provider-status.json
@@ -64,6 +65,7 @@ docs/*
 !docs/V1.0手机端模拟预览产品决策.md
 !docs/V1.0-Windows便携发行包技术设计.md
 !docs/V1.0宿主Agent原生生图桥接产品与技术决策.md
+!docs/V1.0主题扩展包系统产品与技术决策.md
 !docs/开源借鉴审计-宝玉Skills.md
 !docs/组件视觉质量基线-V1.0.md
 !docs/真实运营观察表.md

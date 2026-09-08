@@ -1,0 +1,147 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "custom_theme",
+  "name": "自定义主题",
+  "english": "CUSTOM THEME",
+  "description": "请用一句话说明这套主题的视觉气质、阅读节奏和适用内容。",
+  "version": "1.0.0",
+  "author": "Local Creator",
+  "base_theme": "light_reading",
+  "ideal_for": ["知识解读"],
+  "personality": ["清晰", "克制", "亲和"],
+  "palette": {
+    "primary": "#315F59",
+    "secondary": "#C7A85B",
+    "accent": "#B85F4A",
+    "sky": "#7899A0",
+    "pale": "#EDF4F1",
+    "secondary_pale": "#F8F1DA",
+    "accent_pale": "#F6E8E3",
+    "sky_pale": "#EAF0F2",
+    "surface": "#FFFFFF",
+    "ink": "#24302D"
+  },
+  "visual_dna": {
+    "warmth": 0.55,
+    "saturation": 0.35,
+    "contrast": 0.50,
+    "geometry": 0.35,
+    "tactility": 0.45,
+    "dimensionality": 0.15,
+    "energy": 0.40,
+    "information_density": 0.50,
+    "brand_formality": 0.60
+  },
+  "material_tags": ["light_paper", "soft_ink"],
+  "tone": ["清透", "安静", "可信"],
+  "design_system": {
+    "layouts": {
+      "hero": {"type": "stack", "children": [
+        {"type": "field", "bind": "kicker", "style": {"size": "label", "color": "accent", "margin": [0, 0, 16, 0]}},
+        {"type": "field", "bind": "title", "style": {"size": "title", "font": "serif"}}
+      ]},
+      "heading": {"type": "row", "widths": [20, 80], "children": [
+        {"type": "field", "bind": "index", "style": {"size": "label", "color": "accent"}},
+        {"type": "field", "bind": "title", "style": {"size": "heading"}}
+      ]},
+      "subheading": {"type": "field", "bind": "title", "style": {"size": "subheading"}},
+      "lead": {"type": "field", "bind": "body", "style": {"padding": [0, 0, 0, 12], "border_left": {"width": 3, "color": "primary", "style": "solid"}}},
+      "quote": {"type": "stack", "children": [
+        {"type": "text", "text": "引用", "style": {"color": "accent", "margin": [0, 0, 12, 0]}},
+        {"type": "field", "bind": "body", "style": {"font": "serif"}}
+      ]},
+      "list": {"type": "repeat", "bind": "items", "style": {"padding": [8, 0, 8, 0]}, "children": [{"type": "field", "bind": "item"}]},
+      "question_hook": {"type": "field", "bind": "title", "style": {"size": "subheading", "font": "serif"}},
+      "numbered_insight": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0]}, "children": [
+        {"type": "field", "bind": "index", "style": {"color": "accent", "size": "label"}},
+        {"type": "field", "bind": "item"}
+      ]},
+      "evidence_callout": {"type": "row", "widths": [25, 75], "children": [
+        {"type": "text", "text": "证据摘录", "style": {"color": "accent"}},
+        {"type": "field", "bind": "body", "style": {"font": "serif", "padding": [0, 0, 0, 12], "border_left": {"width": 2, "color": "primary", "style": "solid"}}}
+      ]},
+      "before_after_timeline": {"type": "stack", "children": [
+        {"type": "field", "bind": "left", "style": {"margin": [0, 0, 16, 0]}},
+        {"type": "field", "bind": "right"}
+      ]},
+      "logic_path": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0], "border_bottom": {"width": 1, "color": "secondary", "style": "solid"}}, "children": [
+        {"type": "field", "bind": "index", "style": {"size": "label", "color": "accent"}},
+        {"type": "field", "bind": "item"}
+      ]},
+      "concept_explainer": {"type": "repeat", "bind": "entries", "style": {"padding": [12, 0, 12, 0]}, "children": [
+        {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 10, 0]}},
+        {"type": "field", "bind": "body"}
+      ]},
+      "case_card": {"type": "stack", "children": [
+        {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 10, 0]}},
+        {"type": "field", "bind": "body"}
+      ]},
+      "warning_note": {"type": "stack", "style": {"padding": 16, "border_left": {"width": 4, "color": "accent", "style": "solid"}}, "children": [
+        {"type": "text", "text": "注意", "style": {"color": "accent", "margin": [0, 0, 10, 0]}},
+        {"type": "field", "bind": "body"}
+      ]},
+      "action_checklist": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0]}, "children": [
+        {"type": "text", "text": "□", "style": {"color": "accent"}},
+        {"type": "field", "bind": "item"}
+      ]},
+      "faq_card": {"type": "stack", "children": [
+        {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 12, 0]}},
+        {"type": "field", "bind": "body"}
+      ]},
+      "comparison_card": {"type": "row", "widths": [50, 50], "children": [
+        {"type": "field", "bind": "left", "style": {"padding": [0, 12, 0, 0]}},
+        {"type": "field", "bind": "right", "style": {"padding": [0, 0, 0, 12], "border_left": {"width": 1, "color": "secondary", "style": "solid"}}}
+      ]},
+      "section_summary": {"type": "repeat", "bind": "items", "style": {"padding": [8, 0, 8, 0]}, "children": [{"type": "field", "bind": "item"}]},
+      "divider": {"type": "rule"},
+      "image_caption": {"type": "stack", "children": [
+        {"type": "media"},
+        {"type": "field", "bind": "caption", "style": {"size": "caption", "margin": [10, 0, 0, 0]}}
+      ]},
+      "closing_cta": {"type": "stack", "children": [
+        {"type": "field", "bind": "body", "style": {"margin": [0, 0, 16, 0]}},
+        {"type": "media"}
+      ]}
+    },
+    "composition": "arched_editorial",
+    "motifs": ["none"],
+    "frame": "open_corner",
+    "marker": "coordinate",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 46,
+      "component_gap": 28,
+      "inset": 17
+    },
+    "typography": {
+      "heading_scale": 1.05,
+      "body_scale": 1.0,
+      "letter_spacing": "normal",
+      "heading_weight": 720
+    },
+    "ornament": {
+      "density": 0,
+      "border_width": 1,
+      "corner_radius": 0
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "skill_name": "wechat-visual-director",
+  "eval_group": "theme-pack-v1",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "我想做一套深夜城市散步主题，安静、克制、有一点电影感，主要给城市文化观察类公众号文章用，帮我扩展成可以安装的主题。",
+      "expected": [
+        "识别为主题扩展包请求",
+        "按阅读结构选择 cinematic_story 或合理的官方基础主题",
+        "从描述独立生成完整 design_system，而不是只换色或选择官方主题角色",
+        "构图、纹样、边框、标记和节奏形成同一套新视觉语言",
+        "只生成声明式 theme.json，不生成 HTML/CSS",
+        "执行 theme validate 与 theme install --open",
+        "把完整样本的审美确认留给用户"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "我刚才发了一张北欧陶艺杂志的参考图，按那张图帮我扩展一套公众号主题。",
+      "context": "当前对话没有可读取的参考图。",
+      "expected": [
+        "如实说明缺少图片并请求重发或补充文字描述",
+        "不假装已经分析参考图",
+        "保持基础主题兼容兜底、受控 design_system 和声明式 Visual DNA 边界",
+        "说明后续校验、安装与完整样本确认"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "帮我做个赛博毛玻璃主题包，直接在包里写 CSS 和自定义 HTML 卡片，不要继承你们现有主题，这样自由度高。",
+      "expected": [
+        "拒绝任意 CSS、HTML 和脱离官方结构",
+        "解释原文编辑、手机预览、微信兼容与代码执行风险",
+        "提供 future_tech 兼容兜底、Visual DNA 与受控 design_system 的安全替代",
+        "保留 12 组件与 semantic_dom_v1",
+        "给出 validate/install 流程"
+      ]
+    }
+  ]
+}

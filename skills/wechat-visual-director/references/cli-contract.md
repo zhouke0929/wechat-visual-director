@@ -45,6 +45,21 @@
 & "{launcher}" data recover --from C:\path\to\old\apps\api\data --json
 ```
 
+## 主题扩展包
+
+```powershell
+& "{launcher}" theme validate --file "<absolute-theme-json-or-vdtheme>" --json
+& "{launcher}" theme install --file "<absolute-theme-json-or-vdtheme>" --open --json
+& "{launcher}" theme list --json
+```
+
+- `theme validate` 返回字段校验与 `delivery_report`（组件交付预演、风险项和微信实测状态），不写入本机主题库。本地通过不等于微信保存后已验证。
+- `theme install` 成功时返回 `valid=true`、`installed=true`、`theme_id` 与 `gallery_url`。只有这些字段同时成立才可以声称主题已安装。
+- `theme list` 只列本机用户扩展包；官方主题在主题样本册中始终可用。
+- `theme_pack_invalid` 的 `details.field_errors` 是可修复字段清单。只修对应字段后重试，不绕过校验，不直接写主题目录。
+- 旧稿升级后，方案的 `render_refresh_available=true` 表示可在工作台点击“更新主题渲染”。API 对当前主题 PATCH `/api/v1/article-tasks/{task_id}/plans/{plan_id}/theme`，提交当前 `visual_system`、`expected_plan_revision` 和 `refresh_current=true`，只更新渲染，保留保存的主题配置、正文与配图。冻结稿须先由用户继续编辑，旧冻结版本保留；更新后仍须重新人工确认，不自动创建微信草稿。
+- 扩展包不接受 HTML、原始 CSS、JavaScript 或 renderer 字段。独立新风格使用 `design_system.layouts` 声明字段结构；字段缺失、重复、类型错误和不支持的样式都通过 `theme_pack_invalid` 返回。参考图创作流程见主题扩展包契约，不将安装成功等同于微信验证通过。
+
 ## 关键输出
 
 - `command_completed=true`：当前 CLI 命令已经完成；后台服务是独立进程，不得继续等待其退出。
