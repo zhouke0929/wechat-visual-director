@@ -40,8 +40,8 @@
         {"type": "field", "bind": "kicker", "style": {"size": "label", "color": "accent", "margin": [0, 0, 16, 0]}},
         {"type": "field", "bind": "title", "style": {"size": "title", "font": "serif"}}
       ]},
-      "heading": {"type": "row", "widths": [20, 80], "children": [
-        {"type": "field", "bind": "index", "style": {"size": "label", "color": "accent"}},
+      "heading": {"type": "marker_row", "marker_width": 14, "gap": 6, "children": [
+        {"type": "field", "bind": "index", "style": {"size": "heading", "color": "accent"}},
         {"type": "field", "bind": "title", "style": {"size": "heading"}}
       ]},
       "subheading": {"type": "field", "bind": "title", "style": {"size": "subheading"}},
@@ -50,12 +50,13 @@
         {"type": "text", "text": "引用", "style": {"color": "accent", "margin": [0, 0, 12, 0]}},
         {"type": "field", "bind": "body", "style": {"font": "serif"}}
       ]},
-      "list": {"type": "repeat", "bind": "items", "style": {"padding": [8, 0, 8, 0]}, "children": [{"type": "field", "bind": "item"}]},
+      "list": {"type": "repeat", "bind": "items", "style": {"padding": [8, 0, 8, 0]}, "children": [{"type": "marker_row", "marker_width": 6, "gap": 4, "children": [{"type": "text", "text": "•", "style": {"size": "body", "color": "accent"}}, {"type": "field", "bind": "item"}]}]},
       "question_hook": {"type": "field", "bind": "title", "style": {"size": "subheading", "font": "serif"}},
       "numbered_insight": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0]}, "children": [
-        {"type": "field", "bind": "index", "style": {"color": "accent", "size": "label"}},
+        {"type": "marker_row", "marker_width": 12, "gap": 4, "children": [
+        {"type": "field", "bind": "index", "style": {"color": "accent", "size": "body"}},
         {"type": "field", "bind": "item"}
-      ]},
+      ]}]},
       "evidence_callout": {"type": "row", "widths": [25, 75], "children": [
         {"type": "text", "text": "证据摘录", "style": {"color": "accent"}},
         {"type": "field", "bind": "body", "style": {"font": "serif", "padding": [0, 0, 0, 12], "border_left": {"width": 2, "color": "primary", "style": "solid"}}}
@@ -65,9 +66,10 @@
         {"type": "field", "bind": "right"}
       ]},
       "logic_path": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0], "border_bottom": {"width": 1, "color": "secondary", "style": "solid"}}, "children": [
-        {"type": "field", "bind": "index", "style": {"size": "label", "color": "accent"}},
+        {"type": "marker_row", "marker_width": 12, "gap": 4, "children": [
+        {"type": "field", "bind": "index", "style": {"size": "body", "color": "accent"}},
         {"type": "field", "bind": "item"}
-      ]},
+      ]}]},
       "concept_explainer": {"type": "repeat", "bind": "entries", "style": {"padding": [12, 0, 12, 0]}, "children": [
         {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 10, 0]}},
         {"type": "field", "bind": "body"}
@@ -81,9 +83,10 @@
         {"type": "field", "bind": "body"}
       ]},
       "action_checklist": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0]}, "children": [
-        {"type": "text", "text": "□", "style": {"color": "accent"}},
+        {"type": "marker_row", "marker_width": 8, "gap": 4, "children": [
+        {"type": "text", "text": "□", "style": {"color": "accent", "size": "body"}},
         {"type": "field", "bind": "item"}
-      ]},
+      ]}]},
       "faq_card": {"type": "stack", "children": [
         {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 12, 0]}},
         {"type": "field", "bind": "body"}

@@ -61,6 +61,15 @@ export type ThemeRhythmPrimitive = {
   production_trigger: string;
 };
 
+export type ThemeLayoutCoverage = {
+  status: "complete" | "partial" | "inherited";
+  covered_count: number;
+  total_count: number;
+  covered_roles: string[];
+  missing_roles: string[];
+  scope: "layout_declarations_only";
+};
+
 export type ThemeGalleryItem = {
   id: string;
   label: string;
@@ -74,6 +83,7 @@ export type ThemeGalleryItem = {
   base_theme: string;
   pack_version?: string;
   delivery_report?: {
+    coverage?: ThemeLayoutCoverage;
     local_delivery: "blocking" | "review_required" | "static_pass" | "not_checked";
     wechat_saved_roundtrip: "not_verified";
     capabilities: Record<string, string[]>;
@@ -264,6 +274,7 @@ export type VisualPlan = {
     available_visual_systems: Array<{
       value: string;
       label: string;
+      layout_coverage?: ThemeLayoutCoverage;
       description: string;
       recent_use_count: number;
     }>;

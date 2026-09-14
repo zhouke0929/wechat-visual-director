@@ -230,7 +230,11 @@
       "type": "object", "additionalProperties": false, "required": ["type"],
       "description": "Runtime also enforces per-role field coverage, no nested repeats, depth <= 8, nodes <= 96 and column widths totalling 100%.",
       "properties": {
-        "type": {"enum": ["stack", "row", "text", "field", "repeat", "rule", "shape", "media", "cutout", "drawing"]},
+        "type": {"enum": ["stack", "row", "marker_row", "ornament_rule", "text", "field", "repeat", "rule", "shape", "media", "cutout", "drawing"]},
+        "marker_width": {"type": "number", "minimum": 6, "maximum": 18},
+        "gap": {"type": "number", "minimum": 0, "maximum": 16},
+        "slot_width": {"type": "number", "minimum": 12, "maximum": 40},
+        "line_color": {"$ref": "#/$defs/paletteRole"},
         "parts": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/drawingPart"}},
         "fill": {"$ref": "#/$defs/paletteRole"},
         "radius": {"type": "number", "minimum": 2, "maximum": 8},
@@ -245,7 +249,9 @@
         "height": {"type": "number", "minimum": 2, "maximum": 160}
       },
       "allOf": [
-        {"if": {"properties": {"type": {"enum": ["stack", "row", "repeat", "cutout"]}}}, "then": {"required": ["children"]}},
+        {"if": {"properties": {"type": {"enum": ["stack", "row", "repeat", "cutout", "marker_row", "ornament_rule"]}}}, "then": {"required": ["children"]}},
+        {"if": {"properties": {"type": {"const": "marker_row"}}}, "then": {"required": ["marker_width", "gap"], "properties": {"children": {"minItems": 2, "maxItems": 2}}}},
+        {"if": {"properties": {"type": {"const": "ornament_rule"}}}, "then": {"required": ["slot_width", "line_color"], "properties": {"children": {"minItems": 1, "maxItems": 1, "items": {"properties": {"type": {"const": "drawing"}, "height": {"maximum": 32}, "style": {"maxProperties": 0}}}}}}},
         {"if": {"properties": {"type": {"const": "cutout"}}}, "then": {"required": ["fill", "radius", "pitch", "inset"]}},
         {"if": {"properties": {"type": {"const": "row"}}}, "then": {"required": ["widths"]}},
         {"if": {"properties": {"type": {"const": "text"}}}, "then": {"required": ["text"]}},

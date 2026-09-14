@@ -1,5 +1,7 @@
 "use client";
 
+import { themeCoverageLabel } from "@/lib/theme-coverage";
+
 import Link from "@/lib/router";
 import { ChangeEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
 import { deleteThemePack, getThemeGallery, installThemePack, themePackExportUrl } from "@/lib/api";
@@ -17,6 +19,7 @@ export default function ThemeGalleryPage() {
   const refresh = async () => {
     const collection = await getThemeGallery();
     setThemes(collection);
+    return collection;
   };
 
   useEffect(() => {
@@ -36,9 +39,12 @@ export default function ThemeGalleryPage() {
     setNotice("");
     try {
       const installed = await installThemePack(file);
-      await refresh();
+      const collection = await refresh();
       setActiveCollection("custom");
-      setNotice(`${installed.name} 已通过结构校验并安装到本机。`);
+      const coverage = collection.find((theme) => theme.id === installed.id)?.delivery_report?.coverage;
+      setNotice(coverage?.status === "partial"
+        ? `${installed.name} 已安装为未完成试样（${coverage.covered_count}/${coverage.total_count}），请让 Agent 补齐剩余布局。`
+        : `${installed.name} 已通过结构校验并安装到本机，请查看整篇效果。`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "主题扩展包安装失败");
     } finally {
@@ -157,6 +163,7 @@ export default function ThemeGalleryPage() {
                 {theme.palette.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
               </div>
               <h2>{theme.label}</h2>
+              {theme.delivery_report?.coverage && <p className={styles.coverage}>{themeCoverageLabel(theme.delivery_report.coverage)}</p>}
               <p>{theme.description}</p>
               <div className={styles.tags}>
                 {theme.ideal_for.map((item) => <span key={item}>{item}</span>)}
@@ -168,7 +175,7 @@ export default function ThemeGalleryPage() {
                 <div className={styles.cardActions}>
                   <button onClick={(event) => handleExport(event, theme)} type="button">导出</button>
                   <button onClick={(event) => handleDelete(event, theme)} type="button">删除</button>
-                  <Link className={styles.detailLink} href={`/theme-gallery/${theme.id}`}>查看完整主题 →</Link>
+                  <Link className={styles.detailLink} href={`/theme-gallery/${theme.id}`}>{theme.delivery_report?.coverage?.status === "partial" ? "查看试样 →" : "查看主题 →"}</Link>
                 </div>
               ) : <Link className={styles.detailLink} href={`/theme-gallery/${theme.id}`}>查看完整主题 →</Link>}
             </footer>

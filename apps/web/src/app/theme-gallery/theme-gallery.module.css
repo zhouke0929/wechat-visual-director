@@ -82,6 +82,8 @@
 .error { color: #a83d27; background: #fff0e8; }
 .notice { color: #176f65; background: #e8f4ef; }
 
+.themeCard .coverage { color: #8a4c26; font-size: 13px; font-weight: 700; }
+
 @media (max-width: 820px) {
   .topbar { grid-template-columns: 1fr auto; }
   .topbar div { display: none; }

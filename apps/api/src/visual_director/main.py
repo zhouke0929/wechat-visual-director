@@ -1523,6 +1523,7 @@ def create_app(
             **read_env_file(app.state.runtime_env_path),
             **os.environ,
         }
+        app.state.wechat_publisher.invalidate_token_cache()
         return {"saved": True, "settings": wechat_publisher_settings_snapshot()}
 
     @app.post("/api/v1/settings/wechat-publisher/probe")
@@ -1537,6 +1538,8 @@ def create_app(
             str(values.get("WECHAT_APP_ID") or "").strip(),
             str(values.get("WECHAT_APP_SECRET") or "").strip(),
         )
+        # The probe obtains its own token. Never keep using an older cached one.
+        app.state.wechat_publisher.invalidate_token_cache()
         try:
             write_probe_status(app.state.provider_status_path, "wechat_connection", result)
         except OSError:
@@ -2811,6 +2814,13 @@ def create_app(
                     "recent_use_count": 0,
                 }
             )
+        # Derive current coverage even for options persisted before a pack update.
+        for option in options:
+            coverage = catalog.get(option.get("value"), {}).get("layout_coverage")
+            if coverage:
+                option["layout_coverage"] = coverage
+            else:
+                option.pop("layout_coverage", None)
         metadata["available_visual_systems"] = options
         public_plan["visual_system_metadata"] = metadata
         return public_plan

@@ -26,6 +26,9 @@ class _Response:
 
 
 class _WechatPublisherReady:
+    def invalidate_token_cache(self) -> None:
+        self.token_cache_invalidated = True
+
     def status(self) -> dict:
         return {
             "schema_version": "publisher_status.v0.3",

@@ -114,7 +114,9 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
                 error(path, "节点必须是对象")
                 return
             kind = node.get("type")
-            keys = {"stack": {"children"}, "row": {"children", "widths"}, "text": {"text"},
+            keys = {"stack": {"children"}, "row": {"children", "widths"},
+                    "marker_row": {"children", "marker_width", "gap"},
+                    "ornament_rule": {"children", "slot_width", "line_color"}, "text": {"text"},
                     "field": {"bind"}, "repeat": {"bind", "children"}, "rule": set(),
                     "shape": {"width", "height"}, "media": set(),
                     "cutout": {"children", "fill", "radius", "pitch", "inset"},
@@ -161,12 +163,29 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
                     error(path, "装饰宽高必须为 2–64px")
                 if isinstance(node.get("style", {}), dict) and set(node.get("style", {})) - {"background", "radius", "border", "rotate", "margin", "shadow"}:
                     error(path, "装饰仅支持背景、圆角、边框、旋转、间距和阴影")
-            if kind in {"stack", "row", "repeat", "cutout"}:
+            if kind in {"stack", "row", "repeat", "cutout", "marker_row", "ornament_rule"}:
                 children = node.get("children")
                 if not isinstance(children, list) or not 1 <= len(children) <= 16:
                     error(path, "children 必须包含 1–16 个节点")
                     return
                 scope = inside
+                if kind == "marker_row":
+                    if (len(children) != 2 or not _number(node.get("marker_width"), 6, 18)
+                            or not _number(node.get("gap"), 0, 16)):
+                        error(path, "标记横排需要两个子节点、6–18% 标记列宽和 0–16px 正文间距")
+                    if children and isinstance(children[0], dict):
+                        marker = children[0]
+                        if marker.get("type") not in {"text", "shape", "field", "drawing"} or (marker.get("type") == "field" and marker.get("bind") != "index"):
+                            error(path, "标记只能是短标签、编号、形状或小线描；正文放在第二列")
+                if kind == "ornament_rule":
+                    if (len(children) != 1 or not _number(node.get("slot_width"), 12, 40)
+                            or not isinstance(node.get("line_color"), str) or node["line_color"] not in PALETTE_KEYS):
+                        error(path, "装饰线需要一个小线描、12–40% 中央槽宽和色板线色")
+                    for child in children:
+                        if (not isinstance(child, dict) or child.get("type") != "drawing"
+                                or not _number(child.get("height"), 8, 32)
+                                or child.get("style")):
+                            error(path, "装饰线只接受高 8–32px 的无额外样式 drawing，不包含正文")
                 if kind == "repeat":
                     if inside or collection is None or node.get("bind") != collection:
                         error(path, "重复区域必须匹配语义集合，不能嵌套")
@@ -298,7 +317,12 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
         if kind == "shape":
             return f'<span aria-hidden="true" style="display:inline-block;width:{node["width"]:g}px;height:{node["height"]:g}px;{css}">&#160;</span>'
         if kind == "rule":
-            return f'<section aria-hidden="true" style="border-top:1px solid {config["palette"]["primary"]};{css}"></section>'
+            # Empty rich-text blocks may acquire a <br> when saved by an editor.
+            # A rule is geometry, not a text line: constrain its line box even
+            # if such a placeholder is inserted, while retaining border/margins.
+            return (f'<section aria-hidden="true" data-theme-rule="true" '
+                    f'style="border-top:1px solid {config["palette"]["primary"]};{css}'
+                    'font-size:0;line-height:0;height:0;min-height:0;overflow:hidden;">&#8203;</section>')
         if kind == "repeat":
             rows = []
             for index, item in enumerate(context[node["bind"]], 1):
@@ -310,6 +334,22 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
             # no typography/color reset that would break ancestor style tokens.
             children = "".join(f'<section style="box-sizing:border-box;display:inline-block;vertical-align:top;width:{width:g}%;">{render(child, context)}</section>' for width, child in zip(node["widths"], node["children"], strict=True))
             return f'<section style="{css}">{children}</section>'
+        if kind == "marker_row":
+            width = node["marker_width"]
+            marker, body = node["children"]
+            # Same percentage inline columns as the established row renderer;
+            # no calc(), positioning, flex or table semantics in editable prose.
+            return (f'<section data-theme-marker-row="true" style="{css}">'
+                    f'<section data-theme-marker="true" style="box-sizing:border-box;display:inline-block;vertical-align:top;width:{width:g}%;">{render(marker, context)}</section>'
+                    f'<section data-theme-marker-body="true" style="box-sizing:border-box;display:inline-block;vertical-align:top;width:{100-width:g}%;padding-left:{node["gap"]:g}px;">{render(body, context)}</section></section>')
+        if kind == "ornament_rule":
+            slot = node["slot_width"]
+            line = (f'<section aria-hidden="true" style="box-sizing:border-box;display:inline-block;vertical-align:middle;'
+                    f'width:{(100-slot)/2:g}%;border-top:1px solid {config["palette"][node["line_color"]]};'
+                    'font-size:0;line-height:0;height:0;overflow:hidden;">&#8203;</section>')
+            return (f'<section data-theme-ornament-rule="true" aria-hidden="true" style="{css}font-size:0;line-height:0;">'
+                    f'{line}<section style="box-sizing:border-box;display:inline-block;vertical-align:middle;width:{slot:g}%;padding:0 6px;text-align:center;line-height:0;">'
+                    f'{render_drawing(node["children"][0], config["palette"])}</section>{line}</section>')
         return f'<section style="{css}">' + "".join(render(c, context) for c in node["children"]) + "</section>"
 
     rhythm = config["generated_design_system"]["rhythm"]

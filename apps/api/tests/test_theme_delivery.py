@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from visual_director.theme_drawings import render_drawing, drawing_png
-from visual_director.theme_delivery import compiled_decoration_assets, theme_delivery_report
+from visual_director.theme_delivery import compiled_decoration_assets, theme_delivery_report, theme_layout_coverage
 from visual_director.publication import check_frozen_html
 
 
@@ -19,6 +19,71 @@ def drawing():
         {"kind": "polyline", "points": [[3, 40], [24, 8], [48, 40], [86, 5]], "stroke": "ink", "stroke_width": 1.5},
         {"kind": "ellipse", "x": 52, "y": 10, "w": 15, "h": 15, "stroke": "ink", "stroke_width": 1, "fill": "accent"},
     ]}
+
+
+def test_layout_coverage_distinguishes_complete_partial_and_inherited():
+    from visual_director.theme_layouts import ROLE_FIELDS
+
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / 'skills/wechat-visual-director/assets/theme-pack-template.json').read_text(encoding='utf-8'))
+    original = copy.deepcopy(manifest)
+    full = theme_delivery_report(manifest)
+    assert full['coverage']['status'] == 'complete'
+    assert full['coverage']['covered_count'] == full['coverage']['total_count'] == 21
+    assert full['coverage']['missing_roles'] == []
+    assert full['next_action'] == 'review_complete_theme'
+    assert full['visual_review'] == full['wechat_saved_roundtrip'] == 'not_verified'
+    assert manifest == original
+
+    selected = ['hero', 'heading', 'numbered_insight', 'evidence_callout', 'comparison_card', 'action_checklist']
+    manifest['design_system']['layouts'] = {role: original['design_system']['layouts'][role] for role in selected}
+    report = theme_delivery_report(manifest)
+    assert report['coverage']['status'] == 'partial'
+    assert report['coverage']['covered_count'] == 6
+    assert set(report['coverage']['missing_roles']) == set(ROLE_FIELDS) - set(selected)
+    assert report['next_action'] == 'complete_theme_layouts'
+    assert report['rehearsal']['status'] == 'pass'  # Technical pass must not imply completion.
+
+    manifest.pop('design_system')
+    assert theme_layout_coverage(manifest)['status'] == 'inherited'
+    assert theme_delivery_report(manifest)['next_action'] == 'review_inherited_theme'
+
+
+def test_partial_pack_api_and_gallery_report_missing_layouts(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from visual_director.main import create_app
+    from visual_director.theme_packs import theme_pack_catalog_entry
+    from test_api_workflow import _prepare_publication_ready_task
+
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / 'skills/wechat-visual-director/assets/theme-pack-template.json').read_text(encoding='utf-8'))
+    manifest['id'] = 'coverage_sample'
+    manifest['design_system']['layouts'] = {'hero': manifest['design_system']['layouts']['hero']}
+    monkeypatch.setenv('VISUAL_DIRECTOR_THEME_PACK_DIR', str(tmp_path / 'packs'))
+    monkeypatch.setenv('VISUAL_DIRECTOR_ENV_FILE', str(tmp_path / 'empty.env'))
+    headers = {'X-Local-Intent': 'local-operator'}
+    with TestClient(create_app(str(tmp_path / 'test.db'))) as client:
+        task, _ = _prepare_publication_ready_task(client)  # Task predates installation.
+        for endpoint in ('/api/v1/theme-packs/validate', '/api/v1/theme-packs'):
+            response = client.post(endpoint, headers=headers, files={'theme_file': ('theme.json', json.dumps(manifest).encode(), 'application/json')})
+            assert response.status_code == 200, response.text
+            report = response.json()['delivery_report']
+            assert report['coverage']['covered_count'] == 1
+            assert report['next_action'] == 'complete_theme_layouts'
+        gallery = client.get('/api/v1/theme-gallery').json()['themes']
+        custom = next(item for item in gallery if item['id'] == manifest['id'])
+        assert custom['delivery_report']['coverage']['status'] == 'partial'
+        assert len(custom['delivery_report']['coverage']['missing_roles']) == 20
+        assert theme_pack_catalog_entry(manifest['id'])['layout_coverage']['status'] == 'partial'
+        assert all(not item.get('delivery_report') for item in gallery if item['source'] == 'official')
+        def current_option():
+            plan = client.get(f"/api/v1/article-tasks/{task['id']}/plans").json()['plans'][0]
+            return next(item for item in plan['visual_system_metadata']['available_visual_systems'] if item['value'] == manifest['id'])
+        assert current_option()['layout_coverage']['status'] == 'partial'
+        manifest['design_system']['layouts'] = json.loads((root / 'skills/wechat-visual-director/assets/theme-pack-template.json').read_text(encoding='utf-8'))['design_system']['layouts']
+        updated = client.post('/api/v1/theme-packs', headers=headers, files={'theme_file': ('theme.json', json.dumps(manifest).encode(), 'application/json')})
+        assert updated.status_code == 200, updated.text
+        assert current_option()['layout_coverage']['status'] == 'complete'
 
 
 def test_png_is_deterministic_transparent_and_deduplicated():
@@ -75,6 +140,33 @@ def test_risk_report_is_per_capability_not_theme_name():
     assert report['rehearsal']['status'] == 'pass'
     manifest['id'] = 'another_theme'
     assert theme_delivery_report(manifest) == report
+
+
+def test_fixed_labels_require_semantic_review_without_rejecting_valid_layouts():
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / 'skills/wechat-visual-director/assets/theme-pack-template.json').read_text(encoding='utf-8'))
+    manifest['design_system']['layouts'] = {'comparison_card': {'type': 'stack', 'children': [
+        {'type': 'text', 'text': '项目甲'}, {'type': 'field', 'bind': 'left'},
+        {'type': 'text', 'text': 'PROJECT B'}, {'type': 'field', 'bind': 'right'},
+    ]}}
+    report = theme_delivery_report(manifest)
+    labels = [f for f in report['findings'] if f['code'] == 'fixed_label_review']
+    assert len(labels) == 2
+    assert labels[0]['path'] == 'design_system.layouts.comparison_card.children[0]'
+    assert '项目甲' in labels[0]['message']
+    assert report['local_delivery'] == 'review_required'
+    assert report['rehearsal']['status'] == 'pass'
+    # Removing invented labels does not alter the bound comparison text.
+    from visual_director.theme_layouts import render_layout
+    config = {'palette': manifest['palette'], 'generated_design_system': manifest['design_system']}
+    payload = {'left': '线下交流需要往返。', 'right': '在线交流不必出行。'}
+    before = BeautifulSoup(render_layout('comparison_card', payload, config), 'html.parser').get_text()
+    assert all(text in before for text in payload.values())
+    manifest['design_system']['layouts']['comparison_card']['children'] = [
+        {'type': 'text', 'text': '↔'}, {'type': 'field', 'bind': 'left'}, {'type': 'field', 'bind': 'right'}]
+    after = BeautifulSoup(render_layout('comparison_card', payload, config), 'html.parser').get_text()
+    assert all(text in after for text in payload.values())
+    assert not any(f['code'] == 'fixed_label_review' for f in theme_delivery_report(manifest)['findings'])
 
 
 def test_custom_decoration_freeze_copy_export_and_publisher_share_bytes(tmp_path, monkeypatch):

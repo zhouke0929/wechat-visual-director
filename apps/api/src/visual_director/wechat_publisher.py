@@ -10,8 +10,11 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable
+
+from PIL import Image, ImageOps
 
 from .delivery import _extract_main, _responsive_delivery_document
 from .theme_delivery import legacy_drawing_present
@@ -19,6 +22,7 @@ from .theme_delivery import legacy_drawing_present
 
 TOKEN_ENDPOINT = "https://api.weixin.qq.com/cgi-bin/token"
 API_BASE = "https://api.weixin.qq.com/cgi-bin"
+TOKEN_REJECTION_CODES = {40001, 40014, 42001}
 
 
 @dataclass(frozen=True)
@@ -67,6 +71,7 @@ class WechatDraftPublisher:
         self.timeout_seconds = timeout_seconds
         self.clock = clock
         self._token_cache: dict[str, tuple[str, float]] = {}
+        self._token_lock = threading.RLock()
         self._image_cache: dict[str, dict[str, Any]] = {}
         self._image_cache_get = image_cache_get
         self._image_cache_set = image_cache_set
@@ -85,6 +90,7 @@ class WechatDraftPublisher:
             if cached and cached["expires_at"] > self.clock():
                 return cached["result"], token
             filename = str(asset.get("relative_filename") or path.name)
+            filename, content_type, content = self._prepare_upload_image(filename, content_type, content)
             if clipboard:
                 body, multipart_type = self._multipart_image(filename, content_type, content)
                 def send(current_token: str) -> dict[str, Any]:
@@ -94,9 +100,9 @@ class WechatDraftPublisher:
                 try:
                     uploaded = send(token)
                 except WechatApiError as error:
-                    if error.errcode not in {40014, 42001}:
+                    if error.errcode not in TOKEN_REJECTION_CODES:
                         raise
-                    token = self._access_token(force_refresh=True)
+                    token = self._refresh_rejected_token(token)
                     uploaded = send(token)
             else:
                 uploaded, token = self._upload_image_with_token_refresh(token, filename=filename, content_type=content_type, content=content)
@@ -211,6 +217,24 @@ class WechatDraftPublisher:
         return payload
 
     def _access_token(self, *, force_refresh: bool = False) -> str:
+        # A concurrent upload must not race another refresh in this process.
+        with self._token_lock:
+            return self._fetch_access_token(force_refresh=force_refresh)
+
+    def invalidate_token_cache(self) -> None:
+        """A separate connection probe may have replaced our cached token."""
+        with self._token_lock:
+            self._token_cache.clear()
+
+    def _refresh_rejected_token(self, rejected_token: str) -> str:
+        with self._token_lock:
+            app_id, _, _ = self._credentials()
+            cached = self._token_cache.get(app_id)
+            if cached and cached[0] != rejected_token and cached[1] > self.clock() + 120:
+                return cached[0]
+            return self._access_token(force_refresh=True)
+
+    def _fetch_access_token(self, *, force_refresh: bool = False) -> str:
         app_id, app_secret, _ = self._credentials()
         if not app_id or not app_secret:
             raise WechatApiError(None, "微信公众号 AppID 或 AppSecret 未配置", stage="token")
@@ -228,6 +252,25 @@ class WechatDraftPublisher:
         expires_in = max(300, int(payload.get("expires_in") or 7200))
         self._token_cache[app_id] = (token, self.clock() + expires_in)
         return token
+
+    @staticmethod
+    def _prepare_upload_image(filename: str, content_type: str, content: bytes) -> tuple[str, str, bytes]:
+        """Convert WebP at the transport boundary, never mutate frozen assets.
+
+        PNG keeps transparency and avoids another lossy encoding of the source.
+        Other formats remain byte-identical; their files were validated on import.
+        """
+        is_webp = content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+        if not (is_webp or content_type.lower() == "image/webp" or Path(filename).suffix.lower() == ".webp"):
+            return filename, content_type, content
+        with Image.open(BytesIO(content)) as image:
+            if getattr(image, "is_animated", False):
+                raise WechatApiError(40113, "animated WebP requires an explicit static image", stage="upload_image")
+            image = ImageOps.exif_transpose(image)
+            converted = image.convert("RGBA" if "A" in image.getbands() or "transparency" in image.info else "RGB")
+            output = BytesIO()
+            converted.save(output, format="PNG", optimize=True)
+        return f"{Path(filename).stem}.png", "image/png", output.getvalue()
 
     @staticmethod
     def _multipart_image(filename: str, content_type: str, content: bytes) -> tuple[bytes, str]:
@@ -263,9 +306,9 @@ class WechatDraftPublisher:
                 token, filename=filename, content_type=content_type, content=content
             ), token
         except WechatApiError as error:
-            if error.errcode not in {40014, 42001}:
+            if error.errcode not in TOKEN_REJECTION_CODES:
                 raise
-        refreshed = self._access_token(force_refresh=True)
+        refreshed = self._refresh_rejected_token(token)
         return self._upload_image(
             refreshed, filename=filename, content_type=content_type, content=content
         ), refreshed
@@ -285,6 +328,10 @@ class WechatDraftPublisher:
     def _classified_error(error: BaseException, *, stage: str) -> WechatPublishResult:
         if isinstance(error, WechatApiError):
             mapping = {
+                40001: ("wechat_token_invalid", "微信访问凭据无效。连接检测成功不代表旧凭据仍有效；请检测连接后重试，并避免多个工具同时刷新同一公众号凭据。"),
+                40014: ("wechat_token_invalid", "微信访问凭据无效，请检测连接后重试。"),
+                42001: ("wechat_token_expired", "微信访问凭据已过期，请检测连接后重试。"),
+                40113: ("wechat_image_format_unsupported", "微信不接受当前图片格式。静态 WebP 会自动转换；若仍失败，请替换为 PNG/JPEG 静态图片后重新确认最终版本。"),
                 40013: ("wechat_credentials_invalid", "微信公众号 AppID 无效。"),
                 40125: ("wechat_credentials_invalid", "微信公众号 AppSecret 无效。"),
                 40164: ("wechat_ip_not_whitelisted", "当前公网出口 IP 未加入微信公众号白名单。"),
@@ -295,13 +342,15 @@ class WechatDraftPublisher:
                 error.errcode,
                 ("wechat_api_error", f"微信公众号接口返回错误（{error.errcode or 'unknown'}）。"),
             )
+            if error.errcode == 40001 and error.stage == "token":
+                code, message = "wechat_credentials_invalid", "获取微信访问凭据失败，请在本地设置核对公众号配置。"
             return WechatPublishResult(
                 status="failed",
                 media_id=None,
                 error={
                     "code": code,
                     "message": message,
-                    "retryable": error.errcode not in {40013, 40125},
+                    "retryable": error.errcode not in {40013, 40125, 40113} and not (error.errcode == 40001 and error.stage == "token"),
                     "details": {"errcode": error.errcode, "stage": error.stage},
                 },
             )
@@ -402,9 +451,9 @@ class WechatDraftPublisher:
             try:
                 payload = self._create_draft(token, article)
             except WechatApiError as error:
-                if error.errcode not in {40014, 42001}:
+                if error.errcode not in TOKEN_REJECTION_CODES:
                     raise
-                payload = self._create_draft(self._access_token(force_refresh=True), article)
+                payload = self._create_draft(self._refresh_rejected_token(token), article)
         except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
             return self._classified_error(error, stage="create_draft")
         media_id = str(payload.get("media_id") or "") or None

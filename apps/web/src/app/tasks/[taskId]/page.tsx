@@ -914,7 +914,7 @@ export default function TaskReviewPage() {
                           { value: "cinematic_story", label: "电影叙事", description: "", recent_use_count: 0 },
                         ]).map((theme) => (
                           <option key={theme.value} value={theme.value}>
-                            {theme.label}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
+                            {theme.label}{"layout_coverage" in theme && theme.layout_coverage?.status === "partial" ? ` · 未完成 ${theme.layout_coverage.covered_count}/${theme.layout_coverage.total_count}` : ""}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
                           </option>
                         ))}
                       </select>

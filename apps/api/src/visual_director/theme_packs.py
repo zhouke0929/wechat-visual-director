@@ -472,6 +472,8 @@ def resolve_theme_base(theme_id: str) -> str:
 
 
 def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
+    from .theme_delivery import theme_layout_coverage
+
     manifest = theme_pack(theme_id)
     if not manifest:
         return None
@@ -487,6 +489,7 @@ def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
         "source": "custom",
         "base_theme": manifest["base_theme"],
         "pack_version": manifest["version"],
+        "layout_coverage": theme_layout_coverage(manifest),
         "author": manifest["author"],
     }
 

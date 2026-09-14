@@ -6,6 +6,7 @@ import shutil
 import sqlite3
 import threading
 import uuid
+from functools import wraps
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,20 @@ class VersionConflictError(RuntimeError):
 
 class PublicationLockedError(VersionConflictError):
     pass
+
+
+def _serialized_read(method):
+    """Reads must share the writes' lock on the cross-thread SQLite connection.
+
+    Disabling check_same_thread does not serialize execute/fetch or protect a
+    cursor from a simultaneous commit. Keep the lock until rows are materialized.
+    RLock permits reader composition and reads inside existing write transactions.
+    """
+    @wraps(method)
+    def locked(self, *args, **kwargs):
+        with self.lock:
+            return method(self, *args, **kwargs)
+    return locked
 
 
 class Repository:
@@ -527,10 +542,12 @@ class Repository:
             self.connection.commit()
         return self.get_task(task_id), False
 
+    @_serialized_read
     def list_tasks(self) -> list[dict[str, Any]]:
         rows = self.connection.execute("SELECT * FROM tasks ORDER BY updated_at DESC, id DESC").fetchall()
         return [self._task_from_row(row) for row in rows]
 
+    @_serialized_read
     def list_tasks_page(self, *, page: int, page_size: int) -> dict[str, Any]:
         """Return a stable page of task summaries without loading the full history."""
         if page < 1:
@@ -685,6 +702,7 @@ class Repository:
             "asset_cleanup_warnings": cleanup_warnings,
         }
 
+    @_serialized_read
     def get_task(self, task_id: str) -> dict[str, Any]:
         row = self.connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
         if row is None:
@@ -922,6 +940,7 @@ class Repository:
                 (self.image_asset_dir / old_filename).unlink(missing_ok=True)
         return self.get_task(task_id)
 
+    @_serialized_read
     def list_preflight_asset_replacements(self, task_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             "SELECT * FROM preflight_asset_replacements WHERE task_id = ? ORDER BY asset_key",
@@ -945,6 +964,7 @@ class Repository:
             for row in rows
         ]
 
+    @_serialized_read
     def get_preflight_asset(self, asset_id: str) -> tuple[Path, str]:
         row = self.connection.execute(
             "SELECT output_filename, content_type FROM preflight_asset_replacements WHERE id = ?",
@@ -1104,11 +1124,13 @@ class Repository:
             self.connection.commit()
         return self.get_task(task_id)
 
+    @_serialized_read
     def list_plans(self, task_id: str) -> list[dict[str, Any]]:
         self.get_task(task_id)
         rows = self.connection.execute("SELECT plan_json FROM plans WHERE task_id = ? ORDER BY plan_index", (task_id,)).fetchall()
         return [json.loads(row["plan_json"]) for row in rows]
 
+    @_serialized_read
     def get_plan(self, task_id: str, plan_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT plan_json FROM plans WHERE task_id = ? AND id = ?",
@@ -1118,6 +1140,7 @@ class Repository:
             raise NotFoundError("方案不存在")
         return json.loads(row["plan_json"])
 
+    @_serialized_read
     def get_plan_revision(self, task_id: str, plan_id: str, revision: int) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT plan_json FROM plan_revisions WHERE task_id = ? AND plan_id = ? AND revision = ?",
@@ -1127,6 +1150,7 @@ class Repository:
             raise NotFoundError("方案修订不存在")
         return json.loads(row["plan_json"])
 
+    @_serialized_read
     def list_plan_revisions(self, task_id: str, plan_id: str) -> list[dict[str, Any]]:
         self.get_plan(task_id, plan_id)
         rows = self.connection.execute(
@@ -1193,6 +1217,7 @@ class Repository:
             (str(uuid.uuid4()), task_id, event_type, json.dumps(payload, ensure_ascii=False), now),
         )
 
+    @_serialized_read
     def get_wechat_image_upload(self, cache_key: str) -> dict[str, Any] | None:
         with self.lock:
             row = self.connection.execute(
@@ -1211,6 +1236,7 @@ class Repository:
             )
             self.connection.commit()
 
+    @_serialized_read
     def list_audit_events(self, task_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             "SELECT event_type, payload_json, created_at FROM audit_events WHERE task_id = ? ORDER BY created_at",
@@ -1320,6 +1346,7 @@ class Repository:
             ),
         )
 
+    @_serialized_read
     def list_recent_component_summaries(self, account_id: str, limit: int) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             """SELECT summary_json FROM recent_article_component_summaries
@@ -1346,12 +1373,14 @@ class Repository:
             self.connection.commit()
         return self.get_task(task_id)
 
+    @_serialized_read
     def get_artifact(self, artifact_id: str) -> str:
         row = self.connection.execute("SELECT html FROM artifacts WHERE id = ?", (artifact_id,)).fetchone()
         if row is None:
             raise NotFoundError("预览产物不存在")
         return str(row["html"])
 
+    @_serialized_read
     def get_artifact_record(self, artifact_id: str) -> dict[str, str]:
         row = self.connection.execute(
             "SELECT task_id, plan_id, html FROM artifacts WHERE id = ?",
@@ -1456,6 +1485,7 @@ class Repository:
             "content_url": f'/api/v1/cover-candidates/{row["id"]}/content?v={output_sha256[:12]}',
         }
 
+    @_serialized_read
     def list_cover_candidates(self, task_id: str, plan_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             """SELECT * FROM cover_candidates
@@ -1464,6 +1494,7 @@ class Repository:
         ).fetchall()
         return [self._cover_candidate_from_row(row) for row in rows]
 
+    @_serialized_read
     def get_cover_candidate(self, candidate_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT * FROM cover_candidates WHERE id = ?",
@@ -1473,6 +1504,7 @@ class Repository:
             raise NotFoundError("封面候选不存在")
         return self._cover_candidate_from_row(row)
 
+    @_serialized_read
     def get_cover_candidate_asset(self, candidate_id: str) -> tuple[Path, str]:
         row = self.connection.execute(
             "SELECT output_filename, content_type FROM cover_candidates WHERE id = ?",
@@ -1563,6 +1595,7 @@ class Repository:
             ),
         }
 
+    @_serialized_read
     def list_image_candidates(self, task_id: str, plan_id: str, image_slot_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             """SELECT * FROM image_candidates
@@ -1587,6 +1620,7 @@ class Repository:
             "candidates": self.list_image_candidates(row["task_id"], row["plan_id"], row["image_slot_id"]),
         }
 
+    @_serialized_read
     def list_image_slot_states(self, task_id: str, plan_id: str) -> list[dict[str, Any]]:
         self.get_plan(task_id, plan_id)
         rows = self.connection.execute(
@@ -1595,6 +1629,7 @@ class Repository:
         ).fetchall()
         return [self._image_state_from_row(row) for row in rows]
 
+    @_serialized_read
     def get_image_slot_state(self, task_id: str, plan_id: str, image_slot_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             """SELECT * FROM image_slot_states
@@ -1605,6 +1640,7 @@ class Repository:
             raise NotFoundError("图片槽状态不存在")
         return self._image_state_from_row(row)
 
+    @_serialized_read
     def get_image_candidate(self, candidate_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT * FROM image_candidates WHERE id = ?",
@@ -1805,6 +1841,7 @@ class Repository:
             self.connection.commit()
         return self.get_image_slot_state(task_id, plan_id, image_slot_id)
 
+    @_serialized_read
     def get_image_candidate_asset(self, candidate_id: str) -> tuple[Path, str]:
         row = self.connection.execute(
             "SELECT output_filename, content_type FROM image_candidates WHERE id = ?",
@@ -1818,6 +1855,7 @@ class Repository:
             raise NotFoundError("图片候选文件不存在")
         return path, str(row["content_type"])
 
+    @_serialized_read
     def get_raw_image_candidate_asset(self, candidate_id: str) -> tuple[Path, str]:
         row = self.connection.execute(
             "SELECT raw_output_filename, content_type FROM image_candidates WHERE id = ?",
@@ -1831,6 +1869,7 @@ class Repository:
             raise NotFoundError("图片原始候选文件不存在")
         return path, str(row["content_type"])
 
+    @_serialized_read
     def assert_task_editable(self, task_id: str) -> None:
         task = self.get_task(task_id)
         if task.get("active_publication_revision_id"):
@@ -1916,6 +1955,7 @@ class Repository:
             raise VersionConflictError("Idempotency-Key 已用于不同请求")
         return str(row["resource_type"]), str(row["resource_id"])
 
+    @_serialized_read
     def get_idempotent_resource(
         self,
         *,
@@ -1983,6 +2023,7 @@ class Repository:
             "superseded_at": row["superseded_at"],
         }
 
+    @_serialized_read
     def get_publication_revision(self, revision_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT * FROM publication_revisions WHERE id = ?",
@@ -1992,6 +2033,7 @@ class Repository:
             raise NotFoundError("冻结版本不存在")
         return self._publication_revision_from_row(row)
 
+    @_serialized_read
     def list_publication_revisions(self, task_id: str) -> list[dict[str, Any]]:
         self.get_task(task_id)
         rows = self.connection.execute(
@@ -2000,6 +2042,7 @@ class Repository:
         ).fetchall()
         return [self._publication_revision_from_row(row) for row in rows]
 
+    @_serialized_read
     def list_publication_assets(self, revision_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             "SELECT * FROM publication_assets WHERE revision_id = ? ORDER BY asset_token",
@@ -2025,6 +2068,7 @@ class Repository:
             for row in rows
         ]
 
+    @_serialized_read
     def get_publication_asset(self, asset_id: str) -> tuple[Path, str]:
         row = self.connection.execute(
             "SELECT revision_id, relative_filename, content_type FROM publication_assets WHERE id = ?",
@@ -2245,6 +2289,7 @@ class Repository:
             ],
         }
 
+    @_serialized_read
     def get_draft_operation(self, operation_id: str) -> dict[str, Any]:
         row = self.connection.execute(
             "SELECT * FROM draft_operations WHERE id = ?",
@@ -2254,6 +2299,7 @@ class Repository:
             raise NotFoundError("草稿操作不存在")
         return self._draft_operation_from_row(row)
 
+    @_serialized_read
     def list_draft_operations(self, task_id: str) -> list[dict[str, Any]]:
         rows = self.connection.execute(
             "SELECT * FROM draft_operations WHERE task_id = ? ORDER BY created_at DESC",
@@ -2974,6 +3020,7 @@ class Repository:
             self.connection.commit()
         return self.get_draft_operation(operation_id), self.get_task(task["id"])
 
+    @_serialized_read
     def list_blind_review_submissions(
         self, eval_set_id: str, reviewer_id: str | None = None
     ) -> list[dict[str, Any]]:

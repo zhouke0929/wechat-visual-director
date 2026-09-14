@@ -93,6 +93,21 @@ def legacy_drawing_present(document: str) -> bool:
     return scanner.found
 
 
+def theme_layout_coverage(manifest: dict[str, Any]) -> dict[str, Any]:
+    """Declaration coverage only; not an aesthetic score or delivery certification."""
+    from .theme_layouts import ROLE_FIELDS
+
+    layouts = manifest.get("design_system", {}).get("layouts", {})
+    covered = [role for role in ROLE_FIELDS if role in layouts]
+    missing = [role for role in ROLE_FIELDS if role not in layouts]
+    return {
+        "status": "complete" if not missing else "partial" if covered else "inherited",
+        "covered_count": len(covered), "total_count": len(ROLE_FIELDS),
+        "covered_roles": covered, "missing_roles": missing,
+        "scope": "layout_declarations_only",
+    }
+
+
 def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
     findings = []
     roles: dict[str, list[str]] = {}
@@ -105,6 +120,8 @@ def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
         if role not in roles[capability]:
             roles[capability].append(role)
         for present, code, message in (
+            (kind == "text" and bool(re.search(r"[^\W\d_]", node.get("text", ""), re.UNICODE)),
+             "fixed_label_review", f"固定标签「{node.get('text', '')}」需换文案核对，不能替原文命名对象、补充场景或改变比较含义。"),
             (kind == "cutout", "gradient_edge", "周期性凹口依赖多层渐变；需保存后核对边缘。"),
             (bool(style.get("rotate")), "rotated_layout", "文字或容器旋转仍由 HTML 承担；需保存后核对位置与换行。"),
             ("shadow" in style, "surface_shadow", "阴影效果需保存后核对，不作为正文布局支撑。"),
@@ -119,10 +136,13 @@ def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
     for role, node in layouts.items():
         visit(node, f"design_system.layouts.{role}", role)
     rehearsal = rehearse_theme_delivery(manifest)
+    coverage = theme_layout_coverage(manifest)
     return {
         "profile_version": DELIVERY_PROFILE_VERSION,
         "drawing_compiler": DRAWING_COMPILER_VERSION,
         "structure": "valid",
+        "coverage": coverage,
+        "visual_review": "not_verified",
         "local_delivery": ("not_checked" if rehearsal["status"] == "not_applicable" else
                            "blocking" if rehearsal["status"] == "blocking" else ("review_required" if findings else "static_pass")),
         "wechat_saved_roundtrip": "not_verified",
@@ -130,7 +150,9 @@ def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
         "capabilities": roles,
         "rehearsal": rehearsal,
         "representative_roles": list(dict.fromkeys([f["role"] for f in findings] + roles.get("raster_decoration", [])))[:6],
-        "next_action": "review_representative_delivery" if layouts else "review_inherited_theme",
+        "next_action": ("fix_delivery" if rehearsal["status"] == "blocking" else
+                        "complete_theme_layouts" if coverage["status"] == "partial" else
+                        "review_complete_theme" if coverage["status"] == "complete" else "review_inherited_theme"),
     }
 
 

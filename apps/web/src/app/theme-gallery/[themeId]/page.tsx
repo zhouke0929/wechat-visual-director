@@ -4,6 +4,7 @@ import Link, { useRouteParam } from "@/lib/router";
 import { useEffect, useMemo, useState } from "react";
 import { getThemeGallery } from "@/lib/api";
 import type { ThemeGalleryItem } from "@/lib/types";
+import { themeCoverageLabel, themeRoleLabel } from "@/lib/theme-coverage";
 import styles from "./theme-detail.module.css";
 
 const compatibilityLabel = (status: string) => {
@@ -28,6 +29,8 @@ export default function ThemeDetailPage() {
   if (!theme) return <main className={styles.statePage}>正在展开主题样张……</main>;
 
   const specimenTotal = theme.components.length + theme.rhythm_primitives.length;
+  const coverage = theme.delivery_report?.coverage;
+  const isPartial = coverage?.status === "partial";
 
   return (
     <main className={styles.page} style={{ "--theme-primary": theme.palette[0], "--theme-accent": theme.palette[2] } as React.CSSProperties}>
@@ -44,6 +47,15 @@ export default function ThemeDetailPage() {
         <div className={styles.themeIntro}>
           <p>THEME LIBRARY / {theme.id.toUpperCase()}</p>
           <h1>{theme.label}</h1>
+          {coverage && (
+            <section className={styles.deliveryNote} aria-label="主题完整性">
+              <strong>{themeCoverageLabel(coverage)}</strong>
+              {isPartial ? <>
+                <p>这是尚未完成的主题试样，预览混合了已设计布局与默认样式。请让 Agent 补齐后再作为完整主题使用。</p>
+                <p>待设计：{coverage.missing_roles.map(themeRoleLabel).join("、")}。</p>
+              </> : <p>{coverage.status === "complete" ? "全部布局角色已有声明；视觉效果仍需整体复核，微信保存效果需单独实测。" : "此主题使用基础样式进行气质调整，不代表重新设计了整套布局。"}</p>}
+            </section>
+          )}
           <p>{theme.description}</p>
           <div className={styles.palette}>
             {theme.palette.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
@@ -53,10 +65,10 @@ export default function ThemeDetailPage() {
           </div>
           {theme.delivery_report && (
             <section className={styles.deliveryNote} aria-label="主题交付检查">
-              <strong>{theme.delivery_report.rehearsal.status === "blocking" ? "交付检查发现问题" : theme.delivery_report.rehearsal.status === "pass" ? "本地交付预检通过" : "沿用基础主题交付结构"}</strong>
+              <strong>{theme.delivery_report.rehearsal.status === "blocking" ? "交付检查发现问题" : theme.delivery_report.rehearsal.status === "pass" ? "已声明布局的本地编译检查通过" : "沿用基础主题交付结构"}</strong>
               <p>{theme.delivery_report.capabilities.raster_decoration?.length ? "装饰使用高清图片，正文保持可编辑。" : "正文与主题结构保持独立。"}微信保存后的实际效果尚待核对。</p>
               {theme.delivery_report.findings.length > 0 && (
-                <p>本轮重点：{Array.from(new Set(theme.delivery_report.findings.map((item) => ({ gradient_edge: "凹口边缘", rotated_layout: "旋转位置", surface_shadow: "阴影", overlap_spacing: "错位留白" }[item.code] || item.code)))).join("、")}。</p>
+                <p>本轮重点：{Array.from(new Set(theme.delivery_report.findings.map((item) => ({ fixed_label_review: "固定标签与正文含义", gradient_edge: "凹口边缘", rotated_layout: "旋转位置", surface_shadow: "阴影", overlap_spacing: "错位留白" }[item.code] || item.code)))).join("、")}。</p>
               )}
               <p>保存草稿后重新打开，再检查手机预览；仅粘贴成功不代表验证完成。</p>
             </section>
@@ -73,7 +85,7 @@ export default function ThemeDetailPage() {
       </section>
 
       <nav className={styles.modeSwitch} aria-label="主题展示视图">
-        <button className={mode === "article" ? styles.active : ""} onClick={() => setMode("article")}>01　整篇样张</button>
+        <button className={mode === "article" ? styles.active : ""} onClick={() => setMode("article")}>01　{isPartial ? "试样预览（含默认样式）" : "整篇样张"}</button>
         <button className={mode === "components" ? styles.active : ""} onClick={() => setMode("components")}>02　主题部件库</button>
       </nav>
 
@@ -82,7 +94,7 @@ export default function ThemeDetailPage() {
           <div className={styles.articleNotes}>
             <span>WHOLE ARTICLE VIEW</span>
             <h2>先看整篇节奏，<br />再认识局部组件。</h2>
-            <p>完整样张展示这套主题在长文章中的标题层级、行内强调、图片节奏、语义组件和品牌页尾。</p>
+            <p>{isPartial ? "本页用于检查阶段性效果，尚未覆盖的角色仍显示默认样式，并非完整主题成品。" : "样张展示这套主题在长文章中的标题层级、行内强调、图片节奏、语义组件和品牌页尾。"}</p>
             <dl>
               <div><dt>正文宽度</dt><dd>390 px</dd></div>
               <div><dt>展示部件</dt><dd>{specimenTotal}</dd></div>
