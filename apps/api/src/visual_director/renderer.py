@@ -33,6 +33,7 @@ from .theme_extensions import (
     render_extended_heading,
     render_extended_hero,
     render_extended_list,
+    render_extended_lead,
     render_extended_quote,
     render_extended_table,
 )
@@ -975,7 +976,10 @@ def render_preview(
             if generated_theme:
                 body.append(render_generated_paragraph(str(block.content), config, lead=block.id == opening_highlight_id))
             elif block.id == opening_highlight_id:
-                if airy:
+                extended_lead = render_extended_lead(str(block.content), opening_highlight_label or "本文导读", config)
+                if extended_lead is not None:
+                    body.append(extended_lead)
+                elif airy:
                     body.append(
                         f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
                         f'style="margin:24px 0 30px;padding:4px 0 13px 15px;border-left:3px solid {accent};border-bottom:1px solid {palette.get("sky", accent)};">'

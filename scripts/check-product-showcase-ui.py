@@ -111,7 +111,7 @@ def main() -> None:
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url, wait_until="networkidle")
         page.locator(".theme-button").nth(11).wait_for()
-        assert page.locator("main#main > section").count() == 3
+        assert page.locator("main#main > section").count() == 4
         assert page.locator(".edition").count() == 3
         assert page.locator("#faq .notes-content").is_visible()
         assert page.locator("#faq summary").count() == 0
@@ -143,8 +143,8 @@ def main() -> None:
             page.evaluate("window.scrollTo(0, 0)")
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Overflow at {width}px"
             page_height = page.evaluate("document.documentElement.scrollHeight")
-            # The installation notes are now always visible, not a closed disclosure.
-            assert page_height < (3700 if width < 1000 else 2900), (width, page_height)
+            # Includes the dedicated custom-theme entry, while retaining a compact page.
+            assert page_height < (5100 if width < 1000 else 3800), (width, page_height)
             assert page.locator("#faq .notes-content").is_visible()
             check_phone()
             results["viewports"].append({"width": width, "height": page_height})
@@ -162,7 +162,7 @@ def main() -> None:
             button.click()
             assert button.get_attribute("aria-pressed") == "true"
             assert page.locator(".theme-button.active").count() == 1
-            assert page.locator("#themePreview > main").count() == 1
+            assert page.locator("#themePreview [data-gallery-production-article] > main").count() == 1
             assert page.locator("#themePreview").evaluate("el => el.scrollTop === 0")
             assert button.locator("strong").inner_text() == page.locator("#themeLabel").inner_text()
             check_phone()

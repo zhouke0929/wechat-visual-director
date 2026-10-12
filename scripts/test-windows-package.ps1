@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ArchivePath
+    [string]$ArchivePath,
+    [string]$ApiBase = "http://127.0.0.1:8000/api/v1",
+    [string]$WebBase = "http://127.0.0.1:8000"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,7 +31,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Bundled runtime import probe failed." }
 
     $Bootstrap = Join-Path $PackageRoot "scripts\bootstrap.ps1"
-    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome
+    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
     $BootstrapResult = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $BootstrapResult.ok) { throw "Bootstrap failed: $($BootstrapResult | ConvertTo-Json -Compress -Depth 8)" }
     if (-not $BootstrapResult.installation.runtime_match) { throw "Installed runtime identity mismatch." }
@@ -63,20 +65,32 @@ try {
     }
 
     $Launcher = [string]$BootstrapResult.launcher
-    $DoctorRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher doctor --json
+    $DoctorRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher doctor --api-base $ApiBase --web-base $WebBase --json
     $Doctor = (@($DoctorRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Doctor.ok -or -not $Doctor.core_ready -or -not $Doctor.workbench_ready) { throw "Doctor failed." }
     if ($Doctor.setup.onboarding_pending -ne $true -or @($Doctor.setup.first_run_guide.lines).Count -ne 4) {
         throw "A repeated health check lost the pending first-run guide."
     }
 
+    # Source-only paths can pass unit tests but fail from bundled site-packages.
+    $Gallery = Invoke-RestMethod -Uri ($ApiBase.TrimEnd("/") + "/theme-gallery")
+    if ($Gallery.schema_version -ne "theme_gallery.v0.5" -or @($Gallery.themes).Count -ne 12) {
+        throw "The packaged theme gallery is incomplete."
+    }
+    foreach ($Theme in $Gallery.themes) {
+        if (@($Theme.foundation_specimens).Count -ne 14 -or @($Theme.components).Count -ne 12 -or
+            [string]::IsNullOrWhiteSpace([string]$Theme.article_preview_html)) {
+            throw "The packaged gallery lost production specimens: $($Theme.id)"
+        }
+    }
+
     $Sample = Join-Path $PackageRoot "samples\skill-alpha\canonical-article.md"
-    $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --json
+    $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --api-base $ApiBase --web-base $WebBase --json
     $Task = (@($TaskRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Task.ok -or [string]::IsNullOrWhiteSpace([string]$Task.task_id)) { throw "Sample task creation failed." }
 
     # Reinstall an occupied dataset, not just an empty first installation.
-    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome
+    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
     $Upgrade = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Upgrade.ok -or -not $Upgrade.data_continuity.preserved -or
         $Upgrade.data_continuity.before_task_count -ne 1 -or $Upgrade.installation.running_task_count -ne 1) {

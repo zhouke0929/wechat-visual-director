@@ -19,9 +19,10 @@ from .parser import ContentBlock, ParsedArticle, parse_markdown
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
 from .theme_packs import theme_pack
 from .theme_delivery import theme_delivery_report
+from .theme_specimens import build_production_specimens
 
 
-THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.4"
+THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.5"
 
 THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 
@@ -64,7 +65,7 @@ THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 SEMANTIC_COMPONENT_GUIDANCE = {
     "question_hook": ("让真正面向读者的问题成为阅读入口。", "疑问式 H3 小标题"),
     "numbered_insight": ("把并列观点整理成可快速扫描的索引。", "包含 2–5 项的观点列表"),
-    "evidence_callout": ("突出原文已有的证据、引文或关键判断。", "Markdown 引用块"),
+    "evidence_callout": ("突出原文已有的证据、引文或关键判断。", "有证据或重点摘录语义的内容；普通引用另有基础样式"),
     "before_after_timeline": ("呈现原文明确存在的前后变化。", "相邻的改革前后或旧新状态"),
     "logic_path": ("把有先后关系的行动步骤变成阅读路径。", "包含 3–5 项的有序列表"),
     "concept_explainer": ("为抽象概念提供标题与定义的视觉容器。", "H3 概念标题及紧随解释段"),
@@ -841,6 +842,7 @@ def build_theme_gallery() -> list[dict[str, Any]]:
             _component_specimen(parsed, component_type, visual_system, palette, bindings)
             for component_type in CORE_THEME_COMPONENTS
         ]
+        foundations, article_preview = build_production_specimens(visual_system)
         themes.append(
             {
                 "id": visual_system,
@@ -858,6 +860,8 @@ def build_theme_gallery() -> list[dict[str, Any]]:
                 },
                 "components": specimens,
                 "rhythm_primitives": primitives,
+                "foundation_specimens": foundations,
+                "article_preview_html": article_preview,
                 "full_preview_html": _full_preview(
                     visual_system,
                     metadata,

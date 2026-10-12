@@ -13,6 +13,7 @@ export function GettingStarted() {
           ))}
         </ol>
         <div className="getting-started-notes">
+          <p>想要自己的风格？给 Agent 参考图或描述，创作整套新主题，再到<a href="/theme-gallery">主题样本册</a>查看。</p>
           <p>宿主支持生图时，确认主题后可让它生成正文与封面候选。</p>
           <p>排版不用另配 Key；凭据仅在<a href="/settings">本地设置</a>填写，不自动群发。</p>
         </div>

@@ -75,8 +75,8 @@ export default function ThemeGalleryPage() {
   };
 
   const specimenCount = themes[0]
-    ? themes[0].components.length + themes[0].rhythm_primitives.length
-    : 18;
+    ? themes[0].components.length + (themes[0].foundation_specimens ?? themes[0].rhythm_primitives).length
+    : 26;
 
   return (
     <main className={styles.page}>
@@ -93,7 +93,7 @@ export default function ThemeGalleryPage() {
         <h1>每一种主题，<br />都是一套完整阅读气质。</h1>
         <div className={styles.heroFoot}>
           <p>
-            这里展示当前可用于真实公众号文章的完整视觉主题。每套主题都有独立的标题、留白、图文节奏与语义组件，
+            这里展示官方主题与本机自定义主题，包括完整文章和全部基础、语义样式。每套主题都有自己的标题、留白、图文节奏，
             官方主题与本机扩展包遵守同一套语义组件和编辑契约。同一篇文章可以即时切换风格，正文结构保持不变。
           </p>
           <dl>
@@ -145,7 +145,7 @@ export default function ThemeGalleryPage() {
           <span>YOUR VISUAL DNA / 00</span>
           <h2>这里会收纳你自己的阅读气质。</h2>
           <p>
-            把风格描述交给已安装 Skill 的 Agent，它会基于官方主题结构生成扩展包；导入后即可在样本册检查完整组件，再用于真实文章。
+            给已安装 Skill 的 Agent 一张组件参考图，或描述想要的风格。它会寻找相关参考、联想并延展整套视觉语言；完成的扩展包可在这里浏览、导入和导出，再用于真实文章。
           </p>
           <button disabled={busy} onClick={() => fileInput.current?.click()} type="button">导入第一套主题</button>
         </section>
@@ -170,7 +170,7 @@ export default function ThemeGalleryPage() {
               </div>
             </Link>
             <footer>
-              <span>{theme.rhythm_primitives.length} 类骨架 + {theme.components.length} 类语义组件</span>
+              <span>{(theme.foundation_specimens ?? theme.rhythm_primitives).length} 种基础样式 + {theme.components.length} 类语义组件</span>
               {theme.source === "custom" ? (
                 <div className={styles.cardActions}>
                   <button onClick={(event) => handleExport(event, theme)} type="button">导出</button>

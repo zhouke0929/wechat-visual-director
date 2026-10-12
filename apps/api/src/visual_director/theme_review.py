@@ -103,7 +103,9 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
     refs = ''.join(f'<figure><img src="{uri}" style="max-width:100%"><figcaption>参考 {i + 1}：{html.escape((references or [])[i].name)}</figcaption></figure>' for i, uri in enumerate(reference_uris))
     documents['index.html'] = _page(manifest['name'] + ' · 自检',
         f'<h1>{html.escape(manifest["name"])} · 组件自检</h1><p>这是检查材料，不是验收通过报告。分别查看短文、长文与真实图片；正常文章节奏与微信保存后效果须另行检查。</p><ul>{links}</ul><h2>参考对照</h2>' + (refs or '<p>未提供参考截图，请另行对照实际查看的来源。</p>'))
-    result = {"ok": True, "schema_version": "theme_review.v2", "preview_config": PREVIEW_CONFIG,
+    from .theme_production import check_theme_production
+    production = check_theme_production(manifest)
+    result = {"ok": production["status"] != "blocking", "schema_version": "theme_review.v2", "preview_config": PREVIEW_CONFIG,
         "overview_profile": "mobile", "theme_id": manifest['id'],
         "theme_version": manifest['version'], "renderer_version": RENDERER_VERSION,
         "theme_sha256": hashlib.sha256(content).hexdigest(), "pages": pages,
@@ -112,6 +114,7 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
         "real_image_fixture": True, "reference_count": len(reference_uris),
         "browser_geometry": "not_verified", "visual_review": "not_verified",
         "normal_article": "not_verified", "wechat_saved_roundtrip": "not_verified",
+        "production_check": production,
         "review_file": str((output / 'index.html').resolve())}
     output.mkdir(parents=True, exist_ok=False)
     for name, document in documents.items():

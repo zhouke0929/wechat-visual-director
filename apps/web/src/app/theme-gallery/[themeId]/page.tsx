@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { getThemeGallery } from "@/lib/api";
 import type { ThemeGalleryItem } from "@/lib/types";
 import { themeCoverageLabel, themeRoleLabel } from "@/lib/theme-coverage";
+import { PREVIEW_BODY_PADDING_X, PREVIEW_PROFILES } from "@/lib/preview-profiles";
 import styles from "./theme-detail.module.css";
 
 const compatibilityLabel = (status: string) => {
@@ -28,12 +29,13 @@ export default function ThemeDetailPage() {
   if (error) return <main className={styles.statePage}><p>{error}</p><Link href="/theme-gallery">返回主题样本册</Link></main>;
   if (!theme) return <main className={styles.statePage}>正在展开主题样张……</main>;
 
-  const specimenTotal = theme.components.length + theme.rhythm_primitives.length;
+  const foundations = theme.foundation_specimens ?? theme.rhythm_primitives;
+  const specimenTotal = theme.components.length + foundations.length;
   const coverage = theme.delivery_report?.coverage;
   const isPartial = coverage?.status === "partial";
 
   return (
-    <main className={styles.page} style={{ "--theme-primary": theme.palette[0], "--theme-accent": theme.palette[2] } as React.CSSProperties}>
+    <main className={styles.page} style={{ "--theme-primary": theme.palette[0], "--theme-accent": theme.palette[2], "--gallery-viewport-width": `${PREVIEW_PROFILES.mobile.viewport_width}px`, "--gallery-body-padding": `${PREVIEW_BODY_PADDING_X}px` } as React.CSSProperties}>
       <header className={styles.topbar}>
         <Link href="/theme-gallery">← 主题总览</Link>
         <div>
@@ -71,6 +73,7 @@ export default function ThemeDetailPage() {
                 <p>本轮重点：{Array.from(new Set(theme.delivery_report.findings.map((item) => ({ fixed_label_review: "固定标签与正文含义", gradient_edge: "凹口边缘", rotated_layout: "旋转位置", surface_shadow: "阴影", overlap_spacing: "错位留白" }[item.code] || item.code)))).join("、")}。</p>
               )}
               <p>保存草稿后重新打开，再检查手机预览；仅粘贴成功不代表验证完成。</p>
+              {!!theme.delivery_report.design_review?.unchanged_template_roles.length && <p>仍有 {theme.delivery_report.design_review.unchanged_template_roles.length} 个布局与字段模板一致，请核对是否为有意保留的简洁设计，不能仅凭布局齐全认定视觉完成。</p>}
             </section>
           )}
         </div>
@@ -78,7 +81,7 @@ export default function ThemeDetailPage() {
           <span>浏览方式</span>
           <ol>
             <li>先看整篇样张，感受标题、正文与留白节奏</li>
-            <li>再浏览 6 类骨架与 12 类语义组件，理解它们各自的触发条件</li>
+            <li>再浏览 {foundations.length} 种基础样式与 {theme.components.length} 类语义组件，理解它们各自的触发条件</li>
             <li>实际文章会根据原文语义选用其中一部分，不会全部堆叠</li>
           </ol>
         </aside>
@@ -94,27 +97,34 @@ export default function ThemeDetailPage() {
           <div className={styles.articleNotes}>
             <span>WHOLE ARTICLE VIEW</span>
             <h2>先看整篇节奏，<br />再认识局部组件。</h2>
-            <p>{isPartial ? "本页用于检查阶段性效果，尚未覆盖的角色仍显示默认样式，并非完整主题成品。" : "样张展示这套主题在长文章中的标题层级、行内强调、图片节奏、语义组件和品牌页尾。"}</p>
+            <p>{isPartial ? "本页用于检查阶段性效果，尚未覆盖的角色仍显示默认样式，并非完整主题成品。" : "公开样张由正式文章渲染器生成，展示正文、引用、列表、图文和少量语义组件的真实阅读节奏。全部部件请在部件库中查看。"}</p>
             <dl>
-              <div><dt>正文宽度</dt><dd>390 px</dd></div>
+              <div><dt>手机视口</dt><dd>{PREVIEW_PROFILES.mobile.viewport_width} px</dd></div>
+              <div><dt>正文净宽</dt><dd>{PREVIEW_PROFILES.mobile.content_width} px · 两侧各 {PREVIEW_BODY_PADDING_X} px</dd></div>
               <div><dt>展示部件</dt><dd>{specimenTotal}</dd></div>
               <div><dt>渲染方式</dt><dd>正式组件库</dd></div>
             </dl>
           </div>
           <div className={styles.phoneStage}>
-            <div className={styles.ruler}><span>390</span><i /><span>MOBILE CONTENT WIDTH</span></div>
-            <article className={styles.phone} dangerouslySetInnerHTML={{ __html: theme.full_preview_html }} />
+            <div className={styles.ruler}><span>{PREVIEW_PROFILES.mobile.viewport_width}</span><i /><span>WORKBENCH MOBILE VIEWPORT</span></div>
+            <article className={styles.phone} dangerouslySetInnerHTML={{ __html: theme.article_preview_html ?? theme.full_preview_html }} />
           </div>
         </section>
       ) : (
         <section className={styles.specimenList}>
+          <nav className={styles.componentIndex} aria-label="全部部件索引">
+            <strong>基础样式</strong>
+            {foundations.map((item) => <a key={item.role} href={`#foundation-${item.role}`}>{item.label}</a>)}
+            <strong>语义组件</strong>
+            {theme.components.map((item) => <a key={item.component_type} href={`#component-${item.component_type}`}>{item.label}</a>)}
+          </nav>
           <header className={styles.libraryDivider}>
             <span>RHYTHM PRIMITIVES / 01</span>
             <h2>文章骨架与阅读节奏。</h2>
-            <p>标题、行内强调、图文位置、分割线和页尾共同形成主题气质；它们不会改写原文事实。</p>
+            <p>包含普通引用、有序与无序列表、表格和来源说明等真实正文样式。它们与强调语义组件不同，不再隐藏在整篇样张里。</p>
           </header>
-          {theme.rhythm_primitives.map((primitive, index) => (
-            <article className={styles.specimen} key={primitive.role}>
+          {foundations.map((primitive, index) => (
+            <article className={styles.specimen} id={`foundation-${primitive.role}`} key={primitive.role}>
               <div className={styles.specimenInfo}>
                 <span>R{String(index + 1).padStart(2, "0")} / {primitive.role}</span>
                 <h2>{primitive.label}</h2>
@@ -131,7 +141,7 @@ export default function ThemeDetailPage() {
             <p>每个组件都标明触发语义与公众号兼容状态；真实文章只选择原文需要的部分，不会为了装饰机械套用。</p>
           </header>
           {theme.components.map((component, index) => (
-            <article className={styles.specimen} key={component.component_type}>
+            <article className={styles.specimen} id={`component-${component.component_type}`} key={component.component_type}>
               <div className={styles.specimenInfo}>
                 <span>{String(index + 1).padStart(2, "0")} / {component.component_type}</span>
                 <h2>{component.label}</h2>

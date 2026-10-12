@@ -118,8 +118,8 @@ if first_install and "onboarding_pending" not in doctor.get("setup", {}):
         "title": "WeChat Visual Director is ready",
         "lines": [
             "Give your Agent a topic, source material, or an existing article; it organizes the content and plans the layout before opening the workbench.",
-            "The Agent returns a local workbench link for theme, image, and cover review.",
-            "If the current Agent supports native image generation, confirm the theme first and then ask it to generate and insert images for the current article.",
+            "Edit text, review themes and mobile previews in the workbench; if your Agent supports native image generation, ask it for article and cover candidates to review.",
+            "Give your Agent a component reference image or style description to create a complete custom theme; review it in the gallery and a real article before use.",
             "Enter image API and WeChat credentials only in Local Settings; the product creates drafts and never mass publishes automatically.",
         ],
     }

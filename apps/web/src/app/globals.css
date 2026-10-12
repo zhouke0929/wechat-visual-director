@@ -127,7 +127,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .agent-start > .eyebrow { color: var(--coral); margin-bottom: 12px; }
 .agent-start h2 { margin: 0; font: 750 26px/1.4 "Noto Serif SC", "Songti SC", serif; }
 .agent-start-hint { margin: 10px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.8; }
-.agent-start-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
+.agent-start-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
 .agent-start-modes button { min-height: 44px; padding: 10px 4px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: var(--muted); font-size: 14px; font-weight: 700; }
 .agent-start-modes button[aria-pressed="true"] { color: var(--teal); border-bottom-color: var(--teal); background: #eef5f2; }
 .agent-start-modes button:hover { color: var(--teal); }

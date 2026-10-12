@@ -696,6 +696,43 @@ def _theme_id(config: dict[str, Any], role: str | None = None) -> str | None:
     return base_theme if base_theme in EXTENDED_THEME_KITS else None
 
 
+def render_extended_lead(content: str, label: str, config: dict[str, Any]) -> str | None:
+    """Quiet opening treatments belonging to each extended theme, not a shared card."""
+    theme_id = _theme_id(config, "heading")
+    if theme_id is None:
+        return None
+    p = _palette(config["palette"])
+    grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
+    text, label = _inline(content), html.escape(label)
+    common = f'data-content-role="lead" data-lead-kind="{label}" data-theme-grammar="{grammar}-lead"'
+    if grammar == "oriental":
+        return (f'<section {common} style="margin:26px 0 30px;padding:15px 0 18px 18px;border-left:4px double {p["secondary"]};border-bottom:1px solid {p["secondary"]};">'
+                f'<p style="margin:0 0 12px;color:{p["primary"]};font:700 10px/1.5 Georgia,serif;letter-spacing:.18em;">'
+                f'<span style="display:inline-block;padding:3px 8px;border:1px solid {p["accent"]};">{label}</span></p>'
+                f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:600;line-height:1.9;">{text}</p></section>')
+    if grammar == "press":
+        return (f'<section {common} style="margin:27px 0 31px;padding:12px 0 16px;border-top:4px solid {p["ink"]};border-bottom:3px double {p["ink"]};">'
+                f'<p style="margin:0 0 12px;padding-bottom:7px;border-bottom:1px dotted {p["secondary"]};color:{p["accent"]};font-size:10px;font-weight:800;letter-spacing:.12em;">{label}</p>'
+                f'<p style="margin:0;padding-left:12px;border-left:2px solid {p["accent"]};color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:650;line-height:1.85;">{text}</p></section>')
+    if grammar == "pop":
+        return (f'<section {common} style="margin:27px 4px 31px 0;padding:17px 16px 18px;border:2px solid {p["primary"]};border-radius:3px 24px 3px 3px;box-shadow:5px 5px 0 {p["accent"]};">'
+                f'<p style="margin:0 0 12px;white-space:normal;"><span style="display:inline-block;padding:4px 10px;background-color:{p["secondary"]};color:{p["primary"]};font-size:10px;font-weight:850;line-height:1.5;">{label}</span>'
+                f'<span style="display:inline-block;width:26px;margin-left:9px;vertical-align:middle;">{_sticker("pop-star.png", "width:26px;")}</span></p>'
+                f'<p style="margin:0;color:{p["ink"]};font-size:17px;font-weight:700;line-height:1.8;">{text}</p></section>')
+    if grammar == "atlas":
+        return (f'<section {common} style="margin:26px 0 30px;padding:4px 0 16px 16px;border-left:2px dotted {p["sky"]};border-bottom:1px solid {p["sky"]};">'
+                f'<p style="margin:0 0 10px;"><span style="display:inline-block;width:27px;vertical-align:middle;">{_sticker("atlas-leaf.png", "width:27px;")}</span>'
+                f'<span style="margin-left:8px;color:{p["primary"]};font:700 10px/1.5 Georgia,serif;letter-spacing:.12em;">{label}</span></p>'
+                f'<p style="margin:0;color:{p["ink"]};font-size:17px;font-weight:600;line-height:1.9;">{text}</p></section>')
+    if grammar == "business":
+        return (f'<section {common} style="margin:26px 0 30px;padding:0 0 17px;border-bottom:1px solid {p["sky"]};">'
+                f'<p style="margin:0 0 12px;padding:6px 0 6px 12px;border-left:5px solid {p["secondary"]};color:{p["primary"]};font-size:10px;font-weight:800;letter-spacing:.12em;">{label}</p>'
+                f'<p style="margin:0;padding:0 0 0 12px;border-left:1px solid {p["sky"]};color:{p["ink"]};font-size:17px;font-weight:650;line-height:1.85;">{text}</p></section>')
+    return (f'<section {common} style="margin:27px 0 31px;padding:14px 0 16px 17px;border-left:5px dashed {p["primary"]};border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};">'
+            f'<p style="margin:0 0 12px;"><span style="display:inline-block;padding:3px 9px;background-color:{p["primary"]};color:{p["surface"]};font:700 10px/1.5 Georgia,serif;letter-spacing:.14em;">{label}</span></p>'
+            f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:600;line-height:1.9;">{text}</p></section>')
+
+
 def extended_inline_emphasis_style(config: dict[str, Any]) -> str | None:
     theme_id = _theme_id(config, "inline_emphasis")
     if theme_id is None:

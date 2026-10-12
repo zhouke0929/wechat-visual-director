@@ -74,6 +74,18 @@ assert payload["setup"]["onboarding_pending"] is True, payload
 assert len(payload["setup"]["first_run_guide"]["lines"]) == 4, payload
 PY
 
+"$PACKAGE_PYTHON" - <<'PY'
+import json, urllib.request
+with urllib.request.urlopen("http://127.0.0.1:8000/api/v1/theme-gallery", timeout=60) as response:
+    gallery = json.load(response)
+assert gallery["schema_version"] == "theme_gallery.v0.5"
+assert len(gallery["themes"]) == 12
+for theme in gallery["themes"]:
+    assert len(theme["foundation_specimens"]) == 14, theme["id"]
+    assert len(theme["components"]) == 12, theme["id"]
+    assert theme["article_preview_html"], theme["id"]
+PY
+
 "$INSTALL_ROOT/visual-director" task create --file "$PACKAGE_ROOT/samples/skill-alpha/canonical-article.md" --no-plan --json > "$TEMP_ROOT/task.json"
 bash "$PACKAGE_ROOT/scripts/bootstrap.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME" > "$TEMP_ROOT/upgrade.json"
 "$PACKAGE_PYTHON" - "$TEMP_ROOT/upgrade.json" <<'PY'

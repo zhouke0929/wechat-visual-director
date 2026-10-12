@@ -1709,6 +1709,9 @@ def run(argv: Sequence[str] | None = None) -> int:
             from .theme_review import build_theme_review
             try:
                 payload = build_theme_review(Path(args.file), Path(args.output), Path(args.image), [Path(p) for p in args.reference_image])
+                if not payload.get("ok", False):
+                    raise CliError("theme_production_check_failed", "主题试样已保存，但声明布局未通过正式渲染入口检查，请先修复接入。",
+                                   details={"production_check": payload.get("production_check"), "review_file": payload.get("review_file")})
                 exit_code = 0
             except (OSError, ValueError) as exc:
                 raise CliError("theme_review_failed", str(exc)) from exc

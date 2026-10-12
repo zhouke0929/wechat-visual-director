@@ -7,8 +7,11 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import json
+import os
 import re
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
 from PIL import Image
@@ -137,6 +140,18 @@ def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
         visit(node, f"design_system.layouts.{role}", role)
     rehearsal = rehearse_theme_delivery(manifest)
     coverage = theme_layout_coverage(manifest)
+    configured_root = os.environ.get("VISUAL_DIRECTOR_PROJECT_ROOT")
+    project_root = Path(configured_root).expanduser().resolve() if configured_root else Path(__file__).resolve().parents[4]
+    template_file = project_root / "skills/wechat-visual-director/assets/theme-pack-template.json"
+    try:
+        template_layouts = json.loads(template_file.read_text(encoding="utf-8"))["design_system"]["layouts"]
+        unchanged = [role for role, node in layouts.items() if node == template_layouts.get(role)]
+        design_review = {"status": "review_required" if unchanged else "no_exact_template_matches",
+                         "scope": "exact_layout_comparison_only", "unchanged_template_roles": unchanged,
+                         "visual_review": "not_verified"}
+    except (OSError, ValueError, KeyError):
+        design_review = {"status": "not_checked", "scope": "exact_layout_comparison_only",
+                         "unchanged_template_roles": [], "visual_review": "not_verified"}
     return {
         "profile_version": DELIVERY_PROFILE_VERSION,
         "drawing_compiler": DRAWING_COMPILER_VERSION,
@@ -149,6 +164,7 @@ def theme_delivery_report(manifest: dict[str, Any]) -> dict[str, Any]:
         "findings": findings,
         "capabilities": roles,
         "rehearsal": rehearsal,
+        "design_review": design_review,
         "representative_roles": list(dict.fromkeys([f["role"] for f in findings] + roles.get("raster_decoration", [])))[:6],
         "next_action": ("fix_delivery" if rehearsal["status"] == "blocking" else
                         "complete_theme_layouts" if coverage["status"] == "partial" else
@@ -164,6 +180,7 @@ def rehearse_theme_delivery(manifest: dict[str, Any]) -> dict[str, Any]:
     """
     from .theme_layouts import render_layout
     from .publication import check_frozen_html, replace_asset_urls
+    from .theme_production import check_theme_production
 
     design = manifest.get("design_system", {})
     layouts = design.get("layouts", {})
@@ -187,5 +204,7 @@ def rehearse_theme_delivery(manifest: dict[str, Any]) -> dict[str, Any]:
                             "decoration_assets": len(assets), "decoration_bytes": sum(len(a["content"]) for a in assets)})
         except (ValueError, OSError, KeyError) as exc:
             results.append({"role": role, "status": "blocking", "message": str(exc)})
-    return {"status": "blocking" if any(r["status"] == "blocking" for r in results) else "pass",
-            "scope": "local_compile_and_asset_materialization", "roles": results}
+    production = check_theme_production(manifest)
+    return {"status": "blocking" if any(r["status"] == "blocking" for r in results) or production["status"] == "blocking" else "pass",
+            "scope": "local_compile_and_asset_materialization", "roles": results,
+            "production": production}

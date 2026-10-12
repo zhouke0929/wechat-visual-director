@@ -9,9 +9,9 @@ This directory is the public, backend-free GitHub Pages surface for WeChat Visua
 
 ## A gallery, not a long-form manual
 
-The homepage has three main sections: a first-screen gallery of three real
-article editions, the interactive 12-theme atelier, and a compact installation
-CTA. Image examples are integrated into the article gallery rather than repeated
+The homepage has four main sections: a first-screen gallery of three real
+article editions, the interactive 12-theme atelier, a reference-to-custom-theme
+creation entry, and a compact installation CTA. Image examples are integrated into the article gallery rather than repeated
 in separate feature, comparison and workflow modules. Keep supporting setup,
 cost and privacy details in a compact, always-visible two-column note (stacked
 on small screens) and linked documentation. Do not hide these notes behind a
@@ -28,6 +28,12 @@ proofreading content width). Smaller screens fit their available width; larger
 screens do not stretch the article. Card iframes use the same 405px source width
 with a visual scale, so card dimensions stay unchanged. Keep the source width and
 article labels in sync with `ArticlePreviewViewport`; regression tests check it.
+The atelier exposes a production-rendered article plus 14 foundation specimens
+and 12 semantic components. Keep ordinary quotes and lists visible, rather than
+presenting every quoted passage as an evidence card. Its specimen picker must
+preserve the selected role when switching themes. `#custom-themes` describes the
+workflow with explicitly labeled illustrative elements, not an unverified claim
+about a one-shot generation result; its copy button sends nothing automatically.
 The theme preview uses a lightweight phone shell matching the workbench's visual
 language: status bar, camera island, article navigation, account actions and home
 indicator. Only the article scrolls. Keep the bottom chrome in separate grid rows,
@@ -36,11 +42,14 @@ every theme. Phone icons are decorative, not working WeChat controls; the sample
 label makes clear that this is a static public demonstration, not a live session.
 Installation copy feedback uses a fixed-position toast and a fixed-size button;
 if both clipboard paths fail, show a selectable prompt in an accessible dialog.
+The manual dialog must show the prompt associated with the clicked button,
+whether installation or custom-theme creation.
 
 Browser regression (Playwright + Microsoft Edge; no workbench or private data):
 
 ```bash
 python scripts/check-product-showcase-ui.py --artifacts tmp/showcase
+python scripts/test_theme_gallery_browser.py
 ```
 
 By default it routes public assets from this checkout inside the test browser,

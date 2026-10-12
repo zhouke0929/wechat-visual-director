@@ -87,7 +87,8 @@ export type ThemeGalleryItem = {
     local_delivery: "blocking" | "review_required" | "static_pass" | "not_checked";
     wechat_saved_roundtrip: "not_verified";
     capabilities: Record<string, string[]>;
-    rehearsal: { status: "pass" | "blocking" | "not_applicable" };
+    rehearsal: { status: "pass" | "blocking" | "not_applicable"; production?: { status: string; checked_roles: string[] } };
+    design_review?: { status: string; unchanged_template_roles: string[] };
     findings: { code: string; role: string; path: string; message: string }[];
   } | null;
   author?: string;
@@ -101,6 +102,8 @@ export type ThemeGalleryItem = {
   };
   components: ThemeComponentSpecimen[];
   rhythm_primitives: ThemeRhythmPrimitive[];
+  foundation_specimens?: Array<Omit<ThemeRhythmPrimitive, "role"> & { role: string }>;
+  article_preview_html?: string;
   full_preview_html: string;
 };
 

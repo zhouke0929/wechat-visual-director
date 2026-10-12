@@ -144,7 +144,7 @@ export async function deleteTasks(taskIds: string[]): Promise<{
 export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
   const response = await fetch(`${API_BASE}/theme-gallery`, { cache: "no-store" });
   const payload = await parseResponse<{
-    schema_version: "theme_gallery.v0.4";
+    schema_version: "theme_gallery.v0.5";
     themes: ThemeGalleryItem[];
   }>(response);
   return payload.themes;

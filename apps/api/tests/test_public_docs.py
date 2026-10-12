@@ -130,7 +130,7 @@ def test_product_search_metadata_matches_visible_product_facts() -> None:
     assert "Technical Preview" in data["operatingSystem"]
     assert "softwareVersion" not in data  # Do not duplicate the release pointer.
     body = text.split("<body>", 1)[1]
-    for fact in ("600px", "405px", "12 类语义组件", "6 类文章骨架"):
+    for fact in ("600px", "405px", "12 类语义组件", "14 种基础样式"):
         assert fact in body
         assert fact in " ".join(data["featureList"])
         assert fact in (ROOT / "site/llms.txt").read_text(encoding="utf-8")
@@ -151,7 +151,7 @@ def test_public_sitemap_points_to_real_canonical_pages() -> None:
 
 def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
     text = (ROOT / "site/index.html").read_text(encoding="utf-8")
-    assert len(re.findall(r"<section\b", text)) == 3
+    assert len(re.findall(r"<section\b", text)) == 4
     assert '<aside class="product-notes" id="faq" aria-labelledby="notes-title">' in text
     assert '<summary' not in text
     header = text.split('<header class="site-nav">', 1)[1].split('</header>', 1)[0]
@@ -163,6 +163,22 @@ def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
             assert (ROOT / "site" / link.split("?", 1)[0]).exists(), (attribute, link)
         elif link.startswith("#"):
             assert f'id="{link[1:]}"' in text, link
+
+
+def test_custom_theme_creation_is_discoverable_without_reading_developer_docs(tmp_path) -> None:
+    page = (ROOT / "site/index.html").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert 'href="#custom-themes"' in page
+    assert 'id="custom-themes"' in page and "data-copy-theme" in page
+    assert 'id="specimenSelect"' in page
+    assert "组件参考图" in readme and "`.vdtheme`" in readme
+    assert "主题" in readme.split('<p align="center">', 1)[0]
+    from visual_director.onboarding import read_workbench_onboarding
+    guide = read_workbench_onboarding(tmp_path / "onboarding-state.json")["guide"]
+    assert len(guide["lines"]) <= 5
+    assert any("参考图" in line and "整套主题" in line for line in guide["lines"])
+    assert any("候选" in line and "审核" in line for line in guide["lines"])
+    assert any("不自动群发" in line for line in guide["lines"])
 
 
 def test_showcase_article_width_matches_workbench_mobile_viewport() -> None:
