@@ -73,6 +73,25 @@ if (-not (Test-Path -LiteralPath $Installer -PathType Leaf)) {
     }
 }
 
+# The new package owns this helper; old cores need not know the new command.
+$CheckScript = Join-Path $SourceRoot "scripts\check-upgrade-data.py"
+$CheckPython = Join-Path $SourceRoot "runtime\python\python.exe"
+if (-not (Test-Path -LiteralPath $CheckPython -PathType Leaf)) {
+    $SourcePython = Get-Command python -ErrorAction SilentlyContinue
+    if ($null -eq $SourcePython) {
+        Write-BootstrapFailure "upgrade_check_runtime_missing" "The package Python required for data continuity checks is missing."
+    }
+    $CheckPython = $SourcePython.Source
+}
+$Snapshot = Join-Path $InstallRoot ("runtime\upgrade-data-" + [Guid]::NewGuid().ToString("N") + ".json")
+Write-ProgressMessage "Checking the current data source before installation."
+$CheckRaw = & $CheckPython $CheckScript capture --install-root $InstallRoot --snapshot $Snapshot --api-base $ApiBase --candidate (Join-Path $SourceRoot "apps\api\data")
+$CheckExit = $LASTEXITCODE
+$CheckResult = Parse-JsonResult $CheckRaw "data_continuity"
+if ($CheckExit -ne 0 -or -not $CheckResult.ok) {
+    Write-BootstrapFailure $CheckResult.error.code $CheckResult.error.message @{ data_check = $CheckResult; next_action = "review_data_migration" }
+}
+
 if (Test-Path -LiteralPath $StableLauncher -PathType Leaf) {
     Write-ProgressMessage "Stopping the currently installed runtime before upgrade."
     $StopRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $StableLauncher stop --json
@@ -106,6 +125,14 @@ if ($InstallExitCode -ne 0 -or -not $InstallResult.ok) {
 }
 
 $Launcher = [string]$InstallResult.launcher
+Write-ProgressMessage "Verifying tasks and assets were preserved."
+$CheckRaw = & $CheckPython $CheckScript verify --install-root $InstallRoot --snapshot $Snapshot
+$CheckExit = $LASTEXITCODE
+$CheckResult = Parse-JsonResult $CheckRaw "data_continuity"
+if ($CheckExit -ne 0 -or -not $CheckResult.ok) {
+    Write-BootstrapFailure $CheckResult.error.code $CheckResult.error.message @{ data_check = $CheckResult; snapshot = $Snapshot }
+}
+$DataContinuity = $CheckResult.data_continuity
 Write-ProgressMessage "Starting the installed production services."
 $ServeRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher serve --api-base $ApiBase --web-base $WebBase --json
 $ServeExitCode = $LASTEXITCODE
@@ -126,6 +153,9 @@ if ($DoctorExitCode -ne 0 -or -not $DoctorResult.ok) {
         doctor_result = $DoctorResult
         launcher = $Launcher
     } 3
+}
+if ([int]$DoctorResult.installation.running_task_count -lt [int]$DataContinuity.before_task_count) {
+    Write-BootstrapFailure "upgrade_running_data_incomplete" "The running workbench cannot see all previous tasks." @{ data_continuity = $DataContinuity } 3
 }
 
 $NextAction = [string]$DoctorResult.setup.next_action
@@ -172,6 +202,7 @@ if ($FirstInstallation -and $null -eq $FirstRunGuide -and $null -eq $DoctorResul
     python_version = [string]$InstallResult.python_version
     bundled_runtime = [bool]$InstallResult.bundled_runtime
     installation = $DoctorResult.installation
+    data_continuity = $DataContinuity
     capabilities = $DoctorResult.capabilities
     setup = $DoctorResult.setup
     warnings = @($InstallResult.warnings) + @($DoctorResult.warnings)

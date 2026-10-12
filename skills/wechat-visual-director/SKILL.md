@@ -34,7 +34,7 @@ bash "{baseDir}/scripts/ensure-workbench.sh"
 
 3. 准备入口只在稳定启动器缺失时下载校验过的正式 Release；已有安装直接启动并运行 doctor，不自动升级。用户明确要求升级时传 `-Upgrade` / `--upgrade`。只需要后台准备、马上还要打开文章任务时，可传 `-NoOpen` / `--no-open`，避免先打开空工作台。脚本不需要系统 Python、Node.js 或 Git。安装失败、受限或需要源码开发时再读 [安装与恢复说明](references/install.md)。
 4. 只解析 stdout 的最终 JSON。`ok=true` 且 `workbench_ready=true` 后，把绝对 `launcher` 记为 `{launcher}`，后续调用这个稳定入口。未主动使用 `NoOpen` 而 `browser_opened=false` 时，由宿主打开 `workbench_url`；为创建文章使用 `NoOpen` 时先继续文章流程，之后打开具体任务。用户只要求安装或打开工作台时，返回链接和适用的简短引导，不额外生成文章。用户要求文章时不停在安装成功。返回 `command_completed=true` 表示命令已结束，后台 API 独立运行，不要等待 API 进程退出，也不要为确认成功再次执行相同准备命令。
-5. 准备入口会校验 `installation.persistent`、`version_match`、`runtime_match` 与 `capabilities.host_skill_registered`；失败时不得继续创建任务或声称工作台就绪。不要自行改用源码/测试服务。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
+5. 准备入口会校验 `installation.persistent`、`version_match`、`runtime_match` 与 `capabilities.host_skill_registered`；失败时不得继续创建任务或声称工作台就绪。升级还须按 [安装与恢复说明](references/install.md) 核对数据延续：版本一致不代表原任务仍在。不要自行改用源码/测试服务。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
 6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
 7. 用户要求安装、开始使用或初次打开工作台时，参考 `first_run_guide` 返回不超过五行的简短上手说明（同一轮只讲一次）。首页常显简要流程，不再需要「我已了解」按钮；不要要求确认或代调用已读接口。`first_install` 只表示这次是否新装，`onboarding_pending` 是兼容字段，不作为反复讲教程的条件。普通再次打开、文章续写、生图、升级、诊断不主动重复整段教程；需要时提醒首页有简要流程，已有文章可从「最近任务」进入。只有宿主明确要求重新加载时才提示重启，不默认要求新开对话。
 8. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。

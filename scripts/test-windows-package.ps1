@@ -33,6 +33,9 @@ try {
     $BootstrapResult = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $BootstrapResult.ok) { throw "Bootstrap failed: $($BootstrapResult | ConvertTo-Json -Compress -Depth 8)" }
     if (-not $BootstrapResult.installation.runtime_match) { throw "Installed runtime identity mismatch." }
+    if (-not $BootstrapResult.data_continuity.checked -or -not $BootstrapResult.data_continuity.preserved) {
+        throw "Package installation did not verify data continuity."
+    }
     if ($BootstrapResult.runtime_mode -ne "bundled_python" -or -not $BootstrapResult.bundled_runtime) {
         throw "Installer did not select bundled Python."
     }
@@ -71,6 +74,14 @@ try {
     $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --json
     $Task = (@($TaskRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Task.ok -or [string]::IsNullOrWhiteSpace([string]$Task.task_id)) { throw "Sample task creation failed." }
+
+    # Reinstall an occupied dataset, not just an empty first installation.
+    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome
+    $Upgrade = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if (-not $Upgrade.ok -or -not $Upgrade.data_continuity.preserved -or
+        $Upgrade.data_continuity.before_task_count -ne 1 -or $Upgrade.installation.running_task_count -ne 1) {
+        throw "Reinstall did not preserve the sample task."
+    }
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher stop --json | Out-Null
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallRoot "uninstall.ps1") -InstallRoot $InstallRoot -HostHome $HostHome -Purge | Out-Null

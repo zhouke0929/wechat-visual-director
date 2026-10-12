@@ -10,6 +10,10 @@ wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准
 
 ## 安装或升级
 
+只要求更新 Skill 文件时，同步 Skill，不顺带更换工作台或数据来源；需要升级工作台时说明并取得用户授权。升级前先用 `doctor --json` 记录实际运行的 `running_data_root`、`running_task_count`，并以 `data scan` 盘点当前及已知旧数据目录（例如用户提供的源码目录），只读目录、计数与健康状态，不读取正文或私密配置。不要递归搜盘后自动选择“任务最多”的库。
+
+新版安装流程先备份非空数据集，返回 `data_continuity.checked=true`、`preserved=true` 与 `backup_root`，核对任务 ID 与配套资产，而非只检查数量。`upgrade_data_migration_required` / `upgrade_data_root_changed` 表示发现不同数据来源，必须向用户展示来源与目标计数，确认后用 `data recover` 迁移完整数据集，不只复制 SQLite。旧安装包没有此字段时，宿主仍须比较升级前后实际数据目录、任务数及资产盘点；发现旧库非空、新库为空不得报告升级成功，也不得继续创建任务掩盖问题。数据恢复后重新检查，再交付工作台。
+
 1. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，先运行 `doctor --json`。只有入口不存在或用户明确要求升级时才下载安装。
 2. Windows x64 使用固定 Agent 安装器入口。它会读取当前公开版本、校验 Release 的 SHA-256，安装内置 Python、后端和生产工作台，并注册轻量 Skill：
 

@@ -49,6 +49,8 @@ assert payload["bundled_runtime"] is True, payload
 assert payload["installation"]["persistent"] is True, payload
 assert payload["installation"]["version_match"] is True, payload
 assert payload["installation"]["runtime_match"] is True, payload
+assert payload["data_continuity"]["checked"] is True, payload
+assert payload["data_continuity"]["preserved"] is True, payload
 assert payload["capabilities"]["host_skill_registered"] is True, payload
 assert payload["onboarding_pending"] is True, payload
 assert len(payload["first_run_guide"]["lines"]) == 4, payload
@@ -70,6 +72,17 @@ assert payload["ok"] is True, payload
 assert payload["installation"]["runtime_match"] is True, payload
 assert payload["setup"]["onboarding_pending"] is True, payload
 assert len(payload["setup"]["first_run_guide"]["lines"]) == 4, payload
+PY
+
+"$INSTALL_ROOT/visual-director" task create --file "$PACKAGE_ROOT/samples/skill-alpha/canonical-article.md" --no-plan --json > "$TEMP_ROOT/task.json"
+bash "$PACKAGE_ROOT/scripts/bootstrap.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME" > "$TEMP_ROOT/upgrade.json"
+"$PACKAGE_PYTHON" - "$TEMP_ROOT/upgrade.json" <<'PY'
+import json, sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+assert payload["ok"] is True, payload
+assert payload["data_continuity"]["preserved"] is True, payload
+assert payload["data_continuity"]["before_task_count"] == 1, payload
+assert payload["installation"]["running_task_count"] == 1, payload
 PY
 
 printf 'preserve-me\n' > "$INSTALL_ROOT/data/package-test-marker.txt"

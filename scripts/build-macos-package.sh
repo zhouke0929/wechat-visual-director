@@ -65,7 +65,7 @@ copy_release_path() {
 REQUIRED_PATHS=(
   VERSION INSTALL_FOR_AGENT.md README.md LICENSE THIRD_PARTY_NOTICES.md .env.example
   docs/usage-guide.md
-  scripts/bootstrap.sh scripts/install.sh scripts/persistent-launcher.sh scripts/visual-director.sh scripts/uninstall.sh
+  scripts/bootstrap.sh scripts/check-upgrade-data.py scripts/install.sh scripts/persistent-launcher.sh scripts/visual-director.sh scripts/uninstall.sh
   apps/api/pyproject.toml apps/api/.env.example apps/web/dist
   skills/wechat-visual-director assets contracts samples/skill-alpha
 )
