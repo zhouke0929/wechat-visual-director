@@ -22,6 +22,7 @@ visual-director = "visual_director.cli:main"
 dev = [
   "beautifulsoup4>=4.12,<5.0",
   "httpx>=0.27,<1.0",
+  "jsonschema>=4.18,<5.0",
   "pytest>=8.0,<9.0",
 ]
 
