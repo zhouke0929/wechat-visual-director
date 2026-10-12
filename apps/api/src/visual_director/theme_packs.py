@@ -283,7 +283,12 @@ def _validate_generated_design_system(
     return normalized if not any(item["field"].startswith("design_system") for item in errors) else None
 
 
-def validate_theme_pack_manifest(payload: Any) -> dict[str, Any]:
+def validate_theme_pack_manifest(payload: Any, *, reserved_ids: Iterable[str] | None = None,
+                                 core_components: Iterable[str] | None = None) -> dict[str, Any]:
+    # Offline tools validate against the official catalog without initializing
+    # or mutating the user's installed-theme registry.
+    reserved = _reserved_ids if reserved_ids is None else frozenset(reserved_ids)
+    components = _core_components if core_components is None else tuple(core_components)
     if not isinstance(payload, dict):
         raise ThemePackError("主题扩展包清单必须是 JSON 对象")
     manifest = copy.deepcopy(payload)
@@ -316,7 +321,7 @@ def validate_theme_pack_manifest(payload: Any) -> dict[str, Any]:
     theme_id = _short_text(manifest, "id", errors, maximum=48)
     if theme_id and not THEME_PACK_ID_RE.fullmatch(theme_id):
         _field_error(errors, "id", "只能使用小写字母、数字和下划线，并以字母开头")
-    if theme_id in _reserved_ids:
+    if theme_id in reserved:
         _field_error(errors, "id", "不能覆盖官方主题")
 
     name = _short_text(manifest, "name", errors, maximum=32)
@@ -325,7 +330,7 @@ def validate_theme_pack_manifest(payload: Any) -> dict[str, Any]:
     version = _short_text(manifest, "version", errors, maximum=32)
     author = _short_text(manifest, "author", errors, maximum=60)
     base_theme = _short_text(manifest, "base_theme", errors, maximum=48)
-    if base_theme and base_theme not in _reserved_ids:
+    if base_theme and base_theme not in reserved:
         _field_error(errors, "base_theme", "必须继承一套现有官方主题")
 
     ideal_for = _text_list(manifest, "ideal_for", errors, maximum=6)
@@ -416,7 +421,7 @@ def validate_theme_pack_manifest(payload: Any) -> dict[str, Any]:
         if component_contract.get("mode") != "inherit":
             _field_error(errors, "component_contract.mode", "v1 只允许 inherit")
         coverage = component_contract.get("coverage")
-        if coverage != list(_core_components):
+        if coverage != list(components):
             _field_error(errors, "component_contract.coverage", "必须覆盖全部标准语义组件且顺序一致")
         if component_contract.get("edit_contract") != "semantic_dom_v1":
             _field_error(errors, "component_contract.edit_contract", "必须是 semantic_dom_v1")
@@ -444,7 +449,7 @@ def validate_theme_pack_manifest(payload: Any) -> dict[str, Any]:
         "tone": tone,
         "component_contract": {
             "mode": "inherit",
-            "coverage": list(_core_components),
+            "coverage": list(components),
             "edit_contract": "semantic_dom_v1",
         },
     }
@@ -559,8 +564,9 @@ def _read_pack_bytes(content: bytes, filename: str) -> dict[str, Any]:
         raise ThemePackError("theme.json 无法解析") from exc
 
 
-def validate_theme_pack_bytes(content: bytes, filename: str) -> dict[str, Any]:
-    return validate_theme_pack_manifest(_read_pack_bytes(content, filename))
+def validate_theme_pack_bytes(content: bytes, filename: str, *, reserved_ids: Iterable[str] | None = None,
+                              core_components: Iterable[str] | None = None) -> dict[str, Any]:
+    return validate_theme_pack_manifest(_read_pack_bytes(content, filename), reserved_ids=reserved_ids, core_components=core_components)
 
 
 def install_theme_pack_bytes(content: bytes, filename: str) -> dict[str, Any]:

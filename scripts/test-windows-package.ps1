@@ -9,7 +9,11 @@ $ArchivePath = [IO.Path]::GetFullPath($ArchivePath)
 if (-not (Test-Path -LiteralPath $ArchivePath -PathType Leaf)) {
     throw "Release archive not found: $ArchivePath"
 }
-$TestRoot = Join-Path ([IO.Path]::GetTempPath()) ("wechat-visual-director-package-test-" + [Guid]::NewGuid().ToString("N"))
+$TempParent = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd("\")
+$TestRoot = [IO.Path]::GetFullPath((Join-Path $TempParent ("wechat-visual-director-package-test-" + [Guid]::NewGuid().ToString("N"))))
+if (-not $TestRoot.StartsWith($TempParent + "\", [StringComparison]::OrdinalIgnoreCase)) {
+    throw "The package-test cleanup path escaped its temporary parent."
+}
 $ExtractRoot = Join-Path $TestRoot "extracted"
 $InstallRoot = Join-Path $TestRoot "installed"
 $HostHome = Join-Path $TestRoot "host"

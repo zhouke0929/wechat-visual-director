@@ -3,6 +3,7 @@
 import { useContext, useEffect, useRef, useState } from "react";
 
 import { ArticlePreviewModeContext } from "@/components/article-preview-viewport";
+import { PREVIEW_NORMALIZATION_CSS, PREVIEW_PROFILES } from "@/lib/preview-profiles";
 import type {
   ContentEditorBlock,
   ContentEditorDocument,
@@ -55,7 +56,7 @@ function previewHash(src: string): string {
   }
 }
 
-const PROOF_FONT_SCALE = 1.06;
+const PROOF_FONT_SCALE = PREVIEW_PROFILES.proof.font_scale;
 const inlineEditorCleanups = new WeakMap<Document, () => void>();
 
 function normalizedText(value: string): string {
@@ -454,13 +455,7 @@ function applyWorkbenchPreviewProfile(
   if (!normalization) {
     normalization = document.createElement("style");
     normalization.dataset.workbenchPreviewNormalization = "";
-    normalization.textContent = `
-      *,*::before,*::after{box-sizing:border-box!important;}
-      html[data-workbench-preview-mode="mobile"],
-      html[data-workbench-preview-mode="mobile"] body{max-width:100%!important;overflow-x:hidden!important;}
-      html[data-workbench-preview-mode="mobile"] main{max-width:100%!important;}
-      html[data-workbench-preview-mode="mobile"] :is(p,span,strong,b,em,i,a,blockquote,li,td,th){overflow-wrap:anywhere!important;word-break:break-word;}
-    `;
+    normalization.textContent = PREVIEW_NORMALIZATION_CSS;
     document.head?.append(normalization);
   }
 

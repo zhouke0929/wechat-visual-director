@@ -120,7 +120,7 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
                     "field": {"bind"}, "repeat": {"bind", "children"}, "rule": set(),
                     "shape": {"width", "height"}, "media": set(),
                     "cutout": {"children", "fill", "radius", "pitch", "inset"},
-                    "drawing": {"width", "height", "parts"}}
+                    "drawing": {"width", "height", "parts", "sizing"}}
             if not isinstance(kind, str) or kind not in keys:
                 error(path, "未知节点类型")
                 return
@@ -311,6 +311,8 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
                     f'style="display:block;width:100%;height:auto;border:0;{css}" />')
         if kind in {"text", "field"}:
             value = node["text"] if kind == "text" else context[node["bind"]]
+            if kind == "field" and node["bind"] == "index" and not value:
+                return ""
             attr = 'data-theme-static="true"' if kind == "text" or node.get("bind") == "index" else f'data-theme-field="{node["bind"]}"'
             tag = "h1" if role == "hero" and kind == "field" and node["bind"] == "title" else "p"
             return f'<{tag} {attr} style="{css}">{_inline(value)}</{tag}>'
@@ -337,6 +339,10 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
         if kind == "marker_row":
             width = node["marker_width"]
             marker, body = node["children"]
+            if marker.get("type") == "field" and marker.get("bind") == "index" and not context.get("index"):
+                # Source numbering stays inside the editable title. Do not
+                # leave an empty badge/column beside that already numbered text.
+                return f'<section style="{css}">{render(body, context)}</section>'
             # Same percentage inline columns as the established row renderer;
             # no calc(), positioning, flex or table semantics in editable prose.
             return (f'<section data-theme-marker-row="true" style="{css}">'

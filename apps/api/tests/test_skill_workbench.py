@@ -65,7 +65,7 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $env:WVD_FIXTURE_ROOT 'launcher.ps1') -Destination (Join-Path $InstallRoot 'visual-director.ps1')
-@{install_root=$InstallRoot; host_home=$HostHome} | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $env:WVD_FIXTURE_ROOT 'install-args.json')
+@{install_root=$InstallRoot; host_home=$HostHome} | ConvertTo-Json -Compress | Set-Content -Encoding UTF8 -LiteralPath (Join-Path $env:WVD_FIXTURE_ROOT 'install-args.json')
 Get-Content -Raw -LiteralPath (Join-Path $env:WVD_FIXTURE_ROOT 'install.json')
 exit 0
 ''', encoding="utf-8")

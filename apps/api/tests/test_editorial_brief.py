@@ -667,6 +667,37 @@ def test_parallel_analysis_heading_with_internal_how_is_not_a_question_card() ->
     ]
 
 
+def test_plain_personal_quote_survives_brief_compilation() -> None:
+    from bs4 import BeautifulSoup
+    parsed = parse_markdown('# 听歌手记\n\n今天只想安静地听一首歌。\n\n> 有时值得留下的，只是还想再听一次的感受。\n\n不必写出完整评价。')
+    request = TextPlannerRequest(parsed=parsed, article_type='viewpoint_trend', history_window=5, recent_summaries=[], brand_config={})
+    brief = MockTextPlannerProvider().generate(request).model_copy(deep=True)
+    brief.sections = []
+    brief.image_intents = []
+    plan = compile_editorial_brief(parsed, brief, 5, [])
+    assert not any(slot['component_type'] == 'evidence_callout' for slot in plan.get('slots', []))
+    soup = BeautifulSoup(render_preview(parsed, plan), 'html.parser')
+    quote = next(block for block in parsed.blocks if block.type == 'quote')
+    target = soup.select_one(f'[data-editor-block-ids="{quote.id}"]')
+    assert target is not None
+    assert target.get('data-editor-block-type') == 'quote'
+    assert quote.content in target.get_text()
+
+
+@pytest.mark.parametrize('text, candidate', [
+    ('有时值得留下的，只是还想再听一次的感受。', False),
+    ('2026 年我想多留一点时间给自己。', False),
+    ('这份报告我还没读完，明天再继续。', False),
+    ('调查报告显示，受访者中有 32% 选择了第一项。', True),
+    ('公告明确，办理材料应包含原件和复印件。', True),
+])
+def test_automatic_quote_evidence_needs_attribution_signal(text, candidate) -> None:
+    parsed = parse_markdown('# 测试\n\n正文。\n\n> '+text)
+    quote = next(b for b in parsed.blocks if b.type == 'quote')
+    anchors = component_opportunity_diagnostics(parsed)['candidate_anchors']
+    assert any(a['anchor_block_id'] == quote.id and a['component_type'] == 'evidence_callout' for a in anchors) is candidate
+
+
 def test_generalized_source_note_is_not_an_evidence_candidate() -> None:
     parsed = parse_markdown(
         """# 行业观察

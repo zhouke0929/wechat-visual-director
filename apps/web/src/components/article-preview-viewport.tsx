@@ -2,6 +2,7 @@
 
 import "@sneas/telephone/iphone-16-max";
 import { createContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { PREVIEW_PROFILES } from "@/lib/preview-profiles";
 
 export type PreviewMode = "proof" | "mobile";
 
@@ -17,9 +18,9 @@ type Props = {
   onModeChange?: (mode: PreviewMode) => void;
 };
 
-const WECHAT_EDITOR_CONTENT_WIDTH = 600;
-const PROOF_SOURCE_WIDTH = WECHAT_EDITOR_CONTENT_WIDTH + 48;
-const MOBILE_SOURCE_WIDTH = 405;
+const WECHAT_EDITOR_CONTENT_WIDTH = PREVIEW_PROFILES.proof.content_width;
+const PROOF_SOURCE_WIDTH = PREVIEW_PROFILES.proof.viewport_width;
+const MOBILE_SOURCE_WIDTH = PREVIEW_PROFILES.mobile.viewport_width;
 
 function BackIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" /></svg>;

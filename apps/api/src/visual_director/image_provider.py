@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from .image_intent import build_visual_grammar, resolve_display_copy
+from .preview_profiles import REVIEW_PROFILES
 
 
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
@@ -219,7 +220,7 @@ def _structured_density_direction(candidate_index: int, style_family: str = "") 
         f"{paths[max(0, candidate_index - 1) % len(paths)]}；核心内容占画布70%到85%，"
         "主场景横向铺开，顶部标题区不超过画面12%，上下空白带各不超过8%。"
         "节点必须画成可辨认的小场景或物体组合，不能缩成一排小图标；"
-        "短标签按390px宽手机预览设计，使用清晰大字，不能缩成注释小字。"
+        f"短标签按{next(p['content_width'] for p in REVIEW_PROFILES if p['id'] == 'mobile')}px正文净宽的手机预览设计，使用清晰大字，不能缩成注释小字。"
     )
     if style_family == "editorial_tech_collage":
         return (

@@ -1,0 +1,12 @@
+{
+  "schema_version": "article_preview_profiles.v1",
+  "body_padding_x": 24,
+  "normalization_css": "*,*::before,*::after{box-sizing:border-box!important;}",
+  "mobile_css": "html[data-workbench-preview-mode=\"mobile\"],html[data-workbench-preview-mode=\"mobile\"] body{max-width:100%!important;overflow-x:hidden!important;}html[data-workbench-preview-mode=\"mobile\"] main{max-width:100%!important;}html[data-workbench-preview-mode=\"mobile\"] :is(p,span,strong,b,em,i,a,blockquote,li,td,th){overflow-wrap:anywhere!important;word-break:break-word;}",
+  "profiles": [
+    {"id": "mobile", "mode": "mobile", "primary": true, "viewport_width": 405, "font_scale": 1},
+    {"id": "proof", "mode": "proof", "primary": true, "viewport_width": 648, "font_scale": 1.06},
+    {"id": "narrow", "mode": "mobile", "primary": false, "viewport_width": 368, "font_scale": 1},
+    {"id": "legacy", "mode": "mobile", "primary": false, "viewport_width": 438, "font_scale": 1}
+  ]
+}

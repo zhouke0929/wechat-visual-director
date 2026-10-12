@@ -9,6 +9,7 @@ from typing import Any
 
 from .brand import load_brand_profile
 from .components import render_component
+from .heading_numbers import has_explicit_heading_number
 from .generated_theme import (
     generated_image_frame_variant,
     generated_image_placeholder_style,
@@ -22,6 +23,7 @@ from .generated_theme import (
     render_generated_table,
 )
 from .parser import ContentBlock, ParsedArticle
+from .preview_profiles import BODY_PADDING_X
 from .plan_schema import validate_plan_for_article
 from .theme_extensions import (
     extended_image_frame_variant,
@@ -54,13 +56,6 @@ def preserve_wechat_decorative_nodes(document: str) -> str:
     return EMPTY_DECORATIVE_NODE_RE.sub(replace, document)
 
 
-EXPLICIT_HEADING_NUMBER_RE = re.compile(
-    r"^\s*(?:[^\w\u4e00-\u9fff]{0,4}\s*)?"
-    r"(?:PART\s*\d+|第[一二三四五六七八九十百0-9]+(?:章|节|部分|步|问)|"
-    r"[一二三四五六七八九十百]+[、.．]|\d+[、.．]|"
-    r"(?:痛点|问题|步骤|信号|核心功能)[一二三四五六七八九十百0-9]+)",
-    flags=re.IGNORECASE,
-)
 CONCLUSION_CUE_RE = re.compile(r"结论(?:是|：|:)|核心判断|答案是|最重要的是|建议是|这意味着")
 GUIDE_CUE_RE = re.compile(r"本文|这篇|今天|接下来|逐个|一次性|直接回答|告诉你|梳理")
 CASE_LIST_CONTEXT_RE = re.compile(r"案例|样本|实例|两校|两种学校|同名专业|现实样本|对比|差异")
@@ -221,7 +216,7 @@ def _render_thematic_break(config: dict[str, Any]) -> str:
 
 
 def _has_explicit_heading_number(value: str) -> bool:
-    return bool(EXPLICIT_HEADING_NUMBER_RE.match(value))
+    return has_explicit_heading_number(value)
 
 
 def _opening_highlight(parsed: ParsedArticle) -> tuple[str | None, str | None]:
@@ -1242,7 +1237,7 @@ def render_preview(
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         '<style>html{scroll-behavior:smooth}.component-anchor:target,.image-slot-anchor:target,.source-image-anchor:target{outline:2px solid #8FD6CE;outline-offset:7px;border-radius:10px}</style>'
         f'<title>{html.escape(parsed.title)}</title></head>'
-        f'<body style="box-sizing:border-box;margin:0;padding:0 24px;background-color:{palette["surface"] if generated_theme else "#FFFFFF"};font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
+        f'<body style="box-sizing:border-box;margin:0;padding:0 {BODY_PADDING_X}px;background-color:{palette["surface"] if generated_theme else "#FFFFFF"};font-family:\'Noto Sans SC\',\'Microsoft YaHei\',Arial,sans-serif;">'
         f'{hero}<main style="box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:0 0 34px;">'
         f'{"".join(body)}{cta}</main></body></html>'
     )

@@ -294,7 +294,7 @@ def test_seedream_oriental_infographic_strips_section_number_and_enforces_mobile
     )
     assert '标题“先完成四步改造，再考虑视觉包装”' in prompt
     assert "二、先完成四步改造" not in prompt
-    assert "390px宽手机预览" in prompt
+    assert "357px正文净宽的手机预览" in prompt
     assert "东方留白只能保留在画面边缘" in prompt
     assert "主体、连接路径和标签共同占画布78%到88%" in prompt
     assert "最大连续空白区域不得超过画面18%" in prompt

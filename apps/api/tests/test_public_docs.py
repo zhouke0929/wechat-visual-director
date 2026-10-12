@@ -54,7 +54,13 @@ def test_user_guide_is_public_and_included_in_release_packages() -> None:
         assert "docs/usage-guide.md" in text
 
 
-@pytest.mark.parametrize("relative_path", ("README.md", "docs/usage-guide.md", "INSTALL_FOR_AGENT.md"))
+@pytest.mark.parametrize("relative_path", (
+    "README.md", "docs/usage-guide.md", "INSTALL_FOR_AGENT.md",
+    "skills/wechat-visual-director/SKILL.md",
+    "skills/wechat-visual-director/references/theme-design-review.md",
+    "skills/wechat-visual-director/references/theme-visual-checks.md",
+    "skills/wechat-visual-director/references/theme-packs.md",
+))
 def test_document_local_links_and_images_exist(relative_path: str) -> None:
     source = ROOT / relative_path
     text = source.read_text(encoding="utf-8")
@@ -161,7 +167,9 @@ def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
 
 def test_showcase_article_width_matches_workbench_mobile_viewport() -> None:
     viewport = (ROOT / "apps/web/src/components/article-preview-viewport.tsx").read_text(encoding="utf-8")
-    width = re.search(r"const MOBILE_SOURCE_WIDTH = (\d+);", viewport).group(1)
+    config = json.loads((ROOT / "apps/api/src/visual_director/preview_profiles.json").read_text(encoding="utf-8"))
+    width = str(next(p['viewport_width'] for p in config['profiles'] if p['id'] == 'mobile'))
+    assert "PREVIEW_PROFILES.mobile.viewport_width" in viewport
     stylesheet = (ROOT / "site/articles/article.css").read_text(encoding="utf-8")
     assert f"--article-preview-width: {width}px;" in stylesheet
     assert "width: var(--article-preview-width); max-width: 100%" in stylesheet

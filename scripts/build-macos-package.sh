@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIRECTORY="$ROOT/artifacts/release"
@@ -88,8 +89,9 @@ RUNTIME_PYTHON="$PACKAGE_ROOT/runtime/python/bin/python3"
 UV_NO_CACHE=1 uv pip install --python "$RUNTIME_PYTHON" --reinstall --break-system-packages "$ROOT/apps/api"
 "$RUNTIME_PYTHON" -c 'import fastapi, PIL, uvicorn, visual_director, yaml; print("runtime-ok")' >/dev/null
 
-find "$PACKAGE_ROOT/runtime/python" -type d -name '__pycache__' -prune -exec rm -rf {} +
-find "$PACKAGE_ROOT/runtime/python" -type f \( -name '*.pyc' -o -name '*.log' \) -delete
+# Review scripts in the copied Skill can also have local bytecode caches.
+find "$PACKAGE_ROOT" -type d -name '__pycache__' -prune -exec rm -rf {} +
+find "$PACKAGE_ROOT" -type f \( -name '*.pyc' -o -name '*.log' \) -delete
 chmod +x "$PACKAGE_ROOT/scripts/"*.sh "$PACKAGE_ROOT/runtime/python/bin/python3"
 
 "$RUNTIME_PYTHON" - "$PACKAGE_ROOT" "$VERSION" "$ARCHITECTURE" <<'PY'

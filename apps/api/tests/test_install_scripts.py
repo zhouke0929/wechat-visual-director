@@ -123,7 +123,7 @@ def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
     expected_files = {
         path.relative_to(SKILL_SOURCE)
         for path in SKILL_SOURCE.rglob("*")
-        if path.is_file()
+        if path.is_file() and '__pycache__' not in path.parts and path.suffix != '.pyc'
     }
     assert expected_files
     for registration in (

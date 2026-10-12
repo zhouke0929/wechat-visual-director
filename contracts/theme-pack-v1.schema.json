@@ -214,7 +214,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["kind", "stroke", "stroke_width"],
       "properties": {
-        "kind": {"enum": ["polyline", "ellipse"]},
+        "kind": {"enum": ["polyline", "polygon", "ellipse"]},
         "stroke": {"$ref": "#/$defs/paletteRole"}, "fill": {"$ref": "#/$defs/paletteRole"},
         "stroke_width": {"type": "number", "minimum": 0.5, "maximum": 4},
         "points": {"type": "array", "minItems": 2, "maxItems": 32, "items": {"$ref": "#/$defs/drawingPoint"}},
@@ -223,6 +223,7 @@
       },
       "allOf": [
         {"if": {"properties": {"kind": {"const": "polyline"}}}, "then": {"required": ["points"]}},
+        {"if": {"properties": {"kind": {"const": "polygon"}}}, "then": {"required": ["points", "fill"], "properties": {"points": {"minItems": 3}}}},
         {"if": {"properties": {"kind": {"const": "ellipse"}}}, "then": {"required": ["x", "y", "w", "h"]}}
       ]
     },
@@ -236,6 +237,7 @@
         "slot_width": {"type": "number", "minimum": 12, "maximum": 40},
         "line_color": {"$ref": "#/$defs/paletteRole"},
         "parts": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/drawingPart"}},
+        "sizing": {"enum": ["natural", "full_width"]},
         "fill": {"$ref": "#/$defs/paletteRole"},
         "radius": {"type": "number", "minimum": 2, "maximum": 8},
         "pitch": {"type": "number", "minimum": 12, "maximum": 32},

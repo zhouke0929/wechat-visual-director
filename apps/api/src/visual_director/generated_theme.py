@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from .parser import ParsedArticle
+from .heading_numbers import has_explicit_heading_number
 from .theme_extensions import _palette, _payload
 from .theme_layouts import render_layout, text_style
 
@@ -185,7 +186,8 @@ def render_generated_heading(content: str, level: int, section_index: int, confi
     design, p = _metrics(config)
     if not design:
         return None
-    custom = render_layout("heading" if level == 2 else "subheading", {"title": content, "index": f"{section_index:02d}"}, config)
+    index = "" if has_explicit_heading_number(content) else f"{section_index:02d}"
+    custom = render_layout("heading" if level == 2 else "subheading", {"title": content, "index": index}, config)
     if custom is not None:
         return f'<section data-heading-level="{level}">{custom}</section>'
     gap = int(design["rhythm"]["section_gap"])
@@ -195,6 +197,8 @@ def render_generated_heading(content: str, level: int, section_index: int, confi
     motif = _motif(config, compact=True)
     grammar = f'generated-{design["composition"]}-{design["frame"]}'
     if level == 2:
+        if not index:
+            return f'<section data-heading-level="2" data-theme-grammar="{grammar}" style="margin:{gap}px 0 24px;padding-bottom:12px;border-bottom:{design["ornament"]["border_width"]}px solid {p["primary"]};"><strong style="display:block;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.5;">{text}</strong></section>'
         if design["composition"] in {"arched_editorial", "medallion_archive"}:
             return f'<section data-heading-level="2" data-theme-grammar="{grammar}" style="margin:{gap}px 0 24px;text-align:center;"><p style="margin:0 0 10px;">{_marker(config, f"{section_index:02d}")}</p><strong style="display:block;padding:0 12px 13px;border-bottom:{design["ornament"]["border_width"]}px solid {p["primary"]};color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:{size}px;font-weight:{weight};line-height:1.5;">{text}</strong><p style="margin:10px 0 0;">{motif}</p></section>'
         return f'<section data-heading-level="2" data-theme-grammar="{grammar}" style="margin:{gap}px 0 24px;white-space:normal;"><span style="display:inline-block;width:18%;padding-top:3px;vertical-align:top;">{_marker(config, f"{section_index:02d}")}</span><section style="box-sizing:border-box;display:inline-block;width:82%;padding:0 0 12px 15px;border-left:1px solid {p["secondary"]};border-bottom:{design["ornament"]["border_width"]}px solid {p["primary"]};vertical-align:top;"><strong style="display:block;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.5;">{text}</strong><p style="margin:9px 0 0;text-align:right;">{motif}</p></section></section>'

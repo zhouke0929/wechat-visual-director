@@ -19,8 +19,8 @@ from .parser import ParsedArticle
 from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.8-semantic-parity"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.5-semantic-parity"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.9-quote-evidence"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.6-quote-evidence"
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -40,12 +40,13 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 必须直接绑定含风险提示的原文。",
     "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 可绑定原文列表，或绑定标题已明确表示对比且正文自身带有双方语义的两个相邻段落；不得把普通段落改写为列表或凭空制造对照。",
     "数据来源、资料来源、规则来源、参考来源与来源说明都使用来源小字，不得用作强组件；即使来源只概括官网、公开账号或行业资料而没有具体链接，也仍属于来源说明。",
+    "quote 块不自动等于 key_evidence。感受、原话和修辞摘句保持 plain，由渲染器使用普通引用样式；无需为它们增加强组件。只有内容确实为论点提供事实、数据或来源依据时才选择 evidence_callout，不能仅因使用了引用格式而升级为证据。",
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",
     "图片意图只能为 optional 或 recommended；不得把品牌 CTA 送入图片生成。",
     "structured_infographic 只能引用含 2–4 项的原文列表，不得从普通段落编造列表。",
     "每个图片意图先说明 visual_role 与 learning_objective，再选择 layout_family；信息结构必须来自原文关系，不能为了好看虚构时间、对比或层级。",
     "atmosphere 使用 semantic_scene；结构信息图可使用 linear_progression、binary_comparison、comparison_matrix、hierarchical_layers、hub_spoke、structural_breakdown、timeline 或 pathway。",
-    "若原文只有 OCR 长段落，应优先使用 plain、evidence_callout 或 atmosphere，不要伪造列表结构。",
+    "若原文只有 OCR 长段落，保持 plain 或按需要选择 atmosphere；确有证据语义时才使用 evidence_callout，不要伪造列表结构或证据身份。",
     "brand.forbidden_patterns 是永久品牌硬约束，不得复制到 art_direction.avoid_recent_patterns。",
     "art_direction.avoid_recent_patterns 只能总结 recent_history 中实际出现的重复模式。",
     "历史避重项使用格式 history:<近期模式> -> change:<本篇计划变化>，至少说明一个具体组件或变体。",

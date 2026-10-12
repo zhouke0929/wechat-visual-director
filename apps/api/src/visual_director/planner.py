@@ -284,9 +284,16 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
                     )
                 )
 
-        if block.type == "quote":
+        # Quotation formatting alone is not evidence. Keep personal remarks and
+        # pull quotes in the ordinary quote renderer; the host may still select
+        # evidence explicitly when the surrounding argument supports it.
+        if block.type == "quote" and re.search(
+            r"(?:数据|统计|调查|研究|报告|公告|年报|条例|规定)[^。！？\n]{0,24}"
+            r"(?:显示|表明|发现|指出|规定|要求|披露|明确)",
+            str(block.content),
+        ):
             candidates.append(
-                _candidate("evidence_callout", [block], {"evidence": block.id}, "原文包含可回溯的引语或来源说明。", recent_counts)
+                _candidate("evidence_callout", [block], {"evidence": block.id}, "引用含明确的数据、研究或规则归因线索；仍需宿主核对证据语义，不代表来源真实性已经验证。", recent_counts)
             )
 
         if block.type in {"paragraph", "quote"} and WARNING_SIGNAL_RE.search(str(block.content)):

@@ -1590,6 +1590,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     theme = subparsers.add_parser("theme", help="校验、安装和查看本机主题扩展包")
     theme_subparsers = theme.add_subparsers(dest="theme_command", required=True)
+    theme_review = theme_subparsers.add_parser("review", help="离线生成逐角色长短文案与图片自检材料，不安装主题")
+    theme_review.add_argument("--file", required=True)
+    theme_review.add_argument("--output", required=True)
+    theme_review.add_argument("--image", required=True, help="可安全使用的本地 PNG/JPEG/WebP 测试图片")
+    theme_review.add_argument("--reference-image", action="append", default=[], help="可重复指定参考截图")
+    theme_review.add_argument("--json", action="store_true", dest="json_output")
     for command_name, command_help in (
         ("validate", "只校验主题扩展包，不写入本机主题库"),
         ("install", "校验并安装主题扩展包"),
@@ -1699,6 +1705,13 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _image_import(args), 0
         elif args.command == "theme" and args.theme_command == "validate":
             payload, exit_code = _theme_pack_submit(args, install=False), 0
+        elif args.command == "theme" and args.theme_command == "review":
+            from .theme_review import build_theme_review
+            try:
+                payload = build_theme_review(Path(args.file), Path(args.output), Path(args.image), [Path(p) for p in args.reference_image])
+                exit_code = 0
+            except (OSError, ValueError) as exc:
+                raise CliError("theme_review_failed", str(exc)) from exc
         elif args.command == "theme" and args.theme_command == "install":
             payload, exit_code = _theme_pack_submit(args, install=True), 0
         elif args.command == "theme" and args.theme_command == "list":

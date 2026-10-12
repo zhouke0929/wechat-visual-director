@@ -39,6 +39,17 @@ local-private/
 artifacts/
 prototype/
 
+# Local editorial fixtures and internal review evidence are not release inputs.
+/editorial-brief-*.json
+/wechat-major-adjustment-review.md
+/docs/assets/evaluation/
+/samples/alpha19-membership-operation-test-20260813.md
+/samples/membership-loyalty-product-test-20260813.md
+/samples/night-laundry-editorial-brief.json
+/samples/night-laundry-micro-public-space.md
+/samples/night-market-renewal-image-draw-test-20260828.md
+/samples/visual-dna-cross-theme-test-20260812.md
+
 # Company/internal evaluation material is kept locally but excluded from the public repository.
 samples/pilot/
 samples/source-pdfs/

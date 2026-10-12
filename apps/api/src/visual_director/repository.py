@@ -458,7 +458,7 @@ class Repository:
             ("load_context", "读取品牌与历史"),
             ("visual_planner", "生成推荐稿"),
             ("validate_plans", "校验结构差异"),
-            ("render_plan_previews", "渲染 390px 预览"),
+            ("render_plan_previews", "渲染文章预览"),
         )
         return [
             {"key": key, "label": label, "status": status, "started_at": None, "finished_at": None, "message": None}
