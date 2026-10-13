@@ -1,12 +1,34 @@
 # 完整产品安装与恢复
 
-wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准备工作台两条路径。用户要求安装产品时，通用安装器复制 Skill 后继续运行准备入口、检查并打开工作台，再返回上手说明。用户明确只下载文件或当前无法继续执行时才返回 `SKILL.md` 开头的交接回执。不要把文件已复制报成工作台已就绪，也不要修改宿主系统安装器来强迫接续流程。
+wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准备工作台两条路径。用户要求安装产品时，以「Skill + 工作台就绪 + 上手回执」为完成标准；通用安装器复制文件后继续准备，不修改宿主系统安装器。用户明确只下载文件或当前无法执行时，说明仅完成文件安装，并保留下一步入口：
 
-## 用户开始使用
+> 公众号视觉主编 Skill 已添加；工作台尚未启动。直接说「打开公众号工作台」或「帮我写一篇关于××的公众号文章」。
+> 第一次使用会自动准备工作台；也可给参考图或风格描述，让 Agent 创作一整套新主题。
+> 如果当前 Agent 支持生图，确认主题后可生成正文配图与封面候选。
 
-运行当前 Skill 内的 `scripts/ensure-workbench.ps1`（Windows）或 `scripts/ensure-workbench.sh`（macOS）。脚本缺少正式启动器时才下载 Release，已有安装只启动并检查，成功后打开工作台；只打开工作台时返回链接即可，用户已给文章需求时继续完成文章。`-NoOpen` / `--no-open` 可后台准备，`-Upgrade` / `--upgrade` 仅用于用户明确要求升级。
+未实际添加文件不报已添加；准备失败说明具体步骤和重试动作，不用“缺少运行时”作为没有下一步的结束语。
 
-成功回执为 `workbench_ready.v0.1`，含 `workbench_ready=true`、稳定 `launcher`、`workbench_url`、`browser_opened`、`first_install`、`onboarding_pending` 和 `first_run_guide`。一次成功即足够，不再重复执行准备入口。`onboarding_pending` 保留用于兼容；首页常显简要流程，无需确认已读。若默认打开失败，由宿主打开返回的本地链接；主动使用 `NoOpen` 时继续文章流程，最后只打开具体任务。`ok=false` 时说明具体失败步骤并提供重试动作。不要为了进入工作台要求用户先配置图片或公众号凭据。
+## 用户开始使用与准备回执
+
+1. 将本 Skill 所在目录记为 `{baseDir}`。若运行环境不展开该占位符，先解析当前 `SKILL.md` 的绝对目录。
+2. 用户要求安装本产品、打开工作台、写作或排版时，先运行随 Skill 分发的准备入口。通过宿主通用安装器复制文件后接续此步骤，不把「下一轮可用」作为完整安装回执。如果用户明确只下载文件，不自动启动；若宿主权限阻止执行则如实告知。Windows：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "{baseDir}/scripts/ensure-workbench.ps1"
+```
+
+macOS：
+
+```bash
+bash "{baseDir}/scripts/ensure-workbench.sh"
+```
+
+3. 准备入口只在稳定启动器缺失时下载校验过的正式 Release；已有安装直接启动并运行 doctor，不自动升级。用户明确要求升级时传 `-Upgrade` / `--upgrade`。马上要打开文章任务时可传 `-NoOpen` / `--no-open`，避免先打开空工作台。脚本不需要系统 Python、Node.js 或 Git；异常按本文后续说明处理。
+4. 只解析 stdout 的最终 JSON。`ok=true` 且 `workbench_ready=true` 后，把绝对 `launcher` 记为 `{launcher}`，后续调用这个稳定入口。未主动使用 `NoOpen` 而 `browser_opened=false` 时，由宿主打开 `workbench_url`；为创建文章使用 `NoOpen` 时先继续文章流程，之后打开具体任务。用户只要求安装或打开工作台时，返回链接和适用的简短引导，不额外生成文章。用户要求文章时不停在安装成功。返回 `command_completed=true` 表示命令已结束，后台 API 独立运行，不要等待 API 进程退出，也不要为确认成功再次执行相同准备命令。
+5. 准备入口会校验 `installation.persistent`、`version_match`、`runtime_match` 与 `capabilities.host_skill_registered`；失败时不得继续创建任务或声称工作台就绪。升级还须按下节核对数据延续：版本一致不代表原任务仍在。不要自行改用源码/测试服务。程序版本位于 `versions/`，任务、图片、配置和日志位于版本目录之外。
+6. `capabilities.image_generation=false` 时仍可完成排版；允许跳过、沿用原图或人工上传。用户明确要求配置真实生图时，引导其本人打开 `{settings_url}` 填写，不得读取、代填或要求用户把 API Key 粘贴进对话。
+7. 用户要求安装、开始使用或初次打开工作台时，参考 `first_run_guide` 返回不超过五行的简短上手说明（同一轮只讲一次）。首页常显简要流程，不再需要「我已了解」按钮；不要要求确认或代调用已读接口。`first_install` 只表示这次是否新装，`onboarding_pending` 是兼容字段，不作为反复讲教程的条件。普通再次打开、文章续写、生图、升级、诊断不主动重复整段教程；需要时提醒首页有简要流程，已有文章可从「最近任务」进入。只有宿主明确要求重新加载时才提示重启，不默认要求新开对话。
+8. 下文 PowerShell 示例在 macOS 上应改为直接执行 `"{launcher}" <args>`，参数语义完全相同。
 
 ## 安装或升级
 

@@ -22,6 +22,22 @@ PUBLIC_ENTRIES = (
 SITE_URL = "https://zhouke0929.github.io/wechat-visual-director/"
 
 
+def _prose_links(text: str) -> list[str]:
+    # Code examples such as ![caption](path-or-url) are not live document links.
+    prose = re.sub(r"^```[^\n]*\n.*?^```[^\n]*$", "", text, flags=re.M | re.S)
+    prose = re.sub(r"`[^`\n]+`", "", prose)
+    return re.findall(r"\]\(([^)\s]+)\)", prose) + re.findall(r'(?:src|href)="([^"]+)"', prose)
+
+
+def test_document_link_scanner_keeps_prose_but_ignores_literal_examples() -> None:
+    text = (
+        "[Mode](references/mode.md)\n"
+        "```markdown\n![caption](path-or-url)\n```\n"
+        "Inline `![caption](placeholder)` and [Next](next.md).\n"
+    )
+    assert _prose_links(text) == ["references/mode.md", "next.md"]
+
+
 @pytest.mark.parametrize("relative_path", PUBLIC_ENTRIES)
 def test_public_install_entries_do_not_pin_a_historical_release(relative_path: str) -> None:
     text = (ROOT / relative_path).read_text(encoding="utf-8")
@@ -57,20 +73,37 @@ def test_user_guide_is_public_and_included_in_release_packages() -> None:
 @pytest.mark.parametrize("relative_path", (
     "README.md", "docs/usage-guide.md", "INSTALL_FOR_AGENT.md",
     "skills/wechat-visual-director/SKILL.md",
-    "skills/wechat-visual-director/references/theme-design-review.md",
-    "skills/wechat-visual-director/references/theme-visual-checks.md",
-    "skills/wechat-visual-director/references/theme-packs.md",
+    *(str(path.relative_to(ROOT)).replace("\\", "/") for path in
+      sorted(ROOT.joinpath("skills/wechat-visual-director/references").glob("*.md"))),
 ))
 def test_document_local_links_and_images_exist(relative_path: str) -> None:
     source = ROOT / relative_path
     text = source.read_text(encoding="utf-8")
-    links = re.findall(r"\]\(([^)\s]+)\)", text)
-    links += re.findall(r'(?:src|href)="([^"]+)"', text)
-    for link in links:
+    for link in _prose_links(text):
         if link.startswith(("https://", "http://", "#")):
             continue
         target = link.split("#", 1)[0]
         assert (source.parent / target).exists(), (relative_path, link)
+
+
+def test_skill_mode_references_are_reachable_from_entrypoint() -> None:
+    """Relocation must not strand instructions outside the installed router."""
+    skill = ROOT / "skills/wechat-visual-director"
+    pending = [skill / "SKILL.md"]
+    seen: set[Path] = set()
+    while pending:
+        source = pending.pop().resolve()
+        if source in seen:
+            continue
+        seen.add(source)
+        for link in _prose_links(source.read_text(encoding="utf-8")):
+            if link.startswith(("https://", "http://", "#")):
+                continue
+            target = (source.parent / link.split("#", 1)[0]).resolve()
+            if target.suffix == ".md" and target.is_relative_to(skill.resolve()):
+                pending.append(target)
+    references = {path.resolve() for path in skill.joinpath("references").glob("*.md")}
+    assert references <= seen, sorted(str(path) for path in references - seen)
 
 
 class _PageHead(HTMLParser):

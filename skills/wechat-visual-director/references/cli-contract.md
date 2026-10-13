@@ -56,7 +56,7 @@
 - `theme validate` 返回字段校验与 `delivery_report`（组件交付预演、风险项和微信实测状态），不写入本机主题库。本地通过不等于微信保存后已验证。
 - `theme install` 成功时返回 `valid=true`、`installed=true`、`theme_id` 与 `gallery_url`。只有这些字段同时成立才可以声称主题已安装。
 - `theme list` 只列本机用户扩展包；官方主题在主题样本册中始终可用。
-- `theme_pack_invalid` 的 `details.field_errors` 是可修复字段清单。只修对应字段后重试，不绕过校验，不直接写主题目录。
+- `theme_pack_invalid` 的 `details.field_errors` 是可修复字段清单。编译/资产/正式渲染阻断为 `theme_pack_delivery_blocked`，写入失败为 `theme_pack_install_failed`，不得将它们报成成功；按 [主题包契约](theme-packs.md) 核对旧主题和备份。只修对应问题后重试，不绕过校验，不直接写主题目录。
 - 旧稿升级后，方案的 `render_refresh_available=true` 表示可在工作台点击“更新主题渲染”。API 对当前主题 PATCH `/api/v1/article-tasks/{task_id}/plans/{plan_id}/theme`，提交当前 `visual_system`、`expected_plan_revision` 和 `refresh_current=true`，只更新渲染，保留保存的主题配置、正文与配图。冻结稿须先由用户继续编辑，旧冻结版本保留；更新后仍须重新人工确认，不自动创建微信草稿。
 - 扩展包不接受 HTML、原始 CSS、JavaScript 或 renderer 字段。独立新风格使用 `design_system.layouts` 声明字段结构；字段缺失、重复、类型错误和不支持的样式都通过 `theme_pack_invalid` 返回。参考图创作流程见主题扩展包契约，不将安装成功等同于微信验证通过。
 
@@ -64,7 +64,7 @@
 
 - `command_completed=true`：当前 CLI 命令已经完成；后台服务是独立进程，不得继续等待其退出。
 - `background=true`、`process_mode=detached`：`serve`/`bootstrap` 已在无控制台后台模式启动或复用服务，宿主终端可以立即结束。
-- `status=plans_ready`：双方案已经生成，可以评审。
+- `status=plans_ready`：推荐稿已经生成，可以在工作台评审；新任务默认只展示一份自动选中的推荐稿。
 - `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题；`source_structure_too_flat` 只允许整理原稿已有关系。
 - `next_action=generate_editorial_brief`：读取 `task context`，由当前宿主 Agent 或可选子智能体生成 Brief。
 - `next_action=human_review`：把 `review_url` 交给用户，暂停 Agent 自主操作。
