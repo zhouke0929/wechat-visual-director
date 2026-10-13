@@ -28,6 +28,11 @@ export default function ThemeDetailPage() {
 
   if (error) return <main className={styles.statePage}><p>{error}</p><Link href="/theme-gallery">返回主题样本册</Link></main>;
   if (!theme) return <main className={styles.statePage}>正在展开主题样张……</main>;
+  if (theme.availability === "unavailable") return <main className={styles.statePage}>
+    <h1>{theme.label} · 暂不可用</h1><p>{theme.diagnostic?.message}</p>
+    <p>请让 Agent 修复后重新导入；原主题文件保留，其他主题不受影响。</p>
+    <Link href="/theme-gallery">返回主题样本册</Link>
+  </main>;
 
   const foundations = theme.foundation_specimens ?? theme.rhythm_primitives;
   const specimenTotal = theme.components.length + foundations.length;

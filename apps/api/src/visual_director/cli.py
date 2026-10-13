@@ -1469,6 +1469,13 @@ def _theme_pack_submit(args: argparse.Namespace, *, install: bool) -> dict[str, 
     )
     manifest = payload.get("manifest") if isinstance(payload.get("manifest"), dict) else {}
     theme_id = str(manifest.get("id") or "")
+    report = payload.get("delivery_report") or {}
+    if report.get("local_delivery") == "blocking" or report.get("rehearsal", {}).get("status") == "blocking":
+        # Older servers may return HTTP 200 even when delivery is blocked.
+        raise CliError("theme_pack_delivery_blocked", "主题交付检查存在阻断，请修复后重试。",
+                       details={"delivery_report": report, "server_reported_installed": bool(payload.get("installed"))})
+    if not theme_id or (install and payload.get("installed") is not True) or (not install and payload.get("valid") is not True):
+        raise CliError("theme_pack_result_invalid", "主题接口未确认校验或安装成功，请检查结果后重试。")
     result = {
         "ok": True,
         "schema_version": "theme_pack_install_result.v0.1" if install else "theme_pack_validation_result.v0.1",

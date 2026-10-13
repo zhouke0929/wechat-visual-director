@@ -79,7 +79,7 @@
 .policy h2 { max-width: 900px; margin: 17px 0 0; font: 740 clamp(36px, 5vw, 66px)/1.22 "Noto Serif SC", "Songti SC", serif; }
 .policy p { max-width: 720px; margin: 28px 0 0; color: #bdc8c4; font-size: 15px; line-height: 1.85; }
 .loading, .error, .notice { margin: 0; padding: 32px clamp(20px, 6vw, 92px); border-bottom: 1px solid var(--line); }
-.error { color: #a83d27; background: #fff0e8; }
+.error { color: #a83d27; background: #fff0e8; overflow-wrap: anywhere; }
 .notice { color: #176f65; background: #e8f4ef; }
 
 .themeCard .coverage { color: #8a4c26; font-size: 13px; font-weight: 700; }

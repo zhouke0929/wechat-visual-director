@@ -71,6 +71,8 @@ export type ThemeLayoutCoverage = {
 };
 
 export type ThemeGalleryItem = {
+  availability?: "unavailable";
+  diagnostic?: { code: string; message: string };
   id: string;
   label: string;
   english: string;

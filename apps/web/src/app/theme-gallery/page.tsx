@@ -27,7 +27,8 @@ export default function ThemeGalleryPage() {
   }, []);
 
   const officialThemes = useMemo(() => themes.filter((theme) => theme.source !== "custom"), [themes]);
-  const customThemes = useMemo(() => themes.filter((theme) => theme.source === "custom"), [themes]);
+  const customThemes = useMemo(() => themes.filter((theme) => theme.source === "custom" && theme.availability !== "unavailable"), [themes]);
+  const unavailableThemes = useMemo(() => themes.filter((theme) => theme.availability === "unavailable"), [themes]);
   const visibleThemes = activeCollection === "official" ? officialThemes : customThemes;
 
   const handleInstall = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -44,7 +45,7 @@ export default function ThemeGalleryPage() {
       const coverage = collection.find((theme) => theme.id === installed.id)?.delivery_report?.coverage;
       setNotice(coverage?.status === "partial"
         ? `${installed.name} 已安装为未完成试样（${coverage.covered_count}/${coverage.total_count}），请让 Agent 补齐剩余布局。`
-        : `${installed.name} 已通过结构校验并安装到本机，请查看整篇效果。`);
+        : `${installed.name} 已通过本地交付检查并安装到本机，请查看整篇视觉效果；微信保存效果仍需单独核对。`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "主题扩展包安装失败");
     } finally {
@@ -138,6 +139,11 @@ export default function ThemeGalleryPage() {
 
       {error ? <p className={styles.error}>{error}</p> : null}
       {notice ? <p className={styles.notice}>{notice}</p> : null}
+      {unavailableThemes.length > 0 && <section className={styles.error} role="status" aria-label="暂不可用的主题">
+        <strong>{unavailableThemes.length} 个自定义主题暂不可用，正常主题仍可浏览。</strong>
+        <ul>{unavailableThemes.map((theme) => <li key={theme.id}>{theme.label}：{theme.diagnostic?.message}（{theme.diagnostic?.code}）</li>)}</ul>
+        <p>请让 Agent 检查这些主题并修复后重新导入；原文件没有被自动删除。</p>
+      </section>}
       {!error && themes.length === 0 ? <p className={styles.loading}>正在装订主题样本……</p> : null}
 
       {activeCollection === "custom" && !error && customThemes.length === 0 ? (

@@ -17,8 +17,7 @@ from .components import render_component
 from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
-from .theme_packs import theme_pack
-from .theme_delivery import theme_delivery_report
+from .theme_packs import check_theme_pack_delivery, theme_pack, theme_pack_load_errors
 from .theme_specimens import build_production_specimens
 
 
@@ -811,64 +810,55 @@ def _full_preview(
     return "".join(body)
 
 
+def _gallery_item(parsed, bindings, visual_system, metadata):
+    manifest = theme_pack(visual_system)
+    report = check_theme_pack_delivery(manifest) if manifest else None
+    render_system = render_visual_system(visual_system)
+    configuration = visual_system_configuration(visual_system)
+    palette = configuration["palette"]
+    triggers = {"section_heading": "Markdown H2", "subheading": "Markdown H3", "inline_emphasis": "Markdown **重点短语**",
+                "image_caption": "Markdown 图片 alt；生成图只使用主题图框", "divider": "Markdown ---", "closing_cta": "品牌配置 fixed_footer"}
+    primitives = [{**primitive, "production_status": "production", "production_trigger": triggers[primitive["role"]]}
+                  for primitive in _theme_rhythm_primitives(visual_system, palette)]
+    specimens = [_component_specimen(parsed, role, visual_system, palette, bindings) for role in CORE_THEME_COMPONENTS]
+    foundations, article_preview = build_production_specimens(visual_system)
+    return {"id": visual_system, **metadata, "source": metadata.get("source", "official"), "delivery_report": report,
+            "base_theme": metadata.get("base_theme", render_system), "core_component_count": len(specimens),
+            "semantic_component_count": len(specimens),
+            "configuration": {"heading_variant": configuration["heading_variant"], "quote_variant": configuration["quote_variant"],
+                              "list_variant": configuration["list_variant"], "palette": palette},
+            "components": specimens, "rhythm_primitives": primitives, "foundation_specimens": foundations,
+            "article_preview_html": article_preview,
+            "full_preview_html": _full_preview(visual_system, metadata, specimens, primitives, palette)}
+
+
+def _unavailable_item(theme_id, metadata, diagnostic, report=None):
+    # No fallback artwork: do not misrepresent another theme as this pack.
+    return {"id": theme_id, "label": metadata.get("label", theme_id), "english": metadata.get("english", "UNAVAILABLE"),
+            "description": "此主题暂不可用，正常主题不受影响。", "source": "custom", "status": "user_theme_pack",
+            "availability": "unavailable", "diagnostic": diagnostic, "delivery_report": report,
+            "ideal_for": [], "personality": [], "palette": [], "base_theme": metadata.get("base_theme", ""),
+            "core_component_count": 0, "semantic_component_count": 0,
+            "configuration": {"heading_variant": "", "quote_variant": "", "list_variant": "", "palette": {}},
+            "components": [], "rhythm_primitives": [], "foundation_specimens": [], "article_preview_html": "", "full_preview_html": ""}
+
+
 def build_theme_gallery() -> list[dict[str, Any]]:
     parsed = parse_markdown(THEME_FIXTURE)
     bindings = _fixture_bindings(parsed)
-    themes: list[dict[str, Any]] = []
-    system_order = registered_visual_system_order()
-    system_catalog = registered_visual_system_catalog()
-    for visual_system in system_order:
-        metadata = system_catalog[visual_system]
-        render_system = render_visual_system(visual_system)
-        configuration = visual_system_configuration(visual_system)
-        palette = configuration["palette"]
-        production_triggers = {
-            "section_heading": "Markdown H2",
-            "subheading": "Markdown H3",
-            "inline_emphasis": "Markdown **重点短语**",
-            "image_caption": "Markdown 图片 alt；生成图只使用主题图框",
-            "divider": "Markdown ---",
-            "closing_cta": "品牌配置 fixed_footer",
-        }
-        primitives = [
-            {
-                **primitive,
-                "production_status": "production",
-                "production_trigger": production_triggers[primitive["role"]],
-            }
-            for primitive in _theme_rhythm_primitives(visual_system, palette)
-        ]
-        specimens = [
-            _component_specimen(parsed, component_type, visual_system, palette, bindings)
-            for component_type in CORE_THEME_COMPONENTS
-        ]
-        foundations, article_preview = build_production_specimens(visual_system)
-        themes.append(
-            {
-                "id": visual_system,
-                **metadata,
-                "source": metadata.get("source", "official"),
-                "delivery_report": theme_delivery_report(theme_pack(visual_system)) if theme_pack(visual_system) else None,
-                "base_theme": metadata.get("base_theme", render_system),
-                "core_component_count": len(specimens),
-                "semantic_component_count": len(specimens),
-                "configuration": {
-                    "heading_variant": configuration["heading_variant"],
-                    "quote_variant": configuration["quote_variant"],
-                    "list_variant": configuration["list_variant"],
-                    "palette": palette,
-                },
-                "components": specimens,
-                "rhythm_primitives": primitives,
-                "foundation_specimens": foundations,
-                "article_preview_html": article_preview,
-                "full_preview_html": _full_preview(
-                    visual_system,
-                    metadata,
-                    specimens,
-                    primitives,
-                    palette,
-                ),
-            }
-        )
+    themes = []
+    catalog = registered_visual_system_catalog()
+    for theme_id in registered_visual_system_order():
+        metadata = catalog[theme_id]
+        try:
+            themes.append(_gallery_item(parsed, bindings, theme_id, metadata))
+        except (ValueError, KeyError, TypeError, OSError, RuntimeError) as exc:
+            if metadata.get("source") != "custom":
+                raise  # Shared/official failures must not be hidden as user errors.
+            themes.append(_unavailable_item(theme_id, metadata,
+                          {"code": getattr(exc, "code", "theme_preview_failed"),
+                           "message": "主题检查或样张渲染失败，请修复后重新导入。原文件未删除。"},
+                          getattr(exc, "delivery_report", None)))
+    for error in theme_pack_load_errors():
+        themes.append(_unavailable_item(error["id"], {"label": error["label"]}, error))
     return themes

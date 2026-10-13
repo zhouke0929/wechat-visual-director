@@ -88,9 +88,12 @@ GENERATED_DENSITIES = ("airy", "balanced", "compact")
 
 
 class ThemePackError(ValueError):
-    def __init__(self, message: str, *, field_errors: list[dict[str, str]] | None = None):
+    def __init__(self, message: str, *, field_errors: list[dict[str, str]] | None = None,
+                 code: str = "theme_pack_invalid", delivery_report: dict[str, Any] | None = None):
         super().__init__(message)
         self.field_errors = field_errors or []
+        self.code = code
+        self.delivery_report = delivery_report
 
 
 _lock = threading.RLock()
@@ -98,6 +101,7 @@ _pack_dir: Path | None = None
 _reserved_ids: frozenset[str] = frozenset()
 _core_components: tuple[str, ...] = ()
 _installed: dict[str, dict[str, Any]] = {}
+_load_errors: list[dict[str, Any]] = []
 
 
 def configure_theme_packs(
@@ -106,22 +110,29 @@ def configure_theme_packs(
     reserved_ids: Iterable[str],
     core_components: Iterable[str],
 ) -> None:
-    global _pack_dir, _reserved_ids, _core_components, _installed
+    global _pack_dir, _reserved_ids, _core_components, _installed, _load_errors
     with _lock:
         _pack_dir = pack_dir.resolve()
         _reserved_ids = frozenset(str(value) for value in reserved_ids)
         _core_components = tuple(str(value) for value in core_components)
         _pack_dir.mkdir(parents=True, exist_ok=True)
         loaded: dict[str, dict[str, Any]] = {}
+        errors = []
         for manifest_path in sorted(_pack_dir.glob(f"*/{THEME_PACK_FILE_NAME}")):
+            if manifest_path.parent.name.startswith("."):
+                continue  # Never register transaction staging or backup folders.
             try:
                 manifest = validate_theme_pack_manifest(
                     json.loads(manifest_path.read_text(encoding="utf-8-sig"))
                 )
-            except (OSError, json.JSONDecodeError, ThemePackError):
+            except (OSError, UnicodeError, json.JSONDecodeError, ThemePackError) as exc:
+                errors.append({"id": f"unavailable:{manifest_path.parent.name}", "label": manifest_path.parent.name,
+                               "code": "theme_pack_load_failed", "message": "主题文件无法加载，请修复后重新导入。原文件未删除。",
+                               "field_errors": getattr(exc, "field_errors", [])})
                 continue
             loaded[manifest["id"]] = manifest
         _installed = loaded
+        _load_errors = errors
 
 
 def theme_pack_directory() -> Path:
@@ -465,6 +476,11 @@ def installed_theme_packs() -> list[dict[str, Any]]:
         return [copy.deepcopy(_installed[key]) for key in sorted(_installed)]
 
 
+def theme_pack_load_errors() -> list[dict[str, Any]]:
+    with _lock:
+        return copy.deepcopy(_load_errors)
+
+
 def theme_pack(theme_id: str) -> dict[str, Any] | None:
     with _lock:
         manifest = _installed.get(theme_id)
@@ -569,34 +585,62 @@ def validate_theme_pack_bytes(content: bytes, filename: str, *, reserved_ids: It
     return validate_theme_pack_manifest(_read_pack_bytes(content, filename), reserved_ids=reserved_ids, core_components=core_components)
 
 
-def install_theme_pack_bytes(content: bytes, filename: str) -> dict[str, Any]:
-    manifest = validate_theme_pack_bytes(content, filename)
-    destination = theme_pack_directory() / manifest["id"]
-    temporary = Path(tempfile.mkdtemp(prefix=f".{manifest['id']}.", dir=theme_pack_directory()))
-    backup = destination.with_name(f".{destination.name}.backup")
+def check_theme_pack_delivery(manifest: dict[str, Any]) -> dict[str, Any]:
+    from .theme_delivery import theme_delivery_report
+
     try:
-        (temporary / THEME_PACK_FILE_NAME).write_text(
-            json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        if backup.exists():
-            shutil.rmtree(backup)
-        if destination.exists():
-            os.replace(destination, backup)
-        try:
-            os.replace(temporary, destination)
-        except OSError:
-            if backup.exists() and not destination.exists():
-                os.replace(backup, destination)
-            raise
-        if backup.exists():
-            shutil.rmtree(backup)
-    finally:
-        if temporary.exists():
-            shutil.rmtree(temporary)
+        report = theme_delivery_report(manifest)
+    except (ValueError, KeyError, TypeError, OSError, RuntimeError) as exc:
+        raise ThemePackError("主题渲染检查未完成，请修复后重试。", code="theme_pack_delivery_blocked",
+                             delivery_report={"local_delivery": "blocking", "next_action": "fix_delivery",
+                                              "rehearsal": {"status": "blocking"}, "cause": type(exc).__name__}) from exc
+    if report.get("local_delivery") == "blocking" or report.get("rehearsal", {}).get("status") == "blocking":
+        raise ThemePackError("主题存在编译、资产或正式渲染阻断，请修复后重新导入。", code="theme_pack_delivery_blocked", delivery_report=report)
+    return report
+
+
+def validate_theme_pack_delivery_bytes(content: bytes, filename: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    manifest = validate_theme_pack_bytes(content, filename)
+    return manifest, check_theme_pack_delivery(manifest)
+
+
+def install_theme_pack_bytes(content: bytes, filename: str, *, with_report: bool = False) -> dict[str, Any]:
+    # All checks finish before any filesystem/cache mutation, including updates.
+    manifest, report = validate_theme_pack_delivery_bytes(content, filename)
     with _lock:
-        _installed[manifest["id"]] = manifest
-    return copy.deepcopy(manifest)
+        destination = theme_pack_directory() / manifest["id"]
+        temporary = None
+        backup = destination.with_name(f".{destination.name}.backup")
+        try:
+            temporary = Path(tempfile.mkdtemp(prefix=f".{manifest['id']}.", dir=theme_pack_directory()))
+            (temporary / THEME_PACK_FILE_NAME).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            if backup.exists() and not destination.exists():
+                # An interrupted rollback left the old theme in its backup.
+                os.replace(backup, destination)
+            if backup.exists():
+                shutil.rmtree(backup)
+            if destination.exists():
+                os.replace(destination, backup)
+            try:
+                os.replace(temporary, destination)
+            except OSError:
+                if backup.exists() and not destination.exists():
+                    os.replace(backup, destination)
+                raise
+            _installed[manifest["id"]] = manifest
+            _load_errors[:] = [item for item in _load_errors if item["id"] != f"unavailable:{manifest['id']}"]
+            if backup.exists():
+                try:
+                    shutil.rmtree(backup)
+                except OSError:
+                    report["installation_warnings"] = ["old_theme_backup_retained"]
+        except OSError as exc:
+            raise ThemePackError("主题写入未完成，未确认安装成功；已有主题或其备份保持保留。", code="theme_pack_install_failed") from exc
+        finally:
+            if temporary is not None and temporary.exists():
+                shutil.rmtree(temporary, ignore_errors=True)
+    result = {"manifest": manifest, "delivery_report": report} if with_report else manifest
+    return copy.deepcopy(result)
 
 
 def delete_theme_pack(theme_id: str) -> bool:
@@ -608,6 +652,7 @@ def delete_theme_pack(theme_id: str) -> bool:
     shutil.rmtree(destination)
     with _lock:
         _installed.pop(theme_id, None)
+        _load_errors[:] = [item for item in _load_errors if item["id"] != f"unavailable:{theme_id}"]
     return True
 
 

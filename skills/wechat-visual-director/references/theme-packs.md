@@ -69,6 +69,7 @@
 ```
 
 8. 只有 `valid=true` 且 `installed=true` 才能声称安装成功。读取 `delivery_report`；`rehearsal.status=pass` 仅表示本地编译及资产物化通过。按 [主题交付检查](theme-visual-checks.md) 查看实际渲染，再给用户完整文章与全组件入口；不把安装或单张封面当作视觉及微信验收。
+   编译、资产或正式渲染阻断返回 `theme_pack_delivery_blocked`，不会写入或替换旧主题；安装写入失败返回 `theme_pack_install_failed`，核对旧主题或保留备份后再重试。审美建议、布局部分覆盖和微信待测本身不属于程序安装阻断。旧核心若返回成功但报告为 `blocking`，不得宣称通过，先核对实际安装状态。
 9. 用户确认后，可在主题样本册“我的主题”中导出 `.vdtheme` 文件。扩展包只保存在本机；不自动上传、分享或覆盖官方主题。
 
 ## 字段参考

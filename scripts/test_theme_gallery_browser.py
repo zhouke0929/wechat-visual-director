@@ -26,7 +26,11 @@ class PublicFixtureHandler(QuietHandler):
         if self.path == "/health":
             content = json.dumps({"status": "ok", "application_version": (ROOT / "VERSION").read_text().strip()}).encode()
         elif self.path == "/api/v1/theme-gallery":
-            content = (ROOT / "site/data/themes.json").read_text(encoding="utf-8").replace("assets/theme-stickers/", "/gallery-assets/").encode()
+            payload = json.loads((ROOT / "site/data/themes.json").read_text(encoding="utf-8"))
+            if getattr(self.server, "with_unavailable_fixture", False):
+                payload["themes"].append({"id": "broken_fixture", "label": "公开故障试样", "source": "custom",
+                                         "availability": "unavailable", "diagnostic": {"code": "theme_pack_load_failed", "message": "主题文件无法加载，原文件未删除。"}})
+            content = json.dumps(payload, ensure_ascii=False).replace("assets/theme-stickers/", "/gallery-assets/").encode()
         else:
             return super().do_GET()
         self.send_response(200)
@@ -48,13 +52,16 @@ def main():
     parser.add_argument("--serve", action="store_true")
     parser.add_argument("--web-port", type=int, default=18511)
     parser.add_argument("--site-port", type=int, default=18512)
+    parser.add_argument("--with-unavailable-fixture", action="store_true")
+    parser.add_argument("--output", type=Path, default=ROOT / ".tmp/theme-discovery-review")
     args = parser.parse_args()
-    output = ROOT / ".tmp/theme-discovery-review"
+    output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     servers = [
         ThreadingHTTPServer(("127.0.0.1", args.web_port), partial(PublicFixtureHandler, directory=str(ROOT / "apps/web/dist"))),
         ThreadingHTTPServer(("127.0.0.1", args.site_port), partial(QuietHandler, directory=str(ROOT / "site"))),
     ]
+    servers[0].with_unavailable_fixture = args.with_unavailable_fixture
     for server in servers:
         threading.Thread(target=server.serve_forever, daemon=True).start()
     from playwright.sync_api import sync_playwright
@@ -107,6 +114,17 @@ def main():
                 page.get_by_role("button", name="复制给 Agent 的指令").click()
                 assert "组件参考图" in page.evaluate("navigator.clipboard.readText()")
                 checks.append(f"workbench {width}: full foundation/semantic navigation and home prompt")
+                if args.with_unavailable_fixture:
+                    page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery", wait_until="networkidle")
+                    diagnostic = page.get_by_role("status", name="暂不可用的主题")
+                    assert diagnostic.is_visible() and "公开故障试样" in diagnostic.inner_text()
+                    assert page.locator('a[href^="/theme-gallery/"]').count() >= 12
+                    assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                    diagnostic.screenshot(path=str(output / f"unavailable-notice-{width}.png"))
+                    page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/broken_fixture", wait_until="networkidle")
+                    assert "暂不可用" in page.locator("h1").inner_text()
+                    assert page.get_by_role("link", name="返回主题样本册").is_visible()
+                    checks.append(f"unavailable theme {width}: visible diagnostic, healthy themes retained, detail recovery")
 
             # Denied clipboard must offer the correct manual prompt, not install text.
             page.goto(f"http://127.0.0.1:{args.site_port}", wait_until="networkidle")

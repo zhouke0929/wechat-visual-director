@@ -99,10 +99,10 @@ from .theme_packs import (
     export_theme_pack,
     install_theme_pack_bytes,
     installed_theme_packs,
-    validate_theme_pack_bytes,
+    validate_theme_pack_delivery_bytes,
 )
 from .theme_assets import referenced_theme_assets, theme_asset_metadata, theme_asset_path
-from .theme_delivery import compiled_decoration_assets, theme_delivery_report
+from .theme_delivery import compiled_decoration_assets
 from .publication import (
     PUBLICATION_SCHEMA_VERSION,
     canonical_json,
@@ -1616,15 +1616,15 @@ def create_app(
         if len(content) > THEME_PACK_MAX_BYTES:
             return _error(413, "theme_pack_too_large", "主题扩展包不能超过 2 MB")
         try:
-            manifest = validate_theme_pack_bytes(content, theme_file.filename or "theme.json")
+            manifest, report = validate_theme_pack_delivery_bytes(content, theme_file.filename or "theme.json")
         except ThemePackError as exc:
             return _error(
                 422,
-                "theme_pack_invalid",
+                exc.code,
                 str(exc),
-                details={"field_errors": exc.field_errors},
+                details={"field_errors": exc.field_errors, "delivery_report": exc.delivery_report},
             )
-        return {"valid": True, "manifest": manifest, "delivery_report": theme_delivery_report(manifest)}
+        return {"valid": True, "manifest": manifest, "delivery_report": report}
 
     @app.post("/api/v1/theme-packs")
     async def install_theme_pack(
@@ -1638,15 +1638,15 @@ def create_app(
         if len(content) > THEME_PACK_MAX_BYTES:
             return _error(413, "theme_pack_too_large", "主题扩展包不能超过 2 MB")
         try:
-            manifest = install_theme_pack_bytes(content, theme_file.filename or "theme.json")
+            result = install_theme_pack_bytes(content, theme_file.filename or "theme.json", with_report=True)
         except ThemePackError as exc:
             return _error(
-                422,
-                "theme_pack_invalid",
+                500 if exc.code == "theme_pack_install_failed" else 422,
+                exc.code,
                 str(exc),
-                details={"field_errors": exc.field_errors},
+                details={"field_errors": exc.field_errors, "delivery_report": exc.delivery_report},
             )
-        return {"installed": True, "manifest": manifest, "delivery_report": theme_delivery_report(manifest)}
+        return {"installed": True, **result}
 
     @app.delete("/api/v1/theme-packs/{theme_id}")
     def remove_theme_pack(
