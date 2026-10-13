@@ -23,19 +23,20 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.mode == "capture":
-            candidates = tuple(args.candidate) + (Path.cwd() / "apps/api/data",)
-            result = capture_upgrade_data(args.install_root, running=probe_running_data(args.api_base), candidates=candidates)
+            # The working directory is not evidence of dataset ownership.
+            result = capture_upgrade_data(args.install_root, running=probe_running_data(args.api_base), candidates=tuple(args.candidate))
             result = backup_upgrade_data(result)
             args.snapshot.parent.mkdir(parents=True, exist_ok=True)
             args.snapshot.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
-            result = {"captured": True, "task_count": result["before"]["task_count"]}
+            result = {"captured": True, "task_count": result["before"]["task_count"],
+                      "migration_candidates": result["migration_candidates"], "warnings": result["warnings"]}
         else:
             baseline = json.loads(args.snapshot.read_text(encoding="utf-8"))
             result = verify_upgrade_data(baseline, args.install_root)
         print(json.dumps({"ok": True, "data_continuity": result}, ensure_ascii=False))
         return 0
     except DataRecoveryError as exc:
-        print(json.dumps({"ok": False, "next_action": "review_data_migration", "error": {
+        print(json.dumps({"ok": False, "next_action": exc.details.get("action", "review_data_migration"), "error": {
             "code": exc.code, "message": exc.message, "details": exc.details}}, ensure_ascii=False))
         return 2
     except (OSError, ValueError, KeyError, TypeError) as exc:

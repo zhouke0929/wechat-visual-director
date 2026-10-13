@@ -89,7 +89,7 @@ $CheckRaw = & $CheckPython $CheckScript capture --install-root $InstallRoot --sn
 $CheckExit = $LASTEXITCODE
 $CheckResult = Parse-JsonResult $CheckRaw "data_continuity"
 if ($CheckExit -ne 0 -or -not $CheckResult.ok) {
-    Write-BootstrapFailure $CheckResult.error.code $CheckResult.error.message @{ data_check = $CheckResult; next_action = "review_data_migration" }
+    Write-BootstrapFailure $CheckResult.error.code $CheckResult.error.message @{ data_check = $CheckResult; next_action = $CheckResult.next_action }
 }
 
 if (Test-Path -LiteralPath $StableLauncher -PathType Leaf) {
@@ -205,5 +205,5 @@ if ($FirstInstallation -and $null -eq $FirstRunGuide -and $null -eq $DoctorResul
     data_continuity = $DataContinuity
     capabilities = $DoctorResult.capabilities
     setup = $DoctorResult.setup
-    warnings = @($InstallResult.warnings) + @($DoctorResult.warnings)
+    warnings = @($InstallResult.warnings) + @($DoctorResult.warnings) + @($DataContinuity.warnings)
 } | ConvertTo-Json -Depth 8 -Compress

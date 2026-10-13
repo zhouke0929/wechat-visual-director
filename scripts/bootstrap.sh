@@ -149,7 +149,7 @@ payload = {
     "data_continuity": data_continuity,
     "capabilities": doctor.get("capabilities"),
     "setup": doctor.get("setup"),
-    "warnings": list(install.get("warnings") or []) + list(doctor.get("warnings") or []),
+    "warnings": list(install.get("warnings") or []) + list(doctor.get("warnings") or []) + list(data_continuity.get("warnings") or []),
 }
 print(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 PY

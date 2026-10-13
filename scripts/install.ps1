@@ -319,7 +319,7 @@ if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $TargetPublicationAsset
 }
 
 $LegacyConfig = Join-Path $SourceRoot ".env.local"
-if (-not (Test-Path -LiteralPath $ConfigFile) -and (Test-Path -LiteralPath $LegacyConfig -PathType Leaf)) {
+if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $ConfigFile) -and (Test-Path -LiteralPath $LegacyConfig -PathType Leaf)) {
     Copy-Item -LiteralPath $LegacyConfig -Destination $ConfigFile
     $MigratedConfig = $true
 }

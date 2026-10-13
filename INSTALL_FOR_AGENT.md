@@ -179,6 +179,15 @@ When the user asks for full WeChat draft delivery:
 
 ## Diagnose an existing installation
 
+Keep independent installations independent. The current conversation's working
+directory is not evidence that its source database belongs to the installed
+product. Other explicitly supplied datasets are optional migration candidates;
+declining their import must not cancel a fresh installation. Preserve any data
+already in the actual install root, and never import source credentials by
+default. A recorded data-root change requires confirmation. A foreign runtime
+on the installation address is a service/port conflict, not a reason to require
+data migration or stop that service without authorization.
+
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\wechat-visual-director\visual-director.ps1" doctor --json
 ```

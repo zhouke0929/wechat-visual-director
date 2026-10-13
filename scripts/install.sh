@@ -80,7 +80,7 @@ if [[ "$MIGRATE_LEGACY_DATA" -eq 1 && ! -d "$DATA_ROOT/publication-assets" && -d
   cp -R "$SOURCE_ROOT/apps/api/data/publication-assets" "$DATA_ROOT/publication-assets"
   MIGRATED_PUBLICATION=true
 fi
-if [[ ! -f "$CONFIG_FILE" && -f "$SOURCE_ROOT/.env.local" ]]; then
+if [[ "$MIGRATE_LEGACY_DATA" -eq 1 && ! -f "$CONFIG_FILE" && -f "$SOURCE_ROOT/.env.local" ]]; then
   cp "$SOURCE_ROOT/.env.local" "$CONFIG_FILE"
   MIGRATED_CONFIG=true
 elif [[ ! -f "$CONFIG_FILE" ]]; then

@@ -12,7 +12,11 @@ wechat-visual-director 支持完整安装和先添加 Skill、首次使用时准
 
 只要求更新 Skill 文件时，同步 Skill，不顺带更换工作台或数据来源；需要升级工作台时说明并取得用户授权。升级前先用 `doctor --json` 记录实际运行的 `running_data_root`、`running_task_count`，并以 `data scan` 盘点当前及已知旧数据目录（例如用户提供的源码目录），只读目录、计数与健康状态，不读取正文或私密配置。不要递归搜盘后自动选择“任务最多”的库。
 
-新版安装流程先备份非空数据集，返回 `data_continuity.checked=true`、`preserved=true` 与 `backup_root`，核对任务 ID 与配套资产，而非只检查数量。`upgrade_data_migration_required` / `upgrade_data_root_changed` 表示发现不同数据来源，必须向用户展示来源与目标计数，确认后用 `data recover` 迁移完整数据集，不只复制 SQLite。旧安装包没有此字段时，宿主仍须比较升级前后实际数据目录、任务数及资产盘点；发现旧库非空、新库为空不得报告升级成功，也不得继续创建任务掩盖问题。数据恢复后重新检查，再交付工作台。
+新版安装流程先备份正式安装自己的非空数据集，返回 `data_continuity.checked=true`、`preserved=true` 与 `backup_root`，核对任务 ID 与配套资产，而非只检查数量。默认安装不扫描当前对话工作目录，也不导入独立源码库或其私密配置；显式发现的其他数据集只作为 `migration_candidates` 和 `optional_data_migration_available` 提示。用户选择不迁移时继续独立安装，来源保持不动；正式目录已有数据则原样保留，不能为了“全新安装”清空它。
+
+`upgrade_data_root_changed` 表示安装记录证明数据目录将改变，应停止并请用户确认来源；只有用户授权迁移才执行 `data recover`，数据库与配套资产整体恢复。`upgrade_runtime_conflict` 则表示另一套工作台占用了安装地址，处理服务或端口冲突，不把迁移数据作为解决办法，也不自动停止无关服务。旧安装包的 `upgrade_data_migration_required` 须先核对来源归属，不能把拒绝独立开发库迁移理解成取消安装；包不支持独立安装时说明限制，不能擅自迁移、删库或声称完成。
+
+旧安装包没有数据延续字段时，宿主仍须比较升级前后实际数据目录、任务数及资产盘点；同一安装原有任务意外变为空库不得报告成功，也不得继续创建任务掩盖问题。独立开发库与用户明确选择的空安装不属于这种数据丢失；恢复后重新检查，再交付工作台。
 
 1. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，先运行 `doctor --json`。只有入口不存在或用户明确要求升级时才下载安装。
 2. Windows x64 使用固定 Agent 安装器入口。它会读取当前公开版本、校验 Release 的 SHA-256，安装内置 Python、后端和生产工作台，并注册轻量 Skill：

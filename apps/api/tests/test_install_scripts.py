@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from test_data_recovery import make_dataset
+from visual_director.upgrade_data import dataset_snapshot
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
@@ -77,6 +79,47 @@ def _run_installer(*args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
         check=False,
     )
     return completed, json.loads(completed.stdout)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
+@pytest.mark.parametrize("migrate_legacy", [False, True])
+def test_independent_source_install_requires_explicit_data_and_config_import(tmp_path, monkeypatch, migrate_legacy):
+    source = tmp_path / "source"
+    scripts = source / "scripts"
+    scripts.mkdir(parents=True)
+    for name in ("install.ps1", "persistent-launcher.ps1", "persistent-launcher.cmd", "uninstall.ps1"):
+        shutil.copy2(REPOSITORY_ROOT / "scripts" / name, scripts / name)
+    (source / "VERSION").write_text("0.1.0-isolation-test", encoding="utf-8")
+    (source / ".env.example").write_text("INSTALL_TEST_MARKER=default\n", encoding="utf-8")
+    (source / ".env.local").write_text("INSTALL_TEST_MARKER=source-only\n", encoding="utf-8")
+    workbench = source / "apps/web/dist"
+    workbench.mkdir(parents=True)
+    (workbench / "index.html").write_text("<html>public test workbench</html>", encoding="utf-8")
+    shutil.copytree(SKILL_SOURCE, source / "skills/wechat-visual-director")
+    source_data = source / "apps/api/data"
+    make_dataset(source_data, ["source-task"])
+    original = dataset_snapshot(source_data)
+    monkeypatch.setattr(f"{__name__}.INSTALLER", scripts / "install.ps1")
+    install = tmp_path / "installed"
+    args = ["-InstallRoot", str(install), "-HostHome", str(tmp_path / "host"), "-SkipDependencies"]
+    if migrate_legacy:
+        args.append("-MigrateLegacyData")
+    completed, result = _run_installer(*args)
+    assert completed.returncode == 0, completed.stderr
+    assert result["ok"] is True
+    assert result["migrated"]["database"] is migrate_legacy
+    assert result["migrated"]["config"] is migrate_legacy
+    config = install / "config/.env.local"
+    assert config.read_text(encoding="utf-8") == ("INSTALL_TEST_MARKER=source-only\n" if migrate_legacy else "INSTALL_TEST_MARKER=default\n")
+    assert (install / "data/visual-director.db").exists() is migrate_legacy
+    assert dataset_snapshot(source_data) == original
+    # A later reinstall must preserve the installation's own configuration.
+    config.write_text("INSTALL_TEST_MARKER=installed-user-choice\n", encoding="utf-8")
+    completed, second = _run_installer(*args)
+    assert completed.returncode == 0, completed.stderr
+    assert second["migrated"]["config"] is False
+    assert config.read_text(encoding="utf-8") == "INSTALL_TEST_MARKER=installed-user-choice\n"
+    assert dataset_snapshot(source_data) == original
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")

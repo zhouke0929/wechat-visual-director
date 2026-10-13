@@ -78,24 +78,26 @@ def capture_upgrade_data(install_root: Path, *, running: dict[str, Any] | None =
             raise DataRecoveryError("upgrade_data_root_changed", "安装器将切换既有数据目录，必须先确认迁移",
                                     details={"previous_data_root": previous_root, "target_data_root": str(target)})
     before = dataset_snapshot(target)
-    known = list(candidates)
     if running and not _same_path(running["root"], target):
-        source = dataset_snapshot(Path(running["root"]))
-        if source["task_count"] or running.get("task_count", 0):
-            raise DataRecoveryError("upgrade_data_migration_required", "正在使用另一套任务数据；确认迁移后才能升级",
-                                    details={"source": inspect_dataset(Path(running["root"])).as_dict(),
-                                             "target": inspect_dataset(target).as_dict(), "action": "review_data_migration"})
-        known.append(Path(running["root"]))
-    if before["task_count"] == 0:
-        for root in known:
-            if _same_path(root, target):
-                continue
-            source = inspect_dataset(root)
-            if source.exists and source.task_count > 0:
-                raise DataRecoveryError("upgrade_data_migration_required", "新工作台为空，但发现已有任务数据；请先确认迁移",
-                                        details={"source": source.as_dict(), "target": inspect_dataset(target).as_dict(),
-                                                 "action": "review_data_migration"})
-    return {"schema_version": "upgrade_data_snapshot.v0.1", "install_root": str(install_root), "before": before}
+        # A foreign service is a port/runtime conflict, not consent to migrate it.
+        raise DataRecoveryError("upgrade_runtime_conflict", "安装地址正由另一套工作台使用；请关闭该服务或使用独立端口，无需迁移其数据",
+                                details={"running_data_root": running["root"], "target_data_root": str(target),
+                                         "action": "resolve_runtime_conflict"})
+    optional_sources = []
+    seen = set()
+    for root in candidates:
+        key = os.path.normcase(str(root.resolve()))
+        if key in seen or _same_path(root, target):
+            continue
+        seen.add(key)
+        source = inspect_dataset(root)
+        if source.exists and source.healthy and source.task_count > 0:
+            optional_sources.append(source.as_dict())
+    # Finding another dataset does not establish ownership by this installation.
+    # Preserve the target; importing any optional source remains an explicit action.
+    return {"schema_version": "upgrade_data_snapshot.v0.1", "install_root": str(install_root), "before": before,
+            "migration_candidates": optional_sources,
+            "warnings": ["optional_data_migration_available"] if optional_sources else []}
 
 
 def verify_upgrade_data(baseline: dict[str, Any], install_root: Path) -> dict[str, Any]:
@@ -113,7 +115,9 @@ def verify_upgrade_data(baseline: dict[str, Any], install_root: Path) -> dict[st
             "before_task_count": before["task_count"], "after_task_count": current["task_count"],
             "image_asset_count": current["image_asset_count"],
             "publication_asset_count": current["publication_asset_count"],
-            "backup_root": baseline.get("backup_root")}
+            "backup_root": baseline.get("backup_root"),
+            "migration_candidates": baseline.get("migration_candidates", []),
+            "warnings": baseline.get("warnings", [])}
 
 
 def backup_upgrade_data(baseline: dict[str, Any]) -> dict[str, Any]:
