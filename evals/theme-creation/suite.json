@@ -1,0 +1,146 @@
+{
+  "schema_version": "theme_creation_eval.v1",
+  "revision": "2026-10-15.1",
+  "owner_calibration": "pending",
+  "cases": [
+    {
+      "id": "botanical-components",
+      "status": "regression_observed",
+      "request": "请参考 input/reference-title.png、input/reference-body.png 和 input/reference-photo.png，为 input/article.md 创作完整白底春日植物手记主题。希望正文重点和图文也有鲜明风格，文字清楚、整篇阅读舒服，不只是现有主题换色。允许搜索公开组件与关联灵感；来源见 reference-source.md。保留原稿内容与顺序，不为展示补写内容。原稿无图，test-image.jpg 只用于独立图文试样，来源见 test-image-source.md。做好后给我正常文章与全组件预览。",
+      "inputs": [
+        {
+          "name": "article.md",
+          "path": "evals/theme-creation/fixtures/botanical-article.md",
+          "sha256": "7e85c4d199ae9d4ab4ffef03408788a5413b97913cdfda98de449abffca994ea"
+        },
+        {
+          "name": "reference-title.png",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/reference-title.png",
+          "sha256": "a5b5df65b322342526da298a6390042b27504ac801d549eecf2deaa3e82324fc"
+        },
+        {
+          "name": "reference-body.png",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/reference-body.png",
+          "sha256": "fb2e675560fc137c8557f594b53c19665ab5b5ad36f84abbdbb5adb9a0ff266d"
+        },
+        {
+          "name": "reference-photo.png",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/reference-photo.png",
+          "sha256": "c31998dc3d5a8e3de9daf5f11f549fad1dde40004b978719f3efc534b7f06af2"
+        },
+        {
+          "name": "reference-source.md",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/reference-source.md",
+          "sha256": "8d9e96bdd28dd3e9e241b1f0324948b104da60707d6d397fe20347ce54398f63"
+        },
+        {
+          "name": "test-image.jpg",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image.jpg",
+          "sha256": "f4334b76006b7f33910d50db8765459e2c9712ce5adf08dc28e11e539747f926"
+        },
+        {
+          "name": "test-image-source.md",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image-source.md",
+          "sha256": "3cd07326d1c9dd75ec9161d4b458720cd309c1d4d13d872b93c0fcca569e34c9"
+        }
+      ]
+    },
+    {
+      "id": "movie-components",
+      "status": "regression_observed",
+      "reference_provenance": "历史截图原页面 URL 未在输入回执中保存；仅作本地回归，不推断授权或重新分发权利。",
+      "request": "请参考 input/reference-title.png 和 input/reference-component.png，为 input/article.md 创作完整白底复古电影主题。希望正文重点和图文也有鲜明风格，文字清楚、整篇阅读舒服，不只是现有主题换色。允许搜索公开组件与关联灵感。保留原稿内容与顺序，不为展示补写内容。原稿无图，test-image.jpg 只用于独立图文试样，来源见 test-image-source.md。做好后给我正常文章与全组件预览。",
+      "inputs": [
+        {
+          "name": "article.md",
+          "path": "evals/theme-creation/fixtures/movie-article.md",
+          "sha256": "fec8fe84ff7fd5e83ca2844493aa78250648f159424740194ac8e431ad97e034"
+        },
+        {
+          "name": "reference-title.png",
+          "path": "artifacts/skill-stage2-20261013/input/reference-title.png",
+          "sha256": "d2a1369c5ca52d6dc6e5400f52e42e18a5297cb35b23c520290c610cbf2a68b8"
+        },
+        {
+          "name": "reference-component.png",
+          "path": "artifacts/skill-stage2-20261013/input/reference-component.png",
+          "sha256": "3ac9e24409908d8f2863fea653c5ceea30afb7042e64cb2a8d1a53d1eb7eeb67"
+        },
+        {
+          "name": "test-image.jpg",
+          "path": "artifacts/skill-stage2-20261013/input/test-image.jpg",
+          "sha256": "f4334b76006b7f33910d50db8765459e2c9712ce5adf08dc28e11e539747f926"
+        },
+        {
+          "name": "test-image-source.md",
+          "path": "artifacts/skill-stage2-20261013/input/test-image-source.md",
+          "sha256": "3cd07326d1c9dd75ec9161d4b458720cd309c1d4d13d872b93c0fcca569e34c9"
+        }
+      ]
+    },
+    {
+      "id": "text-only-minimal",
+      "status": "reserved_unrun",
+      "request": "请为 input/article.md 创作完整主题：白底黑字的极简编辑手记，用清楚的字级、留白、对齐和节奏形成风格，不加插画、花叶、贴纸或装饰图标，不只是默认样式换色。没有参考图，可搜索公开排版灵感。保留原稿与顺序，不补写展示文案。原稿无图，test-image.jpg 只用于独立图文试样，来源见 test-image-source.md。做好后给我正常文章与全组件预览。",
+      "inputs": [
+        {
+          "name": "article.md",
+          "path": "evals/theme-creation/fixtures/botanical-article.md",
+          "sha256": "7e85c4d199ae9d4ab4ffef03408788a5413b97913cdfda98de449abffca994ea"
+        },
+        {
+          "name": "test-image.jpg",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image.jpg",
+          "sha256": "f4334b76006b7f33910d50db8765459e2c9712ce5adf08dc28e11e539747f926"
+        },
+        {
+          "name": "test-image-source.md",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image-source.md",
+          "sha256": "3cd07326d1c9dd75ec9161d4b458720cd309c1d4d13d872b93c0fcca569e34c9"
+        }
+      ]
+    }
+  ],
+  "anchors": [
+    {
+      "id": "movie-case-carrier",
+      "role": "case_card",
+      "title": "电影主题 · 案例组件",
+      "label": "局部强例（暂定）",
+      "reason": "场记板的斜纹形成题头，胶片齿孔连接下方白色正文区；主体关系可读，特色不只是角上贴一个图标。",
+      "boundary": "只认可这个局部关系；不能据此认为电影主题都该用场记板，也不替整套主题或微信保存通过。",
+      "path": "artifacts/skill-creative-guidance-replay-20261014/output/v3/screens/case_card-short-mobile.png",
+      "sha256": "d2ed61d9c171232753b21d49304ec88cf592c2f8a3bc88cfd319a783987e87fb"
+    },
+    {
+      "id": "botanical-faq-functional",
+      "role": "faq_card",
+      "title": "植物主题 · 问答 A",
+      "label": "可读但视觉待修（暂定）",
+      "reason": "问题和答案的主次清楚，但问号、淡粉旁注线几乎承担了全部差异，植物参考的承载与细节转译很弱。",
+      "boundary": "不是所有旁注线都有问题；明确极简需求可由字形、比例和空间成立，此处按装饰性植物需求判断。",
+      "path": "artifacts/skill-botanical-holdout-20261014/output/delivery/screens-final/faq_card-short-mobile.png",
+      "sha256": "0b8ea2c5a4ac154057c29f4056bcc8866626696fa29697b6303a1aaa7f1c56c8"
+    },
+    {
+      "id": "botanical-faq-improved",
+      "role": "faq_card",
+      "title": "植物主题 · 问答 B",
+      "label": "有改善的边界样本（暂定）",
+      "reason": "问题在白面，花枝跨过浅绿解释页的入口，折边沿正文收口；相较旁注线版本，结构与细饰形成了更多整体关系。",
+      "boundary": "这不是“花枝越大越好”的答案；仍须看长文与全篇重复，也不凭一个好问答放行其它角色。",
+      "path": "artifacts/skill-botanical-replay-20261015/output/screens-final/faq_card-short-mobile.png",
+      "sha256": "b28de58b5b242e3eebdec540e0fa60fed4874f7650783f2956239e9d8d53f7cc"
+    },
+    {
+      "id": "botanical-concept-repeated",
+      "role": "concept_explainer",
+      "title": "植物主题 · 概念组件",
+      "label": "可用但亮点不足（暂定）",
+      "reason": "页肩、花枝和签孔可见，概念归属清楚；长解释仍主要落在普通边框里，与案例共享题头加框的表达。",
+      "boundary": "不能只因出现矩形就判失败。需要结合需求、其它角色与长文判断；此定位仍待产品负责人校准。",
+      "path": "artifacts/skill-botanical-replay-20261015/output/screens-final/concept_explainer-short-mobile.png",
+      "sha256": "8ca89569f5574236e0bcdb19ba2873a9d006d109bf567630379ad15c9ec130bf"
+    }
+  ]
+}

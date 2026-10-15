@@ -1,0 +1,40 @@
+{
+  "schema_version": "theme_creation_assessment.v1",
+  "case_id": null,
+  "suite_revision": null,
+  "skill_commit": null,
+  "execution": {
+    "thread_id": null,
+    "model": null,
+    "reasoning_effort": null,
+    "elapsed_ms": null,
+    "tokens": null,
+    "cost": null
+  },
+  "delivery_binding": {
+    "theme_sha256": null,
+    "article_sha256": null,
+    "renderer_version": null,
+    "plan_revision": null
+  },
+  "engineering": {
+    "status": "not_checked",
+    "checks": [],
+    "evidence": []
+  },
+  "visual": {
+    "reviewer": null,
+    "method": "not_reviewed",
+    "viewed_evidence": [],
+    "reading": {"status": "not_reviewed", "reason": null, "evidence": []},
+    "style_expression": {"status": "not_reviewed", "reason": null, "evidence": []},
+    "whole_article": {"status": "not_reviewed", "reason": null, "evidence": []},
+    "highlight": {"status": "not_reviewed", "reason": null, "evidence": []},
+    "delivery_judgment": "not_reviewed"
+  },
+  "owner_preference": "not_confirmed",
+  "wechat_saved_roundtrip": "not_verified",
+  "unresolved": [],
+  "scope_deviations": [],
+  "limitations": ["A single run cannot establish a success rate or a causal effect."]
+}
