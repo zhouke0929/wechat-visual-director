@@ -37,7 +37,7 @@ python evals/theme-creation/run.py prepare --case botanical-components --port 18
 python evals/theme-creation/run.py verify --run artifacts/theme-eval-run
 ```
 
-输出目录必须不存在，只允许在本仓库的 artifacts 或 .tmp 内创建；不覆盖旧证据。`board` 复制已锁定截图，生成本地静态页；先看图再展开定位，产品负责人可导出校准意见。当前锚点是主审的暂定判断，尚非产品负责人确认的金标；不把它们算成模型成功率。
+输出目录必须不存在，只允许在本仓库的 artifacts 或 .tmp 内创建；不覆盖旧证据。`board` 复制已锁定截图，生成本地静态页；先看图再展开定位，产品负责人可导出校准意见。四个局部定位已于 2026-10-15 由产品负责人在对话中认可，证据见 [校准记录](owner-calibration.json)。它们是带适用范围的判断锚点，不是整套主题金标或模型成功率；旧静态页保留生成时的待确认状态，不覆盖历史。
 
 `prepare` 不创建对话、不启动服务、不安装主题、不自动花模型额度。它生成 `task-prompt.md`、输入锁和独立运行入口；明确获准后再新开对话，把生成的任务文本发给执行者。运行入口只连接指定本地端口，清除继承的业务配置，所有数据写本次 output；不能用于正式工作台升级。
 

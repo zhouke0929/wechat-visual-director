@@ -52,7 +52,13 @@ def test_suite_has_two_regressions_and_an_unrun_description_case():
     EVAL.validate_suite(suite)
     assert [c["status"] for c in suite["cases"]].count("regression_observed") == 2
     assert [c["status"] for c in suite["cases"]].count("reserved_unrun") == 1
-    assert suite["owner_calibration"] == "pending"
+    assert suite["owner_calibration"] == "confirmed_local_anchor_judgments"
+    record = EVAL.read_json(ROOT / "evals/theme-creation" / suite["owner_calibration_record"])
+    assert record["status"] == suite["owner_calibration"]
+    assert {(i["id"], i["source_sha256"], i["label"]) for i in record["items"]} == {
+        (a["id"], a["sha256"], a["label"]) for a in suite["anchors"]
+    }
+    assert all(i["decision"] == "agree" for i in record["items"])
     for case in suite["cases"]:
         for item in case["inputs"]:
             if item["path"].startswith("evals/"):
@@ -158,6 +164,18 @@ def test_board_rejects_changed_anchor_before_writing(corpus):
     with pytest.raises(ValueError, match="hash changed"):
         EVAL.board(root, suite, out)
     assert not out.exists()
+
+
+def test_confirmed_board_preserves_local_judgment_boundary(corpus):
+    root, suite = corpus
+    suite["owner_calibration"] = "confirmed_local_anchor_judgments"
+    out = root / "artifacts/board"
+    result = EVAL.board(root, suite, out)
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert result["owner_confirmation"] == "confirmed_local_anchor_judgments"
+    assert "产品负责人已认可此局部定位" in page
+    assert "尚待产品负责人确认" not in page
+    assert "不代表整套主题通过" in page
 
 
 def test_runtime_rejects_connection_override_before_cli_import(corpus, monkeypatch):

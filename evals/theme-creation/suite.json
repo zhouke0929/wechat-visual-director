@@ -1,7 +1,8 @@
 {
   "schema_version": "theme_creation_eval.v1",
-  "revision": "2026-10-15.1",
-  "owner_calibration": "pending",
+  "revision": "2026-10-15.2",
+  "owner_calibration": "confirmed_local_anchor_judgments",
+  "owner_calibration_record": "owner-calibration.json",
   "cases": [
     {
       "id": "botanical-components",
@@ -106,7 +107,7 @@
       "id": "movie-case-carrier",
       "role": "case_card",
       "title": "电影主题 · 案例组件",
-      "label": "局部强例（暂定）",
+      "label": "局部强例",
       "reason": "场记板的斜纹形成题头，胶片齿孔连接下方白色正文区；主体关系可读，特色不只是角上贴一个图标。",
       "boundary": "只认可这个局部关系；不能据此认为电影主题都该用场记板，也不替整套主题或微信保存通过。",
       "path": "artifacts/skill-creative-guidance-replay-20261014/output/v3/screens/case_card-short-mobile.png",
@@ -116,7 +117,7 @@
       "id": "botanical-faq-functional",
       "role": "faq_card",
       "title": "植物主题 · 问答 A",
-      "label": "可读但视觉待修（暂定）",
+      "label": "可读但视觉待修",
       "reason": "问题和答案的主次清楚，但问号、淡粉旁注线几乎承担了全部差异，植物参考的承载与细节转译很弱。",
       "boundary": "不是所有旁注线都有问题；明确极简需求可由字形、比例和空间成立，此处按装饰性植物需求判断。",
       "path": "artifacts/skill-botanical-holdout-20261014/output/delivery/screens-final/faq_card-short-mobile.png",
@@ -126,7 +127,7 @@
       "id": "botanical-faq-improved",
       "role": "faq_card",
       "title": "植物主题 · 问答 B",
-      "label": "有改善的边界样本（暂定）",
+      "label": "有改善的边界样本",
       "reason": "问题在白面，花枝跨过浅绿解释页的入口，折边沿正文收口；相较旁注线版本，结构与细饰形成了更多整体关系。",
       "boundary": "这不是“花枝越大越好”的答案；仍须看长文与全篇重复，也不凭一个好问答放行其它角色。",
       "path": "artifacts/skill-botanical-replay-20261015/output/screens-final/faq_card-short-mobile.png",
@@ -136,9 +137,9 @@
       "id": "botanical-concept-repeated",
       "role": "concept_explainer",
       "title": "植物主题 · 概念组件",
-      "label": "可用但亮点不足（暂定）",
+      "label": "可用但亮点不足",
       "reason": "页肩、花枝和签孔可见，概念归属清楚；长解释仍主要落在普通边框里，与案例共享题头加框的表达。",
-      "boundary": "不能只因出现矩形就判失败。需要结合需求、其它角色与长文判断；此定位仍待产品负责人校准。",
+      "boundary": "不能只因出现矩形就判失败。需要结合需求、其它角色与长文判断；此处仅确认局部样本的定位。",
       "path": "artifacts/skill-botanical-replay-20261015/output/screens-final/concept_explainer-short-mobile.png",
       "sha256": "8ca89569f5574236e0bcdb19ba2873a9d006d109bf567630379ad15c9ec130bf"
     }

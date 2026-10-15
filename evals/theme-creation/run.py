@@ -171,6 +171,7 @@ def verify(run: Path) -> dict:
 
 def board(root: Path, suite: dict, out: Path) -> dict:
     assets = checked(root, suite["anchors"])
+    owner_status = suite.get("owner_calibration", "pending")
     out = destination(root, out)
     out.mkdir(parents=True)
     (out / "assets").mkdir()
@@ -181,14 +182,17 @@ def board(root: Path, suite: dict, out: Path) -> dict:
         shutil.copy2(path, out / "assets" / filename)
         esc = html.escape
         cards.append(f'''<article data-anchor="{esc(anchor['id'])}"><header><span>0{index} / {esc(anchor['role'])}</span><h2>{esc(anchor['title'])}</h2></header><div class="image"><img src="assets/{filename}" alt="{esc(anchor['title'])}" width="357"></div><details><summary>展开暂定定位与依据</summary><p class="label">{esc(anchor['label'])} · 尚待产品负责人确认</p><p>{esc(anchor['reason'])}</p><p class="boundary">{esc(anchor['boundary'])}</p></details><label>你的校准<select><option value="pending">待确认</option><option value="agree">同意此定位</option><option value="adjust">需要调整定位</option></select></label><label>补充理由<textarea rows="2" placeholder="如果不同意，说明哪处画面改变了你的判断"></textarea></label></article>''')
-        entries.append({"id": anchor["id"], "source_sha256": anchor["sha256"], "provisional_label": anchor["label"]})
+        entries.append({"id": anchor["id"], "source_sha256": anchor["sha256"], "provisional_label": anchor["label"], "owner_confirmation": owner_status})
     data = json.dumps(entries, ensure_ascii=False).replace("<", "\\u003c")
     page = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>主题评测 · 校准四个判断</title><style>
     :root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f4f2ed;color:#172e28;font:15px/1.8 "Microsoft YaHei",sans-serif}main{max-width:1040px;margin:0 auto;padding:44px 24px 64px}.eyebrow{font:12px Consolas,monospace;letter-spacing:2px;color:#63756c}h1{font:36px/1.35 "SimSun",serif;margin:16px 0}main>p{max-width:720px;color:#53665e}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:28px;margin-top:32px}article{background:white;padding:24px;border-top:3px solid #244f43;min-width:0}header span{font:12px Consolas,monospace;color:#63756c}h2{font:22px/1.5 "SimSun",serif;margin:12px 0 20px}.image{overflow:auto;border-bottom:1px solid #e7ebe6;padding-bottom:20px}.image img{display:block;max-width:none;width:357px;height:auto}details{margin:18px 0;border-bottom:1px solid #e7ebe6;padding-bottom:16px}summary{cursor:pointer;color:#244f43}.label{font-weight:bold}.boundary{color:#6c7067;font-size:13px}label{display:block;font-size:13px;margin-top:12px}select,textarea{display:block;width:100%;font:inherit;font-size:14px;line-height:1.7;color:#172e28;padding:9px;border:1px solid #cdd8cf;background:#fcfdfb;margin-top:6px}button{font:15px "Microsoft YaHei",sans-serif;background:#244f43;color:white;border:0;padding:14px 22px;margin-top:24px;cursor:pointer}:focus-visible{outline:3px solid #bf8a35;outline-offset:3px}footer{margin-top:24px;color:#63756c;font-size:13px}@media(max-width:850px){.grid{grid-template-columns:1fr}main{padding:28px 16px}h1{font-size:29px}article{padding:18px}}
     </style><main><div class="eyebrow">VISUAL DIRECTOR / EVALUATION CALIBRATION</div><h1>先校准判断，再继续盲测。</h1><p>这里只看四个局部样本：哪些值得保留，哪些只是可用，哪些仍需改善。先看图，再展开暂定定位；它们不是客观美观分，也不代表整套主题通过。图片保持手机正文原生 357px，窄屏可在图内横向查看。</p><div class="grid">''' + "".join(cards) + '''</div><button id="export">导出校准意见</button><p id="status" role="status"></p><footer>意见只在本页填写，点击导出后下载 JSON；没有网络请求，不会自动保存或修改项目。保留未确认项，不推断整体通过或成功率。</footer></main><script>const anchors=''' + data + ''';document.querySelector('#export').addEventListener('click',()=>{const items=[...document.querySelectorAll('article')].map((card,i)=>({...anchors[i],decision:card.querySelector('select').value,reason:card.querySelector('textarea').value}));const result={schema_version:'theme_owner_calibration.v1',status:'human_calibration',created_at:new Date().toISOString(),items};const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='theme-owner-calibration.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);document.querySelector('#status').textContent='已导出；待确认项保持未确认。';});</script></html>'''
+    if owner_status == "confirmed_local_anchor_judgments":
+        page = page.replace("暂定定位", "定位").replace(
+            "尚待产品负责人确认", "产品负责人已认可此局部定位")
     (out / "index.html").write_text(page, encoding="utf-8")
     (out / "evidence-lock.json").write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"page": str(out / "index.html"), "anchors": len(entries), "owner_confirmation": "pending", "model_calls": 0}
+    return {"page": str(out / "index.html"), "anchors": len(entries), "owner_confirmation": owner_status, "model_calls": 0}
 
 
 def main() -> int:

@@ -1,0 +1,35 @@
+{
+  "schema_version": "theme_owner_calibration.v1",
+  "confirmed_date": "2026-10-15",
+  "status": "confirmed_local_anchor_judgments",
+  "evidence_source": "direct_user_message",
+  "confirmation_quote": "我刚刚审核了下，你的判断没什么问题",
+  "scope": "认可四个局部样本的既有定位与判断依据，不代表整套主题、创作稳定性或微信保存验收通过。",
+  "items": [
+    {
+      "id": "movie-case-carrier",
+      "source_sha256": "d2ed61d9c171232753b21d49304ec88cf592c2f8a3bc88cfd319a783987e87fb",
+      "label": "局部强例",
+      "decision": "agree"
+    },
+    {
+      "id": "botanical-faq-functional",
+      "source_sha256": "0b8ea2c5a4ac154057c29f4056bcc8866626696fa29697b6303a1aaa7f1c56c8",
+      "label": "可读但视觉待修",
+      "decision": "agree"
+    },
+    {
+      "id": "botanical-faq-improved",
+      "source_sha256": "b28de58b5b242e3eebdec540e0fa60fed4874f7650783f2956239e9d8d53f7cc",
+      "label": "有改善的边界样本",
+      "decision": "agree"
+    },
+    {
+      "id": "botanical-concept-repeated",
+      "source_sha256": "8ca89569f5574236e0bcdb19ba2873a9d006d109bf567630379ad15c9ec130bf",
+      "label": "可用但亮点不足",
+      "decision": "agree"
+    }
+  ],
+  "not_confirmed": ["whole_theme_acceptance", "creation_reliability", "wechat_saved_roundtrip", "reserved_unrun_case"]
+}
