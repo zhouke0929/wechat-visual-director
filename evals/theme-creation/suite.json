@@ -1,6 +1,6 @@
 {
   "schema_version": "theme_creation_eval.v1",
-  "revision": "2026-10-15.2",
+  "revision": "2026-10-15.3",
   "owner_calibration": "confirmed_local_anchor_judgments",
   "owner_calibration_record": "owner-calibration.json",
   "cases": [
@@ -81,7 +81,14 @@
     },
     {
       "id": "text-only-minimal",
-      "status": "reserved_unrun",
+      "status": "first_run_in_progress",
+      "first_execution": {
+        "date": "2026-10-15",
+        "thread_id": "01a13e0e-cc76-77e2-962d-0652f6636638",
+        "run_directory": "artifacts/theme-text-minimal-20261015",
+        "skill_snapshot_commit": "d71f439",
+        "result": "not_reviewed"
+      },
       "request": "请为 input/article.md 创作完整主题：白底黑字的极简编辑手记，用清楚的字级、留白、对齐和节奏形成风格，不加插画、花叶、贴纸或装饰图标，不只是默认样式换色。没有参考图，可搜索公开排版灵感。保留原稿与顺序，不补写展示文案。原稿无图，test-image.jpg 只用于独立图文试样，来源见 test-image-source.md。做好后给我正常文章与全组件预览。",
       "inputs": [
         {

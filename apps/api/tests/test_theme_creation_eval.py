@@ -47,11 +47,16 @@ def corpus(tmp_path: Path):
     return root, suite
 
 
-def test_suite_has_two_regressions_and_an_unrun_description_case():
+def test_suite_has_component_regressions_and_a_tracked_description_probe():
     suite = EVAL.read_json(ROOT / "evals/theme-creation/suite.json")
     EVAL.validate_suite(suite)
-    assert [c["status"] for c in suite["cases"]].count("regression_observed") == 2
-    assert [c["status"] for c in suite["cases"]].count("reserved_unrun") == 1
+    cases = {c["id"]: c for c in suite["cases"]}
+    assert all(cases[name]["status"] == "regression_observed" for name in ("botanical-components", "movie-components"))
+    description = cases["text-only-minimal"]
+    assert description["status"] in {"reserved_unrun", "first_run_in_progress", "regression_observed"}
+    if description["status"] != "reserved_unrun":
+        assert description["first_execution"]["thread_id"]
+        assert description["first_execution"]["run_directory"].startswith("artifacts/")
     assert suite["owner_calibration"] == "confirmed_local_anchor_judgments"
     record = EVAL.read_json(ROOT / "evals/theme-creation" / suite["owner_calibration_record"])
     assert record["status"] == suite["owner_calibration"]
