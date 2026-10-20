@@ -1,6 +1,6 @@
 # 任务继续与交付
 
-仅在继续文章、工作台审核、复制下载或微信草稿交付时读取。使用准备回执中的 `{launcher}`，不猜测任务身份；没有可核对身份时让用户从“最近任务”进入。macOS 直接执行启动器。
+仅在继续文章、工作台审核、复制下载或微信草稿交付时读取。使用准备回执中的 `{launcher}`，不猜测任务身份。macOS 直接执行启动器。
 
 ## 工作台审核与图片状态
 
@@ -21,6 +21,14 @@
 
 ## 继续已有任务
 
+已有可信任务链接或 ID 时直接查询状态；没有时先按用户提供的标题关键词检索：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "{launcher}" task list --query "<标题关键词>" --json
+```
+
+不确定关键词可省略 `--query` 查看最近一页，用 `--page` 翻页。结果只含标题、状态、更新时间与入口，不读取全部文章。根据用户描述核对任务；多个合理候选时给标题和时间让用户选择，不默认把最新任务当作目标，也不新建同一篇文章。未找到时可打开“最近任务”按标题查找。旧核心不支持检索时使用该页面，不直接扫描数据库。
+
 查询状态：
 
 ```powershell
@@ -32,6 +40,8 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task status <task-id> --js
 ```powershell
 powershell -ExecutionPolicy Bypass -File "{launcher}" task open <task-id> --json
 ```
+
+工作台“回到上一版”撤回上次主题或方案修改，可沿已有记录连续回退；当前正文和已有图片保留，不代表整篇文章历史回滚，也不改变已创建的微信草稿。回退后重新预览并确认最终版本，不重新生成主题包。
 
 服务异常时先执行 `doctor --json`；仅停止由本 CLI 启动且身份校验通过的进程：
 

@@ -119,7 +119,7 @@ if first_install and "onboarding_pending" not in doctor.get("setup", {}):
         "lines": [
             "Give your Agent a topic, source material, or an existing article; it organizes the content and plans the layout before opening the workbench.",
             "Edit text, review themes and mobile previews in the workbench; if your Agent supports native image generation, ask it for article and cover candidates to review.",
-            "Give your Agent a component reference image or style description to create a complete custom theme; review it in the gallery and a real article before use.",
+            "For a custom theme, preferably give your Agent a component screenshot; a style description can also start an exploration. Review the full theme in the gallery and a real article before use.",
             "Enter image API and WeChat credentials only in Local Settings; the product creates drafts and never mass publishes automatically.",
         ],
     }

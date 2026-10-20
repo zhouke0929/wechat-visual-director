@@ -88,6 +88,11 @@ try {
     $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --api-base $ApiBase --web-base $WebBase --json
     $Task = (@($TaskRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Task.ok -or [string]::IsNullOrWhiteSpace([string]$Task.task_id)) { throw "Sample task creation failed." }
+    $ListRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task list --api-base $ApiBase --web-base $WebBase --json
+    $TaskList = (@($ListRaw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if (-not $TaskList.ok -or $TaskList.total -ne 1 -or $TaskList.items[0].id -ne $Task.task_id) {
+        throw "Packaged CLI could not find the existing sample task."
+    }
 
     # Reinstall an occupied dataset, not just an empty first installation.
     $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
@@ -98,9 +103,17 @@ try {
     }
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher stop --json | Out-Null
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallRoot "uninstall.ps1") -InstallRoot $InstallRoot -HostHome $HostHome -Purge | Out-Null
+    $DatabasePath = Join-Path $InstallRoot "data\visual-director.db"
+    $DatabaseHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $DatabasePath).Hash
+    $UninstallRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $InstallRoot "uninstall.ps1") -InstallRoot $InstallRoot -HostHome $HostHome
+    $Uninstall = (@($UninstallRaw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if (-not $Uninstall.ok -or $Uninstall.mode -ne "preserve_data" -or
+        -not (Test-Path -LiteralPath $DatabasePath -PathType Leaf) -or
+        (Get-FileHash -Algorithm SHA256 -LiteralPath $DatabasePath).Hash -ne $DatabaseHash) {
+        throw "Default uninstall did not preserve the existing database."
+    }
     if (Test-Path -LiteralPath (Join-Path $HostHome ".codex\skills\wechat-visual-director")) {
-        throw "Codex Skill registration survived purge uninstall."
+        throw "Codex Skill registration survived uninstall."
     }
 
     [ordered]@{
@@ -109,6 +122,7 @@ try {
         version = $Manifest.application_version
         runtime = $Manifest.python_runtime
         task_id = $Task.task_id
+        default_uninstall_preserved_database = $true
         archive = $ArchivePath
     } | ConvertTo-Json -Depth 5 -Compress
 } finally {

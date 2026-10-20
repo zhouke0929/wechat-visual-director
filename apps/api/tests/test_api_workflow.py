@@ -417,6 +417,20 @@ def test_task_list_supports_server_side_pagination_without_breaking_legacy_clien
         assert len(legacy["items"]) == 11
         assert legacy["next_cursor"] is None
 
+        # Search covers the full history, not just the visible page.
+        matches = client.get("/api/v1/article-tasks", params={"q": "任务 0", "page": 2, "page_size": 4}).json()
+        assert matches["total"] == 10
+        assert matches["total_pages"] == 3
+        assert len(matches["items"]) == 4
+        assert all("任务 0" in item["title"] for item in matches["items"])
+        single = client.get("/api/v1/article-tasks", params={"q": "历史任务 10"}).json()
+        assert single["total"] == 1
+        assert single["items"][0]["title"] == "历史任务 10"
+        for literal in ("%", "_", "'", "不存在的文章"):
+            empty = client.get("/api/v1/article-tasks", params={"q": literal}).json()
+            assert empty["total"] == 0
+            assert empty["items"] == []
+        assert client.get("/api/v1/article-tasks", params={"q": " "}).json() == legacy
         assert client.get("/api/v1/article-tasks", params={"page": 0, "page_size": 4}).status_code == 422
         assert client.get("/api/v1/article-tasks", params={"page": 1, "page_size": 51}).status_code == 422
 

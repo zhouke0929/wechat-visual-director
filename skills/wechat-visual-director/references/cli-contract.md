@@ -20,6 +20,7 @@
 & "{launcher}" task create --file C:\path\article.md --new-task --open --json
 
 # 查询和打开任务
+& "{launcher}" task list --query "<标题关键词>" --page 1 --json
 & "{launcher}" task status <task-id> --json
 & "{launcher}" task open <task-id> --json
 

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "@/lib/router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowIcon, BackIcon } from "@/components/icons";
 import { StatusPill } from "@/components/status-pill";
 import { deleteTasks, listTasks } from "@/lib/api";
@@ -30,22 +30,28 @@ export default function RecentTasksPage() {
   const [taskPage, setTaskPage] = useState(1);
   const [taskTotal, setTaskTotal] = useState(0);
   const [taskTotalPages, setTaskTotalPages] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const loadSequence = useRef(0);
 
   const loadTaskPage = useCallback(async (page: number) => {
+    const sequence = ++loadSequence.current;
     setLoading(true);
     try {
-      const result = await listTasks(page, TASK_PAGE_SIZE);
+      const result = await listTasks(page, TASK_PAGE_SIZE, search);
+      if (sequence !== loadSequence.current) return;
       setTasks(result.items);
       setTaskPage(result.page);
       setTaskTotal(result.total);
       setTaskTotalPages(result.total_pages);
       setTaskError("");
     } catch (reason) {
+      if (sequence !== loadSequence.current) return;
       setTaskError(reason instanceof Error ? reason.message : "读取历史任务失败");
     } finally {
-      setLoading(false);
+      if (sequence === loadSequence.current) setLoading(false);
     }
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     void loadTaskPage(taskPage);
@@ -139,6 +145,18 @@ export default function RecentTasksPage() {
           </div>
         </div>
 
+        <form className={styles.search} onSubmit={(event) => {
+          event.preventDefault();
+          closeManageMode();
+          setTaskPage(1);
+          setSearch(searchInput.trim());
+        }}>
+          <label htmlFor="task-search">按文章标题查找</label>
+          <input id="task-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="输入标题关键词" />
+          <button type="submit">查找</button>
+          {search ? <button type="button" onClick={() => { closeManageMode(); setSearchInput(""); setSearch(""); setTaskPage(1); }}>显示全部</button> : null}
+        </form>
+
         {manageTasks ? (
           <div className="task-manage-toolbar" aria-label="历史任务批量管理">
             <button
@@ -175,8 +193,8 @@ export default function RecentTasksPage() {
         {!loading && taskTotal === 0 ? (
           <div className="empty-state">
             <span>01</span>
-            <h3>还没有视觉任务</h3>
-            <p>回到 Agent 对话，给它一个选题或一篇原稿；完成内容整理与规划后，再来这里确认成稿。</p>
+            <h3>{search ? "没有找到匹配的任务" : "还没有视觉任务"}</h3>
+            <p>{search ? "可以缩短标题关键词，或点击“显示全部”查看历史任务。" : "回到 Agent 对话，给它一个选题或一篇原稿；完成内容整理与规划后，再来这里确认成稿。"}</p>
             <Link className="desk-recent-link" href="/">回到首页开始 <span aria-hidden="true">↗</span></Link>
           </div>
         ) : null}

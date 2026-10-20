@@ -1,6 +1,6 @@
 {
   "schema_version": "theme_creation_eval.v1",
-  "revision": "2026-10-15.3",
+  "revision": "2026-10-19.1",
   "owner_calibration": "confirmed_local_anchor_judgments",
   "owner_calibration_record": "owner-calibration.json",
   "cases": [
@@ -81,13 +81,17 @@
     },
     {
       "id": "text-only-minimal",
-      "status": "first_run_in_progress",
+      "status": "regression_observed",
       "first_execution": {
         "date": "2026-10-15",
         "thread_id": "01a13e0e-cc76-77e2-962d-0652f6636638",
         "run_directory": "artifacts/theme-text-minimal-20261015",
         "skill_snapshot_commit": "d71f439",
-        "result": "not_reviewed"
+        "result": "reading_usable_visual_needs_revision",
+        "reviewed_date": "2026-10-18",
+        "audit": "artifacts/theme-text-minimal-20261015/controller/audit-20261018.md",
+        "theme_sha256": "656645cf815cadfef1b4d374bab59141bf349729a0090045b7db6f1b475e6717",
+        "scope": "One black-and-white text-only run; not a causal comparison of text and image input, and not WeChat verification."
       },
       "request": "请为 input/article.md 创作完整主题：白底黑字的极简编辑手记，用清楚的字级、留白、对齐和节奏形成风格，不加插画、花叶、贴纸或装饰图标，不只是默认样式换色。没有参考图，可搜索公开排版灵感。保留原稿与顺序，不补写展示文案。原稿无图，test-image.jpg 只用于独立图文试样，来源见 test-image-source.md。做好后给我正常文章与全组件预览。",
       "inputs": [
@@ -95,6 +99,87 @@
           "name": "article.md",
           "path": "evals/theme-creation/fixtures/botanical-article.md",
           "sha256": "7e85c4d199ae9d4ab4ffef03408788a5413b97913cdfda98de449abffca994ea"
+        },
+        {
+          "name": "test-image.jpg",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image.jpg",
+          "sha256": "f4334b76006b7f33910d50db8765459e2c9712ce5adf08dc28e11e539747f926"
+        },
+        {
+          "name": "test-image-source.md",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image-source.md",
+          "sha256": "3cd07326d1c9dd75ec9161d4b458720cd309c1d4d13d872b93c0fcca569e34c9"
+        }
+      ]
+    },
+    {
+      "id": "text-only-citywalk",
+      "status": "regression_observed",
+      "first_execution": {
+        "date": "2026-10-18",
+        "thread_id": "01a14f85-b4bd-7103-9f26-b0e31bc4f975",
+        "run_directory": "artifacts/theme-text-citywalk-20261018",
+        "skill_snapshot_commit": "a414e3254afab4434d78b9b7d758ce46707374e4",
+        "skill_snapshot_dirty": true,
+        "result": "reading_usable_visual_needs_revision",
+        "reviewed_date": "2026-10-19",
+        "audit": "artifacts/theme-text-citywalk-20261018/controller/audit-20261019.md",
+        "theme_sha256": "d6410aa99e62f5790a37fcbed07acb5920ad4d587daaa69e0ed11184d28df78d"
+      },
+      "request": "请为 input/article.md 创作一整套城市漫游主题。希望像独立城市杂志与纸本步行导览的结合：白色底色，低饱和蓝灰配少量橙色，清楚、轻快，有生活感但不幼稚。我没有参考图，允许搜索公开设计参考，具体视觉表达由你决定。保留原稿内容和顺序，不补写展示文案。原稿无图，test-image.jpg 只用于独立图文试样，不是风格参考，也不放进原稿；来源见 test-image-source.md。完成后给我正常文章与全组件预览。",
+      "inputs": [
+        {
+          "name": "article.md",
+          "path": "evals/theme-creation/fixtures/citywalk-article.md",
+          "sha256": "d95351503e35e7eec28b2f6b4a77e66b6675eec11cbf5587b0ad3a67bb92f0ad"
+        },
+        {
+          "name": "test-image.jpg",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image.jpg",
+          "sha256": "f4334b76006b7f33910d50db8765459e2c9712ce5adf08dc28e11e539747f926"
+        },
+        {
+          "name": "test-image-source.md",
+          "path": "artifacts/skill-botanical-holdout-20261014/input/test-image-source.md",
+          "sha256": "3cd07326d1c9dd75ec9161d4b458720cd309c1d4d13d872b93c0fcca569e34c9"
+        }
+      ]
+    },
+    {
+      "id": "travel-components",
+      "status": "regression_observed",
+      "first_execution": {
+        "date": "2026-10-19",
+        "thread_id": "01a15211-dc8e-7ed2-8c3d-1bab0bb02a40",
+        "run_directory": "artifacts/theme-travel-components-20261019",
+        "skill_snapshot_commit": "a414e3254afab4434d78b9b7d758ce46707374e4",
+        "skill_snapshot_dirty": true,
+        "result": "local_visual_pass_and_wechat_fixture_pass_user_report",
+        "audit": "artifacts/theme-travel-components-20261019/controller/audit-20261019.md",
+        "wechat_acceptance": "artifacts/travel-wechat-acceptance-20261020/output/user-acceptance.json",
+        "boundary": "单例本地创作验收通过；当前全角色验收稿的 API 与复制保存、重开和手机预览由用户确认正常。复制仍有未明细警告，不代表通用成功率或全设备兼容认证。"
+      },
+      "request": "我喜欢 input/reference-title.jpg 和 input/reference-body.jpg 这两张组件的感觉，请参考它们为 input/article.md 创作一整套轻快、有生活感的出游手帐主题，整篇使用白色底色。允许搜索公开参考，保留原稿内容与顺序，不补写展示文案。参考来源见 reference-source.md，原素材仅供研究和原创转译，不直接复制进主题。原稿无图，test-image.jpg 仅用于独立图文试样，不是风格参考，不加入原稿，来源见 test-image-source.md。完成后给我正常文章与全组件预览。",
+      "inputs": [
+        {
+          "name": "article.md",
+          "path": "evals/theme-creation/fixtures/citywalk-article.md",
+          "sha256": "d95351503e35e7eec28b2f6b4a77e66b6675eec11cbf5587b0ad3a67bb92f0ad"
+        },
+        {
+          "name": "reference-title.jpg",
+          "path": "artifacts/component-travel-reference-20261019/input/reference-title.jpg",
+          "sha256": "7afecb2f0c6c39fba12b2d694821bb38bebbbfc9a938026736a5afb98851b318"
+        },
+        {
+          "name": "reference-body.jpg",
+          "path": "artifacts/component-travel-reference-20261019/input/reference-body.jpg",
+          "sha256": "e869f6a2eed71cc641521aefac8d424f02b9fb86ce9d0dd047f3c9906b7a76a3"
+        },
+        {
+          "name": "reference-source.md",
+          "path": "artifacts/component-travel-reference-20261019/input/reference-source.md",
+          "sha256": "d840fe5b48c6cfd8022a47c10cb9714b4a66bb21a1f09c573663b38ae8cb3052"
         },
         {
           "name": "test-image.jpg",

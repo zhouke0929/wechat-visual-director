@@ -209,7 +209,9 @@ def test_custom_theme_creation_is_discoverable_without_reading_developer_docs(tm
     from visual_director.onboarding import read_workbench_onboarding
     guide = read_workbench_onboarding(tmp_path / "onboarding-state.json")["guide"]
     assert len(guide["lines"]) <= 5
-    assert any("参考图" in line and "整套主题" in line for line in guide["lines"])
+    theme_line = next(line for line in guide["lines"] if "主题" in line and ("参考图" in line or "组件截图" in line))
+    assert "描述风格" in theme_line
+    assert "样本册" in theme_line and "真实文章" in theme_line
     assert any("候选" in line and "审核" in line for line in guide["lines"])
     assert any("不自动群发" in line for line in guide["lines"])
 

@@ -548,17 +548,22 @@ class Repository:
         return [self._task_from_row(row) for row in rows]
 
     @_serialized_read
-    def list_tasks_page(self, *, page: int, page_size: int) -> dict[str, Any]:
+    def list_tasks_page(self, *, page: int, page_size: int, query: str = "") -> dict[str, Any]:
         """Return a stable page of task summaries without loading the full history."""
         if page < 1:
             raise ValueError("页码必须从 1 开始")
         if page_size < 1 or page_size > 50:
             raise ValueError("每页任务数必须在 1 到 50 之间")
-        total = int(self.connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0])
+        # A title query is literal text, including SQL LIKE wildcard characters.
+        query = query.strip()
+        where = " WHERE title LIKE ? ESCAPE '\\'" if query else ""
+        escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params = (f"%{escaped}%",) if query else ()
+        total = int(self.connection.execute("SELECT COUNT(*) FROM tasks" + where, params).fetchone()[0])
         offset = (page - 1) * page_size
         rows = self.connection.execute(
-            "SELECT * FROM tasks ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
-            (page_size, offset),
+            "SELECT * FROM tasks" + where + " ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+            (*params, page_size, offset),
         ).fetchall()
         return {
             "items": [self._task_from_row(row) for row in rows],

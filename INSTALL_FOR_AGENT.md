@@ -13,7 +13,7 @@ bundled `ensure-workbench` helper below to finish setup in the same turn. This
 includes Codex's `skill-installer`: copying files is a step, not proof that the
 workbench is ready. Do not edit the host's system installer. If the user explicitly
 wants files only, or execution is unavailable, end with a useful handoff instead:
-"公众号视觉主编已添加。接下来直接说‘打开公众号工作台’，或给出文章选题；第一次使用时会自动准备本地工作台。也可以给参考图或风格描述，创作整套新主题。支持生图的 Agent 还可以生成正文配图和封面候选。"
+"公众号视觉主编已添加。接下来直接说‘打开公众号工作台’，或给出文章选题；第一次使用时会自动准备本地工作台。创作整套新主题推荐附上喜欢的组件截图，也可描述风格探索方向。支持生图的 Agent 还可以生成正文配图和封面候选。"
 Do not claim the workbench is ready without checking it. Do not require a new
 conversation unless the host actually needs a reload. The distributable Skill is
 at `skills/wechat-visual-director/`; read its opening onboarding instructions.

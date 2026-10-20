@@ -340,7 +340,7 @@ export default function ImageProviderSettingsPage() {
               </div>
               <div className={`${styles.targetSummary} ${capabilities.complete_for_target ? styles.targetReady : ""}`}>
                 <strong>{capabilities.complete_for_target ? "目标能力已就绪" : "还差一项配置"}</strong>
-                <small>{capabilities.next_action.replaceAll("_", " ")}</small>
+                <small>{capabilities.complete_for_target ? "可以返回工作台继续文章" : "按下方提示完成所需连接"}</small>
               </div>
             </header>
             <div className={styles.targetGrid}>
@@ -366,6 +366,7 @@ export default function ImageProviderSettingsPage() {
                 );
               })}
             </div>
+            <p>这里配置的是工作台图片 API。若 Agent 对话本身支持原生生图，可以在文章的配图或封面区域复制指令，让 Agent 生成候选；无需为了这条路径配置图片 API。工作台无法替当前对话判断生图工具是否可用。</p>
           </section>
 
           {capabilities.target_mode === "typeset_only" ? (

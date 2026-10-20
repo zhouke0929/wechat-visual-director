@@ -102,8 +102,9 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-export async function listTasks(page = 1, pageSize = 8): Promise<TaskPage> {
+export async function listTasks(page = 1, pageSize = 8, search = ""): Promise<TaskPage> {
   const query = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+  if (search.trim()) query.set("q", search.trim());
   const response = await fetch(`${API_BASE}/article-tasks?${query}`, { cache: "no-store" });
   const payload = await parseResponse<TaskPage | { items: Task[] }>(response);
   if ("schema_version" in payload && payload.schema_version === "article_task_page.v0.1") {
@@ -111,7 +112,7 @@ export async function listTasks(page = 1, pageSize = 8): Promise<TaskPage> {
   }
   // A stale local core can ignore the pagination parameters. Keep the page usable
   // long enough for the launcher to surface the version mismatch and upgrade path.
-  const items = payload.items ?? [];
+  const items = (payload.items ?? []).filter(task => !search.trim() || task.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const total = items.length;
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   return {

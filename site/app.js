@@ -18,7 +18,7 @@ let dialogTrigger = null;
 const installPrompt = `请打开并完整执行下面的 Agent 安装说明，为我安装或升级完整的 wechat-visual-director 产品。使用当前安装入口，不要沿用旧文档里的固定版本。必须同时安装轻量 Skill 和本地工作台、运行 doctor --json 并打开工作台；不要只复制 Skill，也不要把源码仓库克隆到 Skill 目录。完成后给我实际安装版本、工作台链接和不超过五行的上手说明，包括下一句可以怎么使用；如果受限未完成，说明当前状态和下一步，不要只回复已安装。不要读取或回显任何密钥。
 https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md`;
 promptField.value = installPrompt;
-const themePrompt = `请用 wechat-visual-director，根据我附上的组件参考图，或风格描述【填写风格】，创作一整套新的主题。寻找相关组件参考，联想关联元素，延展完整视觉语言，不要只给现有主题换色。正文保持可编辑，先在样本册和一篇示例文章中让我查看效果，不要创建公众号草稿。`;
+const themePrompt = `请用 wechat-visual-director，根据我提供的组件参考图或风格描述【填写风格】，创作一整套新的主题。只有描述时先寻找可查看的成品组件参考，把方向具体化。联想关联元素，延展完整视觉语言，不要只给现有主题换色。正文保持可编辑，先在样本册和一篇示例文章中让我查看效果，不要创建公众号草稿。`;
 
 function renderSpecimen() {
   if (!currentTheme) return;

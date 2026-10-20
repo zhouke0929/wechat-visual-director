@@ -11,6 +11,28 @@ import pytest
 from visual_director import cli
 
 
+def test_task_list_is_read_only_and_returns_summary_links(monkeypatch, capsys) -> None:
+    from urllib.parse import parse_qs, urlsplit
+    calls = []
+    def request(method, url, **kwargs):
+        calls.append((method, url, kwargs))
+        return {"items": [{"id": "existing", "title": "街区 100%", "status": "images_review",
+                           "updated_at": "2026-10-20", "source_markdown": "private article"}],
+                "page": 2, "total": 9, "total_pages": 2}
+    monkeypatch.setattr(cli, "_request_json", request)
+    monkeypatch.setattr(cli.webbrowser, "open", lambda *a, **kw: pytest.fail("must not open or mutate"))
+    assert cli.run(["task", "list", "--query", "街区 100%", "--page", "2", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert len(calls) == 1 and calls[0][0] == "GET"
+    assert parse_qs(urlsplit(calls[0][1]).query)["q"] == ["街区 100%"]
+    assert payload["items"][0]["review_url"].endswith("/tasks/existing")
+    assert "source_markdown" not in payload["items"][0]
+    assert payload["total"] == 9 and payload["page"] == 2
+    monkeypatch.setattr(cli, "_request_json", lambda *a, **kw: {"items": [], "next_cursor": None})
+    assert cli.run(["task", "list", "--json"]) == 3
+    assert json.loads(capsys.readouterr().out)["error"]["code"] == "task_search_unavailable"
+
+
 def test_cli_json_forces_utf8_when_windows_runner_defaults_to_cp1252() -> None:
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "cp1252"

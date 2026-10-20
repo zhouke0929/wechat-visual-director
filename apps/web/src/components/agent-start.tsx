@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const prompts = {
   topic: "请用 wechat-visual-director，帮我写一篇关于【填写主题】的公众号文章，整理内容结构并完成语义规划后，打开本机工作台供我编辑和审核。先不要生成图片或创建公众号草稿。",
   article: "请用 wechat-visual-director，整理我提供的这篇文章。在保留事实、数字、观点和结论的前提下梳理标题层级、段落与列表，完成语义规划和排版后，打开本机工作台供我编辑和审核。先不要生成图片或创建公众号草稿。",
-  theme: "请用 wechat-visual-director，根据我附上的组件参考图，或下面的风格描述【填写风格】，创作一整套新的主题。寻找相关组件参考，联想关联元素，延展完整视觉语言，不要只给已有主题换色。正文保持可编辑，先在样本册和一篇示例文章中让我查看整体效果，不要创建公众号草稿。",
+  theme: "请用 wechat-visual-director，根据我提供的组件参考图或风格描述【填写风格】，创作一整套新的主题。只有描述时先寻找可查看的成品组件参考，把方向具体化。联想关联元素，延展完整视觉语言，不要只给已有主题换色。正文保持可编辑，先在样本册和一篇示例文章中让我查看整体效果，不要创建公众号草稿。",
 };
 
 export function AgentStart() {
@@ -58,7 +58,7 @@ export function AgentStart() {
         <button className={`primary-button ${copyState === "copied" ? "is-copied" : ""}`} data-copy-state={copyState} type="button" aria-live="polite" disabled={copyState === "copying"} onClick={copyPrompt}>
           {copyState === "copied" ? "✓ 已复制" : copyState === "copying" ? "正在复制…" : copyState === "failed" ? "重试复制" : "复制给 Agent 的指令 ↗"}
         </button>
-        <p className="agent-start-next" role="status">{copyState === "failed" ? "已选中指令，请手动复制到 Agent 对话。" : mode === "theme" ? "附上喜欢的组件截图，或填写风格描述，回到 Agent 对话发送。这里不会自动发送。" : mode === "topic" ? "复制后填写主题，回到 Agent 对话发送。这里不会自动发送。" : "附上原文或 Markdown 文件，回到 Agent 对话发送。"}</p>
+        <p className="agent-start-next" role="status">{copyState === "failed" ? "已选中指令，请手动复制到 Agent 对话。" : mode === "theme" ? "推荐附上喜欢的组件截图，更容易对齐风格；没有图也可填写描述探索。回到 Agent 对话发送，这里不会自动发送。" : mode === "topic" ? "复制后填写主题，回到 Agent 对话发送。这里不会自动发送。" : "附上原文或 Markdown 文件，回到 Agent 对话发送。"}</p>
       </div>
     </section>
   );

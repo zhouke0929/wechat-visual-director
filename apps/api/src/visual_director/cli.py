@@ -15,7 +15,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
 from .version import application_version, runtime_identity
@@ -1202,6 +1202,23 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _task_list(args: argparse.Namespace) -> dict[str, Any]:
+    query = urlencode({"page": args.page, "page_size": args.page_size, "q": args.query})
+    payload = _request_json("GET", f"{args.api_base.rstrip('/')}/article-tasks?{query}", timeout=15)
+    if not isinstance(payload.get("items"), list) or "total" not in payload:
+        raise CliError("task_search_unavailable", "当前服务不支持任务检索，请打开最近任务，或升级工作台。", exit_code=3)
+    return {
+        "ok": True, "schema_version": "task_list_result.v0.1",
+        "items": [{
+            **{key: task.get(key) for key in ("id", "title", "status", "updated_at")},
+            "review_url": f"{args.web_base.rstrip('/')}/tasks/{task['id']}",
+        } for task in payload["items"]],
+        "page": payload["page"], "total": payload["total"],
+        "total_pages": payload["total_pages"],
+        "next_action": "select_existing_task" if payload["items"] else "no_matching_tasks",
+    }
+
+
 def _task_context(args: argparse.Namespace) -> dict[str, Any]:
     payload = _request_json(
         "GET",
@@ -1648,6 +1665,13 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--start-timeout", type=float, default=45)
     create.add_argument("--json", action="store_true", dest="json_output")
 
+    task_list = task_subparsers.add_parser("list", help="按标题查找已有任务，不读取文章正文")
+    _add_connection_args(task_list)
+    task_list.add_argument("--query", default="")
+    task_list.add_argument("--page", type=int, default=1)
+    task_list.add_argument("--page-size", type=int, default=8)
+    task_list.add_argument("--json", action="store_true", dest="json_output")
+
     status = task_subparsers.add_parser("status", help="查看任务状态")
     _add_connection_args(status)
     status.add_argument("task_id")
@@ -1728,6 +1752,8 @@ def run(argv: Sequence[str] | None = None) -> int:
             payload, exit_code = _theme_pack_list(args), 0
         elif args.command == "task" and args.task_command == "create":
             payload, exit_code = _create_task(args), 0
+        elif args.command == "task" and args.task_command == "list":
+            payload, exit_code = _task_list(args), 0
         elif args.command == "task" and args.task_command == "status":
             payload, exit_code = _task_status(args), 0
         elif args.command == "task" and args.task_command == "context":

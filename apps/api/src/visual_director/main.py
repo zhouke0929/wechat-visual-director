@@ -1680,14 +1680,15 @@ def create_app(
     def list_tasks(
         page: int | None = Query(default=None, ge=1),
         page_size: int | None = Query(default=None, ge=1, le=50),
+        q: str = Query(default="", max_length=200),
     ) -> dict[str, Any]:
         # Calls without pagination parameters retain the original full-list response.
-        if page is None and page_size is None:
+        if page is None and page_size is None and not q.strip():
             items = [_public_task(task) for task in repository.list_tasks()]
             return {"items": items, "next_cursor": None}
         resolved_page = page or 1
         resolved_page_size = page_size or 8
-        result = repository.list_tasks_page(page=resolved_page, page_size=resolved_page_size)
+        result = repository.list_tasks_page(page=resolved_page, page_size=resolved_page_size, query=q)
         total = int(result["total"])
         total_pages = max(1, (total + resolved_page_size - 1) // resolved_page_size)
         return {

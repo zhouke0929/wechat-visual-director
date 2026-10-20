@@ -1509,3 +1509,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
 }
+.host-image-entry { margin: 16px; padding: 14px; border: 1px solid var(--line, #ccc); background: white; }
+.host-image-entry summary { cursor: pointer; font-size: 14px; font-weight: 700; }
+.host-image-entry p { font-size: 13px; line-height: 1.7; }
+.host-image-entry textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 10px; font: inherit; font-size: 12px; line-height: 1.6; }
+.host-image-entry button { margin-top: 8px; padding: 8px 12px; border: 1px solid var(--teal, #0e756d); background: white; color: var(--teal, #0e756d); font: inherit; font-size: 13px; cursor: pointer; }

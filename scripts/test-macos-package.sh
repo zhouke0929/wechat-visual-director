@@ -87,6 +87,13 @@ for theme in gallery["themes"]:
 PY
 
 "$INSTALL_ROOT/visual-director" task create --file "$PACKAGE_ROOT/samples/skill-alpha/canonical-article.md" --no-plan --json > "$TEMP_ROOT/task.json"
+"$INSTALL_ROOT/visual-director" task list --json > "$TEMP_ROOT/task-list.json"
+"$PACKAGE_PYTHON" - "$TEMP_ROOT/task.json" "$TEMP_ROOT/task-list.json" <<'PY'
+import json, sys
+task, listing = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+assert listing["ok"] is True and listing["total"] == 1, listing
+assert listing["items"][0]["id"] == task["task_id"], listing
+PY
 bash "$PACKAGE_ROOT/scripts/bootstrap.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME" > "$TEMP_ROOT/upgrade.json"
 "$PACKAGE_PYTHON" - "$TEMP_ROOT/upgrade.json" <<'PY'
 import json, sys

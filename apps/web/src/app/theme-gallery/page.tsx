@@ -151,7 +151,7 @@ export default function ThemeGalleryPage() {
           <span>YOUR VISUAL DNA / 00</span>
           <h2>这里会收纳你自己的阅读气质。</h2>
           <p>
-            给已安装 Skill 的 Agent 一张组件参考图，或描述想要的风格。它会寻找相关参考、联想并延展整套视觉语言；完成的扩展包可在这里浏览、导入和导出，再用于真实文章。
+            推荐给已安装 Skill 的 Agent 喜欢的组件截图，更容易对齐风格；没有图也可描述需求探索。它会寻找具体参考、联想并延展整套视觉语言；完成的扩展包可在这里浏览、导入和导出，再用于真实文章。
           </p>
           <button disabled={busy} onClick={() => fileInput.current?.click()} type="button">导入第一套主题</button>
         </section>

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="公众号视觉主编是开源微信公众号 AI 排版 Skill 与本地工作台。支持 12 套主题，也可给参考图或描述创作整套新主题；原文编辑、手机预览、AI 配图与封面，交付公众号草稿。"
+      content="公众号视觉主编是开源微信公众号 AI 排版 Skill 与本地工作台。12 套内置主题，推荐用组件截图创作整套新主题，也支持描述探索；原文编辑、手机预览、AI 配图与封面，交付公众号草稿。"
     />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <link rel="canonical" href="https://zhouke0929.github.io/wechat-visual-director/" />
@@ -13,7 +13,7 @@
     <meta property="og:locale" content="zh_CN" />
     <meta property="og:site_name" content="WeChat Visual Director" />
     <meta property="og:title" content="微信公众号 AI 排版 Skill | WeChat Visual Director" />
-    <meta property="og:description" content="给参考图或风格描述，创作整套新主题。12 套内置主题、原文编辑、手机预览、配图与封面，在本地工作台审核并交付公众号草稿。" />
+    <meta property="og:description" content="推荐用组件截图创作整套新主题，也支持描述风格探索。12 套内置主题、原文编辑、手机预览、配图与封面，在本地工作台审核并交付公众号草稿。" />
     <meta property="og:url" content="https://zhouke0929.github.io/wechat-visual-director/" />
     <meta property="og:image" content="https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/docs/assets/readme/product-showcase-hero.png" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -30,8 +30,8 @@
         "alternateName": ["公众号视觉主编", "微信公众号 AI 排版 Skill", "wechat-visual-director"],
         "applicationCategory": "DesignApplication",
         "operatingSystem": "Windows; macOS Technical Preview",
-        "description": "开源微信公众号 AI 排版 Skill 与本地可视化工作台。支持 12 套主题，也可从组件参考图或描述创作整套新主题；原文编辑、手机预览、AI 配图与封面，以及人工确认后的公众号草稿箱交付。",
-        "featureList": ["Agent 语义规划与 Markdown 转微信兼容 HTML", "12 套主题、12 类语义组件与 14 种基础样式", "参考图或描述创作整套自定义主题，本机主题包导入导出", "600px 内容校对与原文编辑、405px 手机预览", "宿主原生生图或图片 API 生成正文与封面候选", "富文本复制、交付包下载与微信公众号草稿箱交付"],
+        "description": "开源微信公众号 AI 排版 Skill 与本地可视化工作台。12 套内置主题，推荐用组件截图创作整套新主题，也支持描述探索；原文编辑、手机预览、AI 配图与封面，以及人工确认后的公众号草稿箱交付。",
+        "featureList": ["Agent 语义规划与 Markdown 转微信兼容 HTML", "12 套主题、12 类语义组件与 14 种基础样式", "推荐组件参考图创作整套自定义主题，支持描述探索与本机主题包导入导出", "600px 内容校对与原文编辑、405px 手机预览", "宿主原生生图或图片 API 生成正文与封面候选", "富文本复制、交付包下载与微信公众号草稿箱交付"],
         "url": "https://zhouke0929.github.io/wechat-visual-director/",
         "downloadUrl": "https://github.com/zhouke0929/wechat-visual-director/releases",
         "codeRepository": "https://github.com/zhouke0929/wechat-visual-director",
@@ -59,13 +59,13 @@
         <div class="hero-copy">
           <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> 微信公众号 AI 排版 SKILL · 开源</p>
           <h1 id="hero-title">让好内容，<br />自带<em>好气质。</em></h1>
-          <p class="hero-thesis">Agent 读懂文章。你在工作台定稿。</p>
-          <p class="hero-desc">12 套主题，也能从参考图创作自己的新风格。<br class="desktop-break" />原文编辑、AI 配图与封面，把好内容变成好作品。</p>
+          <p class="hero-thesis">给一篇稿，排好它。给一个参考，长出新风格。</p>
+          <p class="hero-desc">从 12 套主题开始，也能用组件截图创作整套主题。<br class="desktop-break" />Agent 设计，你改文字、审图片，最后把图文一起复制到公众号。</p>
           <div class="hero-actions">
             <button class="button" id="heroCopyInstallPrompt" type="button" data-copy-install>用我的文章试试 <span aria-hidden="true">↗</span></button>
             <a class="text-link" href="#themes">先换个主题看看 <span aria-hidden="true">↓</span></a>
           </div>
-          <p class="hero-note">复制安装指令，发给你的 Agent 即可开始。</p>
+          <p class="hero-note">先看效果无需安装；使用时交给 Agent 安装。不接微信 API，也能复制图文。</p>
           <a class="custom-entry" href="#custom-themes">有喜欢的组件截图？创作你的整套主题 ↗</a>
           <div class="hero-signature"><span>LESS FORMATTING.</span><span>MORE EXPRESSION.</span><i aria-hidden="true">✳</i></div>
         </div>
@@ -152,12 +152,12 @@
         <div class="custom-copy">
           <p class="eyebrow">BEYOND THE TWELVE / YOUR OWN THEME</p>
           <h2 id="custom-title">从一个喜欢的细节，<br />长成你的<em>整套风格。</em></h2>
-          <p>一张组件截图，或一段风格描述。Agent 寻找相关参考、联想关联元素，再把视觉语言延展到整套主题——不止换色，也不只做几个部件。</p>
+          <p>喜欢一个标题、一款相框，或一枚有趣的贴纸？附上组件截图，让 Agent 寻找相关参考、联想关联元素，把这个细节延展成整套标题、引用、图文与重点组件。确认后保存为主题包，下一篇接着用。</p>
           <button class="button" type="button" data-copy-theme>复制主题创作指令 <span aria-hidden="true">↗</span></button>
-          <p class="custom-boundary">先安装，再把指令与参考交给 Agent。在线页是公开展示，不在这里上传或生成；正文可编辑，微信保存后的效果仍需核对。</p>
+          <p class="custom-boundary">先安装，再把需求交给 Agent。没有图也可描述风格探索，但可能需要更多方向确认。在线页不接收上传或生成；正文可编辑，主题包可导入导出，微信保存后的效果仍需核对。</p>
         </div>
         <div class="theme-journey" aria-label="主题创作流程示意，以电影方向为例">
-          <div class="journey-reference"><span>01 / 给参考</span><h3>“想要电影手帐的感觉”</h3><p>附一张喜欢的组件截图，或描述色彩、气质与用途。</p><img src="./assets/theme-stickers/cinema-clapper.png" alt="电影方向示意：打板装饰" width="112" height="80" loading="lazy" /></div>
+          <div class="journey-reference"><span>01 / 给参考</span><h3>“想要电影手帐的感觉”</h3><p>推荐附上喜欢的组件截图；也可描述气质与用途探索。</p><img src="./assets/theme-stickers/cinema-clapper.png" alt="电影方向示意：打板装饰" width="112" height="80" loading="lazy" /></div>
           <div class="journey-expand"><span>02 / 找灵感，延展整套</span><h3>从打板，想到更多叙事</h3><p>电影票、胶片、光束、场记笔记……<br />不同元素各有位置，不反复塞同一种装饰。</p><div class="journey-motifs"><img src="./assets/theme-stickers/cinema-ticket.png" alt="电影票元素示意" loading="lazy" /><img src="./assets/theme-stickers/cinema-reel.png" alt="胶片元素示意" loading="lazy" /><img src="./assets/theme-stickers/cinema-spotlight.png" alt="光束元素示意" loading="lazy" /></div></div>
           <div class="journey-review"><span>03 / 看全篇，再复用</span><p>结构检查 + 视觉评审 → 样本册与示例文章 → 本机主题包</p><small>创作方式示意，非一次生成结果的承诺。参考素材需尊重原作者权利。</small></div>
         </div>
@@ -168,7 +168,7 @@
           <div><p class="eyebrow">YOUR NEXT EDITION</p><h2 id="start-title">下一篇，<br /><em>用你的文章试试。</em></h2></div>
           <div class="start-action">
             <button class="button" type="button" data-copy-install>复制安装指令 <span aria-hidden="true">↗</span></button>
-            <p id="workflow">交给 Agent → 工作台定稿 → 交付公众号草稿</p>
+            <p id="workflow">交给 Agent → 工作台定稿 → 复制图文 / 保存草稿</p>
             <a class="text-link" href="https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md" target="_blank" rel="noreferrer">查看安装说明 ↗</a>
           </div>
         </div>
@@ -176,7 +176,7 @@
           <h2 id="notes-title">安装前，了解这些就够了</h2>
           <div class="notes-content">
             <div><h3>我需要准备什么？</h3><p>WeChat Visual Director（公众号视觉主编）是开源的微信公众号 AI 排版 Skill 与本地工作台。使用能读取 Skill、执行本机命令的 Codex、OpenCode 等 Agent。Windows x64 正式支持，macOS 为 Technical Preview；项目仍处于 Alpha。</p><p>安装入口读取 main/VERSION 并核对已发布包。如果宿主只添加了 Skill，可继续说“打开公众号工作台”；自动接续取决于宿主执行能力。<a href="https://github.com/zhouke0929/wechat-visual-director/blob/main/docs/usage-guide.md">安装与维护指南 ↗</a></p></div>
-            <div><h3>编辑、生图与交付</h3><p>把主题、资料或 Markdown 交给 Agent 规划，再转为微信兼容 HTML。600px 内容校对支持原文编辑，405px 手机预览同步修改；实际微信效果仍需核对。正文配图与封面可用宿主原生生图、图片 API 或人工上传，图片文字与素材权利由你审核。</p><p>无需另配文本模型 Key，不代表宿主模型免费。未连接微信也可复制或导出；直传草稿需要接口权限、AppID、AppSecret、公网 IP 白名单及连接检测，不会自动群发。</p></div>
+            <div><h3>改稿、配图，下次接着做</h3><p>600px 内容校对支持原文编辑，405px 手机预览同步修改；最近任务可按标题查找，换主题保留正文与图片，也可回到上一版样式。正文配图和封面区域有绑定当前任务的 Agent 指令；宿主支持原生生图时可生成待审核候选，也可接图片 API 或上传自己的图片。</p><p>复制图文可包含已采用的正文图片与主题装饰，无需微信 API；浏览器需支持，图片多时要等待处理，保存后核对手机效果。封面、标题等发布信息仍需在公众号后台设置。直传草稿才需接口权限、AppID、AppSecret、公网 IP 白名单及连接检测。无需另配文本模型 Key 不代表模型免费；图片与最终稿由你审核，不会自动群发。</p></div>
           </div>
           <p class="privacy-note">Apache-2.0 开源。任务与配置保存在本机；交给 Agent、图片服务或微信的内容仍会发送到对应服务。密钥只填本地设置。本项目与腾讯、微信官方无隶属或背书关系。</p>
         </aside>
@@ -193,6 +193,6 @@
     </dialog>
     <div class="copy-toast" id="copyToast" role="status" aria-live="polite"></div>
     <footer class="site-footer"><span>V· <b>WECHAT VISUAL DIRECTOR</b></span><span>把时间，留给内容。</span><a href="https://github.com/zhouke0929/wechat-visual-director" target="_blank" rel="noreferrer">GitHub / Apache-2.0 ↗</a></footer>
-    <script src="./app.js?v=20261012-theme-entry" type="module"></script>
+    <script src="./app.js?v=20261018-theme-guidance" type="module"></script>
   </body>
 </html>

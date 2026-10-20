@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BackIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
+import { HostImageEntry } from "@/components/host-image-entry";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { PublicationPanel } from "@/components/publication-panel";
 import {
@@ -272,7 +273,7 @@ export default function TaskReviewPage() {
         await refreshImageReview(plan.id);
         setPublicationReadiness(await getPublicationReadiness(taskId));
       }
-      setNotice("已回到上一个主题版本；不会在两个修订间反复切换。");
+      setNotice("已撤回上次主题或方案修改，保留当前正文和图片。请检查预览，再确认最终版本；如有更早记录，可继续回退。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复修订失败");
     } finally {
@@ -943,6 +944,7 @@ export default function TaskReviewPage() {
                       <button
                         disabled={Boolean(switchingTheme) || Boolean(restoring)}
                         onClick={() => handleRestore(activePlan)}
+                        title={`撤回上次主题或方案修改，恢复修订 ${activePlan.undo_stack.at(-1)} 的样式；保留当前正文和图片，可连续回退`}
                         type="button"
                       >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
                     ) : null}
@@ -985,6 +987,7 @@ export default function TaskReviewPage() {
                 </div>
 
                 <div className="editor-control-scroll">
+                  {activePlanSelected ? <HostImageEntry key={`${taskId}:${activeEditorTab}`} taskId={taskId} assetType={activeEditorTab === "cover" ? "cover" : "body"} /> : null}
                   {!activePlanSelected ? (
                     <div className="image-locked-panel">
                       <span>EDITORIAL DESK LOCKED</span>

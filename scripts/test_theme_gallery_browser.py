@@ -76,6 +76,9 @@ def main():
             for width in (1440, 405):
                 page.set_viewport_size({"width": width, "height": 1000})
                 page.goto(f"http://127.0.0.1:{args.site_port}", wait_until="networkidle")
+                page.screenshot(path=str(output / f"site-{width}-hero.png"))
+                page.locator("#faq").scroll_into_view_if_needed()
+                page.screenshot(path=str(output / f"site-{width}-faq.png"))
                 assert page.locator(".theme-button").count() == 12
                 assert page.locator("#specimenSelect option").count() == 27
                 for button in page.locator(".theme-button").all():
@@ -110,9 +113,15 @@ def main():
                 assert page.locator('[data-gallery-production-article] [data-editor-block-type="quote"]').count() == 1
                 page.goto(f"http://127.0.0.1:{args.web_port}", wait_until="networkidle")
                 page.get_by_role("button", name="我想创作新主题").click()
-                assert "一整套新的主题" in page.locator("#agent-writing-prompt").input_value()
+                visible_prompt = page.locator("#agent-writing-prompt").input_value()
+                assert "一整套新的主题" in visible_prompt
                 page.get_by_role("button", name="复制给 Agent 的指令").click()
-                assert "组件参考图" in page.evaluate("navigator.clipboard.readText()")
+                copied_prompt = page.evaluate("navigator.clipboard.readText()")
+                assert copied_prompt == visible_prompt, "clipboard differs from visible theme instructions"
+                assert "组件参考图" in copied_prompt
+                assert page.locator(".agent-start-next").is_visible()
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "home prompt horizontal overflow"
+                page.locator(".agent-start").screenshot(path=str(output / f"home-theme-{width}.png"))
                 checks.append(f"workbench {width}: full foundation/semantic navigation and home prompt")
                 if args.with_unavailable_fixture:
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery", wait_until="networkidle")
