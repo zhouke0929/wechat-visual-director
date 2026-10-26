@@ -20,11 +20,12 @@ def main() -> int:
     parser.add_argument("--snapshot", required=True, type=Path)
     parser.add_argument("--api-base", default="http://127.0.0.1:8000/api/v1")
     parser.add_argument("--candidate", action="append", default=[], type=Path)
+    parser.add_argument("--target-data-root", type=Path)
     args = parser.parse_args()
     try:
         if args.mode == "capture":
             # The working directory is not evidence of dataset ownership.
-            result = capture_upgrade_data(args.install_root, running=probe_running_data(args.api_base), candidates=tuple(args.candidate))
+            result = capture_upgrade_data(args.install_root, running=probe_running_data(args.api_base), candidates=tuple(args.candidate), target_data_root=args.target_data_root)
             result = backup_upgrade_data(result)
             args.snapshot.parent.mkdir(parents=True, exist_ok=True)
             args.snapshot.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")

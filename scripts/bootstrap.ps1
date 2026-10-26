@@ -2,6 +2,8 @@
 param(
     [string]$InstallRoot = "",
     [string]$HostHome = "",
+    [string]$UserDataHome = "",
+    [switch]$Isolated,
     [string]$ApiBase = "http://127.0.0.1:8000/api/v1",
     [string]$WebBase = "http://127.0.0.1:8000",
     [switch]$SkipDependencies
@@ -50,13 +52,25 @@ function Parse-JsonResult([object[]]$Lines, [string]$Step) {
     }
 }
 
-if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
-    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        Write-BootstrapFailure "local_app_data_missing" "LOCALAPPDATA is required for the default install."
+try {
+    . (Join-Path $SourceRoot 'skills\wechat-visual-director\scripts\windows-install-paths.ps1')
+    $UserDataHome = Get-WvdUserDataHome $UserDataHome $HostHome -Isolated:$Isolated
+    $SharedProfile = if ($UserDataHome) { Read-WvdUserProfile $UserDataHome } else { $null }
+    if ($SharedProfile) {
+        if (-not $PSBoundParameters.ContainsKey('ApiBase')) { $ApiBase = [string]$SharedProfile.api_base }
+        if (-not $PSBoundParameters.ContainsKey('WebBase')) { $WebBase = [string]$SharedProfile.web_base }
     }
-    $InstallRoot = Join-Path $env:LOCALAPPDATA "wechat-visual-director"
+    $Location = Resolve-WvdInstallLocation $InstallRoot $UserDataHome
+    $InstallRoot = $Location.actual_root
+    Assert-WvdDataHomeSeparation $UserDataHome $InstallRoot
+    New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+    $InstallRoot = Get-WvdCanonicalInstallRoot $InstallRoot
+    $Location.actual_root = $InstallRoot
+    $Location.redirected = (-not $Location.requested_root.Equals($InstallRoot, [StringComparison]::OrdinalIgnoreCase))
+} catch {
+    $Failure = Get-WvdPathFailure $_.Exception
+    Write-BootstrapFailure $Failure.code $Failure.message $Failure.details
 }
-$InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
 $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
 $InstallManifest = Join-Path $InstallRoot "install.json"
 $InstallHistory = Join-Path $InstallRoot "config\install-history.json"
@@ -85,16 +99,24 @@ if (-not (Test-Path -LiteralPath $CheckPython -PathType Leaf)) {
 }
 $Snapshot = Join-Path $InstallRoot ("runtime\upgrade-data-" + [Guid]::NewGuid().ToString("N") + ".json")
 Write-ProgressMessage "Checking the current data source before installation."
-$CheckRaw = & $CheckPython $CheckScript capture --install-root $InstallRoot --snapshot $Snapshot --api-base $ApiBase --candidate (Join-Path $SourceRoot "apps\api\data")
+$CaptureArgs = @('capture','--install-root',$InstallRoot,'--snapshot',$Snapshot,'--api-base',$ApiBase,'--candidate',(Join-Path $SourceRoot 'apps\api\data'))
+if ($SharedProfile) { $CaptureArgs += @('--target-data-root', $SharedProfile.data_root) }
+$CheckRaw = & $CheckPython $CheckScript @CaptureArgs
 $CheckExit = $LASTEXITCODE
 $CheckResult = Parse-JsonResult $CheckRaw "data_continuity"
 if ($CheckExit -ne 0 -or -not $CheckResult.ok) {
     Write-BootstrapFailure $CheckResult.error.code $CheckResult.error.message @{ data_check = $CheckResult; next_action = $CheckResult.next_action }
 }
 
-if (Test-Path -LiteralPath $StableLauncher -PathType Leaf) {
+$StopLauncher = $StableLauncher
+if ($SharedProfile -and $SharedProfile.active_install_root) { $StopLauncher = Join-Path $SharedProfile.active_install_root 'visual-director.ps1' }
+if (Test-Path -LiteralPath $StopLauncher -PathType Leaf) {
+    # An old launcher must not stop a service using a virtual prefix that now
+    # belongs to a different host. Data continuity was checked/backed up above.
+    try { Update-WvdLegacyManifestPaths $InstallRoot }
+    catch { Write-BootstrapFailure 'install_location_check_failed' $_.Exception.Message }
     Write-ProgressMessage "Stopping the currently installed runtime before upgrade."
-    $StopRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $StableLauncher stop --json
+    $StopRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $StopLauncher stop --json
     $StopExitCode = $LASTEXITCODE
     $StopResult = Parse-JsonResult $StopRaw "stop"
     if ($StopExitCode -ne 0 -or @($StopResult.refused.PSObject.Properties).Count -gt 0) {
@@ -115,6 +137,8 @@ if (-not [string]::IsNullOrWhiteSpace($HostHome)) {
 if ($SkipDependencies) {
     $InstallArgs += "-SkipDependencies"
 }
+if ($UserDataHome) { $InstallArgs += @('-UserDataHome', $UserDataHome) }
+if ($Isolated) { $InstallArgs += '-Isolated' }
 $InstallRaw = & powershell @InstallArgs
 $InstallExitCode = $LASTEXITCODE
 $InstallResult = Parse-JsonResult $InstallRaw "install"
@@ -156,6 +180,11 @@ if ($DoctorExitCode -ne 0 -or -not $DoctorResult.ok) {
 }
 if ([int]$DoctorResult.installation.running_task_count -lt [int]$DataContinuity.before_task_count) {
     Write-BootstrapFailure "upgrade_running_data_incomplete" "The running workbench cannot see all previous tasks." @{ data_continuity = $DataContinuity } 3
+}
+if ($UserDataHome) {
+    $ProfileRaw = & $CheckPython (Join-Path $SourceRoot 'scripts\manage-user-profile.py') register --home $UserDataHome --install-root $InstallRoot --api-base $ApiBase --web-base $WebBase
+    $ProfileResult = Parse-JsonResult $ProfileRaw 'user_profile'
+    if ($LASTEXITCODE -ne 0 -or -not $ProfileResult.ok) { Write-BootstrapFailure 'shared_profile_registration_failed' 'The shared history registry could not be updated.' }
 }
 
 $NextAction = [string]$DoctorResult.setup.next_action
@@ -202,6 +231,7 @@ if ($FirstInstallation -and $null -eq $FirstRunGuide -and $null -eq $DoctorResul
     python_version = [string]$InstallResult.python_version
     bundled_runtime = [bool]$InstallResult.bundled_runtime
     installation = $DoctorResult.installation
+    install_location = $Location
     data_continuity = $DataContinuity
     capabilities = $DoctorResult.capabilities
     setup = $DoctorResult.setup

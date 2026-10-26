@@ -31,7 +31,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Bundled runtime import probe failed." }
 
     $Bootstrap = Join-Path $PackageRoot "scripts\bootstrap.ps1"
-    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
+    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -Isolated -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
     $BootstrapResult = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $BootstrapResult.ok) { throw "Bootstrap failed: $($BootstrapResult | ConvertTo-Json -Compress -Depth 8)" }
     if (-not $BootstrapResult.installation.runtime_match) { throw "Installed runtime identity mismatch." }
@@ -95,7 +95,7 @@ try {
     }
 
     # Reinstall an occupied dataset, not just an empty first installation.
-    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
+    $Raw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Bootstrap -Isolated -InstallRoot $InstallRoot -HostHome $HostHome -ApiBase $ApiBase -WebBase $WebBase
     $Upgrade = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Upgrade.ok -or -not $Upgrade.data_continuity.preserved -or
         $Upgrade.data_continuity.before_task_count -ne 1 -or $Upgrade.installation.running_task_count -ne 1) {

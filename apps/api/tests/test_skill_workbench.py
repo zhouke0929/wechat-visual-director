@@ -60,7 +60,7 @@ Get-Content -Raw -LiteralPath (Join-Path $env:WVD_FIXTURE_ROOT ($args[0] + '.jso
 exit 0
 ''', encoding="utf-8")
         (self.root / "installer.ps1").write_text('''
-param([string]$InstallRoot, [string]$HostHome)
+param([string]$InstallRoot, [string]$HostHome, [switch]$Isolated)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 New-Item -ItemType Directory -Path $InstallRoot -Force | Out-Null
@@ -135,7 +135,7 @@ exit 2
     def run(self, *, upgrade: bool = False) -> tuple[subprocess.CompletedProcess[str], dict]:
         if WINDOWS:
             cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(self.root / "run.ps1"),
-                   "-InstallRoot", str(self.install), "-HostHome", str(self.host), "-NoOpen"]
+                   "-InstallRoot", str(self.install), "-HostHome", str(self.host), "-NoOpen", "-Isolated"]
             if upgrade:
                 cmd.append("-Upgrade")
         else:
@@ -201,6 +201,48 @@ def test_existing_install_starts_without_network_or_optional_keys(workbench: Wor
     assert process.returncode == 0, process.stderr
     assert result["workbench_ready"] is True
     assert result["capabilities"]["image_generation"] is False
+    assert not (workbench.root / "downloads.log").exists()
+
+
+@pytest.mark.skipif(not WINDOWS, reason="Windows virtual installation discovery")
+def test_default_helper_reuses_cached_install_without_downloading(workbench, monkeypatch):
+    local = workbench.root / "local"
+    workbench.install = local / "Packages/OpenAI.Codex_fixture/LocalCache/Local/wechat-visual-director"
+    workbench.install.parent.mkdir(parents=True)
+    workbench.launcher = workbench.install / "visual-director.ps1"
+    workbench.existing()
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    monkeypatch.setenv("WVD_FIXTURE_DOWNLOAD_FAIL", "1")
+    result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                             str(workbench.root / "run.ps1"), "-HostHome", str(workbench.host), "-NoOpen", "-Isolated"],
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0, result.stderr
+    assert payload["workbench_ready"] is True
+    assert payload["install_location"]["actual_root"] == str(workbench.install)
+    assert not (local / "wechat-visual-director").exists()
+    assert not (workbench.root / "downloads.log").exists()
+    assert (workbench.root / "calls.log").read_text().splitlines() == ["serve", "doctor"]
+
+
+@pytest.mark.skipif(not WINDOWS, reason="Windows virtual installation discovery")
+def test_default_helper_reports_both_installs_without_starting_or_downloading(workbench, monkeypatch):
+    local = workbench.root / "local"
+    for root in (local / "wechat-visual-director",
+                 local / "Packages/OpenAI.Codex_fixture/LocalCache/Local/wechat-visual-director"):
+        root.mkdir(parents=True)
+        shutil.copy2(workbench.root / "launcher.ps1", root / "visual-director.ps1")
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+                             str(workbench.root / "run.ps1"), "-NoOpen", "-Isolated"],
+                            capture_output=True, text=True, encoding="utf-8", timeout=30)
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert payload["workbench_ready"] is False
+    assert payload["next_action"] == "select_install_root"
+    assert payload["error"]["code"] == "install_location_ambiguous"
+    assert len(payload["error"]["details"]["candidates"]) == 2
+    assert not (workbench.root / "calls.log").exists()
     assert not (workbench.root / "downloads.log").exists()
 
 

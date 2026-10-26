@@ -212,10 +212,11 @@ def _data_recover(args: argparse.Namespace) -> dict[str, Any]:
             details={"action": "visual-director stop"},
         )
     install_root = installation.get("install_root")
+    data_owner = Path(installation["data_root"]).parent
     backup_root = (
         Path(str(install_root)) / "backups"
-        if install_root
-        else Path(installation["data_root"]).parent / "backups"
+        if install_root and data_owner == Path(str(install_root))
+        else data_owner / "backups"
     )
     try:
         result = recover_dataset(

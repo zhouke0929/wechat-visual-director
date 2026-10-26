@@ -121,6 +121,34 @@ def test_changed_manifest_data_root_is_not_silently_reset(tmp_path: Path) -> Non
     assert error.value.code == "upgrade_data_root_changed"
 
 
+def test_legacy_virtual_install_prefix_keeps_its_adjacent_data(tmp_path):
+    actual = tmp_path / "actual-install"
+    virtual = tmp_path / "old-virtual-prefix"
+    make_dataset(actual / "data", ["own-task"])
+    make_dataset(virtual / "data", ["unrelated-task"])
+    (actual / "install.json").write_text(json.dumps({
+        "install_root": str(virtual), "data_root": str(virtual / "data"),
+    }), encoding="utf-8")
+    baseline = backup_upgrade_data(capture_upgrade_data(actual))
+    assert baseline["before"]["task_ids"] == ["own-task"]
+    assert dataset_snapshot(Path(baseline["backup_root"]))["task_ids"] == ["own-task"]
+    assert dataset_snapshot(virtual / "data")["task_ids"] == ["unrelated-task"]
+    assert verify_upgrade_data(baseline, actual)["preserved"] is True
+
+
+def test_pinned_physical_install_cannot_silently_change(tmp_path):
+    actual = tmp_path / "actual-install"
+    make_dataset(actual / "data", ["task"])
+    (actual / "install.json").write_text(json.dumps({
+        "install_root": str(actual), "data_root": str(actual / "data"),
+        "physical_install_root": str(tmp_path / "different-location"),
+    }), encoding="utf-8")
+    with pytest.raises(DataRecoveryError) as error:
+        capture_upgrade_data(actual)
+    assert error.value.code == "install_location_changed"
+    assert not (actual / "backups").exists()
+
+
 def test_upgrade_backup_includes_database_and_both_asset_families(tmp_path: Path) -> None:
     install = tmp_path / "installed"
     make_dataset(install / "data", ["old"])
@@ -200,6 +228,9 @@ def _bootstrap_fixture(tmp_path):
     scripts.mkdir(parents=True)
     for name in ("bootstrap.ps1", "check-upgrade-data.py"):
         shutil.copy2(REPO / "scripts" / name, scripts / name)
+    helper = source / "skills/wechat-visual-director/scripts/windows-install-paths.ps1"
+    helper.parent.mkdir(parents=True)
+    shutil.copy2(REPO / "skills/wechat-visual-director/scripts/windows-install-paths.ps1", helper)
     package = source / "apps/api/src/visual_director"
     package.mkdir(parents=True)
     for name in ("__init__.py", "data_recovery.py", "upgrade_data.py"):
@@ -217,7 +248,7 @@ def test_bootstrap_blocks_recorded_root_change_before_stop_or_install(tmp_path: 
     (install / "install.json").write_text(json.dumps({"data_root": str(source / "apps/api/data")}), encoding="utf-8")
     env = {**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]}
     result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                             str(scripts / "bootstrap.ps1"), "-InstallRoot", str(tmp_path / "installed"),
+                             str(scripts / "bootstrap.ps1"), "-Isolated", "-InstallRoot", str(tmp_path / "installed"),
                              "-ApiBase", "http://127.0.0.1:1/api/v1"],
                             cwd=tmp_path, env=env, capture_output=True, text=True, encoding="utf-8", timeout=20)
     assert result.returncode == 2
@@ -236,7 +267,7 @@ def test_bootstrap_reaches_installer_without_importing_independent_source(tmp_pa
     original = dataset_snapshot(data)
     env = {**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"]}
     result = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
-                             str(scripts / "bootstrap.ps1"), "-InstallRoot", str(tmp_path / "installed"),
+                             str(scripts / "bootstrap.ps1"), "-Isolated", "-InstallRoot", str(tmp_path / "installed"),
                              "-ApiBase", "http://127.0.0.1:1/api/v1"],
                             cwd=source, env=env, capture_output=True, text=True, encoding="utf-8", timeout=20)
     assert json.loads(result.stdout)["error"]["code"] == "install_failed"

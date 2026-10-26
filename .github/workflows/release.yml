@@ -31,6 +31,21 @@ jobs:
         run: |
           $asset = Get-ChildItem artifacts/release/wechat-visual-director-windows-x64-*.zip | Select-Object -First 1
           powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-windows-package.ps1 -ArchivePath $asset.FullName
+      - name: Verify old release upgrade and cross-host shared history
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP "shared-history-release-check"
+          New-Item -ItemType Directory -Path $root -Force | Out-Null
+          $oldName = "wechat-visual-director-windows-x64-v0.1.0-alpha.31.zip"
+          $base = "https://github.com/zhouke0929/wechat-visual-director/releases/download/v0.1.0-alpha.31"
+          Invoke-WebRequest "$base/$oldName" -OutFile (Join-Path $root $oldName)
+          Invoke-WebRequest "$base/$oldName.sha256" -OutFile (Join-Path $root "$oldName.sha256")
+          $asset = Get-ChildItem artifacts/release/wechat-visual-director-windows-x64-*.zip | Select-Object -First 1
+          $harness = Join-Path $root "harness"
+          Expand-Archive -LiteralPath $asset.FullName -DestinationPath $harness
+          $python = Join-Path $harness "wechat-visual-director/runtime/python/python.exe"
+          & $python scripts/test-windows-shared-history.py --old-archive (Join-Path $root $oldName) --new-archive $asset.FullName --root (Join-Path $root "cases") --port 18931
+          if ($LASTEXITCODE -ne 0) { throw "Packaged shared history verification failed." }
       - uses: actions/upload-artifact@v4
         with:
           name: wechat-visual-director-windows-x64

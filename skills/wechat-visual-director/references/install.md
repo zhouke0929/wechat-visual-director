@@ -41,6 +41,7 @@ bash "{baseDir}/scripts/ensure-workbench.sh"
 旧安装包没有数据延续字段时，宿主仍须比较升级前后实际数据目录、任务数及资产盘点；同一安装原有任务意外变为空库不得报告成功，也不得继续创建任务掩盖问题。独立开发库与用户明确选择的空安装不属于这种数据丢失；恢复后重新检查，再交付工作台。
 
 1. Windows 若 `%LOCALAPPDATA%\wechat-visual-director\visual-director.ps1` 已存在，macOS 若 `~/Library/Application Support/wechat-visual-director/visual-director` 已存在，先运行 `doctor --json`。只有入口不存在或用户明确要求升级时才下载安装。
+   Windows 正式安装的历史、图片、自定义主题和配置统一保存在 `%USERPROFILE%\.wechat-visual-director`，不随 Agent 的 LocalAppData 重定向改变。准备入口优先读取其中的共享登记，已升级的各个程序入口转交同一套已登记程序与工作台；程序卸载默认保留共享历史。初次从旧安装升级会备份、复制并核验整套数据，保留旧来源；发现两份独立历史时展示 `install_location_ambiguous` 或 `shared_history_conflict` 的候选，请用户确认，不自动合并或按数量代选。登记后数据库缺失则停止，不能回退到空库。开发测试需明确传 `-Isolated`，不接入正式共享历史；高级隔离测试可指定 `-UserDataHome` 与 `-HostHome`。未升级的旧版程序不具备共享登记能力，不能声称仅更新 Skill 已完成数据统一。
 2. Windows x64 使用固定 Agent 安装器入口。它会读取当前公开版本、校验 Release 的 SHA-256，安装内置 Python、后端和生产工作台，并注册轻量 Skill：
 
 ```powershell

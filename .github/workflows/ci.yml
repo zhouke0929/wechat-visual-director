@@ -2,7 +2,7 @@ name: cross-platform-ci
 
 on:
   push:
-    branches: [main]
+    branches: [main, "codex/release-*"]
   pull_request:
 
 jobs:

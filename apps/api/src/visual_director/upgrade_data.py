@@ -64,17 +64,30 @@ def probe_running_data(api_base: str) -> dict[str, Any] | None:
 
 
 def capture_upgrade_data(install_root: Path, *, running: dict[str, Any] | None = None,
-                         candidates: tuple[Path, ...] = ()) -> dict[str, Any]:
+                         candidates: tuple[Path, ...] = (), target_data_root: Path | None = None) -> dict[str, Any]:
     install_root = install_root.resolve()
-    target = install_root / "data"
+    target = target_data_root.resolve() if target_data_root else install_root / "data"
     manifest = install_root / "install.json"
     if manifest.is_file():
         try:
             metadata = json.loads(manifest.read_text(encoding="utf-8-sig"))
             previous_root = metadata["data_root"]
+            # Legacy Windows manifests stored a virtual path. The manifest we
+            # actually opened owns its standard adjacent data directory, even
+            # when that recorded prefix resolves differently in another host.
+            # Never rebase an external/custom data directory.
+            recorded_install = metadata.get("install_root")
+            if recorded_install and os.path.normcase(os.path.abspath(previous_root)) == os.path.normcase(
+                os.path.abspath(Path(recorded_install) / "data")
+            ):
+                previous_root = str(install_root / "data")
+            pinned_root = metadata.get("physical_install_root")
+            if pinned_root and os.path.normcase(os.path.abspath(pinned_root)) != os.path.normcase(str(install_root)):
+                raise DataRecoveryError("install_location_changed", "安装实际位置与记录不一致，请确认原安装后再升级",
+                                        details={"expected_root": pinned_root, "actual_root": str(install_root)})
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise DataRecoveryError("upgrade_manifest_invalid", "无法确认升级前的数据目录") from exc
-        if not _same_path(previous_root, target):
+        if not _same_path(previous_root, target) and target_data_root is None:
             raise DataRecoveryError("upgrade_data_root_changed", "安装器将切换既有数据目录，必须先确认迁移",
                                     details={"previous_data_root": previous_root, "target_data_root": str(target)})
     before = dataset_snapshot(target)
@@ -96,6 +109,7 @@ def capture_upgrade_data(install_root: Path, *, running: dict[str, Any] | None =
     # Finding another dataset does not establish ownership by this installation.
     # Preserve the target; importing any optional source remains an explicit action.
     return {"schema_version": "upgrade_data_snapshot.v0.1", "install_root": str(install_root), "before": before,
+            "target_data_root": str(target),
             "migration_candidates": optional_sources,
             "warnings": ["optional_data_migration_available"] if optional_sources else []}
 
@@ -104,7 +118,16 @@ def verify_upgrade_data(baseline: dict[str, Any], install_root: Path) -> dict[st
     if baseline.get("schema_version") != "upgrade_data_snapshot.v0.1" or not _same_path(baseline["install_root"], install_root):
         raise DataRecoveryError("upgrade_snapshot_invalid", "数据延续检查快照不属于当前安装")
     before = baseline["before"]
-    current = dataset_snapshot(install_root / "data")
+    target = install_root / "data"
+    manifest = install_root / "install.json"
+    if manifest.is_file():
+        metadata = json.loads(manifest.read_text(encoding="utf-8-sig"))
+        target = Path(metadata["data_root"])
+        if metadata.get("install_root") and os.path.normcase(os.path.abspath(target)) == os.path.normcase(
+            os.path.abspath(Path(metadata["install_root"]) / "data")
+        ):
+            target = install_root / "data"
+    current = dataset_snapshot(target)
     missing_tasks = sorted(set(before["task_ids"]) - set(current["task_ids"]))
     changed_assets = [name for name, digest in before["assets"].items() if current["assets"].get(name) != digest]
     if missing_tasks or changed_assets or (before["exists"] and not current["exists"]):
@@ -126,11 +149,12 @@ def backup_upgrade_data(baseline: dict[str, Any]) -> dict[str, Any]:
     if not (before["task_count"] or before["assets"]):
         return baseline
     root = Path(baseline["install_root"]).resolve()
-    source = root / "data"
+    source = Path(baseline.get("target_data_root", str(root / "data"))).resolve()
     if not _same_path(before["root"], source):
         raise DataRecoveryError("upgrade_snapshot_invalid", "备份快照的数据目录不属于当前安装")
-    parent = root / "backups"
-    if parent.is_symlink() or not parent.resolve().is_relative_to(root):
+    owner = root if _same_path(source, root / "data") else source.parent
+    parent = owner / "backups"
+    if parent.is_symlink() or not parent.resolve().is_relative_to(owner):
         raise DataRecoveryError("upgrade_backup_path_unsafe", "升级备份目录不能重定向到安装目录之外")
     backup = parent / f"data-before-upgrade-{uuid.uuid4().hex}"
     try:

@@ -118,17 +118,19 @@ Agent 应核对实际安装版本与本次目标版本相同，再检查最终�
 
 ### 数据存在哪里
 
-Windows 默认根目录是 `%LOCALAPPDATA%\wechat-visual-director`，macOS 是 `~/Library/Application Support/wechat-visual-director`：
+Windows 程序默认位于 `%LOCALAPPDATA%\wechat-visual-director`（部分宿主会重定向这个目录），但升级后的正式安装把共享历史固定放在 `%USERPROFILE%\.wechat-visual-director`。换 Agent 时优先打开共享登记中的工作台，不再各建一份历史。macOS 仍使用 `~/Library/Application Support/wechat-visual-director`。
+
+Windows 程序目录中的 `versions/` 保存程序与内置运行环境；共享用户目录保存以下内容（macOS 仍在原安装目录内）：
 
 ```text
-versions/    程序版本与内置运行环境
-data/        任务、正文图片与交付资产
+data/        任务、正文图片、交付资产与自定义主题
 config/      本机私有配置
 backups/     数据恢复前的备份
 runtime/     进程信息与运行日志
+profile.json 共享历史与当前程序的登记（Windows）
 ```
 
-正常升级保留任务、图片与私有配置。正式安装不自动导入源码测试库；源码与正式数据分离。日常再次打开复用现有安装，只有明确升级才下载新版。
+正常升级保留任务、图片与私有配置。Windows 从旧版升级时，会核验并复制选定旧安装的数据到共享目录，原来源保留；有两份不同历史则先确认，不自动合并。登记过的数据库缺失会停止，不悄悄新建空库。正式安装不自动导入源码测试库；源码与正式数据分离。日常再次打开复用现有安装，只有明确升级才下载新版。
 
 ### 卸载
 
@@ -150,7 +152,7 @@ bash "$HOME/Library/Application Support/wechat-visual-director/uninstall.sh"
 
 ### 重装后找不到旧任务
 
-不要只复制 SQLite 文件。先停止服务，用 `data scan --json` 只读扫描；知道旧位置时加 `--candidate <旧数据根目录>`。数据集包含数据库、`image-assets` 与 `publication-assets`，需要一起核对。
+不要只复制 SQLite 文件。先停止服务，用 `data scan --json` 只读扫描；知道旧位置时加 `--candidate <旧数据根目录>`。数据集包含数据库、`image-assets`、`publication-assets` 与 `theme-packs`，需要一起核对。
 
 需要恢复时，由用户确认来源与目标后，再执行 `data recover --from <数据根目录> --activate --yes`。程序会先做备份；不要把源码测试数据误恢复到正式库。
 

@@ -107,6 +107,7 @@ $RequiredFiles = @(
     ".env.example",
     "scripts\bootstrap.ps1",
     "scripts\check-upgrade-data.py",
+    "scripts\manage-user-profile.py",
     "scripts\install.ps1",
     "scripts\persistent-launcher.ps1",
     "scripts\persistent-launcher.cmd",

@@ -69,6 +69,7 @@ def _run_installer(*args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
             "Bypass",
             "-File",
             str(INSTALLER),
+            "-Isolated",
             *args,
         ],
         capture_output=True,
@@ -141,6 +142,9 @@ def test_fresh_install_does_not_import_source_data_and_reinstall_is_clean(
     )
     assert first_completed.returncode == 0, first_completed.stderr
     assert first["ok"] is True
+    manifest = json.loads((install_root / "install.json").read_text(encoding="utf-8-sig"))
+    assert manifest["physical_install_root"] == str(install_root.resolve())
+    assert first["install_location"]["actual_root"] == str(install_root.resolve())
     assert first["legacy_data_migration_requested"] is False
     assert first["migrated"]["database"] is False
     assert first["host_registration"]["codex_skill_root"] == str(stale_codex_skill)

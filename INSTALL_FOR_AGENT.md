@@ -39,6 +39,13 @@ below when you can complete the full installation in this turn.
 - Do not delete the source repository. Installed program files live under
   `%LOCALAPPDATA%\wechat-visual-director` on Windows or
   `~/Library/Application Support/wechat-visual-director` on macOS.
+- Windows production history, assets, custom themes and local configuration are
+  shared under `%USERPROFILE%\.wechat-visual-director`, independently of the
+  program's LocalAppData location. Use the preparation helper and its registered
+  launcher, rather than launching a second program/database by a guessed path.
+  Old installations require an explicit upgrade; never merge competing histories
+  or replace missing registered data with an empty database. `-Isolated` is only
+  for explicit development/package-test environments, not normal user setup.
 - Creating a WeChat draft still requires explicit confirmation in the workbench;
   final mass publishing is outside this installer.
 

@@ -3,6 +3,8 @@ param(
     [string]$Version = "",
     [string]$InstallRoot = "",
     [string]$HostHome = "",
+    [string]$UserDataHome = "",
+    [switch]$Isolated,
     [switch]$KeepDownload
 )
 
@@ -70,6 +72,8 @@ try {
     $BootstrapArgs = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Bootstrap)
     if (-not [string]::IsNullOrWhiteSpace($InstallRoot)) { $BootstrapArgs += @("-InstallRoot", $InstallRoot) }
     if (-not [string]::IsNullOrWhiteSpace($HostHome)) { $BootstrapArgs += @("-HostHome", $HostHome) }
+    if ($UserDataHome) { $BootstrapArgs += @('-UserDataHome', $UserDataHome) }
+    if ($Isolated) { $BootstrapArgs += '-Isolated' }
     $Raw = & powershell @BootstrapArgs
     $ExitCode = $LASTEXITCODE
     try { $Result = (@($Raw) -join [Environment]::NewLine) | ConvertFrom-Json } catch {

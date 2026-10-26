@@ -690,7 +690,13 @@ export default function TaskReviewPage() {
       }
     } catch (reason) {
       if (richClipboard && !uploadImages) setCopyFallbackRevisionId(revision.id);
-      setError(reason instanceof Error ? reason.message : "复制正文失败");
+      if (reason instanceof DOMException && ["NotAllowedError", "SecurityError"].includes(reason.name)) {
+        setError("浏览器未允许此次图文复制，尚未复制。请保持页面在前台，检查剪贴板权限后重试；也可换用支持图文复制的浏览器，或下载交付包。");
+      } else if (reason instanceof DOMException && reason.name === "NotSupportedError") {
+        setError("当前浏览器不支持所需的图文复制格式，尚未复制。请换用支持富文本剪贴板的浏览器，或下载交付包。");
+      } else {
+        setError(reason instanceof Error ? reason.message : "复制正文失败，请重试或下载交付包。");
+      }
     } finally {
       setPublicationBusy("");
     }

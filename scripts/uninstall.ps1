@@ -125,7 +125,18 @@ if ((Split-Path -Leaf $ScriptDirectory) -eq "scripts") {
 }
 
 $StableLauncher = Join-Path $InstallRoot "visual-director.ps1"
-if (Test-Path -LiteralPath $StableLauncher -PathType Leaf) {
+$SharedHome = [string]$Manifest.user_data_home
+$OtherActiveInstall = $false
+if ($SharedHome) {
+    try {
+        . (Join-Path $CurrentRoot 'skills\wechat-visual-director\scripts\windows-install-paths.ps1')
+        $Profile = Read-WvdUserProfile $SharedHome
+        if (-not $Profile) { throw 'Shared history registry is missing; nothing was removed.' }
+        $OtherActiveInstall = $Profile.active_install_root -and -not ([string]$Profile.active_install_root).Equals($InstallRoot, [StringComparison]::OrdinalIgnoreCase)
+        if ($OtherActiveInstall -and $Purge) { throw 'Another installation uses this shared history. Refusing to purge it.' }
+    } catch { Write-UninstallFailure 'shared_history_uninstall_blocked' $_.Exception.Message }
+}
+if (-not $OtherActiveInstall -and (Test-Path -LiteralPath $StableLauncher -PathType Leaf)) {
     $StopRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $StableLauncher stop --json
     $StopExitCode = $LASTEXITCODE
     try {
@@ -166,6 +177,7 @@ $RegistrationTargets = @(
     (Join-Path $HostHome ".config\opencode\skills\wechat-visual-director"),
     (Join-Path $HostHome ".config\opencode\commands\wechat-visual-director.md")
 )
+if ($OtherActiveInstall) { $RegistrationTargets = @() }
 
 $ProgramTargets = @(
     $VersionsRoot,
@@ -189,6 +201,14 @@ foreach ($Target in $ProgramTargets) {
 
 $Removed = @()
 $Failed = @()
+if ($SharedHome -and $Purge) {
+    foreach ($Name in @('data','config','runtime','backups','profile.json','.profile.lock')) {
+        $Target = Join-Path $SharedHome $Name
+        Assert-DirectChild $SharedHome $Target
+        Remove-KnownPath $Target ([ref]$Removed) ([ref]$Failed)
+    }
+}
+
 foreach ($Target in $RegistrationTargets) {
     Remove-KnownPath $Target ([ref]$Removed) ([ref]$Failed)
 }
@@ -204,6 +224,7 @@ if (-not $Purge) {
             $Preserved += $PathValue
         }
     }
+    if ($SharedHome) { $Preserved += $SharedHome }
 }
 
 $SelfPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)

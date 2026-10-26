@@ -12,7 +12,7 @@ from typing import Any, Iterable
 
 
 DATASET_DATABASE = "visual-director.db"
-DATASET_DIRECTORIES = ("image-assets", "publication-assets")
+DATASET_DIRECTORIES = ("image-assets", "publication-assets", "theme-packs")
 HISTORY_FILENAME = "install-history.json"
 
 

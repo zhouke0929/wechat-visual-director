@@ -2,6 +2,8 @@
 param(
     [string]$InstallRoot = "",
     [string]$HostHome = "",
+    [string]$UserDataHome = "",
+    [switch]$Isolated,
     [switch]$SkipDependencies,
     [switch]$MigrateLegacyData
 )
@@ -234,13 +236,16 @@ if ($Version -notmatch "^[0-9A-Za-z][0-9A-Za-z.-]{0,63}$") {
     Write-Failure "version_invalid" "VERSION contains an unsupported value." @{ version = $Version }
 }
 
-if ([string]::IsNullOrWhiteSpace($InstallRoot)) {
-    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        Write-Failure "local_app_data_missing" "LOCALAPPDATA is required for the default persistent install."
-    }
-    $InstallRoot = Join-Path $env:LOCALAPPDATA "wechat-visual-director"
+try {
+    . (Join-Path $SourceRoot 'skills\wechat-visual-director\scripts\windows-install-paths.ps1')
+    $UserDataHome = Get-WvdUserDataHome $UserDataHome $HostHome -Isolated:$Isolated
+    $Location = Resolve-WvdInstallLocation $InstallRoot $UserDataHome
+    $InstallRoot = $Location.actual_root
+    Assert-WvdDataHomeSeparation $UserDataHome $InstallRoot
+} catch {
+    $Failure = Get-WvdPathFailure $_.Exception
+    Write-Failure $Failure.code $Failure.message $Failure.details
 }
-$InstallRoot = Resolve-AbsolutePath $InstallRoot
 $SourcePrefix = [IO.Path]::GetFullPath($SourceRoot).TrimEnd("\") + "\"
 $InstallRootFull = [IO.Path]::GetFullPath($InstallRoot).TrimEnd("\")
 if ($InstallRootFull.Equals([IO.Path]::GetFullPath($SourceRoot).TrimEnd("\"), [StringComparison]::OrdinalIgnoreCase)) {
@@ -249,6 +254,12 @@ if ($InstallRootFull.Equals([IO.Path]::GetFullPath($SourceRoot).TrimEnd("\"), [S
         install_root = $InstallRoot
     }
 }
+# Resolve again after creation: a new directory may itself trigger app virtualization.
+New-Item -ItemType Directory -Force -Path $InstallRoot | Out-Null
+$InstallRoot = Get-WvdCanonicalInstallRoot $InstallRoot
+$Location.actual_root = $InstallRoot
+$Location.redirected = (-not $Location.requested_root.Equals($InstallRoot, [StringComparison]::OrdinalIgnoreCase))
+$InstallRootFull = $InstallRoot.TrimEnd('\')
 $script:InstallSourceExclusion = $null
 if ($InstallRootFull.StartsWith($SourcePrefix, [StringComparison]::OrdinalIgnoreCase)) {
     $script:InstallSourceExclusion = $InstallRootFull.Substring($SourcePrefix.Length).Replace("\", "/")
@@ -423,6 +434,20 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
     }
 }
 
+$ProfileId = ''
+if ($UserDataHome) {
+    $ProfilePython = if (Test-Path -LiteralPath $BundledPython -PathType Leaf) { $BundledPython } else { (Get-Command python -ErrorAction Stop).Source }
+    $ProfileRaw = & $ProfilePython (Join-Path $VersionRoot 'scripts\manage-user-profile.py') prepare --home $UserDataHome --install-root $InstallRoot
+    $ProfileExit = $LASTEXITCODE
+    try { $ProfileResult = (@($ProfileRaw) -join [Environment]::NewLine) | ConvertFrom-Json }
+    catch { Write-Failure 'user_profile_invalid_output' 'The shared history helper returned invalid output.' }
+    if ($ProfileExit -ne 0 -or -not $ProfileResult.ok) { Write-Failure $ProfileResult.error.code $ProfileResult.error.message $ProfileResult.error.details }
+    $DataRoot = [string]$ProfileResult.profile.data_root
+    $RuntimeRoot = [string]$ProfileResult.profile.runtime_root
+    $ConfigFile = [string]$ProfileResult.profile.config_file
+    $ProfileId = [string]$ProfileResult.profile.profile_id
+}
+
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.cmd") -Destination $StableCmdLauncher -Force
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\uninstall.ps1") -Destination $StableUninstaller -Force
@@ -433,6 +458,10 @@ $Manifest = [ordered]@{
     current_version = $Version
     previous_version = $PreviousVersion
     install_root = $InstallRoot
+    physical_install_root = $InstallRoot
+    user_data_home = $UserDataHome
+    user_profile_id = $ProfileId
+    data_mode = if ($UserDataHome) { 'shared_user' } else { 'isolated' }
     current_root = $VersionRoot
     data_root = $DataRoot
     config_file = $ConfigFile
@@ -452,6 +481,12 @@ $InstallHistory = [ordered]@{
     last_uninstall_at = $null
 }
 $InstallHistory | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 -LiteralPath $HistoryPath
+if ($UserDataHome) {
+    $ProfileRaw = & $ProfilePython (Join-Path $VersionRoot 'scripts\manage-user-profile.py') register --home $UserDataHome --install-root $InstallRoot
+    $ProfileExit = $LASTEXITCODE
+    $ProfileResult = (@($ProfileRaw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if ($ProfileExit -ne 0 -or -not $ProfileResult.ok) { Write-Failure 'shared_profile_registration_failed' 'Shared history registration failed; data was retained.' }
+}
 $VersionCleanup = Remove-OldVersionDirectories `
     -VersionsDirectory $VersionsRoot `
     -KeepVersions @($Version, $PreviousVersion) `
@@ -469,6 +504,7 @@ if (-not [string]::IsNullOrWhiteSpace($PreviousVersion) -and $PreviousVersion -n
     ok = $true
     schema_version = "skill_install_result.v0.2"
     install_mode = "persistent"
+    install_location = $Location
     version = $Version
     previous_version = $PreviousVersion
     install_root = $InstallRoot

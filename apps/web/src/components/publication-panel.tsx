@@ -207,8 +207,9 @@ export function PublicationPanel({
             {copyFallbackAvailable ? (
               <div className="delivery-action-stack delivery-fallback-stack" role="region" aria-label="复制备用方式">
                 <strong>复制遇到问题？</strong>
+                <p>请先根据错误提示检查浏览器剪贴板权限或图片大小。浏览器需允许图文复制；下载交付包不依赖剪贴板权限。</p>
                 <p>{publisher?.ready
-                  ? "可以先将图片上传到公众号，再复制图文。这会使用已配置的公众号连接，不会创建草稿。"
+                  ? "如果需要改用公众号图片地址，可以先上传图片再复制。这会使用已配置的公众号连接，不会创建草稿；仍需浏览器允许图文复制。"
                   : "如果图片过大，可以缩小图片后重试，或下载交付包后分别导入正文与图片。"}</p>
                 {publisher?.ready ? (
                   <div className="delivery-action-row">
