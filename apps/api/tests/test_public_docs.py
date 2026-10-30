@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import xml.etree.ElementTree as ET
@@ -184,7 +185,7 @@ def test_public_sitemap_points_to_real_canonical_pages() -> None:
 
 def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
     text = (ROOT / "site/index.html").read_text(encoding="utf-8")
-    assert len(re.findall(r"<section\b", text)) == 4
+    assert len(re.findall(r"<section\b", text)) == 5
     assert '<aside class="product-notes" id="faq" aria-labelledby="notes-title">' in text
     assert '<summary' not in text
     header = text.split('<header class="site-nav">', 1)[1].split('</header>', 1)[0]
@@ -251,3 +252,41 @@ def test_readme_article_presentation_has_clear_images_and_current_product_copy()
         with Image.open(ROOT / "docs/assets/readme" / name) as preview:
             assert preview.width >= 2400 and preview.width > preview.height
     assert text.index("docs/assets/readme/article-review.png") < text.index("docs/assets/readme/article-mobile-review.png")
+
+
+def test_public_film_is_opt_in_and_readme_links_to_real_player() -> None:
+    text = (ROOT / "site/index.html").read_text(encoding="utf-8")
+    video = re.search(r"<video\b[^>]*>", text).group(0)
+    assert re.search(r"\scontrols(?:\s|>)", video)
+    assert re.search(r"\splaysinline(?:\s|>)", video)
+    assert 'preload="none"' in video
+    assert "autoplay" not in video and "muted" not in video
+    assert 'src="./assets/media/product-demo.mp4"' in video
+    assert 'poster="./assets/media/product-demo-poster.png"' in video
+    assert 'id="product-film"' in text
+    assert 'aria-label="播放 48 秒产品演示" hidden' in text
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert SITE_URL + "#product-film" in readme
+    assert "[下载 MP4](docs/assets/readme/product-demo.mp4)" in readme
+    assert "不是一次完整运行的录屏" in readme
+
+
+def test_public_brand_media_mirrors_are_complete_and_credited() -> None:
+    manifest = json.loads((ROOT / "site/assets/media/sources.json").read_text(encoding="utf-8"))
+    assert len(manifest["assets"]) == 3
+    for item in manifest["assets"]:
+        source = (ROOT / item["source"]).resolve()
+        destination = (ROOT / item["destination"]).resolve()
+        assert source.is_relative_to(ROOT.resolve())
+        assert destination.is_relative_to((ROOT / "site/assets").resolve())
+        assert source.is_file() and destination.is_file()
+        assert source.stat().st_size == destination.stat().st_size == item["bytes"]
+        assert hashlib.sha256(source.read_bytes()).hexdigest() == item["sha256"]
+        assert hashlib.sha256(destination.read_bytes()).hexdigest() == item["sha256"]
+    assert manifest["music_license"].startswith("https://mixkit.co/license/")
+    assert "not as standalone music" in manifest["note"]
+    assert "PROVENANCE.txt" in manifest["credits"]
+    provenance = (ROOT / "assets/identity/PROVENANCE.txt").read_text(encoding="utf-8")
+    assert manifest["music"] in provenance
+    assert "THIRD_PARTY_MOTION.txt" in provenance
+    assert (ROOT / "assets/identity/THIRD_PARTY_MOTION.txt").is_file()

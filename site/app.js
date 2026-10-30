@@ -203,4 +203,45 @@ dialog.addEventListener("click", (event) => {
   const rect = dialog.getBoundingClientRect();
   if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
 });
+const productFilm = document.querySelector("#productFilm");
+const filmPlay = document.querySelector(".film-play");
+productFilm.controls = false;
+filmPlay.hidden = false;
+filmPlay.addEventListener("click", async () => {
+  productFilm.controls = true;
+  try {
+    await productFilm.play();
+  } catch {
+    // Native controls remain available if playback cannot start.
+    filmPlay.hidden = true;
+    productFilm.focus({ preventScroll: true });
+  }
+});
+productFilm.addEventListener("play", () => {
+  productFilm.controls = true;
+  const returnFocus = document.activeElement === filmPlay;
+  filmPlay.hidden = true;
+  if (returnFocus) productFilm.focus({ preventScroll: true });
+});
+productFilm.addEventListener("ended", () => {
+  productFilm.controls = false;
+  filmPlay.hidden = false;
+});
+
+// Fit real article excerpts through the end of the first paragraph. Each card
+// retains its article's own typography; no live paragraph is cut off above art.
+document.querySelectorAll(".edition-preview").forEach((excerpt) => {
+  const frame = excerpt.querySelector("iframe");
+  const fit = () => {
+    const paragraph = frame.contentDocument?.querySelector(".wechat-document > main > p");
+    if (!paragraph) return;
+    const scale = excerpt.clientWidth / 405;
+    excerpt.style.setProperty("--edition-scale", scale);
+    excerpt.style.setProperty("--excerpt-source-height", (paragraph.getBoundingClientRect().bottom + 1) + "px");
+    excerpt.style.setProperty("--excerpt-height", Math.ceil((paragraph.getBoundingClientRect().bottom + 20) * scale) + "px");
+  };
+  frame.addEventListener("load", fit);
+  new ResizeObserver(fit).observe(excerpt);
+  fit();
+});
 loadThemes();

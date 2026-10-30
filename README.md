@@ -1,37 +1,34 @@
-# WeChat Visual Director — 微信公众号 AI 排版 Skill
-
-> 把文章排好，也把你的风格留下来。给一篇稿，做成推文；给一张组件参考图，创作可复用的整套主题。
-
-[![Release](https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&label=release)](https://github.com/zhouke0929/wechat-visual-director/releases)
-[![CI](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg)](https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/zhouke0929/wechat-visual-director)](LICENSE)
-[![Windows](https://img.shields.io/badge/Windows-supported-0078D4)](#系统要求)
-[![macOS](https://img.shields.io/badge/macOS-Technical_Preview-777777)](#系统要求)
-[![GitHub Stars](https://img.shields.io/github/stars/zhouke0929/wechat-visual-director?style=flat&label=Star)](https://github.com/zhouke0929/wechat-visual-director/stargazers)
-
-文章已经写好了，发布前却还要反复挑样式、调层级、找配图？有喜欢的组件，却很难把它延展成整篇文章的风格？
-
-**WeChat Visual Director（公众号视觉主编）是一套开源的微信公众号 AI 排版 Skill + 本地可视化工作台。** Agent 理解内容、设计版式，你在工作台改文字、审图片、看手机效果，最后复制图文或交付公众号草稿。
-
-你可以从两件事开始：
-
-- **把这篇文章排好。** 从选题、资料或现稿出发，用 12 套内置主题组织重点、步骤和图文；正文保持可编辑，换主题不必重做文章。
-- **做一套自己的风格。** 给 Agent 喜欢的**组件参考图**，从构图、细节到关联元素延展整套主题；确认后保存为 `.vdtheme` 扩展包，下次继续用。也支持描述风格进行探索。
-
-适合公众号运营、新媒体团队和内容创作者。首次体验无需配置微信 API 或额外的项目图片 Key；先完成排版，再按需配图和交付。Agent 本身仍需可用的模型与额度。
-
-<p align="center">
+<div align="center">
+  <p><img src="assets/identity/mascot.png" alt="公众号视觉主编的珊瑚色逗号图标" width="120" height="120"></p>
+  <h1>公众号视觉主编</h1>
+  <p><b>WeChat Visual Director</b></p>
+  <p>开源公众号 AI 排版 Skill：<br>把稿件变成可编辑的公众号图文，支持自定义排版样式。</p>
+  <p>
+    <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><img src="https://img.shields.io/github/v/release/zhouke0929/wechat-visual-director?include_prereleases&amp;label=release&amp;color=F26078" alt="Release"></a>
+    <a href="https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml"><img src="https://github.com/zhouke0929/wechat-visual-director/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/zhouke0929/wechat-visual-director?color=30223B" alt="License"></a>
+    <a href="#系统要求"><img src="https://img.shields.io/badge/Windows-supported-0078D4" alt="Windows supported"></a>
+    <a href="#系统要求"><img src="https://img.shields.io/badge/macOS-Technical_Preview-777777" alt="macOS Technical Preview"></a>
+  </p>
+  <p>
   <a href="#快速开始"><b>交给 Agent 安装</b></a>
-  · <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>先看完整文章与主题效果</b></a>
-  · <a href="#给参考创作自己的整套主题"><b>创作自己的主题</b></a>
-  · <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>版本与更新记录</b></a>
-</p>
+  · <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>查看成稿示例</b></a>
+  · <a href="#给参考创作自己的整套主题"><b>自定义排版样式</b></a>
+  · <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>版本记录</b></a>
+  </p>
+</div>
 
-**给安装 Agent：** 完整执行 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)，不要只复制 Skill 文件；须返回实际安装版本、已就绪的工作台链接与简短上手说明。
+## 48 秒，看看排版效果
+
+[![播放 48 秒宣传片：一句话排版、整篇换风格、参考图定制主题与编辑预览](docs/assets/readme/product-demo-poster.png)](https://zhouke0929.github.io/wechat-visual-director/#product-film)
+
+[▶ 前往官网播放](https://zhouke0929.github.io/wechat-visual-director/#product-film) · [下载 MP4](docs/assets/readme/product-demo.mp4)
+
+一句话排版、整篇换风格、参考图定制主题、编辑与手机预览。画面包含真实工作台截图与流程动效演示，不是一次完整运行的录屏。
 
 ## 公众号成稿示例
 
-同一套排版能力，可以用于教程、商业分析和品牌观点。下面是三篇完整的公开示例，点击即可阅读，无需安装或配置 Key。
+教程、商业分析和品牌观点，同一套排版能力，不同的阅读气质。点击下方示例即可阅读完整推文，无需安装。
 
 [![三篇公众号成稿：青春校园、温暖人文与波普海报的真实排版及 AI 配图](docs/assets/readme/product-showcase-articles.png)](https://zhouke0929.github.io/wechat-visual-director/)
 
@@ -49,6 +46,52 @@
 </table>
 
 示例为公开演示内容，不含公司内部稿件或运营数据；配图为 AI 生成并经人工选用。在线展示是静态样例，实际编辑在安装后的本地工作台进行。
+
+## 快速开始
+
+适合公众号运营、新媒体团队和内容创作者。先体验排版、编辑和导出，再按需配置配图与微信草稿交付。安装器会注册 Codex、通用 Agent Skill 目录与 OpenCode。
+
+### 把这段话发给你的 Agent
+
+```text
+请为我安装或升级完整的 wechat-visual-director，并打开本地工作台。
+请先完整阅读并执行下面的安装说明，按 main/VERSION 安装对应的已发布版本：
+https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
+
+需要同时安装轻量 Skill 和工作台，运行 doctor --json 确认就绪；
+Skill 目录只放轻量技能包，完整程序使用独立的安装目录。
+完成后返回实际安装版本、工作台链接，以及不超过五行的上手说明和下一句使用示例。
+如果受限未完成，请说明停在哪一步。不要读取或回显任何密钥。
+```
+
+**给安装 Agent：** 完整执行 [INSTALL_FOR_AGENT.md](INSTALL_FOR_AGENT.md)，不要只复制 Skill 文件；须返回实际安装版本、已就绪的工作台链接与简短上手说明。
+
+可以从能操作本机的 **Codex 桌面端 / CLI 或 OpenCode** 开始。宿主需要能读取 Skill、执行本机命令，并已完成自身的模型配置、登录与额度准备；只有网页聊天的环境不能直接完成安装。
+
+安装器会读取 [main/VERSION](https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/VERSION)，下载对应的已发布 Release 包并校验 SHA-256；Windows 与 macOS 共用这一版本选择规则。若对应包尚未发布或下载失败，安装会停止并报告原因。日常“打开工作台”复用已有安装，升级时再获取新版本。
+
+完整安装包含 **轻量 Skill、本地工作台及运行环境**，无需预装 Git、Python、Node.js、pnpm 或 Homebrew。需要自己执行命令时，见[安装与维护指南](docs/usage-guide.md#手动安装与升级)。
+
+<details>
+<summary>安装后，试着发出第一条需求</summary>
+
+```text
+请用 wechat-visual-director，帮我写一篇关于“社区咖啡店如何让客人愿意再来”的公众号文章。
+先整理内容和结构、完成语义规划，再打开本机工作台让我编辑和审核。
+不要虚构经营数据，暂时不要生成图片或创建公众号草稿。
+```
+
+已有文章可以这样说：
+
+> 用 wechat-visual-director 帮我排版下面这篇文章。保留原意和事实，先整理结构、完成规划，再打开工作台让我确认。［粘贴文章或附上文件］
+
+主题确认后，若 Agent 支持原生生图，再说：
+
+> 按当前主题，为这篇文章的正文和封面生成候选，放回工作台让我审核。
+
+工作台首页提供上手流程与可复制指令；“最近任务”可按标题关键词查找历史文章。也可以告诉 Agent“继续昨天那篇咖啡店文章”，让它查找已有任务；同名或不明确时再由你选择，不必自己找任务 ID。
+
+</details>
 
 ## 让内容、排版和配图一起服务阅读
 
@@ -96,7 +139,7 @@ Agent 会分析参考的构图与视觉语言，寻找相关组件参考、联�
 
 [![手机预览模式的完整工作台：左侧审核正文配图，右侧在手机外观中查看同一篇文章的阅读效果](docs/assets/readme/article-mobile-review.png)](#快速开始)
 
-*公开示例在当前工作台中的真实界面；图中配图为已导入素材。在线能看效果，安装后就能用自己的文章换主题、改文字、审图片。*
+*公开示例在当前工作台中的真实界面：桌面校对可直接编辑原文，手机预览用于检查阅读效果。图中配图为已导入素材。*
 
 桌面校对与手机预览呈现同一篇文章在不同阅读场景下的效果。编辑标题和正文时，主题装饰与组件结构保持完整；图片和封面在对应的审核区选择、替换与调整。
 
@@ -119,53 +162,6 @@ Agent 会分析参考的构图与视觉语言，寻找相关组件参考、联�
 3. **选择交付方式。** 将正文与已采用的正文图片一起复制，下载交付包，或配置微信连接后创建公众号草稿。保存后核对手机预览，最终群发仍由你在微信中确认。
 
 第一次可以只体验排版，满意后再开通图片和草稿交付能力，不必一上来配置所有服务。
-
-## 快速开始
-
-安装器会注册 Codex、通用 Agent Skill 目录与 OpenCode。其他宿主需要支持读取 Skill 和执行本机命令；是否有原生生图工具，取决于宿主而不是本 Skill。
-
-可以从能操作本机的 Codex 桌面端 / CLI 或 OpenCode 开始；只有网页聊天、无法操作本机文件和命令的环境，不能直接完成这套本地安装。请先完成宿主自身的模型配置、登录和额度准备。
-
-### 把这段话发给你的 Agent
-
-```text
-请为我安装或升级完整的 wechat-visual-director，并打开本地工作台。
-请先完整阅读并执行下面的安装说明，按 main/VERSION 安装对应的已发布版本：
-https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT.md
-
-需要同时安装轻量 Skill 和工作台，运行 doctor --json 确认就绪；
-Skill 目录只放轻量技能包，完整程序使用独立的安装目录。
-完成后返回实际安装版本、工作台链接，以及不超过五行的上手说明和下一句使用示例。
-如果受限未完成，请说明停在哪一步。不要读取或回显任何密钥。
-```
-
-安装器会读取 [main/VERSION](https://raw.githubusercontent.com/zhouke0929/wechat-visual-director/main/VERSION)，下载对应的已发布 Release 包并校验 SHA-256；Windows 与 macOS 共用这一版本选择规则。若对应包尚未发布或下载失败，安装会停止并报告原因。日常“打开工作台”复用已有安装，升级时再获取新版本。
-
-完整安装包含 **轻量 Skill、本地工作台及运行环境**，无需预装 Git、Python、Node.js、pnpm 或 Homebrew。需要自己执行命令时，见[安装与维护指南](docs/usage-guide.md#手动安装与升级)。
-
-也可以把仓库链接发给 Agent，说“帮我安装这个 Skill”。不同宿主可能分步完成初始化，需要进入工作台时，对 Agent 说：
-
-> 打开公众号工作台，并简单告诉我怎么开始。
-
-这条指令会触发受支持宿主的工作台准备与启动流程。宿主需要具备执行本机命令的权限。
-
-### 安装后，试着发出第一条需求
-
-```text
-请用 wechat-visual-director，帮我写一篇关于“社区咖啡店如何让客人愿意再来”的公众号文章。
-先整理内容和结构、完成语义规划，再打开本机工作台让我编辑和审核。
-不要虚构经营数据，暂时不要生成图片或创建公众号草稿。
-```
-
-已有文章可以这样说：
-
-> 用 wechat-visual-director 帮我排版下面这篇文章。保留原意和事实，先整理结构、完成规划，再打开工作台让我确认。［粘贴文章或附上文件］
-
-主题确认后，若 Agent 支持原生生图，再说：
-
-> 按当前主题，为这篇文章的正文和封面生成候选，放回工作台让我审核。
-
-工作台首页提供上手流程与可复制指令；“最近任务”可按标题关键词查找历史文章。也可以告诉 Agent“继续昨天那篇咖啡店文章”，让它查找已有任务；同名或不明确时再由你选择，不必自己找任务 ID。
 
 ## 需要配置什么？
 
@@ -238,7 +234,7 @@ Windows 与 macOS 的 CI 执行核心测试和工作台构建；Release 流程�
 
 ## License
 
-[Apache License 2.0](LICENSE)。第三方依赖和外部服务分别受其自身许可证与条款约束。
+[Apache License 2.0](LICENSE)。第三方依赖和外部服务分别受其自身许可证与条款约束。图标、宣传素材与字体来源见 [视觉资产说明](assets/identity/PROVENANCE.txt)。
 
 ---
 

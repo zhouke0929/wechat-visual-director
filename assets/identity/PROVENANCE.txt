@@ -1,0 +1,82 @@
+WeChat Visual Director — visual identity assets
+Updated: 2026-10-30
+
+mascot.png
+  Original H coral comma concept selected by the project owner.
+  Generated from a text description with the built-in image generation tool;
+  no third-party logo was supplied as a reference for that concept.
+  Transparent extraction subsequently used our own selected concept as reference.
+  This file reuses that existing raster extraction unchanged. It is not vector art.
+  Model/version is not exposed by the tool and is not asserted here.
+  Public-web preliminary similarity screening is not trademark clearance.
+
+docs/assets/readme/brand-header.png
+  Code-composed banner using the existing mascot, project name and tagline.
+  Wordmark: Noto Sans CJK SC Bold, SIL Open Font License 1.1.
+  Font source: https://github.com/notofonts/noto-cjk
+  Font license: https://github.com/notofonts/noto-cjk/blob/main/Sans/LICENSE
+  Font binary is not redistributed in the repository.
+  The former AI-rendered lettering is not used as production typography.
+
+docs/assets/readme/product-demo.mp4
+  Owner-approved 48-second film: v18 A, with BGM alone reduced by 2 dB.
+  Actual workbench/article captures + motion graphics, 1920x1080, 30fps, H.264/AAC.
+  Codex input scenes are motion reconstructions, not recordings of a live host run.
+  Web copy is below 10 MB; the approved higher-bitrate master remains local.
+  Audio packets are copied unchanged from that approved final master.
+  Music: House Two — Grigoriy Nuzhny, Mixkit track 694.
+  Source: https://mixkit.co/free-stock-music/electropop/
+  License: https://mixkit.co/license/modal/musicFree/
+  Music is incorporated into the promotional video; not offered as standalone
+  music, claimed as our composition, or registered for rights management.
+  Keyboard/click recordings: Keyboard Soundpack 1 — unicaegames, CC0 1.0.
+  https://opengameart.org/content/keyboard-soundpack-1-typing-and-single-keystrokes
+  Air accents: original short filtered-noise synthesis; no pitched sweep.
+  The earlier New Bass 01 music and original whoosh are not used in this film.
+  Historical motion studies referenced video-shotcraft (Apache-2.0);
+  its accompanying upstream notice is retained in THIRD_PARTY_MOTION.txt.
+  Font binaries are not redistributed with the film.
+
+docs/assets/readme/product-demo-poster.png
+  Actual frame from the owner-approved 48-second film, showing the accepted
+  custom theme, article excerpts, atmosphere image and unified component style.
+
+docs/assets/readme/article-review.png
+docs/assets/readme/article-mobile-review.png
+  Fresh real captures of the installed 0.1.0-alpha.33 workbench, 2026-10-30.
+  Public campus demonstration article with existing curated images.
+  Desktop inline-editor focus and mobile-preview mode, 1600x1000 CSS pixels
+  at 2x device scale. No fake UI, no private content or credentials, no new
+  image generation. Original demonstration theme restored after capture.
+
+docs/assets/readme/product-showcase-articles.png
+docs/assets/readme/product-showcase-themes.png
+  Refreshed from the current local public showcase on 2026-10-30.
+  Three article excerpts use actual rendered headings, introductions and
+  existing curated public images; the sheet composes them into three columns.
+  The theme screenshot shows the current twelve-theme gallery. Static theme
+  output was checked against the current product source before capture.
+  No new images were generated for this refresh.
+
+Website brand synchronization, 2026-10-30
+  site/index.html and site/styles.css now implement the accepted light brand
+  study: ivory #FFF8F4, plum #30223B, coral #F26078 and deep-coral text accents.
+  The real article/theme content and palettes are retained unchanged.
+  site/assets/identity/mascot.png is an unchanged copy of mascot.png above.
+  site/assets/media/product-demo.mp4 and product-demo-poster.png mirror the
+  approved README media byte-for-byte; scripts/sync_public_brand_assets.py
+  records source hashes and license provenance in site/assets/media/sources.json.
+  The existing film's music license does not change when used on the website.
+  README article-montage framing imports brand colors from the actual site;
+  the hero/social and twelve-theme screenshots are captured from that same site.
+
+Palette
+  Coral #F26078, ivory #FFF8F4, plum #30223B, lilac #C9B8EF.
+
+Local editable compositions and QA evidence are kept in the ignored directory:
+  artifacts/promotion-exploration-20261027/readme-refresh-20261030/
+  artifacts/promotion-exploration-20261027/github-film-final-20261030/
+  artifacts/promotion-exploration-20261027/film-v18-continuous-music/
+  artifacts/promotion-exploration-20261027/site-brand-refresh-20261030/
+
+This note makes no new license grant or claim of exclusive trademark rights.

@@ -21,6 +21,12 @@ LOCAL_URL = "http://127.0.0.1:8765/"
 
 def capture_readme_editions(context, gallery_page, url):
     """Compose complete excerpt blocks, never clip a live paragraph above art."""
+    # The README composition follows the site's real brand tokens. The article
+    # fragments retain their own theme typography and colors.
+    brand = gallery_page.evaluate("""() => {
+        const style = getComputedStyle(document.documentElement);
+        return Object.fromEntries(['--paper','--ink','--muted','--line','--sans','--accent'].map(name => [name, style.getPropertyValue(name).trim()]));
+    }""")
     editions = []
     for name, accent, description in (
         ("campus", "#2d6cdf", "青春校园 / 把灵感展开"),
@@ -42,6 +48,7 @@ def capture_readme_editions(context, gallery_page, url):
     sheet = context.new_page()
     sheet.set_viewport_size({"width": 1440, "height": 1100})
     sheet.set_content((ROOT / "scripts/readme-assets/editions.html").read_text(encoding="utf-8"))
+    sheet.evaluate("tokens => Object.entries(tokens).forEach(([name,value]) => { if (value) document.documentElement.style.setProperty(name,value); })", brand)
     sheet.evaluate("""items => {
         const container = document.querySelector('.editions');
         items.forEach((item, index) => {
@@ -111,7 +118,7 @@ def main() -> None:
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url, wait_until="networkidle")
         page.locator(".theme-button").nth(11).wait_for()
-        assert page.locator("main#main > section").count() == 4
+        assert page.locator("main#main > section").count() == 5
         assert page.locator(".edition").count() == 3
         assert page.locator("#faq .notes-content").is_visible()
         assert page.locator("#faq summary").count() == 0
@@ -143,8 +150,9 @@ def main() -> None:
             page.evaluate("window.scrollTo(0, 0)")
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Overflow at {width}px"
             page_height = page.evaluate("document.documentElement.scrollHeight")
-            # Includes the dedicated custom-theme entry, while retaining a compact page.
-            assert page_height < (5100 if width < 1000 else 3800), (width, page_height)
+            # Separate product film and complete article cards. On phones, the
+            # three cards stack vertically so they remain readable and tappable.
+            assert page_height < (7000 if width <= 560 else 5600 if width < 1000 else 4900), (width, page_height)
             assert page.locator("#faq .notes-content").is_visible()
             check_phone()
             results["viewports"].append({"width": width, "height": page_height})

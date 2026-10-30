@@ -1,0 +1,27 @@
+{
+  "assets": [
+    {
+      "source": "assets/identity/mascot.png",
+      "destination": "site/assets/identity/mascot.png",
+      "sha256": "8512ca28ee55c533a5e1261baecfe36a803ac6d555d3bd1cc2cb86ea52f4bc66",
+      "bytes": 901045
+    },
+    {
+      "source": "docs/assets/readme/product-demo.mp4",
+      "destination": "site/assets/media/product-demo.mp4",
+      "sha256": "d0da0c996ba334957ee66072ef3e39c7df6c639f80063d61620de062856dd577",
+      "bytes": 9373405
+    },
+    {
+      "source": "docs/assets/readme/product-demo-poster.png",
+      "destination": "site/assets/media/product-demo-poster.png",
+      "sha256": "1f82b5bbe50abb4867025281bf40542c28f27b05ad1ca7e36bddc05b39303dd5",
+      "bytes": 843820
+    }
+  ],
+  "music": "House Two — Grigoriy Nuzhny, Mixkit track 694",
+  "music_license": "https://mixkit.co/license/modal/musicFree/",
+  "credits": "https://github.com/zhouke0929/wechat-visual-director/blob/main/assets/identity/PROVENANCE.txt",
+  "selected_audio": "v18 A, BGM reduced by 2dB",
+  "note": "Music licensed only as part of the promotional video, not as standalone music or under the project code license."
+}

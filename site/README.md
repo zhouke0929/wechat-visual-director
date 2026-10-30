@@ -7,11 +7,37 @@ This directory is the public, backend-free GitHub Pages surface for WeChat Visua
 - `articles/`: curated static 405px article previews with local image assets;
 - `assets/generated/`: compressed showcase images approved for public display.
 
+## Brand and promotional media
+
+The public brand uses ivory `#FFF8F4`, plum `#30223B` and coral `#F26078`,
+with `#B83450` for small accent text. The approved comma mascot is used in
+the navigation, footer and favicon. Article iframe contents and theme-catalog
+HTML retain their own typography and palettes.
+
+The hero shows the approved 48-second product film beside a short product
+introduction. It starts in place when the play button is activated, with native
+playback, volume and fullscreen controls. It does not autoplay or download the
+MP4 on page load (`preload="none"`). Without JavaScript, native video controls
+remain available. The finished-article gallery follows in its own section.
+
+Run `python scripts/sync_public_brand_assets.py` after updating the approved
+repository mascot, video or poster. It mirrors those exact files into the
+self-contained `site/assets/` deployment and records hashes in
+`assets/media/sources.json`; it does not publish anything. Video music has its
+own third-party license and is not licensed as project source code.
+
+After a website brand change, run the showcase check with
+`--refresh-promotional-assets` to regenerate the README/social hero, article
+montage and theme screenshot. The article montage imports brand tokens from
+the live site while retaining each article's actual heading and text styles.
+
 ## A gallery, not a long-form manual
 
-The homepage has four main sections: a first-screen gallery of three real
-article editions, the interactive 12-theme atelier, a reference-to-custom-theme
-creation entry, and a compact installation CTA. Image examples are integrated into the article gallery rather than repeated
+The homepage has five main sections: a first-screen product introduction and
+film, three real article editions, the interactive 12-theme atelier, a
+reference-to-custom-theme creation entry, and a compact installation CTA.
+On phones the first screen presents the introduction, film and installation
+action in that order. Image examples are integrated into the article gallery rather than repeated
 in separate feature, comparison and workflow modules. Keep supporting setup,
 cost and privacy details in a compact, always-visible two-column note (stacked
 on small screens) and linked documentation. Do not hide these notes behind a
@@ -26,7 +52,9 @@ The three complete articles share `articles/article.css`: a 405px viewport with
 24px inner gutters, matching the workbench's mobile source width (not its 600px
 proofreading content width). Smaller screens fit their available width; larger
 screens do not stretch the article. Card iframes use the same 405px source width
-with a visual scale, so card dimensions stay unchanged. Keep the source width and
+with a visual scale. The excerpt ends after the complete first paragraph;
+the remaining article is clipped before the curated image row. Cards appear
+side by side on desktop and stack on phones. Keep the source width and
 article labels in sync with `ArticlePreviewViewport`; regression tests check it.
 The atelier exposes a production-rendered article plus 14 foundation specimens
 and 12 semantic components. Keep ordinary quotes and lists visible, rather than
