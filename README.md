@@ -22,7 +22,7 @@
 
 [![播放 48 秒宣传片：一句话排版、整篇换风格、参考图定制主题与编辑预览](docs/assets/readme/product-demo-poster.png)](https://zhouke0929.github.io/wechat-visual-director/#product-film)
 
-[▶ 前往官网播放](https://zhouke0929.github.io/wechat-visual-director/#product-film) · [下载 MP4](docs/assets/readme/product-demo.mp4)
+其他播放方式：[前往官网播放](https://zhouke0929.github.io/wechat-visual-director/#product-film) · [下载 MP4](docs/assets/readme/product-demo.mp4)
 
 一句话排版、整篇换风格、参考图定制主题、编辑与手机预览。画面包含真实工作台截图与流程动效演示，不是一次完整运行的录屏。
 
