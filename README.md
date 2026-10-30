@@ -20,9 +20,9 @@
 
 ## 48 秒，看看排版效果
 
-[![播放 48 秒宣传片：一句话排版、整篇换风格、参考图定制主题与编辑预览](docs/assets/readme/product-demo-poster.png)](https://zhouke0929.github.io/wechat-visual-director/#product-film)
+https://github.com/user-attachments/assets/ed6c0f8a-3f1a-4396-892d-10387bf63380
 
-[▶ 前往官网播放](https://zhouke0929.github.io/wechat-visual-director/#product-film) · [下载 MP4](docs/assets/readme/product-demo.mp4)
+其他播放方式：[前往官网播放](https://zhouke0929.github.io/wechat-visual-director/#product-film) · [下载 MP4](docs/assets/readme/product-demo.mp4)
 
 一句话排版、整篇换风格、参考图定制主题、编辑与手机预览。画面包含真实工作台截图与流程动效演示，不是一次完整运行的录屏。
 

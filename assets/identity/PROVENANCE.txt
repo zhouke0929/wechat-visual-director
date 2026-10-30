@@ -19,6 +19,8 @@ docs/assets/readme/brand-header.png
   The former AI-rendered lettering is not used as production typography.
 
 docs/assets/readme/product-demo.mp4
+  GitHub README native video attachment (same approved MP4):
+  https://github.com/user-attachments/assets/ed6c0f8a-3f1a-4396-892d-10387bf63380
   Owner-approved 48-second film: v18 A, with BGM alone reduced by 2 dB.
   Actual workbench/article captures + motion graphics, 1920x1080, 30fps, H.264/AAC.
   Codex input scenes are motion reconstructions, not recordings of a live host run.
