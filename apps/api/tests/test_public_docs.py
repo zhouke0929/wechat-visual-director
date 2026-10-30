@@ -266,6 +266,10 @@ def test_public_film_is_opt_in_and_readme_links_to_real_player() -> None:
     assert 'id="product-film"' in text
     assert 'aria-label="播放 48 秒产品演示" hidden' in text
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    assert re.search(r"(?m)^https://github\.com/user-attachments/assets/[0-9a-f-]{36}$", readme)
+    assert "[![播放 48 秒宣传片" not in readme
+    assert "private-user-images.githubusercontent.com" not in readme
+    assert "?jwt=" not in readme
     assert SITE_URL + "#product-film" in readme
     assert "[下载 MP4](docs/assets/readme/product-demo.mp4)" in readme
     assert "不是一次完整运行的录屏" in readme
