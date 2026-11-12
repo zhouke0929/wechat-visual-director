@@ -6,12 +6,15 @@ import { ArticlePreviewViewport } from "@/components/article-preview-viewport";
 import { ResilientPreviewFrame } from "@/components/resilient-preview-frame";
 import type {
   DraftOperation,
+  PublicationBlocker,
   PublicationMetadata,
   PublicationReadiness,
   PublicationRevision,
   Task,
   WechatPublisherStatus,
 } from "@/lib/types";
+
+type BlockerTarget = "cover" | "images" | "preflight";
 
 type PublicationPanelProps = {
   busy: string;
@@ -26,19 +29,52 @@ type PublicationPanelProps = {
   onContinueEditing: () => Promise<void>;
   onCopy: (uploadImages?: boolean) => Promise<void>;
   onFreeze: (metadata: PublicationMetadata) => Promise<void>;
+  onReviewBlocker?: (target: BlockerTarget) => void;
   onPublish: () => Promise<void>;
   onRetry: () => Promise<void>;
   onResolveUnknown: (outcome: "confirmed_succeeded" | "confirmed_not_created") => Promise<void>;
 };
 
-const checkLabels: Record<string, string> = {
-  plan_selected: "视觉方案",
-  preflight_resolved: "内容风险",
-  assets_complete: "发布素材",
-  image_slots_decided: "配图决定",
-  compatibility: "微信兼容",
-  draft_operation_clear: "草稿状态",
+const blockerActions: Record<BlockerTarget, string> = {
+  cover: "去选封面",
+  images: "去确认配图",
+  preflight: "查看原稿检查",
 };
+
+const blockerWorkflowOrder = ["source_image_not_controlled", "image_slot_pending", "cover_asset_not_controlled"];
+
+function describeBlockers(blockers: PublicationBlocker[]) {
+  const groups = new Map<string, PublicationBlocker[]>();
+  for (const blocker of blockers) {
+    const key = blockerWorkflowOrder.includes(blocker.code)
+      ? blocker.code
+      : `${blocker.action}:${blocker.message}`;
+    const group = groups.get(key) ?? [];
+    group.push(blocker);
+    groups.set(key, group);
+  }
+  const orderedKeys = [...blockerWorkflowOrder.filter((key) => groups.has(key)), ...Array.from(groups.keys()).filter((key) => !blockerWorkflowOrder.includes(key))];
+  return orderedKeys.map((key) => {
+    const group = groups.get(key)!;
+    const first = group[0];
+    switch (first.code) {
+      case "cover_asset_not_controlled":
+        return { key, title: "还没选封面", detail: "选一张封面，也可以直接使用主题保底封面。", target: "cover" as const };
+      case "image_slot_pending":
+        return { key, title: `还有 ${group.length} 处配图待确认`, detail: "采用一张图，或跳过不需要的配图。", target: "images" as const };
+      case "source_image_not_controlled":
+        return { key, title: `还有 ${group.length} 张原稿图片未导入`, detail: "补传原图，避免交付后漏图。", target: "preflight" as const, actionLabel: "去导入原图" };
+      case "preflight_finding_unresolved":
+        return { key, title: first.message, target: "preflight" as const };
+      case "draft_operation_unknown":
+        return { key, title: "上一次草稿结果待确认", detail: "先到公众号后台核对，不要重复创建草稿。" };
+      case "draft_operation_in_progress":
+        return { key, title: "公众号草稿正在保存", detail: "等本次保存完成后再操作。" };
+      default:
+        return { key, title: first.message, target: first.action === "review_image_slot" ? "images" as const : undefined };
+    }
+  });
+}
 
 export function PublicationPanel({
   busy,
@@ -53,6 +89,7 @@ export function PublicationPanel({
   onContinueEditing,
   onCopy,
   onFreeze,
+  onReviewBlocker,
   onPublish,
   onRetry,
   onResolveUnknown,
@@ -60,6 +97,8 @@ export function PublicationPanel({
   const [metadata, setMetadata] = useState<PublicationMetadata>(task.publication_draft_metadata);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("saved");
   const autosaveRef = useRef(onAutosave);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useEffect(() => {
     autosaveRef.current = onAutosave;
@@ -241,28 +280,31 @@ export function PublicationPanel({
     );
   }
 
-  const blockerMessages = Array.from(new Set(readiness?.blockers.map((item) => item.message) ?? []));
-  const blockerHint = readiness === null
+  const blockers = describeBlockers(readiness?.blockers ?? []);
+  const blocked = readiness !== null && !readiness.ready;
+  const blockedHint = blockers.length ? blockers.map((item) => item.title).join("；") : "还有交付条件未完成";
+  const statusText = readiness === null
     ? "正在检查交付条件…"
-    : readiness.ready
-      ? publisher?.ready
-        ? "所有必选项已完成，可以保存并创建公众号草稿。"
-        : "所有必选项已完成，可以保存最终版本。"
-      : `未完成：${blockerMessages.slice(0, 2).join("；")}${blockerMessages.length > 2 ? `；另有 ${blockerMessages.length - 2} 项` : ""}`;
-  const compactHint = readiness === null
-    ? "正在检查交付条件"
-    : readiness.ready
-      ? publisher?.ready
-        ? "检查通过，可直接创建草稿"
-        : "检查通过，先保存最终版本"
-      : blockerMessages[0] ?? "仍有必选项未完成";
+    : blocked
+      ? `待处理：${blockedHint}`
+      : "交付检查已通过";
+  const actionTitle = publisher?.ready ? "创建公众号草稿" : "保存最终版本";
   return (
     <div className={`publication-toolbar${readiness?.ready ? " is-ready" : ""}`} aria-label="草稿交付">
-      <div className="publication-toolbar-action" title={blockerHint}>
+      <div className="publication-toolbar-action" title={statusText}>
         <button
           aria-describedby="publication-toolbar-hint"
-          disabled={!readiness?.ready || Boolean(busy)}
-          onClick={() => void onFreeze(metadata)}
+          aria-controls={blocked ? "publication-toolbar-popover" : undefined}
+          aria-expanded={blocked ? detailsOpen : undefined}
+          className={blocked ? "publication-action-blocked" : undefined}
+          disabled={readiness === null || Boolean(busy)}
+          onClick={() => {
+            if (readiness?.ready) {
+              void onFreeze(metadata);
+            } else if (blocked && detailsRef.current) {
+              detailsRef.current.open = !detailsRef.current.open;
+            }
+          }}
           type="button"
         >
           <strong>
@@ -270,47 +312,57 @@ export function PublicationPanel({
               ? "正在保存…"
               : busy === "publish"
                 ? "正在创建草稿…"
-                : publisher?.ready
-                  ? "创建公众号草稿"
-                  : "保存最终版本"}
+                : actionTitle}
           </strong>
-          {!readiness?.ready ? <small>{compactHint}</small> : null}
+          {blocked ? <small>{blockers.length ? `${blockers.length} 项待处理 · 查看` : "查看待处理项"}</small> : null}
         </button>
-        <span className="visually-hidden" id="publication-toolbar-hint">{blockerHint}</span>
+        <span className="visually-hidden" id="publication-toolbar-hint">{statusText}</span>
       </div>
-      <details className="publication-toolbar-details">
+      <details className="publication-toolbar-details" ref={detailsRef} onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
         <summary aria-label="展开发布详情" title="发布详情">
           <span className="visually-hidden">发布详情</span>
         </summary>
-        <div className="publication-toolbar-popover">
+        <div className="publication-toolbar-popover" id="publication-toolbar-popover">
           <header>
             <div>
               <span>DELIVERY CHECK</span>
-              <strong>发布信息与检查</strong>
+              <strong>交付检查</strong>
             </div>
             <small className={`autosave-state autosave-${saveState}`} aria-live="polite">
-              {saveState === "saving" ? "正在自动保存…" : saveState === "error" ? "自动保存失败" : "工作稿已保存"}
+              {saveState === "saving" ? "信息保存中…" : saveState === "error" ? "信息未保存" : ""}
             </small>
           </header>
-          <p className={readiness?.ready ? "publication-toolbar-readiness is-ready" : "publication-toolbar-readiness"}>
-            {blockerHint}
+          <p aria-live="polite" className={readiness?.ready ? "publication-toolbar-readiness is-ready" : "publication-toolbar-readiness"}>
+            {blocked && blockers.length ? `还有 ${blockers.length} 项待处理，完成后即可${actionTitle}。` : statusText}
           </p>
-          <div className="publication-toolbar-grid">
-            <div className="publication-metadata-form publication-metadata-compact">
-              <label>作者（最多 8 个字符）<input maxLength={8} onChange={(event) => setMetadata({ ...metadata, author: event.target.value })} value={metadata.author} /></label>
-              <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} placeholder="可选；将通过微信官方 API 写入草稿" rows={3} value={metadata.digest} /></label>
-              <label>原文链接<input onChange={(event) => setMetadata({ ...metadata, content_source_url: event.target.value })} placeholder="可选" type="url" value={metadata.content_source_url} /></label>
-              <label className="cover-policy"><input checked={metadata.show_cover_pic} onChange={(event) => setMetadata({ ...metadata, show_cover_pic: event.target.checked })} type="checkbox" /><span>在正文中显示封面图（本地记录）</span></label>
-            </div>
-            <div className="gate-check-cards">
-              {Object.entries(readiness?.checks ?? {}).map(([key, status]) => (
-                <div className={`gate-check gate-check-${status}`} key={key}>
-                  <span>{status === "pass" ? "✓" : status === "blocking" ? "!" : "·"}</span>
-                  <div><strong>{checkLabels[key] ?? key}</strong><small>{status === "pass" ? "已通过" : status === "blocking" ? "待处理" : "等待检查"}</small></div>
-                </div>
+          {blocked && blockers.length > 0 ? (
+            <ul className="publication-blockers">
+              {blockers.map(({ key, title, detail, target, actionLabel }) => (
+                <li key={key}>
+                  <div><strong>{title}</strong>{detail ? <p>{detail}</p> : null}</div>
+                  {target && onReviewBlocker ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (detailsRef.current) detailsRef.current.open = false;
+                        onReviewBlocker(target);
+                      }}
+                    >{actionLabel ?? blockerActions[target]}</button>
+                  ) : null}
+                </li>
               ))}
+            </ul>
+          ) : null}
+          <details className="publication-optional-details">
+            <summary>可选：公众号草稿信息</summary>
+            <div className="publication-metadata-form">
+              <p>仅用于保存到公众号草稿箱。可留空，也可以到公众号后台再填；复制图文不包含这些信息。</p>
+              <label>作者（最多 8 个字符）<input maxLength={8} onChange={(event) => setMetadata({ ...metadata, author: event.target.value })} value={metadata.author} /></label>
+              <label>摘要<textarea maxLength={120} onChange={(event) => setMetadata({ ...metadata, digest: event.target.value })} rows={2} value={metadata.digest} /></label>
+              <label>原文链接<input onChange={(event) => setMetadata({ ...metadata, content_source_url: event.target.value })} type="url" value={metadata.content_source_url} /></label>
+              <label className="cover-policy"><input checked={metadata.show_cover_pic} onChange={(event) => setMetadata({ ...metadata, show_cover_pic: event.target.checked })} type="checkbox" /><span>在正文中显示封面图（草稿设置）</span></label>
             </div>
-          </div>
+          </details>
         </div>
       </details>
     </div>

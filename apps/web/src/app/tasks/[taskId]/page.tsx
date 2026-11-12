@@ -272,7 +272,6 @@ export default function TaskReviewPage() {
       if (detail?.task.selected_plan_id === plan.id) {
         setPublicationReadiness(null);
         await refreshImageReview(plan.id);
-        setPublicationReadiness(await getPublicationReadiness(taskId));
       }
       setFocusSlotByPlan((current) => ({ ...current, [plan.id]: "" }));
       const selectedTheme = plan.visual_system_metadata?.available_visual_systems?.find(
@@ -302,7 +301,6 @@ export default function TaskReviewPage() {
       if (detail?.task.selected_plan_id === plan.id) {
         setPublicationReadiness(null);
         await refreshImageReview(plan.id);
-        setPublicationReadiness(await getPublicationReadiness(taskId));
       }
       setNotice("已撤回上次主题或方案修改，保留当前正文和图片。请检查预览，再确认最终版本；如有更早记录，可继续回退。");
     } catch (reason) {
@@ -320,6 +318,15 @@ export default function TaskReviewPage() {
     setImageReview(nextImageReview);
     setCoverReview(nextCoverReview);
     setImageRefreshToken((current) => current + 1);
+    if (detail?.task.selected_plan_id === planId) {
+      try {
+        const readiness = await getPublicationReadiness(taskId);
+        if (requestId === imageWorkspaceRequestRef.current) setPublicationReadiness(readiness);
+      } catch {
+        if (requestId === imageWorkspaceRequestRef.current) setPublicationReadiness(null);
+        setWorkspaceWarning("交付检查未能刷新，请刷新页面后再试。");
+      }
+    }
   }
 
   async function handleImageGenerate(plan: VisualPlan, slot: ImageSlotReview) {
@@ -536,6 +543,7 @@ export default function TaskReviewPage() {
     try {
       const nextDetail = await acknowledgePreflightFinding(detail.task, finding.code, finding.block_id);
       setDetail(nextDetail);
+      if (nextDetail.task.selected_plan_id) void loadSupplementalWorkspace(nextDetail);
       setNotice("已记录知情确认；原始 Markdown 和归一化稿均未被改写。");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "记录预检确认失败");
@@ -943,6 +951,10 @@ export default function TaskReviewPage() {
               onContinueEditing={() => Promise.resolve()}
               onCopy={() => Promise.resolve()}
               onFreeze={handleFreezePublication}
+              onReviewBlocker={(target) => {
+                if (target === "preflight") enterSourcePreflight();
+                else enterWorkbench(target);
+              }}
               onPublish={() => Promise.resolve()}
               onRetry={() => Promise.resolve()}
               onResolveUnknown={() => Promise.resolve()}
