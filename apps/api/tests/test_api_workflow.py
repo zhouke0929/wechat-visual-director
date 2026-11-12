@@ -827,6 +827,99 @@ def test_replace_preflight_asset_rejects_small_image_and_keeps_finding_open(tmp_
         assert finding.get("resolved_at") is None
 
 
+def test_working_clipboard_copies_latest_body_without_cover_or_freezing(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "working-clipboard.db"), image_provider=MockImageProvider())
+    with TestClient(app) as client:
+        markdown = """# 编辑页标题不随正文复制
+
+先明确目标，再核对证据，最后形成行动清单。
+
+## 行动路径
+
+1. 确定目标
+2. 倒推能力
+3. 开始行动
+
+![原稿流程照片](original.jpg)
+"""
+        created = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("working.md", markdown.encode("utf-8"), "text/markdown")},
+        ).json()
+        task = created["task"]
+        url = f'/api/v1/article-tasks/{task["id"]}'
+        source = next(
+            item for item in created["input_summary"]["preflight_report"]["findings"]
+            if item["code"] == "source_image_requires_import"
+        )
+        assert client.post(
+            f"{url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]},
+        ).status_code == 202
+        plan = client.get(f"{url}/plans").json()["plans"][0]
+        task = client.get(url).json()["task"]
+        editor = client.get(f"{url}/content-editor").json()
+        params = {"plan_id": plan["id"], "plan_revision": plan["revision"], "content_revision": editor["revision"]}
+        intent = {"X-Local-Intent": "local-operator"}
+        assert client.get(f"{url}/clipboard", params=params).status_code == 403
+        blocked = client.get(f"{url}/clipboard", params=params, headers=intent)
+        assert blocked.status_code == 409
+        assert blocked.json()["error"]["code"] == "source_image_not_controlled"
+        assert "原稿流程照片" in blocked.json()["error"]["message"]
+
+        imported = client.post(
+            f"{url}/preflight/findings/source_image_requires_import/replace-asset",
+            data={"expected_task_version": task["version"], "block_id": source["block_id"]},
+            files={"image_file": ("body.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200
+        slot_url = f'{url}/plans/{plan["id"]}/image-slots'
+        slots = client.get(slot_url).json()["items"]
+        assert slots and all(slot["state"]["status"] == "planned" for slot in slots)
+        original_only = client.get(f"{url}/clipboard", params=params, headers=intent)
+        assert original_only.status_code == 200, original_only.text[:500]
+        original_payload = original_only.json()
+        assert original_payload["cover_url"] is None
+        assert 'alt="原稿流程照片"' in original_payload["html"]
+        assert "data:image/png;base64," in original_payload["html"]
+        assert "编辑页标题不随正文复制" not in original_payload["html"]
+        assert "image-slot-anchor" not in original_payload["html"]
+        assert client.get(slot_url).json()["items"] == slots
+        assert client.get(f"{url}/publication-readiness").json()["ready"] is False
+
+        item = slots[0]
+        candidate_url = f'{slot_url}/{item["image_slot_id"]}'
+        generated = client.post(
+            f"{candidate_url}/generate", json={"mode": "start", "expected_image_revision": 1},
+        ).json()["image_slot"]
+        candidate_id = generated["candidates"][0]["id"]
+        still_original = client.get(f"{url}/clipboard", params=params, headers=intent).json()
+        assert still_original["image_count"] == original_payload["image_count"]
+        assert client.post(
+            f"{candidate_url}/candidates/{candidate_id}/accept",
+            json={"expected_image_revision": generated["image_revision"], "text_verified": True},
+        ).status_code == 200
+
+        paragraph = next(item for item in editor["blocks"] if item["type"] == "paragraph")
+        edited = client.patch(f"{url}/content-editor", json={
+            "expected_revision": editor["revision"], "target": "block",
+            "block_id": paragraph["block_id"], "content": "刚编辑并保存的最新版正文。",
+        })
+        assert edited.status_code == 200
+        assert client.get(f"{url}/clipboard", params=params, headers=intent).status_code == 409
+        params["content_revision"] = edited.json()["revision"]
+        before = client.get(url).json()["task"]
+        audit_before = app.state.repository.list_audit_events(task["id"])
+        copied = client.get(f"{url}/clipboard", params=params, headers=intent)
+        assert copied.status_code == 200, copied.text[:500]
+        payload = copied.json()
+        assert "刚编辑并保存的最新版正文。" in payload["html"]
+        assert "刚编辑并保存的最新版正文。" in payload["text"]
+        assert payload["image_count"] == original_payload["image_count"] + 1
+        assert client.get(url).json()["task"] == before
+        assert app.state.repository.list_audit_events(task["id"]) == audit_before
+        assert not app.state.repository.list_publication_revisions(task["id"])
+
+
 def test_publication_freeze_is_immutable_idempotent_and_locks_editing(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "publication-freeze.db"))
     with TestClient(app) as client:

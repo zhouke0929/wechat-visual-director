@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState, type RefObject } from "react";
 
 import { ArticlePreviewModeContext } from "@/components/article-preview-viewport";
 import { PREVIEW_NORMALIZATION_CSS, PREVIEW_PROFILES } from "@/lib/preview-profiles";
@@ -13,6 +13,7 @@ import type {
 type Props = {
   editable?: boolean;
   editorDocument?: ContentEditorDocument | null;
+  flushEditsRef?: RefObject<(() => Promise<void>) | null>;
   onEditingChange?: (editing: boolean) => void;
   onSave?: (target: PreviewEditTarget, content: EditableContentValue) => Promise<void>;
   onSaveStateChange?: (state: InlineSaveState, message?: string) => void;
@@ -58,6 +59,7 @@ function previewHash(src: string): string {
 
 const PROOF_FONT_SCALE = PREVIEW_PROFILES.proof.font_scale;
 const inlineEditorCleanups = new WeakMap<Document, () => void>();
+const inlineEditorFlushers = new WeakMap<Document, () => Promise<void>>();
 
 function normalizedText(value: string): string {
   return value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
@@ -294,6 +296,7 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const groupByElement = new Map<HTMLElement, EditableGroup>();
   const timers = new Map<string, number>();
   const pending = new Map<string, { group: EditableGroup; value: EditableContentValue }>();
+  const saveFailures = new Map<string, string>();
   let sequence = Promise.resolve();
   let savedIndicator = 0;
   let disposed = false;
@@ -309,12 +312,15 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
       .catch(() => undefined)
       .then(() => callbacks.onSave?.(group.target, value))
       .then(() => {
+        saveFailures.delete(group.key);
         report("saved");
         window.clearTimeout(savedIndicator);
         savedIndicator = window.setTimeout(() => report("editing"), 1400);
       })
       .catch((reason: Error) => {
-        report("error", reason.message || "自动保存失败");
+        const message = reason.message || "自动保存失败";
+        saveFailures.set(group.key, message);
+        report("error", message);
       });
   };
 
@@ -337,6 +343,12 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
     queued.forEach(({ group, value }) => runSave(group, value));
     await sequence;
   };
+
+  inlineEditorFlushers.set(document, async () => {
+    await flushPending();
+    const failure = saveFailures.values().next().value;
+    if (failure) throw new Error(`正文未保存，尚未复制：${failure}`);
+  });
 
   groups.forEach((group) => {
     group.elements.forEach((element, index) => {
@@ -403,6 +415,7 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   document.addEventListener("keydown", onKeyDown);
 
   return () => {
+    inlineEditorFlushers.delete(document);
     const runtimeFragments = Array.from(
       document.querySelectorAll<HTMLElement>("[data-workbench-inline-fragment]"),
     );
@@ -508,6 +521,7 @@ function applyWorkbenchPreviewProfile(
 export function ResilientPreviewFrame({
   editable = false,
   editorDocument,
+  flushEditsRef,
   onEditingChange,
   onSave,
   onSaveStateChange,
@@ -557,6 +571,18 @@ export function ResilientPreviewFrame({
     scrollCleanupRef.current?.();
     scrollCleanupRef.current = null;
   }, []);
+
+  useEffect(() => {
+    if (!flushEditsRef) return;
+    const flush = async () => {
+      const doc = frameRef.current?.contentDocument;
+      if (doc) await inlineEditorFlushers.get(doc)?.();
+    };
+    flushEditsRef.current = flush;
+    return () => {
+      if (flushEditsRef.current === flush) flushEditsRef.current = null;
+    };
+  }, [flushEditsRef]);
 
   useEffect(() => {
     if (frameRef.current) {

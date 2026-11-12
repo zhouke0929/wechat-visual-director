@@ -73,11 +73,14 @@ def _embedded_clipboard_sources(body, assets, read_asset):
         if asset is None:
             raise ClipboardPreparationError("clipboard_image_unresolved", "正文存在未冻结的图片引用，未复制；请返回工作台检查图片并重新确认最终版本。")
         try:
-            path, _ = read_asset(asset["id"])
-            if path.stat().st_size > CLIPBOARD_IMAGE_MAX_BYTES:
-                raise ClipboardPreparationError("clipboard_too_large", "单张图片超过复制大小上限（8 MiB）；请缩小图片后重试，或选择下方的备用交付方式。")
-            with path.open("rb") as stream:
-                data = stream.read(CLIPBOARD_IMAGE_MAX_BYTES + 1)
+            source_data, _ = read_asset(asset["id"])
+            if isinstance(source_data, bytes):
+                data = source_data
+            else:
+                if source_data.stat().st_size > CLIPBOARD_IMAGE_MAX_BYTES:
+                    raise ClipboardPreparationError("clipboard_too_large", "单张图片超过复制大小上限（8 MiB）；请缩小图片后重试，或选择下方的备用交付方式。")
+                with source_data.open("rb") as stream:
+                    data = stream.read(CLIPBOARD_IMAGE_MAX_BYTES + 1)
         except ClipboardPreparationError:
             raise
         except (OSError, KeyError, ValueError) as exc:
@@ -115,7 +118,7 @@ def _embedded_clipboard_sources(body, assets, read_asset):
     return urls
 
 
-def _extract_main(document: str) -> str:
+def extract_delivery_body(document: str) -> str:
     match = re.search(r"<main\b[^>]*>.*?</main>", document, flags=re.IGNORECASE | re.DOTALL)
     if not match:
         raise ValueError("冻结版本缺少可发布的 main 内容")
@@ -232,7 +235,7 @@ def build_delivery_files(
     portable_html = _responsive_delivery_document(revision["frozen_html"])
     for token, relative in token_to_relative.items():
         portable_html = portable_html.replace(f'src="asset://{token}"', f'src="{relative}"')
-    body_html = _extract_main(portable_html)
+    body_html = extract_delivery_body(portable_html)
     files["article.md"] = (_frontmatter(revision["metadata"], cover_relative) + body_html + "\n").encode("utf-8")
     files["article.html"] = portable_html.encode("utf-8")
     files["manifest.json"] = json.dumps(
@@ -269,10 +272,10 @@ def build_clipboard_payload(
     absolute_asset_url: Callable[[str], str],
     *,
     hosted_asset_urls: dict[str, str] | None = None,
-    read_asset: Callable[[str], tuple[Path, str]] | None = None,
+    read_asset: Callable[[str], tuple[Path | bytes, str]] | None = None,
 ) -> dict[str, Any]:
     document = _clipboard_static_label_geometry(_responsive_delivery_document(revision["frozen_html"]))
-    original_body = _extract_main(document)
+    original_body = extract_delivery_body(document)
     if read_asset is not None and hosted_asset_urls is not None:
         raise ValueError("Choose embedded or hosted clipboard images, not both")
     embedded_urls = _embedded_clipboard_sources(original_body, assets, read_asset) if read_asset is not None else None
@@ -285,7 +288,7 @@ def build_clipboard_payload(
         document = document.replace(f'src="asset://{asset["asset_token"]}"', f'src="{target}"')
         if asset["asset_role"] == "cover":
             cover_url = target
-    body_html = _extract_main(document)
+    body_html = extract_delivery_body(document)
     if embedded_urls is not None:
         if any(not source.startswith("data:image/") for source in _ImageSources(body_html).sources):
             raise ClipboardPreparationError("clipboard_image_unresolved", "部分正文图片未能内嵌，未复制；请返回工作台检查图片。")

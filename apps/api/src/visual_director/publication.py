@@ -195,9 +195,19 @@ def _custom_image_config(markup: str) -> dict[str, Any] | None:
     return json.loads(html.unescape(match.group(1))) if match else None
 
 
-def materialize_preview_document(repository: Any, artifact_id: str) -> str:
+def materialize_preview_document(
+    repository: Any, artifact_id: str, *, adopted_slots: set[str] | None = None
+) -> str:
     artifact = repository.get_artifact_record(artifact_id)
     document = artifact["html"]
+    if adopted_slots is not None:
+        # The stored preview can contain suggestions even before slot state exists.
+        document = re.sub(
+            r'<section id="([^"]+)" class="image-slot-anchor".*?</section>',
+            lambda match: match.group(0) if html.unescape(match[1]) in adopted_slots else "",
+            document,
+            flags=re.DOTALL,
+        )
     states = repository.list_image_slot_states(artifact["task_id"], artifact["plan_id"])
     for state in states:
         slot_id = str(state["image_slot_id"])
@@ -212,7 +222,10 @@ def materialize_preview_document(repository: Any, artifact_id: str) -> str:
             (item for item in state["candidates"] if item["id"] == state["selected_candidate_id"]),
             None,
         )
-        if selected and state["status"] in {"accepted", "replaced", "generated", "failed"}:
+        if selected and (
+            slot_id in adopted_slots if adopted_slots is not None
+            else state["status"] in {"accepted", "replaced", "generated", "failed"}
+        ):
             image_width = int(selected["width"])
             image_height = int(selected["height"])
             def replace_generated(match: re.Match[str]) -> str:

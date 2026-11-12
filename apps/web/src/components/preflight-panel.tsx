@@ -14,6 +14,7 @@ type PreflightPanelProps = {
   busyFinding: string;
   planningBusy: boolean;
   hasPreview: boolean;
+  forceOpenFindings?: boolean;
   onAcknowledge: (finding: PreflightFinding) => void;
   onGeneratePlans: () => void;
   onLocate: (blockId: string) => void;
@@ -71,6 +72,7 @@ export function PreflightPanel({
   busyFinding,
   planningBusy,
   hasPreview,
+  forceOpenFindings = false,
   onAcknowledge,
   onGeneratePlans,
   onLocate,
@@ -81,7 +83,7 @@ export function PreflightPanel({
   const draftBlockers = unresolved.filter((finding) => finding.draft_blocking).length;
   const acknowledgements = unresolved.filter((finding) => finding.resolution_policy === "ACKNOWLEDGE").length;
   const isTaskCreated = taskStatus === "created";
-  const shouldOpen = isTaskCreated || planningBlockers > 0;
+  const shouldOpen = isTaskCreated || planningBlockers > 0 || forceOpenFindings;
 
   return (
     <section className={`preflight-dossier preflight-${report.status.toLowerCase()} ${hasPreview ? "preflight-compact" : ""}`} aria-labelledby="preflight-title">

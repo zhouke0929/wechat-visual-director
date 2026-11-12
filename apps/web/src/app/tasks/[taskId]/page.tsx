@@ -29,6 +29,7 @@ import {
   generateImageCandidate,
   getDraftOperations,
   getClipboardPayload,
+  getWorkingClipboardPayload,
   getCoverWorkspace,
   getContentEditor,
   getImageSlots,
@@ -56,6 +57,7 @@ import type {
   CoverCandidate,
   CoverReuseSource,
   CoverWorkspace,
+  ClipboardPayload,
   ContentEditorDocument,
   DraftOperation,
   ImageCandidate,
@@ -90,6 +92,33 @@ const styleLabels: Record<string, string> = {
   cinematic_story: "电影叙事",
 };
 
+function supportsRichClipboard() {
+  return typeof navigator.clipboard?.write === "function" && typeof ClipboardItem !== "undefined";
+}
+
+async function copyRichArticle(loadPayload: () => Promise<ClipboardPayload>) {
+  const payloadPromise = loadPayload();
+  const html = payloadPromise.then(payload => new Blob([payload.html], { type: "text/html" }));
+  const text = payloadPromise.then(payload => new Blob([payload.text], { type: "text/plain" }));
+  void html.catch(() => undefined);
+  void text.catch(() => undefined);
+  // Start the write in the click gesture even if autosave and image preparation are still running.
+  const write = navigator.clipboard.write([new ClipboardItem({ "text/html": html, "text/plain": text })]);
+  void write.catch(() => undefined);
+  await payloadPromise;
+  await write;
+}
+
+function workingCopyError(reason: unknown) {
+  if (reason instanceof DOMException && ["NotAllowedError", "SecurityError"].includes(reason.name)) {
+    return "浏览器未允许此次图文复制，尚未复制。请保持页面在前台并检查剪贴板权限。";
+  }
+  if (reason instanceof DOMException && reason.name === "NotSupportedError") {
+    return "当前浏览器不支持所需的图文复制格式，尚未复制。请换用支持富文本剪贴板的浏览器。";
+  }
+  return reason instanceof Error ? reason.message : "复制图文失败，请重试。";
+}
+
 export default function TaskReviewPage() {
   const taskId = useRouteParam("tasks");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
@@ -103,6 +132,7 @@ export default function TaskReviewPage() {
   const [coverReview, setCoverReview] = useState<CoverWorkspace | null>(null);
   const [contentEditor, setContentEditor] = useState<ContentEditorDocument | null>(null);
   const contentEditorRef = useRef<ContentEditorDocument | null>(null);
+  const flushInlineEditsRef = useRef<(() => Promise<void>) | null>(null);
   const [contentSaveState, setContentSaveState] = useState<InlineSaveState>("idle");
   const [contentSaveMessage, setContentSaveMessage] = useState("");
   const [contentPreviewRefreshToken, setContentPreviewRefreshToken] = useState(0);
@@ -115,6 +145,7 @@ export default function TaskReviewPage() {
   const [sourceAssetRefreshToken, setSourceAssetRefreshToken] = useState(0);
   const [focusSlotByPlan, setFocusSlotByPlan] = useState<Record<string, string>>({});
   const [preflightBusy, setPreflightBusy] = useState("");
+  const [sourcePreflightOpen, setSourcePreflightOpen] = useState(false);
   const [planningBusy, setPlanningBusy] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState("");
   const [copyFallbackRevisionId, setCopyFallbackRevisionId] = useState<string | null>(null);
@@ -533,6 +564,9 @@ export default function TaskReviewPage() {
       if (finding.block_id && plan) {
         setFocusSlotByPlan((current) => ({ ...current, [plan.id]: finding.block_id! }));
       }
+      if (sourcePreflightOpen) {
+        await loadSupplementalWorkspace(nextDetail);
+      }
       setNotice(
         finding.block_id
           ? "原稿图片已替换，预览与草稿门禁状态已同步更新。"
@@ -654,6 +688,33 @@ export default function TaskReviewPage() {
     } catch (reason) {
       await load().catch(() => undefined);
       setError(reason instanceof Error ? reason.message : "微信公众号草稿创建失败");
+    } finally {
+      setPublicationBusy("");
+    }
+  }
+
+  async function handleCopyWorkingArticle(plan: VisualPlan) {
+    setPublicationBusy("copy-working");
+    setError("");
+    setNotice("");
+    try {
+      if (!supportsRichClipboard()) {
+        throw new Error("当前浏览器不支持图文剪贴板，尚未复制。请换用支持富文本复制的浏览器。");
+      }
+      await copyRichArticle(async () => {
+        await flushInlineEditsRef.current?.();
+        const editor = contentEditorRef.current;
+        if (!editor || editor.plan_id !== plan.id) {
+          throw new Error("当前正文尚未就绪，尚未复制。请刷新工作台后再试。");
+        }
+        return getWorkingClipboardPayload(taskId, plan.id, plan.revision, editor.revision);
+      });
+      setNotice("图文已复制。请在公众号后台粘贴正文，标题和封面在后台填写。");
+    } catch (reason) {
+      if (publicationReadiness?.blockers.some(item => item.code === "source_image_not_controlled")) {
+        enterSourcePreflight();
+      }
+      setError(workingCopyError(reason));
     } finally {
       setPublicationBusy("");
     }
@@ -800,6 +861,13 @@ export default function TaskReviewPage() {
     });
   }
 
+  function enterSourcePreflight() {
+    setSourcePreflightOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("preflight-title")?.scrollIntoView({ block: "start" });
+    });
+  }
+
   if (loading) {
     return <main className="review-loading" role="status">正在装订推荐稿…</main>;
   }
@@ -826,6 +894,7 @@ export default function TaskReviewPage() {
     (item) => item.revision_id === activeRevision?.id && item.status !== "superseded",
   ) ?? null;
   const publicationVisible = Boolean(detail.task.selected_plan_id || activeRevision);
+  const workingCopyVisible = Boolean(activePlanSelected && !activeRevision);
   const preflightReport = detail.input_summary.preflight_report;
   const unresolvedManualPreflightCount = preflightReport?.findings.filter(
     (finding) => !finding.resolved_at && finding.resolution_policy !== "REPLACE_ASSET",
@@ -833,12 +902,12 @@ export default function TaskReviewPage() {
   const showPreflight = Boolean(
     preflightReport
     && !activeRevision
-    && (!activePlan || unresolvedManualPreflightCount > 0),
+    && (!activePlan || unresolvedManualPreflightCount > 0 || sourcePreflightOpen),
   );
 
   return (
     <main className={`review-page${activePlan && !activeRevision && !showPreflight ? " review-page-workbench" : ""}`}>
-      <header className="review-topbar">
+      <header className={`review-topbar${workingCopyVisible ? " review-topbar-with-copy" : ""}`}>
         <Link className="back-link" href="/tasks"><BackIcon />最近任务</Link>
         <div className="review-title">
           <p>VISUAL REVIEW / {taskId.slice(0, 8).toUpperCase()}</p>
@@ -846,6 +915,21 @@ export default function TaskReviewPage() {
         </div>
         <div className="review-topbar-actions">
           <Link className="review-settings-link" href="/settings">本地设置</Link>
+          {workingCopyVisible && activePlan ? (
+            <button
+              className={`working-copy-button${wechatPublisher?.ready ? "" : " working-copy-primary"}`}
+              type="button"
+              disabled={Boolean(!contentEditor || publicationBusy || switchingTheme || selecting || restoring || preflightBusy)}
+              onClick={() => void handleCopyWorkingArticle(activePlan)}
+              title="复制正文、已采用的图片和排版，不需要封面"
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" aria-hidden="true">
+                <rect x="5" y="5" width="9" height="9" rx="1" />
+                <path d="M11 5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2" />
+              </svg>
+              {publicationBusy === "copy-working" ? "正在复制…" : "复制图文"}
+            </button>
+          ) : null}
           {publicationVisible && !activeRevision ? (
             <PublicationPanel
               busy={publicationBusy}
@@ -872,6 +956,7 @@ export default function TaskReviewPage() {
       {showPreflight && preflightReport ? (
         <PreflightPanel
           busyFinding={preflightBusy}
+          forceOpenFindings={sourcePreflightOpen}
           hasPreview={Boolean(activePlan)}
           imageReferenceCount={detail.input_summary.image_reference_count}
           onAcknowledge={handlePreflightAcknowledge}
@@ -1040,6 +1125,7 @@ export default function TaskReviewPage() {
                   <ResilientPreviewFrame
                     editable={Boolean(activePlanSelected && contentEditor)}
                     editorDocument={contentEditor}
+                    flushEditsRef={flushInlineEditsRef}
                     onEditingChange={handleInlineEditingChange}
                     onSave={handleContentSave}
                     onSaveStateChange={(state, message) => {

@@ -251,6 +251,11 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .review-topbar-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
 .review-settings-link { min-height: 34px; padding: 5px 10px; display: inline-flex; align-items: center; border: 1px solid rgba(15, 118, 110, .34); background: rgba(255, 254, 250, .72); color: var(--teal); font-size: 12px; font-weight: 750; white-space: nowrap; }
 .review-settings-link:hover { background: var(--teal-soft); }
+.working-copy-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; padding: 8px 13px; border: 1px solid var(--teal); background: #fffdf7; color: var(--teal); font-size: 12px; font-weight: 800; white-space: nowrap; }
+.working-copy-button svg { flex: 0 0 auto; }
+.working-copy-button.working-copy-primary { background: var(--teal); color: white; }
+.working-copy-button:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: white; }
+.working-copy-button:disabled { opacity: .6; cursor: not-allowed; }
 .review-title { flex: 1; min-width: 0; }
 .review-title p { margin: 0; color: var(--teal); font: 700 9px Arial; letter-spacing: 0.14em; }
 .review-title h1 { max-width: 760px; margin: 2px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "Noto Serif SC", "Songti SC", serif; font-size: 20px; }
@@ -1417,6 +1422,10 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .publication-toolbar-action { min-width: 132px; max-width: 148px; }
   .publication-toolbar-action > button { min-height: 44px; padding: 6px 10px; }
   .publication-toolbar-action strong { font-size: 10px; }
+  .review-topbar-with-copy { flex-wrap: wrap; gap: 4px 12px; }
+  .review-topbar-with-copy .review-topbar-actions { flex: 1 0 100%; justify-content: flex-end; }
+  .review-topbar-with-copy .publication-toolbar-popover { top: 114px; max-height: calc(100dvh - 126px); }
+  .working-copy-button { padding-inline: 9px; font-size: 11px; }
   .publication-toolbar-action small { display: none; }
   .preflight-dossier { width: calc(100% - 20px); margin: 12px auto; }
   .preflight-masthead { padding: 18px 16px; grid-template-columns: 64px minmax(0, 1fr); gap: 13px; }
@@ -1504,6 +1513,12 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   .image-review-inspector { padding: 18px 16px; }
   .image-review-inspector h4 { font-size: 18px; }
   .image-review-dialog-footer { padding: 0 12px; }
+}
+
+@media (max-width: 360px) {
+  .review-topbar-with-copy .review-topbar-actions { gap: 4px; }
+  .review-topbar-with-copy .publication-toolbar-action { min-width: 0; width: 104px; }
+  .review-topbar-with-copy .publication-toolbar-details > summary { width: 32px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -758,6 +758,24 @@ export async function getClipboardPayload(revisionId: string, uploadImages = fal
   return parseResponse<ClipboardPayload>(response);
 }
 
+export async function getWorkingClipboardPayload(
+  taskId: string,
+  planId: string,
+  planRevision: number,
+  contentRevision: number,
+): Promise<ClipboardPayload> {
+  const query = new URLSearchParams({
+    plan_id: planId,
+    plan_revision: String(planRevision),
+    content_revision: String(contentRevision),
+  });
+  const response = await fetchWithTimeout(`${API_BASE}/article-tasks/${taskId}/clipboard?${query}`, {
+    cache: "no-store",
+    headers: { "X-Local-Intent": "local-operator" },
+  });
+  return parseResponse<ClipboardPayload>(response);
+}
+
 export function publicationBundleUrl(revisionId: string): string {
   return `${API_BASE}/publication-revisions/${revisionId}/bundle`;
 }

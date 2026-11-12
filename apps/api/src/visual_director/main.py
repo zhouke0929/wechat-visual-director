@@ -131,6 +131,7 @@ from .delivery import (
     ClipboardPreparationError,
     build_delivery_files,
     build_delivery_zip,
+    extract_delivery_body,
 )
 from .wechat_publisher import WechatDraftPublisher
 from .repository import NotFoundError, PublicationLockedError, Repository, VersionConflictError
@@ -666,7 +667,7 @@ def create_app(
     async def conflict_handler(_: Request, exc: VersionConflictError) -> JSONResponse:
         return _error(409, "version_conflict", str(exc), retryable=True)
 
-    def publication_readiness(task_id: str) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    def publication_readiness(task_id: str, *, body_only: bool = False) -> tuple[dict[str, Any], dict[str, Any] | None]:
         task = repository.get_task(task_id)
         blockers: list[dict[str, Any]] = []
         checks = {
@@ -719,7 +720,7 @@ def create_app(
             "placeholder_image",
             "source_image_requires_import",
         }
-        if not report.get("draft_creation_allowed"):
+        if not body_only and not report.get("draft_creation_allowed"):
             checks["preflight_resolved"] = "blocking"
             unresolved_non_asset_findings = [
                 item
@@ -748,7 +749,7 @@ def create_app(
 
         replacements = repository.list_preflight_asset_replacements(task_id)
         cover_asset = next((item for item in replacements if item["asset_role"] == "cover"), None)
-        if cover_asset is None:
+        if cover_asset is None and not body_only:
             block(
                 "cover_asset_not_controlled",
                 "封面尚未进入受控资产库",
@@ -765,9 +766,11 @@ def create_app(
         }
         for source_block in source_blocks:
             if source_block.id not in replacement_by_block:
+                label = str(source_block.content.get("alt") or "").strip()[:60]
+                copy_message = f"原稿图片「{label}」还没导入，请先补图" if label else "还有原稿图片未导入，请先补图"
                 block(
                     "source_image_not_controlled",
-                    "原稿图片尚未进入受控资产库",
+                    copy_message if body_only else "原稿图片尚未进入受控资产库",
                     "content_block",
                     source_block.id,
                     "replace_asset",
@@ -790,7 +793,7 @@ def create_app(
                     "replace_asset",
                 )
 
-        if cover_asset is not None:
+        if cover_asset is not None and not body_only:
             try:
                 cover_path_for_check, _ = repository.get_preflight_asset(cover_asset["id"])
                 verify_asset_hash(
@@ -815,10 +818,11 @@ def create_app(
 
         selected_states: list[dict[str, Any]] = []
         if plan is not None:
-            repository.ensure_image_slot_states(task_id, plan["id"], plan.get("image_slots", []))
+            if not body_only:
+                repository.ensure_image_slot_states(task_id, plan["id"], plan.get("image_slots", []))
             selected_states = repository.list_image_slot_states(task_id, plan["id"])
             for state in selected_states:
-                if state["decision"] not in {"accepted", "replaced", "skipped"}:
+                if not body_only and state["decision"] not in {"accepted", "replaced", "skipped"}:
                     block(
                         "image_slot_pending",
                         "规划图片槽尚未做出采用、替换或跳过决定",
@@ -881,7 +885,7 @@ def create_app(
             else "pass"
         )
 
-        operation_status = repository.has_blocking_draft_operation(task_id)
+        operation_status = None if body_only else repository.has_blocking_draft_operation(task_id)
         if operation_status:
             code = "draft_operation_unknown" if operation_status == "unknown" else "draft_operation_in_progress"
             block(code, "存在未完成的草稿操作", "draft_operation", None, "resolve_draft_operation")
@@ -890,8 +894,14 @@ def create_app(
             checks["draft_operation_clear"] = "pass"
 
         prepared: dict[str, Any] | None = None
-        if not blockers and plan is not None and cover_asset is not None:
-            document = materialize_preview_document(repository, plan["preview_artifact_id"])
+        if not blockers and plan is not None:
+            adopted_slots = {
+                str(state["image_slot_id"]) for state in selected_states
+                if state["decision"] in {"accepted", "replaced"}
+            } if body_only else None
+            document = materialize_preview_document(repository, plan["preview_artifact_id"], adopted_slots=adopted_slots)
+            if body_only:
+                document = extract_delivery_body(document)
             asset_sources: list[dict[str, Any]] = []
 
             def add_path_asset(
@@ -927,17 +937,18 @@ def create_app(
                     }
                 )
 
-            cover_path, cover_type = repository.get_preflight_asset(cover_asset["id"])
-            add_path_asset(
-                token="cover",
-                role="cover",
-                resource_type="preflight_asset",
-                resource_id=cover_asset["id"],
-                path=cover_path,
-                content_type=cover_type,
-                width=int(cover_asset["width"]),
-                height=int(cover_asset["height"]),
-            )
+            if cover_asset is not None and not body_only:
+                cover_path, cover_type = repository.get_preflight_asset(cover_asset["id"])
+                add_path_asset(
+                    token="cover",
+                    role="cover",
+                    resource_type="preflight_asset",
+                    resource_id=cover_asset["id"],
+                    path=cover_path,
+                    content_type=cover_type,
+                    width=int(cover_asset["width"]),
+                    height=int(cover_asset["height"]),
+                )
             for block_id, asset in replacement_by_block.items():
                 path, content_type = repository.get_preflight_asset(asset["id"])
                 add_path_asset(
@@ -2205,6 +2216,49 @@ def create_app(
     @app.get("/api/v1/publishers/wechat/status")
     def wechat_publisher_status() -> dict[str, Any]:
         return app.state.wechat_publisher.status()
+
+    @app.get("/api/v1/article-tasks/{task_id}/clipboard")
+    def working_clipboard_payload(
+        task_id: str,
+        request: Request,
+        plan_id: str = Query(..., min_length=1),
+        plan_revision: int = Query(..., ge=1),
+        content_revision: int = Query(..., ge=0),
+        x_local_intent: str | None = Header(default=None, alias="X-Local-Intent"),
+    ) -> Any:
+        if not _local_settings_request(request, x_local_intent):
+            return _error(403, "local_intent_required", "请从本机工作台复制图文")
+        try:
+            # Snapshot the selected plan, edited text and adopted images together.
+            # Preparing a clipboard payload does not create a revision or update history.
+            with repository.lock:
+                task = repository.get_task(task_id)
+                if (
+                    task.get("selected_plan_id") != plan_id
+                    or int(task["content_edits"].get("revision") or 0) != content_revision
+                    or repository.get_plan(task_id, plan_id)["revision"] != plan_revision
+                ):
+                    raise VersionConflictError("正文或主题已更新，尚未复制。请刷新工作台后再试")
+                readiness, prepared = publication_readiness(task_id, body_only=True)
+            if prepared is None:
+                blockers = readiness["blockers"]
+                if blockers:
+                    blocker = blockers[0]
+                    return _error(409, blocker["code"], f'{blocker["message"]}，尚未复制。', details={"blockers": blockers})
+                return _error(409, "clipboard_body_unavailable", "正文尚未准备好，请重新打开工作台后再试。")
+            assets = [{**source, "id": source["asset_token"]} for source in prepared["assets"]]
+            by_id = {asset["id"]: asset for asset in assets}
+            payload = build_clipboard_payload(
+                {"frozen_html": prepared["frozen_html"], "metadata": {"title": prepared["task"]["title"]}},
+                assets,
+                lambda asset_id: f"asset://{asset_id}",
+                read_asset=lambda asset_id: (by_id[asset_id]["content"], by_id[asset_id]["content_type"]),
+            )
+        except ClipboardPreparationError as exc:
+            return _error(409, exc.code, str(exc))
+        except (ValueError, OSError):
+            return _error(409, "clipboard_body_unavailable", "无法准备当前图文，尚未复制。请检查正文图片后重试。")
+        return JSONResponse(payload, headers={"Cache-Control": "private, no-store"})
 
     @app.get("/api/v1/publication-revisions/{revision_id}/clipboard")
     def publication_clipboard_payload(revision_id: str, request: Request) -> Any:

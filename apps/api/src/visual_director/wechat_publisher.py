@@ -16,7 +16,7 @@ from typing import Any, Callable
 
 from PIL import Image, ImageOps
 
-from .delivery import _extract_main, _responsive_delivery_document
+from .delivery import _responsive_delivery_document, extract_delivery_body
 from .theme_delivery import legacy_drawing_present
 
 
@@ -123,7 +123,7 @@ class WechatDraftPublisher:
         if legacy_drawing_present(revision.get("frozen_html", "")):
             return {"error": {"code": "theme_delivery_refresh_required", "message": "请先更新主题渲染并重新确认最终版本", "retryable": False}}
         # Only upload assets actually used by the copied body; exclude cover/unused files.
-        body = _extract_main(revision["frozen_html"])
+        body = extract_delivery_body(revision["frozen_html"])
         selected = [a for a in assets if a["asset_role"] != "cover" and f'src="asset://{a["asset_token"]}"' in body]
         if not selected:
             return {"asset_urls": {}}
@@ -436,7 +436,7 @@ class WechatDraftPublisher:
         metadata = revision["metadata"]
         article: dict[str, Any] = {
             "title": metadata["title"],
-            "content": _extract_main(document),
+            "content": extract_delivery_body(document),
             "thumb_media_id": cover_media_id,
             "show_cover_pic": 1 if metadata.get("show_cover_pic") else 0,
         }
