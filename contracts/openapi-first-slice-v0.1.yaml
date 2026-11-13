@@ -816,6 +816,7 @@ components:
         visual_system: {type: string}
         article_type: {type: string}
         style_family: {type: string}
+        style_variant: {type: string, description: Optional rendering variant within the style family.}
         style_treatment: {type: string}
         palette_family: {type: string}
         palette_variant: {type: string}
@@ -957,6 +958,7 @@ components:
         visual_system: {type: string}
         plan_revision: {type: integer, minimum: 1}
         style_family: {type: string}
+        style_variant: {type: string}
         style_treatment: {type: string}
         palette_family: {type: string}
         palette_roles:

@@ -199,6 +199,51 @@ class ImageStyleRecipe:
     cover_framing_en: str = ""
 
 
+@dataclass(frozen=True)
+class ImageStyleVariant:
+    family: str
+    required_theme_tags: frozenset[str]
+    recipe: ImageStyleRecipe
+    composition_family: str
+    decorative_motifs: tuple[str, ...]
+    palette_roles: tuple[str, ...] = ()
+
+
+# Variants specialize rendering, not the family taxonomy. Persist the ID on
+# new plans so historical plans and in-flight request hashes stay unchanged.
+IMAGE_STYLE_VARIANTS = {
+    "cinematic_single_shot": ImageStyleVariant(
+        family="cinematic_storyboard_collage",
+        required_theme_tags=frozenset({"film_stock", "cinema_ticket", "printed_program"}),
+        recipe=ImageStyleRecipe(
+            artwork_zh="单镜头电影插画，以明暗、纵深和细胶片颗粒叙事；只画一个连续画面，不加票根、胶片边框或重复小镜头",
+            artwork_en="single-shot cinematic illustration with depth, light and subtle film grain; no tickets, film borders or inset shots",
+            surface_id="subtle_film_grain",
+            surface_zh="轻微胶片颗粒，不加纸边",
+            surface_en="subtle film grain without paper borders",
+            structured_note_zh="所有节点在同一场景中，用空间关系连接",
+        ),
+        composition_family="widescreen_scene",
+        decorative_motifs=("细腻胶片颗粒",),
+    ),
+    "monochrome_dry_ink": ImageStyleVariant(
+        family="oriental_ink_folio",
+        required_theme_tags=frozenset({"white_paper", "dry_ink", "dilute_ink"}),
+        recipe=ImageStyleRecipe(
+            artwork_zh="黑白干笔水墨，近景用清晰的焦墨、干笔飞白和断续皴擦，远景仅用少量淡灰墨；不加朱砂、暖色或仿古底纹",
+            artwork_en="monochrome dry-brush ink with bold black marks, broken bristle texture and sparse pale gray wash; no colored accents or sepia",
+            surface_id="white_dry_ink_paper",
+            surface_zh="干净白纸与克制留白",
+            surface_en="clean white paper and quiet negative space",
+            structured_note_zh="标题和原文标签用清晰常规字形，不用书法",
+        ),
+        composition_family="scrolling_folio",
+        decorative_motifs=("干笔飞白", "疏朗留白"),
+        palette_roles=("#292929", "#A3A3A3", "#FFFFFF"),
+    ),
+}
+
+
 IMAGE_STYLE_MANIFESTS: dict[str, dict[str, Any]] = {
     "editorial_paper_cut": {
         "dna": {
@@ -579,24 +624,35 @@ def resolve_article_image_direction(
 
     Eligible styles compete against the current theme and article, with
     recent frozen signatures rotating palette, surface and composition.
-    Recipes may require visual traits, never specific theme IDs.
+    Recipes may require visual traits, never specific theme IDs. When a theme
+    explicitly matches a variant, keep its medium and score eligible choices
+    within that direction rather than letting novelty switch media.
     """
     theme_name = str(visual_system or "light_reading")
     theme = theme_manifest(theme_name)
     signatures = _recent_signatures(recent_summaries or [])
     scene_family = SCENE_FAMILIES.get(article_type, "editorial_transition")
     theme_tags = set(theme.get("material_tags") or [])
+    variant_id, variant = next(
+        ((key, value) for key, value in IMAGE_STYLE_VARIANTS.items()
+         if not legacy_only and value.required_theme_tags <= theme_tags),
+        (None, None),
+    )
     candidates: list[dict[str, Any]] = []
     for style_index, (style_name, style) in enumerate(IMAGE_STYLE_MANIFESTS.items()):
-        recipe = style.get("recipe")
+        if variant is not None and style_name != variant.family:
+            continue
+        recipe = variant.recipe if variant else style.get("recipe")
         if legacy_only and recipe is not None:
             continue
         if not theme_tags.issuperset(style.get("required_theme_tags", ())):
             continue
         surfaces = [recipe.surface_id] if recipe is not None else theme["surface_variants"]
-        for palette_index, (palette_variant, palette_roles) in enumerate(theme["palette_variants"].items()):
+        palettes = {variant_id: variant.palette_roles} if variant and variant.palette_roles else theme["palette_variants"]
+        compositions = (variant.composition_family,) if variant else style["composition_families"]
+        for palette_index, (palette_variant, palette_roles) in enumerate(palettes.items()):
             for surface_index, surface in enumerate(surfaces):
-                for composition_index, composition in enumerate(style["composition_families"]):
+                for composition_index, composition in enumerate(compositions):
                     content_fit = _bounded(style["content_fit"].get(article_type), 0.75)
                     theme_fit = _theme_fit(theme, style)
                     novelty = _novelty_score(
@@ -643,13 +699,14 @@ def resolve_article_image_direction(
         "visual_system": theme_name,
         "article_type": article_type,
         "style_family": selected["style_family"],
+        **({"style_variant": variant_id} if variant_id else {}),
         "style_treatment": style["style_treatment"],
         "palette_family": theme["palette_family"],
         "palette_variant": selected["palette_variant"],
         "palette_roles": list(selected["palette_roles"]),
         "surface_treatment": selected["surface_treatment"],
         "edge_treatment": style["edge_treatment"],
-        "decorative_motifs": list(style["decorative_motifs"]),
+        "decorative_motifs": list(variant.decorative_motifs if variant else style["decorative_motifs"]),
         "composition_family": selected["composition_family"],
         "scene_family": scene_family,
         "tone": list(theme["tone"]),
@@ -684,7 +741,10 @@ def style_manifest(style_family: str | None) -> dict[str, Any]:
     return copy.deepcopy(IMAGE_STYLE_MANIFESTS.get(name, IMAGE_STYLE_MANIFESTS["editorial_paper_cut"]))
 
 
-def image_style_recipe(style_family: str) -> ImageStyleRecipe | None:
+def image_style_recipe(style_family: str, style_variant: str | None = None) -> ImageStyleRecipe | None:
+    variant = IMAGE_STYLE_VARIANTS.get(style_variant) if style_variant else None
+    if variant is not None and variant.family == style_family:
+        return variant.recipe
     return IMAGE_STYLE_MANIFESTS.get(style_family, {}).get("recipe")
 
 

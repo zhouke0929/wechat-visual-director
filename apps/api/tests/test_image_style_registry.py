@@ -17,6 +17,7 @@ from visual_director.image_provider import (
 from visual_director.plan_schema import ArticleImageArtDirection, ImageVisualIntent
 from visual_director.visual_dna import (
     IMAGE_STYLE_MANIFESTS,
+    IMAGE_STYLE_VARIANTS,
     ImageStyleRecipe,
     resolve_article_image_direction,
     theme_manifest,
@@ -189,6 +190,43 @@ def test_pixel_cover_framing_fits_prompt_budget_with_long_article_context(profil
     assert "2.35:1" in prompt
 
 
+@pytest.mark.parametrize(("theme", "variant_id"), [
+    ("after_screening", "cinematic_single_shot"),
+    ("ink_traces", "monochrome_dry_ink"),
+])
+def test_variants_are_persisted_and_compiled_without_changing_their_base_families(theme, variant_id):
+    variant = IMAGE_STYLE_VARIANTS[variant_id]
+    legacy = resolve_article_image_direction(
+        visual_system=theme, article_type="viewpoint_trend", legacy_only=True
+    )
+    assert "style_variant" not in legacy
+    for article_type in ARTICLE_TYPES:
+        for profile in PROMPT_PROFILES:
+            direction = resolve_article_image_direction(
+                visual_system=theme, article_type=article_type, provider_profile=profile,
+                recent_summaries=[{"visual_signature": {"image_style_family": variant.family}}] * 5,
+            )
+            assert direction["style_variant"] == variant_id
+            assert direction["style_family"] == variant.family
+            assert ArticleImageArtDirection.model_validate(direction).model_dump()["style_variant"] == variant_id
+            prompts = _fixture_prompts(direction, profile, 1)
+            assert variant.recipe.artwork_zh in prompts["atmosphere"]
+            assert variant.recipe.artwork_zh in prompts["structured_infographic"]
+            assert "严格文字白名单" in prompts["structured_infographic"]
+            for item in ITEMS:
+                assert f"“{item}”" in prompts["structured_infographic"]
+            cover_style = variant.recipe.artwork_zh if profile == "seedream" else variant.recipe.artwork_en
+            assert cover_style in prompts["cover"]
+            if variant.palette_roles:
+                assert all(len({color[1:3], color[3:5], color[5:7]}) == 1 for color in direction["palette_roles"])
+    # An old saved direction without a variant must keep compiling as before,
+    # even if it uses the same theme and base family as the new variant.
+    legacy.update(style_family=variant.family)
+    old_body = _fixture_prompts(legacy, "generic", 1)["atmosphere"]
+    assert variant.recipe.artwork_zh not in old_body
+    assert ("票根切片" if theme == "after_screening" else "少量朱砂") in old_body
+
+
 @pytest.mark.parametrize("article_type", ARTICLE_TYPES)
 @pytest.mark.parametrize("profile", PROMPT_PROFILES)
 def test_pixel_matches_by_visual_trait_and_does_not_change_other_themes(article_type: str, profile: str) -> None:
@@ -200,7 +238,8 @@ def test_pixel_matches_by_visual_trait_and_does_not_change_other_themes(article_
     assert direction["style_family"] == "pixel_editorial"
     assert direction["palette_roles"] == baseline["palette_roles"]
     for theme_id in registered_visual_system_order():
-        if "pixel_graphics" in theme_manifest(theme_id)["material_tags"]:
+        tags = set(theme_manifest(theme_id)["material_tags"])
+        if "pixel_graphics" in tags or any(v.required_theme_tags <= tags for v in IMAGE_STYLE_VARIANTS.values()):
             continue
         old_style = resolve_article_image_direction(
             visual_system=theme_id, article_type=article_type, provider_profile=profile

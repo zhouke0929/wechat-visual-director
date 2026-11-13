@@ -164,6 +164,7 @@ def build_art_direction_snapshot(
         "visual_system": visual_system or "light_reading",
         "plan_revision": plan_revision,
         "style_family": str(visual_intent.get("style_family") or profile["style_family"]),
+        **({"style_variant": profile["style_variant"]} if profile.get("style_variant") else {}),
         "style_treatment": str(visual_intent.get("style_treatment") or profile["style_treatment"]),
         "palette_family": profile["palette_family"],
         "palette_roles": list(visual_intent.get("palette_roles") or profile["palette_roles"]),

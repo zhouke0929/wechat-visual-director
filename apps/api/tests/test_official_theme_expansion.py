@@ -14,7 +14,10 @@ from visual_director.generated_theme import render_generated_table
 from visual_director.image_provider import SURFACE_LABELS, build_cover_prompt, build_theme_fallback_cover
 from visual_director.theme_packs import BUNDLED_THEME_GROUPS, BUNDLED_THEME_IDS, REVIEWED_BUNDLED_THEME_IDS, theme_pack
 from visual_director.theme_gallery import build_theme_gallery
-from visual_director.visual_dna import IMAGE_STYLE_MANIFESTS, OFFICIAL_PACK_SURFACES, resolve_article_image_direction
+from visual_director.visual_dna import (
+    IMAGE_STYLE_MANIFESTS, IMAGE_STYLE_VARIANTS, OFFICIAL_PACK_SURFACES,
+    image_style_recipe, resolve_article_image_direction,
+)
 
 
 @pytest.fixture(scope="module")
@@ -80,12 +83,16 @@ def test_image_families_use_official_theme_palette_and_publishable_fallback_cove
     direction = resolve_article_image_direction(visual_system=theme_id, article_type="tutorial_steps")
     assert direction["style_family"] in IMAGE_STYLE_MANIFESTS
     assert direction["palette_family"] == f"official_pack:{theme_id}"
-    recipe = IMAGE_STYLE_MANIFESTS[direction["style_family"]].get("recipe")
+    variant = IMAGE_STYLE_VARIANTS.get(direction.get("style_variant"))
+    recipe = image_style_recipe(direction["style_family"], direction.get("style_variant"))
     if recipe is None:
         assert direction["surface_treatment"] in OFFICIAL_PACK_SURFACES[theme_id]
     else:
         assert direction["surface_treatment"] == recipe.surface_id
-    assert direction["palette_roles"] == [manifest["palette"][role] for role in ("primary", "secondary", "accent", "surface")]
+    expected_palette = list(variant.palette_roles) if variant and variant.palette_roles else [
+        manifest["palette"][role] for role in ("primary", "secondary", "accent", "surface")
+    ]
+    assert direction["palette_roles"] == expected_palette
     brief = {"title": "给社区开放日做一份指引", "article_type": "tutorial_steps", "visual_system": theme_id,
              "image_art_direction": direction}
     for profile in ("generic", "seedream"):

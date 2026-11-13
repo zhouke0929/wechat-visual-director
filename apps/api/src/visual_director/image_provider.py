@@ -159,8 +159,8 @@ def image_prompt_profile(provider: ImageProvider) -> str:
     return "generic"
 
 
-def _structured_style_direction(style_family: str, candidate_index: int) -> str:
-    recipe = image_style_recipe(style_family)
+def _structured_style_direction(style_family: str, candidate_index: int, style_variant: str | None = None) -> str:
+    recipe = image_style_recipe(style_family, style_variant)
     if recipe is not None:
         return "。".join(part for part in (recipe.artwork_zh, recipe.structured_note_zh.rstrip("。")) if part)
     variant = max(0, candidate_index - 1) % 3
@@ -383,7 +383,9 @@ def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
     roles = direction.get("palette_roles") or intent.get("palette_roles") or []
     palette = "、".join(_palette_prompt_label(role) for role in roles)
     surface_key = str(direction.get("surface_treatment") or "")
-    recipe = image_style_recipe(str(direction.get("style_family") or intent.get("style_family") or ""))
+    recipe = image_style_recipe(
+        str(direction.get("style_family") or intent.get("style_family") or ""), direction.get("style_variant")
+    )
     composition_key = str(direction.get("composition_family") or "")
     tone = "、".join(str(value) for value in direction.get("tone") or intent.get("tone") or [])
     return (
@@ -478,6 +480,7 @@ def _seedream_provider_prompt(
     palette, surface, article_composition, tone = _resolved_art_labels(intent)
     direction = intent.get("article_art_direction") or {}
     style_family = str(direction.get("style_family") or intent.get("style_family") or "editorial_paper_cut")
+    style_variant = direction.get("style_variant")
     if image_slot["purpose"] == "structured_infographic":
         title = " ".join((infographic_title or "").replace("**", "").split())
         items = [
@@ -509,6 +512,7 @@ def _seedream_provider_prompt(
         style_direction = _structured_style_direction(
             style_family,
             candidate_index,
+            style_variant,
         )
         prompt = " ".join(
             [
@@ -526,7 +530,7 @@ def _seedream_provider_prompt(
         return prompt
 
     scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
-    recipe = image_style_recipe(style_family)
+    recipe = image_style_recipe(style_family, style_variant)
     if recipe is not None:
         composition, medium = article_composition, recipe.artwork_zh
     elif style_family == "editorial_tech_collage":
@@ -587,7 +591,8 @@ def build_provider_prompt(
     semantic_focus = _semantic_focus(str(intent.get("subject") or ""), learning_objective)
     layout_family = str(intent.get("layout_family") or "semantic_scene")
     style_family = str(intent.get("style_family") or "")
-    recipe = image_style_recipe(style_family)
+    style_variant = (intent.get("article_art_direction") or {}).get("style_variant")
+    recipe = image_style_recipe(style_family, style_variant)
     style_labels = {
         "editorial_paper_cut": "精致的编辑纸雕拼贴风，具有杂志感、轻微纸张层次和克制的装饰细节",
         "soft_flat_illustration": "柔和扁平编辑插画风，图形简洁但不幼稚，边缘清晰",
@@ -660,6 +665,7 @@ def build_provider_prompt(
         style_direction = _structured_style_direction(
             str(intent.get("style_family") or "editorial_paper_cut"),
             candidate_index,
+            style_variant,
         )
         direction_palette, surface, article_composition, direction_tone = _resolved_art_labels(intent)
         prompt = " ".join(
@@ -725,7 +731,7 @@ def build_cover_prompt(
         {"article_art_direction": direction}
     )
     style_family = str(direction.get("style_family") or "editorial_paper_cut")
-    recipe = image_style_recipe(style_family)
+    recipe = image_style_recipe(style_family, direction.get("style_variant"))
     if recipe is not None:
         cover_surface = recipe.surface_zh if prompt_profile == "seedream" else recipe.surface_en
     else:

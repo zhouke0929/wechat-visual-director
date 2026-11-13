@@ -344,6 +344,7 @@ export type VisualPlan = {
     visual_system: string;
     article_type: string;
     style_family: string; // Server image-style registry ID
+    style_variant?: string;
     palette_family: string;
     palette_variant: string;
     palette_roles: string[];
@@ -438,6 +439,7 @@ export type ImageCandidate = {
       visual_system: string;
       plan_revision: number;
       style_family: string;
+      style_variant?: string;
       style_treatment: string;
       palette_family: string;
       palette_roles: string[];
