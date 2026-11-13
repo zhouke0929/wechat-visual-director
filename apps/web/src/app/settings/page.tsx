@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "@/lib/router";
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { BackIcon, CheckIcon } from "@/components/icons";
+import { FormEvent, useEffect, useLayoutEffect, useState } from "react";
+import { CheckIcon } from "@/components/icons";
+import { WorkspacePageIntro } from "@/components/workspace-page";
+import { WorkbenchHeader } from "@/components/workbench-header";
 import {
   getCapabilitySettings,
   getImageProviderSettings,
@@ -15,7 +17,6 @@ import {
 } from "@/lib/api";
 import type {
   CapabilitySettings,
-  ImageProviderMode,
   ImageProviderSettings,
   SetupTargetMode,
   WechatPublisherSettings,
@@ -53,17 +54,17 @@ const targetCards: Array<{
 ];
 
 function statusCopy(settings: ImageProviderSettings): string {
-  if (settings.mode === "manual") return "人工上传已启用";
-  if (settings.mode === "mock") return "本地演示已启用";
+  if (settings.mode === "manual") return "图片 API 未启用";
+  if (settings.mode === "mock") return "当前使用本地演示";
   if (settings.real_generation_available) return "真实图片服务已就绪";
   return "图片服务等待 API Key";
 }
 
 export default function ImageProviderSettingsPage() {
+  useLayoutEffect(() => { window.scrollTo(0, 0); }, []);
   const [capabilities, setCapabilities] = useState<CapabilitySettings | null>(null);
   const [settings, setSettings] = useState<ImageProviderSettings | null>(null);
   const [wechatSettings, setWechatSettings] = useState<WechatPublisherSettings | null>(null);
-  const [mode, setMode] = useState<ImageProviderMode>("images_api");
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [endpoint, setEndpoint] = useState("");
@@ -122,36 +123,17 @@ export default function ImageProviderSettingsPage() {
     }
   }
 
-  const activeConfig = mode === "images_api" ? settings?.providers.images_api : null;
-  const selectedKeyConfigured = Boolean(activeConfig?.api_key_configured);
-  const canSave = mode !== "images_api" || Boolean(endpoint.trim() && model.trim()
+  const imageConfig = settings?.providers.images_api;
+  const selectedKeyConfigured = Boolean(imageConfig?.api_key_configured);
+  const canSave = Boolean(endpoint.trim() && model.trim()
     && (selectedKeyConfigured || apiKey.trim()));
   const targetReady = capabilities?.target_mode === "full_delivery"
     ? capabilities.capabilities.wechat_draft.state === "ready"
     : capabilities?.complete_for_target;
 
-  const hasUnsavedChanges = useMemo(() => {
-    if (!settings) return false;
-    const configChanged = activeConfig
-      ? endpoint !== activeConfig.endpoint
-        || model !== activeConfig.model
-        || resolution !== activeConfig.resolution
-      : false;
-    return Boolean(mode !== settings.mode || apiKey.trim() || clearApiKey || configChanged);
-  }, [activeConfig, apiKey, clearApiKey, endpoint, mode, model, resolution, settings]);
-
-  function selectMode(nextMode: ImageProviderMode) {
-    if (!settings) return;
-    setMode(nextMode);
-    setApiKey("");
-    setClearApiKey(false);
-    setNotice("");
-    if (nextMode === "images_api") {
-      setEndpoint(settings.providers.images_api.endpoint);
-      setModel(settings.providers.images_api.model);
-      setResolution(settings.providers.images_api.resolution);
-    }
-  }
+  const hasUnsavedChanges = Boolean(imageConfig && (settings?.mode !== "images_api"
+    || endpoint !== imageConfig.endpoint || model !== imageConfig.model
+    || resolution !== imageConfig.resolution || apiKey.trim() || clearApiKey));
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -161,15 +143,17 @@ export default function ImageProviderSettingsPage() {
     setNotice("");
     try {
       const saved = await saveImageProviderSettings({
-        mode,
+        mode: "images_api",
         ...(apiKey.trim() ? { api_key: apiKey.trim() } : {}),
         ...(clearApiKey ? { clear_api_key: true } : {}),
-        ...(mode === "images_api"
-          ? { endpoint: endpoint.trim(), model: model.trim(), resolution }
-          : {}),
+        endpoint: endpoint.trim(),
+        model: model.trim(),
+        resolution,
       });
       setSettings(saved);
-      setMode(saved.mode);
+      setEndpoint(saved.providers.images_api.endpoint);
+      setModel(saved.providers.images_api.model);
+      setResolution(saved.providers.images_api.resolution);
       setApiKey("");
       setClearApiKey(false);
       setNotice(saved.real_generation_available
@@ -272,27 +256,9 @@ export default function ImageProviderSettingsPage() {
   }
 
   return (
-    <main className={styles.page}>
-      <header className={styles.topbar}>
-        <Link className={styles.back} href="/"><BackIcon />返回任务台</Link>
-        <div className={styles.topbarTitle}>
-          <strong>本地设置</strong>
-          <span>LOCAL CONTROL ROOM / CAPABILITY SETUP</span>
-        </div>
-        <span className={styles.localOnly}>仅限本机</span>
-      </header>
-
-      <section className={styles.hero}>
-        <div className={styles.heroIndex}>S / 01</div>
-        <div>
-          <p>ONE-TIME LOCAL SETUP</p>
-          <h1>选择你要走到哪一步，<br />其余能力按需配置。</h1>
-        </div>
-        <aside>
-          <span>运行原则</span>
-          <p>设置属于这台电脑，不属于某个对话。换新窗口后，智能体会继续使用已经保存的本机能力。</p>
-        </aside>
-      </section>
+    <main className={`workspace-page ${styles.page}`}>
+      <WorkbenchHeader current="/settings" />
+      <WorkspacePageIntro eyebrow="LOCAL SETUP" title="本地设置" description="按需配置生图和公众号草稿。设置保存在这台电脑上，换个对话也能用。" />
 
       {loading ? (
         <section className={styles.loading} aria-live="polite">
@@ -323,6 +289,7 @@ export default function ImageProviderSettingsPage() {
                 return (
                   <button
                     className={`${styles.targetCard} ${selected ? styles.targetSelected : ""}`}
+                    aria-pressed={selected}
                     disabled={targetSaving}
                     key={target.mode}
                     onClick={() => selectTargetMode(target.mode)}
@@ -342,7 +309,7 @@ export default function ImageProviderSettingsPage() {
             <section className={styles.typesetReadyPanel}>
               <span>READY / NO EXTRA SETUP</span>
               <div><strong>只做排版已经可以使用</strong><p>无需图片 API，也无需公众号凭据。现在可以返回任务台创建文章，完成后复制全文或下载交付包。</p></div>
-              <Link href="/">返回任务台</Link>
+              <Link className="workspace-button" href="/">去任务台</Link>
             </section>
           ) : (
           <form onSubmit={handleSubmit}>
@@ -351,127 +318,98 @@ export default function ImageProviderSettingsPage() {
               <header className={styles.sectionHeading}>
                 <div>
                   <span>02 / IMAGE CONNECTION</span>
-                  <h2 id="key-heading">
-                    {mode === "images_api"
-                      ? "图片模型连接（可选）"
-                        : "无需外部连接"}
-                  </h2>
+                  <h2 id="key-heading">图片模型连接（可选）</h2>
                 </div>
               </header>
 
-              {activeConfig ? (
-                <>
-                  <div className={styles.keyStatus}>
-                    <span className={selectedKeyConfigured ? styles.readyDot : styles.idleDot} />
-                    <div>
-                      <strong>{selectedKeyConfigured ? "本机已有 Key" : "尚未配置 Key"}</strong>
-                      <small>
-                        {selectedKeyConfigured
-                          ? "留空保留已保存的 Key。"
-                          : "Key 仅写入本机私有配置，不会交给宿主智能体。"}
-                      </small>
-                    </div>
-                  </div>
-
-                  <div className={styles.connectionGrid}>
-                    <label>
-                      <span>完整 Endpoint</span>
-                      <input
-                        disabled={settings.managed_by_environment}
-                        onChange={(event) => setEndpoint(event.target.value)}
-                        placeholder="https://…/images/generations"
-                        required
-                        spellCheck={false}
-                        type="url"
-                        value={endpoint}
-                      />
-                      <small>填写厂商给出的完整请求地址；系统不会自动追加路径。</small>
-                    </label>
-                    <label>
-                      <span>Model ID</span>
-                      <input
-                        disabled={settings.managed_by_environment}
-                        onChange={(event) => setModel(event.target.value)}
-                        placeholder="厂商模型名或 Endpoint ID"
-                        required
-                        spellCheck={false}
-                        value={model}
-                      />
-                    </label>
-                    <label>
-                      <span>图片清晰度</span>
-                      <select
-                        disabled={settings.managed_by_environment}
-                        onChange={(event) => setResolution(event.target.value as "1K" | "2K")}
-                        value={resolution}
-                      >
-                        <option value="1K">标准 1K（推荐）</option>
-                        <option value="2K">高清 2K（更耗额度）</option>
-                      </select>
-                      <small>系统会映射到厂商最接近的尺寸档位，最终像素由模型能力决定。</small>
-                    </label>
-                  </div>
-
-                  <label className={styles.keyInput}>
-                    <span>写入新 API Key</span>
-                    <input
-                      autoComplete="off"
-                      disabled={settings.managed_by_environment || clearApiKey}
-                      onChange={(event) => {
-                        setApiKey(event.target.value);
-                        setNotice("");
-                      }}
-                      placeholder={selectedKeyConfigured ? "已保存；留空保持不变" : "仅在这里粘贴 API Key"}
-                      spellCheck={false}
-                      type="password"
-                      value={apiKey}
-                    />
-                    <small>保存后不会在页面、接口响应或日志中显示原值。</small>
-                  </label>
-
-                  {selectedKeyConfigured && !settings.managed_by_environment ? (
-                    <label className={styles.clearKey}>
-                      <input
-                        checked={clearApiKey}
-                        onChange={(event) => {
-                          setClearApiKey(event.target.checked);
-                          if (event.target.checked) setApiKey("");
-                        }}
-                        type="checkbox"
-                      />
-                      <span>保存时清除当前图片服务的 API Key</span>
-                    </label>
-                  ) : null}
-                </>
-              ) : (
-                <div className={styles.keyStatus}>
-                  <span className={styles.readyDot} />
-                  <div>
-                    <strong>本地能力可直接使用</strong>
-                    <small>人工上传和 Mock 不需要 Endpoint、模型或 API Key。</small>
-                  </div>
+              <div className={styles.keyStatus}>
+                <span className={selectedKeyConfigured ? styles.readyDot : styles.idleDot} />
+                <div>
+                  <strong>{selectedKeyConfigured ? "本机已有 Key" : "尚未配置 Key"}</strong>
+                  <small>
+                    {selectedKeyConfigured
+                      ? "留空保留已保存的 Key。"
+                      : "Key 仅写入本机私有配置，不会交给宿主智能体。"}
+                  </small>
                 </div>
-              )}
+              </div>
+
+              <div className={styles.connectionGrid}>
+                <label>
+                  <span>完整 Endpoint</span>
+                  <input
+                    disabled={settings.managed_by_environment}
+                    onChange={(event) => setEndpoint(event.target.value)}
+                    placeholder="https://…/images/generations"
+                    required
+                    spellCheck={false}
+                    type="url"
+                    value={endpoint}
+                  />
+                  <small>填写厂商给出的完整请求地址；系统不会自动追加路径。</small>
+                </label>
+                <label>
+                  <span>Model ID</span>
+                  <input
+                    disabled={settings.managed_by_environment}
+                    onChange={(event) => setModel(event.target.value)}
+                    placeholder="厂商模型名或 Endpoint ID"
+                    required
+                    spellCheck={false}
+                    value={model}
+                  />
+                </label>
+                <label>
+                  <span>图片清晰度</span>
+                  <select
+                    disabled={settings.managed_by_environment}
+                    onChange={(event) => setResolution(event.target.value as "1K" | "2K")}
+                    value={resolution}
+                  >
+                    <option value="1K">标准 1K（推荐）</option>
+                    <option value="2K">高清 2K（更耗额度）</option>
+                  </select>
+                  <small>系统会映射到厂商最接近的尺寸档位，最终像素由模型能力决定。</small>
+                </label>
+              </div>
+
+              <label className={styles.keyInput}>
+                <span>写入新 API Key</span>
+                <input
+                  autoComplete="off"
+                  disabled={settings.managed_by_environment || clearApiKey}
+                  onChange={(event) => {
+                    setApiKey(event.target.value);
+                    setNotice("");
+                  }}
+                  placeholder={selectedKeyConfigured ? "已保存；留空保持不变" : "仅在这里粘贴 API Key"}
+                  spellCheck={false}
+                  type="password"
+                  value={apiKey}
+                />
+                <small>保存后不会在页面、接口响应或日志中显示原值。</small>
+              </label>
+
+              {settings.mode === "images_api" && selectedKeyConfigured && !settings.managed_by_environment ? (
+                <label className={styles.clearKey}>
+                  <input
+                    checked={clearApiKey}
+                    onChange={(event) => {
+                      setClearApiKey(event.target.checked);
+                      if (event.target.checked) setApiKey("");
+                    }}
+                    type="checkbox"
+                  />
+                  <span>保存时清除当前图片服务的 API Key</span>
+                </label>
+              ) : null}
 
               {settings.managed_by_environment ? (
                 <div className={styles.managedNotice}>
                   <strong>当前由启动环境管理</strong>
                   <p>工作台不会覆盖：{settings.managed_fields.join("、")}。请在启动脚本或系统环境变量中修改。</p>
                 </div>
-              ) : (
-                <details className={styles.advancedSource}>
-                  <summary>高级：切换工作台生图方式</summary>
-                  <label>
-                    <span>保存后的生图方式</span>
-                    <select value={mode} disabled={saving} onChange={(event) => selectMode(event.target.value as ImageProviderMode)}>
-                      <option value="images_api">图片模型 API</option>
-                      <option value="manual">手动上传（不调用模型）</option>
-                      <option value="mock">本地演示（仅用于测试）</option>
-                    </select>
-                  </label>
-                  <small>切换方式不会删除已保存的 API Key；演示图片不用于发布。</small>
-                </details>
-              )}
+              ) : null}
             </section>
 
             <aside className={styles.systemSection}>
@@ -490,7 +428,7 @@ export default function ImageProviderSettingsPage() {
               <details>
                 <summary>查看本地配置位置</summary>
                 <code>{settings.config_file}</code>
-                {activeConfig ? <p>{activeConfig.endpoint}</p> : null}
+                {imageConfig ? <p>{imageConfig.endpoint}</p> : null}
               </details>
             </aside>
           </div>
@@ -502,11 +440,11 @@ export default function ImageProviderSettingsPage() {
               {!error && !notice ? <p>只保存配置，不调用生图接口。未配置也可上传图片或沿用原图。</p> : null}
             </div>
             <button
+              className="workspace-button workspace-button-primary"
               disabled={saving || settings.managed_by_environment || !hasUnsavedChanges || !canSave}
               type="submit"
             >
-              <span>{saving ? "正在保存…" : "保存图片设置"}</span>
-              <i aria-hidden="true">{mode === "images_api" ? "API" : mode === "mock" ? "DEMO" : "LOCAL"}</i>
+              <span>{saving ? "正在保存…" : settings.mode === "images_api" ? "保存图片设置" : "保存并启用图片 API"}</span>
             </button>
           </footer>
           </form>
@@ -592,12 +530,13 @@ export default function ImageProviderSettingsPage() {
 
                 <div className={styles.wechatActions}>
                   <button
+                    className="workspace-button workspace-button-primary"
                     disabled={wechatSaving || wechatSettings.managed_by_environment}
                     onClick={handleWechatSave}
                     type="button"
                   >{wechatSaving ? "正在保存…" : "保存公众号设置"}</button>
                   <button
-                    className={styles.secondaryAction}
+                    className="workspace-button"
                     disabled={wechatTesting || !wechatSettings.credentials_configured}
                     onClick={handleWechatProbe}
                     type="button"

@@ -1,6 +1,7 @@
 "use client";
 
 import Link, { useRouteParam } from "@/lib/router";
+import { groupThemes } from "@/lib/theme-groups";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
@@ -893,10 +894,7 @@ export default function TaskReviewPage() {
   const themeOptions: NonNullable<VisualPlan["visual_system_metadata"]>["available_visual_systems"] = activePlan?.visual_system_metadata?.available_visual_systems?.length
     ? activePlan.visual_system_metadata.available_visual_systems
     : Object.entries(styleLabels).slice(3).map(([value, label]) => ({ value, label, description: "", recent_use_count: 0 }));
-  const themeGroups = ["经典主题", "清新与手作", "叙事与复古", "结构与现代", "我的主题"].map((label) => ({
-    label,
-    options: themeOptions.filter((theme) => (theme.theme_group ?? "经典主题") === label),
-  })).filter((group) => group.options.length);
+  const themeGroups = groupThemes(themeOptions);
   const resolvedImageCount = imageReview?.items.filter(
     (item) => Boolean(item.state.selected_candidate_id) || item.state.status === "skipped",
   ).length ?? 0;

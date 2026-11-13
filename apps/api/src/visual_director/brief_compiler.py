@@ -950,7 +950,8 @@ def apply_visual_system(
                 "label": system_catalog[value]["label"],
                 "description": system_catalog[value]["description"],
                 "recent_use_count": counts[value],
-                "theme_group": system_catalog[value].get("theme_group", "经典主题"),
+                "theme_group": system_catalog[value]["theme_group"],
+                "theme_group_order": system_catalog[value]["theme_group_order"],
             }
             for value in available_order
         ],

@@ -36,14 +36,6 @@ REVIEWED_BUNDLED_THEME_IDS = (
 )
 BUNDLED_THEME_IDS = ORIGINAL_BUNDLED_THEME_IDS + REVIEWED_BUNDLED_THEME_IDS
 
-# These are presentation groups, not semantic inheritance or image-style IDs.
-BUNDLED_THEME_GROUPS = {
-    **dict.fromkeys(("weekend_fieldnotes", "light_gallery", "folded_fan_detail", "color_paper_corners",
-                     "paper_fold", "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth", "ink_traces"), "清新与手作"),
-    **dict.fromkeys(("after_screening", "collage_fieldguide", "round_table_bistro",
-                     "night_walk_illustration", "ticket_and_stub"), "叙事与复古"),
-    **dict.fromkeys(("pixel_live", "retro_window", "city_wayfinding", "soft_emboss"), "结构与现代"),
-}
 THEME_PACK_ID_RE = re.compile(r"^[a-z][a-z0-9_]{2,47}$")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 PALETTE_KEYS = (
@@ -577,7 +569,6 @@ def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
         "pack_version": manifest["version"],
         "layout_coverage": theme_layout_coverage(manifest),
         "author": manifest["author"],
-        "theme_group": BUNDLED_THEME_GROUPS[theme_id] if bundled else "我的主题",
         "auto_recommendable": bundled,
         **({"wechat_acceptance": acceptance} if acceptance else {}),
     }

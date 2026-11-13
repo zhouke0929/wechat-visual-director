@@ -105,11 +105,51 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "site horizontal overflow"
                 checks.append(f"site {width}: 30 themes, 26 specimens, loaded images, theme prompt")
 
-                page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/light_reading", wait_until="networkidle")
+                gallery = f"http://127.0.0.1:{args.web_port}/theme-gallery"
+                page.goto(gallery, wait_until="networkidle")
+                nav = page.get_by_role("navigation", name="工作台导航")
+                assert nav.locator('[aria-current="page"]').inner_text() == "主题样本册"
+                brand = page.get_by_role("link", name="视觉主编首页")
+                gallery_brand = brand.bounding_box()
+                cards = page.get_by_role("region", name="官方视觉主题").get_by_role("article")
+                assert cards.count() == 30
+                # The optional diagnostic fixture adds a visible warning before the grid.
+                diagnostic = page.get_by_role("status", name="暂不可用的主题")
+                diagnostic_height = diagnostic.bounding_box()["height"] + 24 if diagnostic.count() else 0
+                assert cards.first.bounding_box()["y"] - diagnostic_height < 380, "theme cards should start near the top"
+                first_two = [cards.nth(i).bounding_box() for i in (0, 1)]
+                assert first_two[0]["y"] == first_two[1]["y"], "compact multi-column catalog"
+                group_counts = {"清新自然": 4, "生活手帐": 4, "手作绘本": 6, "东方意境": 3,
+                                "杂志与海报": 4, "光影叙事": 3, "数字与导视": 6}
+                group_filters = page.get_by_role("group", name="按主题分组筛选")
+                assert group_filters.get_by_role("button").all_text_contents() == ["全部", *group_counts]
+                filtered_links = []
+                for group, count in group_counts.items():
+                    group_filters.get_by_role("button", name=group, exact=True).click()
+                    assert cards.count() == count
+                    filtered_links.extend(cards.get_by_role("link").evaluate_all("(links) => links.map(link => link.href)"))
+                assert len(set(filtered_links)) == len(filtered_links) == 30
+                page.get_by_role("button", name="全部", exact=True).click()
+                assert cards.count() == 30
+                page.get_by_role("button", name="我的主题", exact=False).click()
+                assert page.get_by_role("button", name="导入第一套主题").is_visible()
+                page.get_by_role("button", name="官方主题", exact=False).click()
+                assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
+                page.screenshot(path=str(output / f"gallery-index-{width}.png"))
+                cards.last.get_by_role("link").click()
+                page.locator('[data-gallery-production-article]').wait_for()
+                assert page.evaluate("window.scrollY") <= 1, "opening a lower card should show the detail from its start"
+
+                page.goto(f"{gallery}/light_reading", wait_until="networkidle")
+                preview = page.locator('[data-gallery-production-article]')
+                assert preview.bounding_box()["y"] < 400, "article preview should start near the top"
+                page.screenshot(path=str(output / f"gallery-detail-{width}.png"))
                 page.get_by_role("button", name="02　主题部件库").click()
                 assert page.locator('[id^="foundation-"]').count() == 14
                 assert page.locator('[id^="component-"]').count() == 12
-                assert page.get_by_role("navigation", name="全部部件索引").locator("a").count() == 26
+                page.get_by_text("部件索引 · 26 个", exact=True).click()
+                index = page.get_by_role("navigation", name="全部部件索引")
+                assert index.is_visible() and index.locator("a").count() == 26
                 assert page.locator('#foundation-lead [data-content-role="lead"]').count() == 1
                 page.locator('#foundation-lead').screenshot(path=str(output / f"gallery-lead-{width}.png"))
                 page.locator('#foundation-quote').scroll_into_view_if_needed()
@@ -119,16 +159,23 @@ def main():
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "gallery horizontal overflow"
                 page.get_by_role("button", name="01　整篇样张").click()
                 assert page.locator('[data-gallery-production-article]').count() == 1
+                assert preview.bounding_box()["y"] >= 0, "switching modes from lower down should show the start"
                 assert page.locator('[data-gallery-production-article] [data-editor-block-type="quote"]').count() == 1
                 page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/city_wayfinding", wait_until="networkidle")
                 page.get_by_role("heading", name="城市导视", exact=True).wait_for()
                 assert page.locator('[data-gallery-production-article] [data-theme-layout="heading"]').count() > 0
+                page.locator("#theme-delivery summary").click()
                 assert page.get_by_text("该版验收稿已通过复制粘贴和 API 保存实测。", exact=False).is_visible()
                 page.get_by_role("button", name="02　主题部件库").click()
                 assert page.locator('[id^="foundation-"]').count() == 14
                 assert page.locator('[id^="component-"]').count() == 12
-                assert page.get_by_text("公众号已验证", exact=True).count() == 12
+                component_cards = page.locator('[id^="component-"]')
+                assert component_cards.locator('[class*="specimenInfo"] > p').count() == 0, "omit variant names"
+                assert component_cards.locator('[class*="specimenInfo"] > span').count() == 12, "keep only component index labels"
+                assert component_cards.locator('[class*="componentCanvas"]').count() == 12, "retain all previews"
                 page.goto(f"http://127.0.0.1:{args.web_port}", wait_until="networkidle")
+                assert brand.bounding_box() == gallery_brand, "homepage and catalog share the same brand header"
+                assert nav.locator("[aria-current]").count() == 0
                 page.get_by_role("button", name="我想创作新主题").click()
                 visible_prompt = page.locator("#agent-writing-prompt").input_value()
                 assert "一整套新的主题" in visible_prompt
@@ -139,7 +186,7 @@ def main():
                 assert page.locator(".agent-start-next").is_visible()
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "home prompt horizontal overflow"
                 page.locator(".agent-start").screenshot(path=str(output / f"home-theme-{width}.png"))
-                checks.append(f"workbench {width}: full foundation/semantic navigation and home prompt")
+                checks.append(f"workbench {width}: compact catalog, filters, first-screen preview, all components, home prompt")
                 if args.with_unavailable_fixture:
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery", wait_until="networkidle")
                     diagnostic = page.get_by_role("status", name="暂不可用的主题")

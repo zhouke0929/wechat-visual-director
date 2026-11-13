@@ -155,7 +155,12 @@ def main():
             before = page.locator("select").first.input_value()
             picker = page.get_by_role("combobox", name="选择整篇文章主题")
             assert picker.locator("option").count() == 30
-            assert picker.locator('optgroup[label="结构与现代"] option[value="city_wayfinding"]').count() == 1
+            gallery_groups = picker.locator("optgroup")
+            assert gallery_groups.evaluate_all("(groups) => groups.map(group => group.label)") == [
+                "清新自然", "生活手帐", "手作绘本", "东方意境", "杂志与海报", "光影叙事", "数字与导视",
+            ]
+            assert picker.locator('optgroup[label="数字与导视"] option[value="city_wayfinding"]').count() == 1
+            assert picker.locator('optgroup[label="数字与导视"] option[value="future_tech"]').count() == 1
             assert page.get_by_role("link", name="对比主题样张").get_attribute("href") == "/theme-gallery"
             picker.select_option("city_wayfinding")
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_be_enabled()

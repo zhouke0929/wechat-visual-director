@@ -9,10 +9,13 @@ from bs4 import BeautifulSoup
 from PIL import Image
 
 from visual_director.brief_compiler import ARTICLE_TYPE_THEME_AFFINITY, recommend_visual_system, visual_system_configuration
-from visual_director.component_catalog import AUTO_RECOMMENDABLE_VISUAL_SYSTEMS, CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
+from visual_director.component_catalog import (
+    AUTO_RECOMMENDABLE_VISUAL_SYSTEMS, CORE_THEME_COMPONENTS,
+    OFFICIAL_THEME_GROUPS, VISUAL_SYSTEM_ORDER, theme_group_metadata,
+)
 from visual_director.generated_theme import render_generated_table
 from visual_director.image_provider import SURFACE_LABELS, build_cover_prompt, build_theme_fallback_cover
-from visual_director.theme_packs import BUNDLED_THEME_GROUPS, BUNDLED_THEME_IDS, REVIEWED_BUNDLED_THEME_IDS, theme_pack
+from visual_director.theme_packs import BUNDLED_THEME_IDS, REVIEWED_BUNDLED_THEME_IDS, theme_pack
 from visual_director.theme_gallery import build_theme_gallery
 from visual_director.visual_dna import (
     IMAGE_STYLE_MANIFESTS, IMAGE_STYLE_VARIANTS, OFFICIAL_PACK_SURFACES,
@@ -43,7 +46,6 @@ def test_reviewed_official_files_preserve_accepted_artwork_and_have_real_sample_
         assert entry["layout_coverage"]["covered_count"] == 21
         assert len(entry["foundation_specimens"]) == 14 and len(entry["components"]) == len(CORE_THEME_COMPONENTS)
         assert {c["status"] for c in entry["components"]} == {"wechat_verified"}
-        assert entry["theme_group"] == BUNDLED_THEME_GROUPS[theme_id]
     assert gallery["city_wayfinding"]["pack_version"] == "1.0.3"
 
 
@@ -63,6 +65,18 @@ def test_gallery_summary_skips_official_artwork_and_detail_renders_only_requeste
     detail, = theme_gallery.build_theme_gallery(theme_id="city_wayfinding")
     assert detail["article_preview_html"] and rendered == ["city_wayfinding"]
     assert theme_gallery.build_theme_gallery(theme_id="does_not_exist") == []
+
+
+def test_official_style_groups_cover_all_themes_once_independent_of_introduction_batch(gallery):
+    grouped_ids = [theme_id for members in OFFICIAL_THEME_GROUPS.values() for theme_id in members]
+    assert Counter(grouped_ids) == Counter(VISUAL_SYSTEM_ORDER)
+    for order, (label, members) in enumerate(OFFICIAL_THEME_GROUPS.items()):
+        for theme_id in members:
+            assert gallery[theme_id]["theme_group"] == label
+            assert gallery[theme_id]["theme_group_order"] == order
+    assert theme_group_metadata("cinematic_story") == theme_group_metadata("after_screening")
+    assert theme_group_metadata("structured_grid") == theme_group_metadata("city_wayfinding")
+    assert theme_group_metadata("local_theme")["theme_group"] == "我的主题"
 
 
 @pytest.mark.parametrize("theme_id", REVIEWED_BUNDLED_THEME_IDS)

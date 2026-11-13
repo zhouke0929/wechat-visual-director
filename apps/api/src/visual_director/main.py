@@ -27,6 +27,7 @@ from .component_catalog import (
     component_options,
     registered_visual_system_catalog,
     registered_visual_system_order,
+    theme_group_metadata,
 )
 from .content_editor import (
     EDITABLE_BLOCK_TYPES,
@@ -2874,7 +2875,7 @@ def create_app(
         # Derive current labels/groups even for plans persisted before promotion.
         for option in options:
             entry = catalog.get(option.get("value"), {})
-            option["theme_group"] = entry.get("theme_group", "经典主题" if entry else "我的主题")
+            option.update(theme_group_metadata(option.get("value") or ""))
             if entry:
                 option["label"] = entry["label"]
                 option["description"] = entry["description"]

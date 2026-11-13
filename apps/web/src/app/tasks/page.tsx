@@ -2,8 +2,10 @@
 
 import Link from "@/lib/router";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowIcon, BackIcon } from "@/components/icons";
+import { ArrowIcon } from "@/components/icons";
 import { StatusPill } from "@/components/status-pill";
+import { WorkspacePageIntro } from "@/components/workspace-page";
+import { WorkbenchHeader } from "@/components/workbench-header";
 import { deleteTasks, listTasks } from "@/lib/api";
 import type { Task } from "@/lib/types";
 import styles from "./tasks.module.css";
@@ -120,30 +122,16 @@ export default function RecentTasksPage() {
   }
 
   return (
-    <main className="desk-page recent-tasks-page">
-      <header className={styles.topbar}>
-        <Link className={styles.back} href="/"><BackIcon />返回任务台</Link>
-        <div className={styles.title}>
-          <strong>最近任务</strong>
-          <span>RECENT BRIEFS / LOCAL WORKSPACE</span>
-        </div>
-        <span className={styles.localOnly}>本机任务</span>
-      </header>
-      <section className="task-section" id="recent-tasks" aria-labelledby="recent-title">
-        <div className="section-title-row">
-          <div>
-            <p className="eyebrow">RECENT BRIEFS</p>
-            <h1 id="recent-title">最近任务</h1>
-          </div>
-          <div className="task-heading-actions">
-            <p>Agent 完成规划后，文章会出现在这里。点击继续编辑与审核。</p>
-            {taskTotal > 0 && !manageTasks ? (
-              <button className="task-manage-button" type="button" onClick={() => { setManageTasks(true); setTaskNotice(""); setTaskError(""); }}>
-                管理历史任务
-              </button>
-            ) : null}
-          </div>
-        </div>
+    <main className="workspace-page recent-tasks-page">
+      <WorkbenchHeader current="/tasks" />
+      <WorkspacePageIntro eyebrow="RECENT BRIEFS" title="最近任务" titleId="recent-title" description="打开已有文章，继续编辑与审核。">
+        {taskTotal > 0 && !manageTasks ? (
+          <button className="workspace-button" type="button" onClick={() => { setManageTasks(true); setTaskNotice(""); setTaskError(""); }}>
+            管理历史任务
+          </button>
+        ) : null}
+      </WorkspacePageIntro>
+      <section className={styles.content} id="recent-tasks" aria-labelledby="recent-title">
 
         <form className={styles.search} onSubmit={(event) => {
           event.preventDefault();
@@ -153,8 +141,8 @@ export default function RecentTasksPage() {
         }}>
           <label htmlFor="task-search">按文章标题查找</label>
           <input id="task-search" type="search" maxLength={200} value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="输入标题关键词" />
-          <button type="submit">查找</button>
-          {search ? <button type="button" onClick={() => { closeManageMode(); setSearchInput(""); setSearch(""); setTaskPage(1); }}>显示全部</button> : null}
+          <button className="workspace-button workspace-button-primary" type="submit">查找</button>
+          {search ? <button className="workspace-button" type="button" onClick={() => { closeManageMode(); setSearchInput(""); setSearch(""); setTaskPage(1); }}>显示全部</button> : null}
         </form>
 
         {manageTasks ? (

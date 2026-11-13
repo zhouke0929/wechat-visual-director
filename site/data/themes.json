@@ -23,6 +23,8 @@
         "#FFFEFA"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "清新自然",
+      "theme_group_order": 0,
       "source": "official",
       "delivery_report": null,
       "base_theme": "light_reading",
@@ -336,6 +338,8 @@
         "#FFFCF7"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "生活手帐",
+      "theme_group_order": 1,
       "source": "official",
       "delivery_report": null,
       "base_theme": "warm_humanist",
@@ -649,6 +653,8 @@
         "#FFFEFB"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "source": "official",
       "delivery_report": null,
       "base_theme": "youth_campus",
@@ -962,6 +968,8 @@
         "#FFFDF8"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "杂志与海报",
+      "theme_group_order": 4,
       "source": "official",
       "delivery_report": null,
       "base_theme": "editorial_contrast",
@@ -1275,6 +1283,8 @@
         "#FFFDF8"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "source": "official",
       "delivery_report": null,
       "base_theme": "structured_grid",
@@ -1588,6 +1598,8 @@
         "#FEFEFF"
       ],
       "status": "theme_kit_v1_review",
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "source": "official",
       "delivery_report": null,
       "base_theme": "future_tech",
@@ -1903,6 +1915,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": false,
+      "theme_group": "东方意境",
+      "theme_group_order": 3,
       "source": "official",
       "delivery_report": null,
       "base_theme": "oriental_archive",
@@ -2218,6 +2232,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": false,
+      "theme_group": "杂志与海报",
+      "theme_group_order": 4,
       "source": "official",
       "delivery_report": null,
       "base_theme": "vintage_press",
@@ -2533,6 +2549,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": true,
+      "theme_group": "杂志与海报",
+      "theme_group_order": 4,
       "source": "official",
       "delivery_report": null,
       "base_theme": "pop_poster",
@@ -2848,6 +2866,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": false,
+      "theme_group": "清新自然",
+      "theme_group_order": 0,
       "source": "official",
       "delivery_report": null,
       "base_theme": "natural_atlas",
@@ -3163,6 +3183,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": false,
+      "theme_group": "杂志与海报",
+      "theme_group_order": 4,
       "source": "official",
       "delivery_report": null,
       "base_theme": "business_review",
@@ -3478,6 +3500,8 @@
       ],
       "status": "theme_kit_v1_review",
       "auto_recommendable": false,
+      "theme_group": "光影叙事",
+      "theme_group_order": 5,
       "source": "official",
       "delivery_report": null,
       "base_theme": "cinematic_story",
@@ -3826,8 +3850,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "Local Creator",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
+      "theme_group": "生活手帐",
+      "theme_group_order": 1,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -4937,8 +4962,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "Local Theme Studio",
-      "theme_group": "叙事与复古",
       "auto_recommendable": true,
+      "theme_group": "光影叙事",
+      "theme_group_order": 5,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -6117,8 +6143,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
+      "theme_group": "清新自然",
+      "theme_group_order": 0,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -7248,8 +7275,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director",
-      "theme_group": "结构与现代",
       "auto_recommendable": true,
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -8397,8 +8425,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director",
-      "theme_group": "叙事与复古",
       "auto_recommendable": true,
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -9555,8 +9584,9 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "叙事与复古",
       "auto_recommendable": true,
+      "theme_group": "生活手帐",
+      "theme_group_order": 1,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -10675,7 +10705,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director Theme Lab",
-      "theme_group": "结构与现代",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -10685,6 +10714,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -11866,7 +11897,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "结构与现代",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -11876,6 +11906,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -13035,7 +13067,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -13045,6 +13076,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "东方意境",
+      "theme_group_order": 3,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -14136,7 +14169,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -14146,6 +14178,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -15294,7 +15328,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -15304,6 +15337,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -16445,7 +16480,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -16455,6 +16489,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "清新自然",
+      "theme_group_order": 0,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -17596,7 +17632,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -17606,6 +17641,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -18721,7 +18758,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -18731,6 +18767,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "手作绘本",
+      "theme_group_order": 2,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -19892,7 +19930,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "叙事与复古",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -19902,6 +19939,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "光影叙事",
+      "theme_group_order": 5,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -21014,7 +21053,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "清新与手作",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -21024,6 +21062,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "东方意境",
+      "theme_group_order": 3,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -22182,7 +22222,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "WeChat Visual Director",
-      "theme_group": "结构与现代",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -22192,6 +22231,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "数字与导视",
+      "theme_group_order": 6,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",
@@ -23368,7 +23409,6 @@
         "scope": "layout_declarations_only"
       },
       "author": "Visual Director",
-      "theme_group": "叙事与复古",
       "auto_recommendable": true,
       "wechat_acceptance": {
         "status": "owner_reported_pass",
@@ -23378,6 +23418,8 @@
         ],
         "scope": "acceptance_fixture_saved_roundtrip"
       },
+      "theme_group": "生活手帐",
+      "theme_group_order": 1,
       "delivery_report": {
         "profile_version": "theme_delivery.v1",
         "drawing_compiler": "drawing_png.v1",

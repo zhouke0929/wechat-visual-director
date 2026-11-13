@@ -118,9 +118,9 @@ def main() -> None:
         expect(page).to_have_url(f"{args.url}/tasks")
         expect(page.get_by_role("heading", name="还没有视觉任务")).to_be_visible()
         page.reload(wait_until="networkidle")
-        expect(page.locator("header strong")).to_have_text("最近任务")
-        expect(page.get_by_role("link", name="返回任务台", exact=True)).to_have_attribute("href", "/")
-        expect(page.locator("header nav")).to_have_count(0)
+        expect(page.get_by_role("heading", name="最近任务", exact=True)).to_be_visible()
+        expect(page.get_by_role("link", name="视觉主编首页", exact=True)).to_have_attribute("href", "/")
+        expect(page.locator('header nav [aria-current="page"]')).to_have_text("最近任务")
         page.get_by_role("link", name="回到首页开始").click()
         expect(page.get_by_role("heading", level=1)).to_contain_text("先让 Agent 读懂")
 
@@ -163,7 +163,7 @@ def main() -> None:
         page.get_by_role("link", name="返回最近任务").click()
         expect(page).to_have_url(f"{args.url}/tasks")
         page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        page.get_by_role("link", name="返回任务台", exact=True).click()
+        page.get_by_role("link", name="视觉主编首页", exact=True).click()
         assert page.evaluate("scrollY") == 0
         assert geometry(page) == before
 

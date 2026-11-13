@@ -26,6 +26,33 @@ LEGACY_VISUAL_SYSTEM_ORDER = (
 ) + EXTENDED_THEME_IDS
 VISUAL_SYSTEM_ORDER = LEGACY_VISUAL_SYSTEM_ORDER + BUNDLED_THEME_IDS
 
+# Browsing taxonomy only. Neither registration order nor recommendation uses it.
+OFFICIAL_THEME_GROUPS = {
+    "清新自然": ("light_reading", "natural_atlas", "light_gallery", "candidate_light_blue_watercolor"),
+    "生活手帐": ("warm_humanist", "weekend_fieldnotes", "round_table_bistro", "ticket_and_stub"),
+    "手作绘本": ("youth_campus", "collage_fieldguide", "color_paper_corners",
+               "paper_fold", "toy_storybook", "indigo_cloth"),
+    "东方意境": ("oriental_archive", "folded_fan_detail", "ink_traces"),
+    "杂志与海报": ("editorial_contrast", "vintage_press", "business_review", "pop_poster"),
+    "光影叙事": ("cinematic_story", "after_screening", "night_walk_illustration"),
+    "数字与导视": ("structured_grid", "future_tech", "retro_window", "city_wayfinding", "pixel_live", "soft_emboss"),
+}
+_OFFICIAL_THEME_GROUP_BY_ID = {
+    theme_id: (label, order)
+    for order, (label, members) in enumerate(OFFICIAL_THEME_GROUPS.items())
+    for theme_id in members
+}
+
+
+def theme_group_metadata(theme_id: str) -> dict[str, str | int]:
+    group = _OFFICIAL_THEME_GROUP_BY_ID.get(theme_id)
+    if group is None:
+        group = ("未分组", len(OFFICIAL_THEME_GROUPS)) if theme_id in VISUAL_SYSTEM_ORDER else (
+            "我的主题", len(OFFICIAL_THEME_GROUPS) + 1
+        )
+    return {"theme_group": group[0], "theme_group_order": group[1]}
+
+
 # Preserve legacy recommendation eligibility. Bundled official packs are only
 # considered in article types that explicitly list them as a good fit.
 PRODUCTION_VISUAL_SYSTEMS = (
@@ -138,6 +165,8 @@ def registered_visual_system_catalog() -> dict[str, dict[str, Any]]:
         entry = theme_pack_catalog_entry(theme_id)
         if entry:
             catalog[theme_id] = entry
+    for theme_id, entry in catalog.items():
+        entry.update(theme_group_metadata(theme_id))
     return catalog
 
 

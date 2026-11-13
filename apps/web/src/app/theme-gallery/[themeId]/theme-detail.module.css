@@ -1,140 +1,76 @@
 .page {
-  --ink: #17211f;
-  --paper: #f3efe5;
-  --line: rgba(23, 33, 31, .22);
-  min-height: 100vh;
-  color: var(--ink);
-  background: var(--paper);
-  font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  --line: var(--workspace-border);
+  --gutter: var(--workspace-gutter);
+  --topbar-height: var(--workspace-topbar-height);
 }
-.deliveryNote { margin-top: 26px; max-width: 680px; padding: 14px 0 14px 18px; border-left: 2px solid var(--theme-primary); }
-.deliveryNote strong { font-size: 13px; font-weight: 750; }
-.deliveryNote p { margin: 6px 0 0; color: #596560; font-size: 12px; line-height: 1.8; }
-.topbar { min-height: 72px; padding: 0 clamp(18px, 4vw, 64px); display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; border-bottom: 1px solid var(--line); background: rgba(243,239,229,.94); backdrop-filter: blur(14px); position: sticky; top: 0; z-index: 20; }
-.topbar > a { color: #55615d; font-size: 12px; font-weight: 750; }
-.topbar > div { display: flex; align-items: baseline; gap: 11px; }
-.topbar strong { font: 750 19px/1.2 "Noto Serif SC", "Songti SC", serif; }
-.topbar div span { color: #68736f; font: 800 8px/1 Arial, sans-serif; letter-spacing: .17em; }
-.topbar > span { justify-self: end; color: var(--theme-primary); font-size: 11px; font-weight: 800; }
-
-.masthead { min-height: 470px; padding: clamp(60px, 8vw, 110px) clamp(20px, 7vw, 104px); display: grid; grid-template-columns: minmax(0, 1fr) 330px; align-items: end; gap: 70px; border-bottom: 1px solid var(--line); background: radial-gradient(circle at 82% 12%, color-mix(in srgb, var(--theme-accent) 18%, transparent), transparent 30%); }
-.themeIntro > p:first-child, .articleNotes > span, .finalReview span { margin: 0; color: var(--theme-primary); font: 850 9px/1.2 Arial, sans-serif; letter-spacing: .19em; }
-.themeIntro h1 { margin: 14px 0 0; font: 760 clamp(60px, 8vw, 108px)/1 "Noto Serif SC", "Songti SC", serif; letter-spacing: -.065em; }
-.themeIntro > p:not(:first-child) { max-width: 690px; margin: 25px 0 0; color: #58645f; font-size: 16px; line-height: 1.82; }
-.palette { width: min(560px, 100%); height: 12px; margin-top: 36px; display: grid; grid-template-columns: 1.8fr 1fr .8fr 2.5fr; border: 1px solid rgba(23,33,31,.15); }
+.themeMeta { width: min(320px, 100%); }
+.themeIntro p, .themeMeta p { max-width: 680px; margin: 8px 0 0; color: #53605d; font-size: 14px; }
+.themeMeta p { font-size: 12px; }
+.palette { height: 8px; display: grid; grid-template-columns: 1.8fr 1fr .8fr 2.5fr; border: 1px solid var(--line); }
 .palette i { display: block; }
-.tags { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 7px; }
-.tags span { padding: 6px 9px; border: 1px solid #aeb7b2; background: rgba(255,255,255,.42); color: #52605c; font-size: 10px; }
-.reviewGuide { padding: 24px; border-top: 4px solid var(--theme-primary); background: rgba(255,253,247,.76); }
-.reviewGuide > span { color: var(--theme-primary); font-size: 10px; font-weight: 850; }
-.reviewGuide ol { margin: 16px 0 0; padding-left: 20px; }
-.reviewGuide li { margin: 10px 0; color: #53605c; font-size: 12px; line-height: 1.6; }
+.warning { margin: 0 var(--gutter) 12px; padding: 8px 12px; border-left: 2px solid #9b5634; background: #fff0e8; color: #863e23; font-size: 13px; }
+.warning a { margin-inline-start: 8px; text-decoration: underline; text-underline-offset: 3px; }
 
-.modeSwitch { display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid var(--line); background: #fffdf7; position: sticky; top: 72px; z-index: 18; }
-.modeSwitch button { min-height: 64px; border: 0; border-right: 1px solid var(--line); background: transparent; color: #66716d; font-size: 12px; font-weight: 800; }
-.modeSwitch button:last-child { border-right: 0; }
-.modeSwitch .active { background: var(--ink); color: #fff; }
+.modeSwitch {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 18;
+  display: flex;
+  gap: 4px;
+  padding: 0 var(--gutter);
+  border-block: 1px solid var(--line);
+  background: var(--paper);
+}
+.modeSwitch button { min-height: 46px; padding: 0 14px; border: 0; border-bottom: 3px solid transparent; background: transparent; color: #53605d; font-size: 13px; font-weight: 750; }
+.modeSwitch button:hover { color: var(--teal); }
+.modeSwitch .active { border-bottom-color: var(--teal); background: var(--teal-soft); color: #095d57; }
 
-.articleReview { min-width: 0; display: grid; grid-template-columns: minmax(300px, .72fr) minmax(500px, 1.28fr); border-bottom: 1px solid var(--line); }
-.articleNotes { min-width: 0; padding: clamp(54px, 7vw, 100px) clamp(28px, 5vw, 78px); border-right: 1px solid var(--line); }
-.articleNotes h2 { margin: 17px 0 0; font: 750 clamp(36px, 4.4vw, 62px)/1.2 "Noto Serif SC", "Songti SC", serif; letter-spacing: -.045em; }
-.articleNotes > p { max-width: 480px; margin: 28px 0 0; color: #596560; font-size: 14px; line-height: 1.82; }
-.articleNotes dl { margin: 44px 0 0; border-top: 1px solid var(--line); }
-.articleNotes dl div { min-height: 50px; display: grid; grid-template-columns: 100px 1fr; align-items: center; border-bottom: 1px solid var(--line); }
-.articleNotes dt { color: #717b77; font-size: 10px; }
-.articleNotes dd { margin: 0; font-size: 12px; font-weight: 750; }
-.phoneStage { min-width: 0; padding: 54px clamp(20px, 6vw, 94px) 78px; overflow: hidden; background: #dfe2dc; }
-.ruler { width: var(--gallery-viewport-width); max-width: 100%; margin: 0 auto 10px; display: flex; align-items: center; gap: 9px; color: #66716d; font: 750 8px/1 Arial, sans-serif; letter-spacing: .11em; }
-.ruler span:first-child { color: var(--theme-primary); }
+.articleReview { min-width: 0; max-width: 760px; margin: 16px auto 0; padding: 0 clamp(16px, 4vw, 64px); }
+.phoneStage { min-width: 0; padding: 16px 12px 28px; overflow: hidden; background: #dfe2dc; border: 1px solid var(--line); }
+.ruler { width: var(--gallery-viewport-width); max-width: 100%; margin: 0 auto 8px; display: flex; align-items: center; gap: 8px; color: #46534f; font-size: 11px; }
 .ruler i { height: 1px; flex: 1; background: #9fa9a4; }
-.phone { width: var(--gallery-viewport-width); max-width: 100%; margin: 0 auto; overflow: hidden; background: #fff; box-shadow: 0 22px 58px rgba(23,33,31,.18); }
+.phone { width: var(--gallery-viewport-width); max-width: 100%; margin: 0 auto; overflow: hidden; background: #fff; box-shadow: 0 8px 24px rgba(23,33,31,.14); }
 .phone *, .componentCanvas * { box-sizing: border-box; }
-.componentIndex { display: flex; flex-wrap: wrap; gap: 10px; padding: 28px clamp(24px, 7vw, 104px); background: #fffdf7; border-bottom: 1px solid var(--line); }
-.componentIndex strong { flex-basis: 100%; margin-top: 12px; color: var(--theme-primary); font-size: 12px; }
-.componentIndex a { padding: 8px 10px; border: 1px solid var(--line); font-size: 12px; text-decoration: none; }
-.componentIndex a:hover { background: var(--ink); color: white; }
 
-.specimenList { border-bottom: 1px solid var(--line); }
-.libraryDivider {
-  min-height: 290px;
-  padding: clamp(54px, 7vw, 94px) clamp(24px, 7vw, 104px);
-  border-bottom: 1px solid var(--line);
-  background:
-    linear-gradient(120deg, color-mix(in srgb, var(--theme-primary) 12%, transparent), transparent 42%),
-    #fffdf7;
-}
-.libraryDivider > span {
-  color: var(--theme-primary);
-  font: 850 9px/1.2 Georgia, serif;
-  letter-spacing: .19em;
-}
-.libraryDivider h2 {
-  max-width: 850px;
-  margin: 18px 0 0;
-  font: 750 clamp(34px, 4.7vw, 66px)/1.18 "Noto Serif SC", "Songti SC", serif;
-  letter-spacing: -.045em;
-}
-.libraryDivider p {
-  max-width: 700px;
-  margin: 23px 0 0;
-  color: #5c6863;
-  font-size: 14px;
-  line-height: 1.8;
-}
-.specimen { min-width: 0; min-height: 360px; scroll-margin-top: 144px; display: grid; grid-template-columns: minmax(280px, .68fr) minmax(470px, 1.32fr); border-bottom: 1px solid var(--line); }
-.specimenInfo { min-width: 0; padding: clamp(44px, 6vw, 82px) clamp(24px, 5vw, 72px); border-right: 1px solid var(--line); }
-.specimenInfo > span { color: var(--theme-primary); font: 850 8px/1.2 Arial, sans-serif; letter-spacing: .16em; text-transform: uppercase; }
-.specimenInfo h2 { margin: 18px 0 0; font: 750 clamp(34px, 4vw, 56px)/1.2 "Noto Serif SC", "Songti SC", serif; }
-.specimenInfo > p { margin: 11px 0 0; color: #66716d; font-size: 13px; }
-.variantName { font-weight: 750; }
-.specimenInfo > .compatibilityBadge {
-  width: fit-content;
-  margin-top: 18px;
-  padding: 6px 9px;
-  display: inline-block;
-  border: 1px solid currentColor;
-  font-size: 9px;
-  font-weight: 850;
-  letter-spacing: .06em;
-}
-.specimenInfo > .compatibilityBadge.verifiedBadge { color: #117c73; background: #eaf6f2; }
-.specimenInfo > .compatibilityBadge.candidateBadge { color: #9a5d20; background: #fff5de; }
-.componentGuide { margin: 31px 0 0; border-top: 1px solid var(--line); }
-.componentGuide div { padding: 14px 0; border-bottom: 1px solid var(--line); }
-.componentGuide dt { color: #78827e; font-size: 9px; font-weight: 800; letter-spacing: .08em; }
-.componentGuide dd { margin: 7px 0 0; color: #46534f; font-size: 12px; line-height: 1.7; }
-.decisionGroup, .themeDecisions { margin-top: 34px; display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #8f9a95; }
-.decisionGroup button, .themeDecisions button { min-height: 46px; border: 0; border-right: 1px solid #8f9a95; background: transparent; color: #53605c; font-size: 11px; font-weight: 800; }
-.decisionGroup button:last-child, .themeDecisions button:nth-child(3) { border-right: 0; }
-.decisionGroup .selectedDecision, .themeDecisions .selectedDecision { background: var(--ink); color: #fff; }
-.componentStage { min-width: 0; padding: clamp(42px, 6vw, 80px); overflow: hidden; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--theme-primary) 8%, #e4e5df); }
-.componentCanvas { box-sizing: border-box; width: var(--gallery-viewport-width); max-width: 100%; padding: 30px var(--gallery-body-padding); background: #fff; box-shadow: 0 20px 54px rgba(23,33,31,.15); color: #20312e; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+.specimenList { margin: 0 var(--gutter); }
+.indexDisclosure { border-bottom: 1px solid var(--line); }
+.indexDisclosure summary { min-height: 44px; padding: 10px 0; color: #46534f; font-size: 13px; font-weight: 750; cursor: pointer; }
+.componentIndex { display: flex; flex-wrap: wrap; gap: 0 8px; padding-bottom: 8px; }
+.componentIndex strong { flex-basis: 100%; margin-top: 5px; color: #46534f; font-size: 12px; }
+.componentIndex a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; color: #46534f; font-size: 12px; }
+.componentIndex a:hover { color: var(--teal); text-decoration: underline; text-underline-offset: 3px; }
+.libraryDivider { grid-column: 1 / -1; margin-top: 8px; padding: 12px 0 0; }
+.libraryDivider > span { color: #53605d; font: 750 9px/1.2 Georgia, serif; letter-spacing: .14em; }
+.libraryDivider h2 { margin: 2px 0 0; font: 750 23px/1.2 "Noto Serif SC", "Songti SC", serif; }
+.libraryDivider small { margin-left: 4px; color: #53605d; font: 700 12px/1.2 "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+.specimenGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.specimen { min-width: 0; scroll-margin-top: calc(var(--topbar-height) + 60px); display: flex; flex-direction: column; border: 1px solid var(--line); background: var(--surface); }
+.specimenInfo { min-width: 0; padding: 12px 16px; }
+.specimenInfo > span { color: #53605d; font: 800 9px/1.2 Arial, sans-serif; letter-spacing: .11em; text-transform: uppercase; overflow-wrap: anywhere; }
+.specimenInfo h2 { margin: 3px 0 0; font: 750 21px/1.2 "Noto Serif SC", "Songti SC", serif; }
+.specimenInfo > p { margin: 5px 0 0; color: #53605d; font-size: 13px; }
+.componentGuide { display: grid; gap: 4px; margin: 8px 0 0; }
+.componentGuide div { display: grid; grid-template-columns: 5em minmax(0, 1fr); gap: 8px; }
+.componentGuide dt, .componentGuide dd { margin: 0; color: #46534f; font-size: 12px; }
+.componentGuide dt { font-weight: 750; }
+.componentStage { flex: 1; min-width: 0; padding: 14px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--theme-primary) 8%, #e4e5df); }
+.componentCanvas { width: var(--gallery-viewport-width); max-width: 100%; padding: 24px var(--gallery-body-padding); background: #fff; box-shadow: 0 8px 24px rgba(23,33,31,.12); color: #20312e; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; }
 
-.finalReview { padding: clamp(62px, 9vw, 120px) clamp(20px, 7vw, 104px); display: grid; grid-template-columns: 1fr minmax(390px, .7fr); align-items: center; gap: 80px; background: #fffdf7; }
-.finalReview h2 { margin: 13px 0 0; font: 750 clamp(32px, 4vw, 54px)/1.25 "Noto Serif SC", "Songti SC", serif; }
-.finalReview p { max-width: 580px; margin: 18px 0 0; color: #616c68; font-size: 13px; line-height: 1.75; }
-.browseReturn { min-height: 58px; padding: 0 24px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--ink); background: var(--ink); color: #fff; font-size: 12px; font-weight: 800; letter-spacing: .04em; }
-.browseReturn:hover { background: var(--theme-primary); border-color: var(--theme-primary); }
-.themeDecisions { margin-top: 0; }
-.themeDecisions .exportButton { grid-column: 1 / -1; min-height: 52px; border-top: 1px solid #8f9a95; border-right: 0; background: var(--theme-primary); color: #fff; }
-.statePage { min-height: 100vh; padding: 80px; background: #f3efe5; color: #17211f; }
-.statePage a { display: block; margin-top: 20px; color: #117c73; }
+.finalReview { padding: 20px var(--gutter) 32px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.deliveryNote { flex: 1 1 320px; min-width: 0; scroll-margin-top: calc(var(--topbar-height) + 60px); padding: 0 12px; border: 1px solid var(--line); background: var(--surface); }
+.deliveryNote summary { min-height: 44px; padding-block: 10px; cursor: pointer; color: #46534f; font-size: 13px; font-weight: 750; }
+.deliveryNote p { margin: 0 0 8px; color: #53605d; font-size: 13px; }
+.browseReturn { margin-inline-start: auto; }
+.statePage { min-height: 100vh; padding: clamp(20px, 5vw, 60px); color: #17211f; }
+.statePage a { display: block; margin-top: 12px; color: #11675f; }
 
-@media (max-width: 900px) {
-  .masthead { grid-template-columns: 1fr; }
-  .reviewGuide { max-width: 500px; }
-  .articleReview, .specimen { grid-template-columns: 1fr; }
-  .articleNotes, .specimenInfo { border-right: 0; border-bottom: 1px solid var(--line); }
-  .finalReview { grid-template-columns: 1fr; gap: 38px; }
-}
+@media (max-width: 999px) { .specimenGrid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 560px) {
-  .topbar { grid-template-columns: 1fr auto; }
-  .topbar div { display: none; }
-  .masthead { padding: 54px 18px; }
-  .themeIntro h1 { font-size: 60px; }
-  .modeSwitch { top: 72px; }
-  .phoneStage, .componentStage { padding: 34px 12px 48px; }
-  .specimenInfo { padding: 44px 18px; }
-  .componentCanvas { padding: 30px var(--gallery-body-padding); }
-  .finalReview { padding: 58px 18px; }
+  .themeMeta { width: 100%; }
+  .palette { width: min(200px, 100%); }
+  .articleReview { padding-inline: 0; margin-top: 8px; }
+  .phoneStage { padding: 10px 0 22px; border-inline: 0; }
+  .ruler { padding-inline: 8px; }
+  .specimenList { margin-inline: 12px; }
+  .componentStage { padding: 10px 0; }
 }

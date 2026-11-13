@@ -83,6 +83,7 @@ export type ThemeGalleryItem = {
   status: string;
   source: "official" | "custom";
   theme_group?: string;
+  theme_group_order?: number;
   base_theme: string;
   pack_version?: string;
   wechat_acceptance?: {
@@ -115,7 +116,7 @@ export type ThemeGalleryItem = {
   full_preview_html: string;
 };
 
-export type ThemeGallerySummary = Pick<ThemeGalleryItem, "id" | "label" | "english" | "description" | "ideal_for" | "palette" | "source" | "theme_group" | "semantic_component_count" | "diagnostic" | "availability" | "delivery_report">
+export type ThemeGallerySummary = Pick<ThemeGalleryItem, "id" | "label" | "english" | "description" | "ideal_for" | "palette" | "source" | "theme_group" | "theme_group_order" | "semantic_component_count" | "diagnostic" | "availability" | "delivery_report">
   & Partial<Pick<ThemeGalleryItem, "foundation_specimens" | "rhythm_primitives">> & { foundation_count?: number };
 
 export type ThemePackManifest = {
@@ -289,6 +290,7 @@ export type VisualPlan = {
       value: string;
       label: string;
       theme_group?: string;
+      theme_group_order?: number;
       layout_coverage?: ThemeLayoutCoverage;
       description: string;
       recent_use_count: number;
