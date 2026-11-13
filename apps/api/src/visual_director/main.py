@@ -1602,10 +1602,10 @@ def create_app(
         }
 
     @app.get("/api/v1/theme-gallery")
-    def theme_gallery() -> dict[str, Any]:
+    def theme_gallery(theme_id: str | None = None, summary: bool = False) -> dict[str, Any]:
         return {
             "schema_version": THEME_GALLERY_SCHEMA_VERSION,
-            "themes": build_theme_gallery(),
+            "themes": build_theme_gallery(theme_id=theme_id, summary=summary),
         }
 
     @app.get("/api/v1/theme-packs")
@@ -2855,9 +2855,11 @@ def create_app(
             "preview_url": f'/api/v1/render-artifacts/{plan["preview_artifact_id"]}/content',
         }
         metadata = copy.deepcopy(public_plan.get("visual_system_metadata") or {})
-        options = list(metadata.get("available_visual_systems") or [])
-        seen = {item.get("value") for item in options}
         catalog = registered_visual_system_catalog()
+        current_theme = plan.get("visual_system") or plan.get("style_mode")
+        options = [item for item in metadata.get("available_visual_systems") or []
+                   if item.get("value") in catalog or item.get("value") == current_theme]
+        seen = {item.get("value") for item in options}
         for theme_id in registered_visual_system_order():
             if theme_id in seen:
                 continue
@@ -2869,9 +2871,14 @@ def create_app(
                     "recent_use_count": 0,
                 }
             )
-        # Derive current coverage even for options persisted before a pack update.
+        # Derive current labels/groups even for plans persisted before promotion.
         for option in options:
-            coverage = catalog.get(option.get("value"), {}).get("layout_coverage")
+            entry = catalog.get(option.get("value"), {})
+            option["theme_group"] = entry.get("theme_group", "经典主题" if entry else "我的主题")
+            if entry:
+                option["label"] = entry["label"]
+                option["description"] = entry["description"]
+            coverage = entry.get("layout_coverage")
             if coverage:
                 option["layout_coverage"] = coverage
             else:

@@ -82,8 +82,14 @@ export type ThemeGalleryItem = {
   palette: string[];
   status: string;
   source: "official" | "custom";
+  theme_group?: string;
   base_theme: string;
   pack_version?: string;
+  wechat_acceptance?: {
+    status: "owner_reported_pass";
+    paths: Array<"clipboard" | "api_draft">;
+    scope: "acceptance_fixture_saved_roundtrip";
+  };
   delivery_report?: {
     coverage?: ThemeLayoutCoverage;
     local_delivery: "blocking" | "review_required" | "static_pass" | "not_checked";
@@ -108,6 +114,9 @@ export type ThemeGalleryItem = {
   article_preview_html?: string;
   full_preview_html: string;
 };
+
+export type ThemeGallerySummary = Pick<ThemeGalleryItem, "id" | "label" | "english" | "description" | "ideal_for" | "palette" | "source" | "theme_group" | "semantic_component_count" | "diagnostic" | "availability" | "delivery_report">
+  & Partial<Pick<ThemeGalleryItem, "foundation_specimens" | "rhythm_primitives">> & { foundation_count?: number };
 
 export type ThemePackManifest = {
   schema_version: "visual_director.theme_pack.v1";
@@ -279,6 +288,7 @@ export type VisualPlan = {
     available_visual_systems: Array<{
       value: string;
       label: string;
+      theme_group?: string;
       layout_coverage?: ThemeLayoutCoverage;
       description: string;
       recent_use_count: number;

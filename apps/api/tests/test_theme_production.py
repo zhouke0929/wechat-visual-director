@@ -2,6 +2,11 @@ import copy
 import json
 from pathlib import Path
 
+import pytest
+from bs4 import BeautifulSoup
+
+from visual_director.delivery import build_clipboard_payload
+from visual_director.generated_theme import render_generated_table
 from visual_director.theme_delivery import theme_delivery_report
 from visual_director.theme_production import check_theme_production
 from visual_director.theme_layouts import ROLE_FIELDS
@@ -19,6 +24,66 @@ def test_all_declared_roles_hit_their_actual_production_entry_points():
     assert len(report["cases"]) == 42
     assert {(case["role"], case["length"]) for case in report["cases"]} == {(role, length) for role in ROLE_FIELDS for length in ("short", "long")}
     assert report["visual_review"] == report["wechat_saved_roundtrip"] == "not_verified"
+    assert len(report["foundation_checks"]) == 10
+    assert {case["role"] for case in report["foundation_checks"]} == {
+        "inline_emphasis", "ordered_list", "table", "source", "reference_list",
+    }
+    assert all(case["status"] == "pass" for case in report["foundation_checks"])
+
+
+def test_ordered_list_requires_real_numbers_not_only_a_layout_hit(monkeypatch):
+    from visual_director import renderer
+
+    original = renderer.render_generated_list
+    monkeypatch.setattr(renderer, "render_generated_list",
+                        lambda items, ordered, config, role: original(items, False, config, role))
+    report = check_theme_production(manifest())
+    assert report["status"] == "blocking"
+    assert all(case["status"] == "pass" for case in report["cases"])
+    assert {case["role"] for case in report["foundation_checks"] if case["status"] == "blocking"} == {"ordered_list"}
+
+
+@pytest.mark.parametrize(("motifs", "density", "has_ornament"), [
+    (["none"], 0.6, False),
+    (["paper_cut"], 0, False),
+    (["paper_cut"], 0.6, True),
+])
+def test_generated_table_does_not_reserve_a_row_for_absent_decoration(motifs, density, has_ornament):
+    value = manifest()
+    design, palette = value["design_system"], value["palette"]
+    design["motifs"] = motifs
+    design["ornament"]["density"] = density
+    config = {"generated_design_system": design, "palette": palette}
+    raw = render_generated_table([["Item", "Meaning"], ["Example", "Demo"]], config)
+    clip = build_clipboard_payload({"frozen_html": f"<main>{raw}</main>", "metadata": {"title": "Example"}},
+                                   [], lambda _: "")["html"]
+    for markup in (raw, clip):
+        root = BeautifulSoup(markup, "html.parser").select_one("[data-theme-grammar]")
+        assert [node.name for node in root.find_all(recursive=False)] == (
+            ["section", "table"] if has_ornament else ["table"]
+        )
+        assert "padding-top" not in root["style"]
+        assert bool(root.select_one('[aria-hidden="true"] [data-theme-motif]')) == has_ornament
+        assert [th.text for th in root.select("th")] == ["Item", "Meaning"]
+        assert [td.text for td in root.select("td")] == ["Example", "Demo"]
+        assert f'border-top:{design["ornament"]["border_width"] + 2}px solid {palette["accent"]}' in root.th["style"]
+
+
+def test_authored_list_can_style_ordered_indexes_and_unordered_markers():
+    from visual_director.generated_theme import render_generated_list
+
+    value = manifest()
+    design = value["design_system"]
+    marker = design["layouts"]["list"]["children"][0]["children"][0]
+    marker.update(type="field", bind="index")
+    marker.pop("text")
+    config = {"generated_design_system": design, "palette": value["palette"]}
+    items = ["First", "Second", "Third"]
+    ordered = BeautifulSoup(render_generated_list(items, True, config, "key_points"), "html.parser")
+    unordered = BeautifulSoup(render_generated_list(items, False, config, "key_points"), "html.parser")
+    assert [node.get_text() for node in ordered.select("[data-theme-list-index]")] == ["01", "02", "03"]
+    assert [node.get_text() for node in unordered.select("[data-theme-marker]")] == ["•", "•", "•"]
+    assert not unordered.select("[data-theme-list-index]")
 
 
 def test_renderable_layout_is_blocking_when_production_silently_ignores_it(monkeypatch):

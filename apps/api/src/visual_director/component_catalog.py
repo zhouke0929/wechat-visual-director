@@ -8,15 +8,15 @@ from .theme_extensions import (
     extended_component_label,
     extended_variant_name,
 )
-from .theme_packs import installed_theme_packs, resolve_theme_base, theme_pack_catalog_entry
+from .theme_packs import BUNDLED_THEME_IDS, installed_theme_packs, resolve_theme_base, theme_pack_catalog_entry
 
 
 COMPONENT_LIBRARY_VERSION = "wechat_components.v0.13.0"
-RENDERER_VERSION = "preview_renderer.v0.21.2-theme-leads"
+RENDERER_VERSION = "preview_renderer.v0.21.8-bundled-themes"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 
-VISUAL_SYSTEM_ORDER = (
+LEGACY_VISUAL_SYSTEM_ORDER = (
     "light_reading",
     "warm_humanist",
     "youth_campus",
@@ -24,9 +24,10 @@ VISUAL_SYSTEM_ORDER = (
     "structured_grid",
     "future_tech",
 ) + EXTENDED_THEME_IDS
+VISUAL_SYSTEM_ORDER = LEGACY_VISUAL_SYSTEM_ORDER + BUNDLED_THEME_IDS
 
-# Candidate themes remain visible in the gallery and manual theme switcher, but
-# they must not enter an operator's draft automatically before visual approval.
+# Preserve legacy recommendation eligibility. Bundled official packs are only
+# considered in article types that explicitly list them as a good fit.
 PRODUCTION_VISUAL_SYSTEMS = (
     "light_reading",
     "warm_humanist",
@@ -35,7 +36,8 @@ PRODUCTION_VISUAL_SYSTEMS = (
     "structured_grid",
     "future_tech",
 )
-AUTO_RECOMMENDABLE_VISUAL_SYSTEMS = PRODUCTION_VISUAL_SYSTEMS + ("pop_poster",)
+BASE_AUTO_RECOMMENDABLE_VISUAL_SYSTEMS = PRODUCTION_VISUAL_SYSTEMS + ("pop_poster",)
+AUTO_RECOMMENDABLE_VISUAL_SYSTEMS = BASE_AUTO_RECOMMENDABLE_VISUAL_SYSTEMS + BUNDLED_THEME_IDS
 
 VISUAL_SYSTEM_MARKERS = {
     "light_reading": "A",
@@ -132,10 +134,10 @@ def registered_visual_system_order() -> tuple[str, ...]:
 
 def registered_visual_system_catalog() -> dict[str, dict[str, Any]]:
     catalog = {key: dict(value) for key, value in VISUAL_SYSTEM_CATALOG.items()}
-    for manifest in installed_theme_packs():
-        entry = theme_pack_catalog_entry(manifest["id"])
+    for theme_id in BUNDLED_THEME_IDS + tuple(manifest["id"] for manifest in installed_theme_packs()):
+        entry = theme_pack_catalog_entry(theme_id)
         if entry:
-            catalog[manifest["id"]] = entry
+            catalog[theme_id] = entry
     return catalog
 
 
@@ -546,7 +548,8 @@ def component_options(component_type: str) -> list[dict[str, str]]:
     if system_variants:
         options = []
         seen: set[str] = set()
-        for visual_system in VISUAL_SYSTEM_ORDER:
+        # These are legacy per-component overrides, not complete authored theme layouts.
+        for visual_system in LEGACY_VISUAL_SYSTEM_ORDER:
             item = system_variants.get(visual_system)
             if not item or item["value"] in seen:
                 continue

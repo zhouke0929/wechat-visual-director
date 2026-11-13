@@ -69,12 +69,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px s
 .themes h2 { margin: 0; font: 600 clamp(34px, 3.8vw, 59px)/1.25 var(--sans); letter-spacing: -.055em; }
 .themes h2 em { color: #f26078; font-style: normal; }
 .theme-intro { font-size: 12px; line-height: 1.9; color: #d6cadf; margin: 21px 0 30px; }
-.theme-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-top: 1px solid #ffffff26; border-left: 1px solid #ffffff26; }
+.theme-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 380px; overflow: auto; scrollbar-color: #9d87a7 #30223b; border-top: 1px solid #ffffff26; border-left: 1px solid #ffffff26; }
 .theme-button { position: relative; min-width: 0; min-height: 53px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-right: 1px solid #ffffff26; border-bottom: 1px solid #ffffff26; background: transparent; color: #f2eaf5; text-align: left; transition: background .2s, color .2s; }
 .theme-button:hover { background: #ffffff0b; }
 .theme-button.active { background: #f26078; color: #30223b; border-radius: 10px; }
 .theme-num { font: 10px/1 Georgia, serif; opacity: .65; }
-.theme-button strong { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.theme-button strong { min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 .mini-swatches { display: flex; margin-left: auto; flex: none; }
 .mini-swatches i { width: 6px; height: 15px; }
 .theme-loading { grid-column: 1/-1; padding: 22px; color: #d6cadf; font-size: 12px; }

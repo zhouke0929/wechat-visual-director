@@ -4,12 +4,12 @@ import { themeCoverageLabel } from "@/lib/theme-coverage";
 
 import Link from "@/lib/router";
 import { ChangeEvent, MouseEvent, useEffect, useMemo, useRef, useState } from "react";
-import { deleteThemePack, getThemeGallery, installThemePack, themePackExportUrl } from "@/lib/api";
-import type { ThemeGalleryItem } from "@/lib/types";
+import { deleteThemePack, getThemeGallerySummary, installThemePack, themePackExportUrl } from "@/lib/api";
+import type { ThemeGallerySummary } from "@/lib/types";
 import styles from "./theme-gallery.module.css";
 
 export default function ThemeGalleryPage() {
-  const [themes, setThemes] = useState<ThemeGalleryItem[]>([]);
+  const [themes, setThemes] = useState<ThemeGallerySummary[]>([]);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeCollection, setActiveCollection] = useState<"official" | "custom">("official");
@@ -17,7 +17,7 @@ export default function ThemeGalleryPage() {
   const fileInput = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
-    const collection = await getThemeGallery();
+    const collection = await getThemeGallerySummary();
     setThemes(collection);
     return collection;
   };
@@ -53,7 +53,7 @@ export default function ThemeGalleryPage() {
     }
   };
 
-  const handleDelete = async (event: MouseEvent, theme: ThemeGalleryItem) => {
+  const handleDelete = async (event: MouseEvent, theme: ThemeGallerySummary) => {
     event.preventDefault();
     event.stopPropagation();
     if (!window.confirm(`从本机删除“${theme.label}”？文章内容不会被删除。`)) return;
@@ -69,14 +69,15 @@ export default function ThemeGalleryPage() {
     }
   };
 
-  const handleExport = (event: MouseEvent, theme: ThemeGalleryItem) => {
+  const handleExport = (event: MouseEvent, theme: ThemeGallerySummary) => {
     event.preventDefault();
     event.stopPropagation();
     window.location.href = themePackExportUrl(theme.id);
   };
 
-  const specimenCount = themes[0]
-    ? themes[0].components.length + (themes[0].foundation_specimens ?? themes[0].rhythm_primitives).length
+  const foundationCount = (theme: ThemeGallerySummary) => theme.foundation_count ?? (theme.foundation_specimens ?? theme.rhythm_primitives)?.length ?? 0;
+  const specimenCount = officialThemes[0]
+    ? officialThemes[0].semantic_component_count + foundationCount(officialThemes[0])
     : 26;
 
   return (
@@ -98,7 +99,7 @@ export default function ThemeGalleryPage() {
             官方主题与本机扩展包遵守同一套语义组件和编辑契约。同一篇文章可以即时切换风格，正文结构保持不变。
           </p>
           <dl>
-            <div><dt>官方主题</dt><dd>{String(officialThemes.length || 12).padStart(2, "0")}</dd></div>
+            <div><dt>官方主题</dt><dd>{themes.length ? String(officialThemes.length).padStart(2, "0") : "—"}</dd></div>
             <div><dt>我的主题</dt><dd>{String(customThemes.length).padStart(2, "0")}</dd></div>
             <div><dt>单套样本</dt><dd>{specimenCount}</dd></div>
             <div><dt>更新方式</dt><dd>持续</dd></div>
@@ -163,10 +164,10 @@ export default function ThemeGalleryPage() {
             <Link className={styles.cardLink} href={`/theme-gallery/${theme.id}`}>
               <div className={styles.cardTop}>
                 <span>{String(index + 1).padStart(2, "0")}</span>
-                <small>VISUAL SYSTEM · {theme.english}</small>
+                <small>{theme.theme_group && theme.source === "official" ? theme.theme_group : "VISUAL SYSTEM"} · {theme.english}</small>
               </div>
               <div className={styles.palette} aria-label={`${theme.label}色板`}>
-                {theme.palette.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
+                {theme.palette.map((color, i) => <i key={i} style={{ backgroundColor: color }} />)}
               </div>
               <h2>{theme.label}</h2>
               {theme.delivery_report?.coverage && <p className={styles.coverage}>{themeCoverageLabel(theme.delivery_report.coverage)}</p>}
@@ -176,7 +177,7 @@ export default function ThemeGalleryPage() {
               </div>
             </Link>
             <footer>
-              <span>{(theme.foundation_specimens ?? theme.rhythm_primitives).length} 种基础样式 + {theme.components.length} 类语义组件</span>
+              <span>{foundationCount(theme)} 种基础样式 + {theme.semantic_component_count} 类语义组件</span>
               {theme.source === "custom" ? (
                 <div className={styles.cardActions}>
                   <button onClick={(event) => handleExport(event, theme)} type="button">导出</button>

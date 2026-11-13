@@ -16,22 +16,26 @@ from visual_director.parser import parse_markdown
 from visual_director.renderer import _opening_highlight, render_preview
 from visual_director.planner import generate_plans
 from visual_director.brief_compiler import visual_system_configuration
-from visual_director.theme_packs import configure_theme_packs, validate_theme_pack_manifest
+from visual_director.theme_packs import BUNDLED_THEME_IDS, configure_theme_packs, validate_theme_pack_manifest
 from visual_director.component_catalog import CORE_THEME_COMPONENTS
 from visual_director.theme_extensions import EXTENDED_THEME_IDS
 
 
 def test_all_official_themes_expose_real_foundations_and_balanced_article():
-    for theme in build_theme_gallery():
+    official = [theme for theme in build_theme_gallery() if theme["id"] in VISUAL_SYSTEM_ORDER]
+    assert len(official) == len(VISUAL_SYSTEM_ORDER)
+    for theme in official:
         foundations = theme["foundation_specimens"]
+        lead_selector = ('[data-theme-layout="lead"]' if theme["id"] in BUNDLED_THEME_IDS
+                         else '[data-content-role="lead"][data-lead-kind="本文导读"]')
         lead = BeautifulSoup(next(item["html"] for item in foundations if item["role"] == "lead"), "html.parser")
-        assert lead.select_one('[data-content-role="lead"][data-lead-kind="本文导读"]')
+        assert lead.select_one(lead_selector)
         assert len(foundations) == 14
         roles = {item["role"] for item in foundations}
         assert {"hero", "lead", "quote", "paragraph", "ordered_list", "unordered_list", "table", "source", "reference_list", "image_caption", "closing_cta"} <= roles
         article = BeautifulSoup(theme["article_preview_html"], "html.parser")
         assert article.select_one('[data-gallery-production-article]')
-        assert len(article.select('[data-content-role="lead"]')) == 1
+        assert len(article.select(lead_selector)) == 1
         assert article.select_one('[data-editor-block-type="quote"]')
         assert article.select_one('[data-editor-block-type="table"]')
         assert article.select_one('img[src^="data:image/png"]')
@@ -81,9 +85,11 @@ def test_authored_theme_foundations_preserve_custom_hero_quote_list_and_divider(
     configure_theme_packs(pack.parent, reserved_ids=VISUAL_SYSTEM_ORDER, core_components=CORE_THEME_COMPONENTS)
     try:
         samples, article = build_production_specimens(manifest["id"])
-        for specimen_role, layout_role in (("hero", "hero"), ("lead", "lead"), ("quote", "quote"), ("ordered_list", "list"), ("divider", "divider")):
+        for specimen_role, layout_role in (("hero", "hero"), ("lead", "lead"), ("quote", "quote"), ("unordered_list", "list"), ("divider", "divider")):
             markup = next(item["html"] for item in samples if item["role"] == specimen_role)
             assert f'data-theme-layout="{layout_role}"' in markup
+        ordered = BeautifulSoup(next(item["html"] for item in samples if item["role"] == "ordered_list"), "html.parser")
+        assert [node.get_text() for node in ordered.select("[data-theme-list-index]")] == ["01", "02", "03"]
         assert 'data-theme-layout="hero"' in article
         assert 'data-theme-layout="image_caption"' in article
     finally:

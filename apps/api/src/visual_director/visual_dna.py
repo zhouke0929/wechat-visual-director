@@ -159,6 +159,29 @@ ARTICLE_THEME_MANIFESTS: dict[str, dict[str, Any]] = {
 
 ARTICLE_THEME_MANIFESTS.update(copy.deepcopy(EXTENDED_THEME_VISUAL_DNA))
 
+# Theme-specific surfaces keep the image prompt from inheriting an unrelated
+# material from the semantic base. Image families still compete independently.
+OFFICIAL_PACK_SURFACES = {
+    "weekend_fieldnotes": ("field_notebook", "watercolor_note_paper"),
+    "after_screening": ("light_storyboard_page", "film_festival_program"),
+    "light_gallery": ("airy_open_page", "clean_editorial_stock"),
+    "pixel_live": ("offset_poster", "quiet_technology_surface"),
+    "collage_fieldguide": ("layered_sticker_wall", "field_notebook"),
+    "round_table_bistro": ("warm_tactile_paper", "clean_editorial_stock"),
+    "retro_window": ("quiet_technology_surface", "annotated_report_paper"),
+    "city_wayfinding": ("signal_map_page", "precision_grid_surface"),
+    "folded_fan_detail": ("rice_paper_folio", "bound_archive_page"),
+    "color_paper_corners": ("layered_sticker_wall", "soft_margin_paper"),
+    "paper_fold": ("soft_margin_paper", "warm_tactile_paper"),
+    "candidate_light_blue_watercolor": ("watercolor_note_paper", "airy_open_page"),
+    "toy_storybook": ("sketchbook_paper", "warm_tactile_paper"),
+    "indigo_cloth": ("woven_indigo", "field_notebook"),
+    "night_walk_illustration": ("light_storyboard_page", "offset_poster"),
+    "ink_traces": ("rice_paper_folio", "airy_open_page"),
+    "soft_emboss": ("matte_relief", "quiet_technology_surface"),
+    "ticket_and_stub": ("film_festival_program", "aged_newsprint"),
+}
+
 
 # Image styles are independent capability manifests. They describe what a
 # medium is good at, not which article theme it is allowed to pair with.
@@ -587,7 +610,8 @@ def theme_manifest(visual_system: str | None) -> dict[str, Any]:
             str(custom_manifest.get("base_theme") or ""),
             ARTICLE_THEME_MANIFESTS["light_reading"],
         )
-        custom_manifest["surface_variants"] = copy.deepcopy(base_manifest["surface_variants"])
+        surfaces = OFFICIAL_PACK_SURFACES.get(name, base_manifest["surface_variants"])
+        custom_manifest["surface_variants"] = list(surfaces)
         return copy.deepcopy(custom_manifest)
     return copy.deepcopy(ARTICLE_THEME_MANIFESTS.get(name, ARTICLE_THEME_MANIFESTS["light_reading"]))
 

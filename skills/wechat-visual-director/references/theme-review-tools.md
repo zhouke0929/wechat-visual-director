@@ -19,7 +19,7 @@
 | narrow | 368px | 320px | 补充窄屏适配 |
 | legacy | 438px | 390px | 历史净宽补充适配，不代表当前手机视口 |
 
-每侧留白 24px；检查页的 `content_width` 与 `viewport_width` 分开记录，不能互换。输出 `index.html`、八个检查页及 `manifest.json`，遗漏角色会列出而非偷偷使用兜底冒充完成。输出目录必须是新的，保留修订前证据；工具生成成功不表示浏览器、审美或微信验收通过。纯继承主题不适用。
+每侧留白 24px；检查页的 `content_width` 与 `viewport_width` 分开记录，不能互换。输出 `index.html`、八个布局检查页、手机／校对的 14 种基础样式样张及 `manifest.json`；基础样张不计入 164 个布局样本。遗漏角色会列出而非偷偷使用兜底冒充完成。输出目录必须是新的，保留修订前证据；工具生成成功不表示浏览器、审美或微信验收通过。纯继承主题不适用。
 
 宿主已有 Python + Playwright 时，可选运行 `{baseDir}/scripts/check-theme-review.py --review <检查目录> --output <新的截图目录> [--browser <Chromium或Edge路径>] [--previous-output <上一轮截图目录>] [--article <正式渲染的正常文章HTML>]`。它逐项截图并输出 `browser-report.json`，检查越界、图片加载、长正文净宽，以及多行标题旁装饰列的无效空白；`narrow_text_review_count`、`title_sidecar_review_count` 和 `single_cjk_title_review_count` 是待复核提示，不是美观评分或一刀切禁令。字段记录实际 `rendered_lines`，末行单字不触发自动失败或标题改写。`visual-comparison.html` 汇集参考及相同档位、字号、角色的修前修后；`component-overview.html`、`component-overview-*.png` 将当前不同角色按阅读任务并排，保留手机主验收的 357px 净宽与自然高度。HTML 的灰度图只辅助观察，两种材料都不自动评判风格。
 

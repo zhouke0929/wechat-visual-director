@@ -511,7 +511,8 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 .active-plan-summary { position: relative; padding: 10px 14px; border-bottom: 1px solid var(--line); background: #fffefa; }
 .active-plan-summary > button { min-height: 42px; margin-top: 12px; }
 .theme-switch-controls { display: grid; grid-template-columns: minmax(150px, 1fr) auto auto; gap: 7px; align-items: end; }
-.theme-switch-controls label { display: grid; gap: 6px; color: var(--teal); font-size: 12px; font-weight: 850; letter-spacing: .05em; }
+.theme-switch-controls label { display: grid; min-width: 0; gap: 6px; color: var(--teal); font-size: 12px; font-weight: 850; letter-spacing: .05em; }
+.theme-switch-gallery { display: inline-block; margin-top: 8px; color: var(--teal); font-size: 12px; text-underline-offset: 3px; }
 .theme-switch-controls select,
 .theme-switch-controls button { min-height: 40px; border: 1px solid var(--ink); background: #fffefa; color: var(--ink); font-size: 14px; font-weight: 800; }
 .theme-switch-controls select { width: 100%; padding: 0 10px; }

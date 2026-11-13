@@ -314,6 +314,11 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
             if kind == "field" and node["bind"] == "index" and not value:
                 return ""
             attr = 'data-theme-static="true"' if kind == "text" or node.get("bind") == "index" else f'data-theme-field="{node["bind"]}"'
+            if role == "list" and node.get("bind") == "index":
+                if payload.get("ordered") is False:
+                    value = "•"
+                else:
+                    attr += ' data-theme-list-index="true"'
             tag = "h1" if role == "hero" and kind == "field" and node["bind"] == "title" else "p"
             return f'<{tag} {attr} style="{css}">{_inline(value)}</{tag}>'
         if kind == "shape":

@@ -1,0 +1,2990 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "retro_window",
+  "name": "旧式窗口",
+  "english": "RETRO WINDOW",
+  "version": "1.1.2",
+  "author": "Visual Director Theme Lab",
+  "base_theme": "light_reading",
+  "description": "用细标题栏、叠放图窗和菜单索引组织材料，适合观察记录、复盘和操作指南。",
+  "ideal_for": [
+    "现场观察",
+    "经验复盘",
+    "操作指南"
+  ],
+  "personality": [
+    "清晰",
+    "克制",
+    "怀旧"
+  ],
+  "palette": {
+    "primary": "#45445B",
+    "secondary": "#9E9DB0",
+    "accent": "#8C3F34",
+    "sky": "#795223",
+    "pale": "#EEEEF5",
+    "secondary_pale": "#B8CBF5",
+    "accent_pale": "#F8ECE7",
+    "sky_pale": "#F8EFDC",
+    "surface": "#FFFFFF",
+    "ink": "#272633"
+  },
+  "visual_dna": {
+    "warmth": 0.33,
+    "saturation": 0.31,
+    "contrast": 0.76,
+    "geometry": 0.92,
+    "tactility": 0.22,
+    "dimensionality": 0.38,
+    "energy": 0.37,
+    "information_density": 0.49,
+    "brand_formality": 0.55
+  },
+  "material_tags": [
+    "square_frames",
+    "desktop_windows",
+    "blue_ink"
+  ],
+  "tone": [
+    "直接",
+    "轻巧",
+    "有条理"
+  ],
+  "design_system": {
+    "composition": "modular_exhibit",
+    "motifs": [
+      "none"
+    ],
+    "frame": "bracketed",
+    "marker": "coordinate",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 36,
+      "component_gap": 22,
+      "inset": 14
+    },
+    "typography": {
+      "heading_scale": 1.06,
+      "body_scale": 1.02,
+      "letter_spacing": "normal",
+      "heading_weight": 760
+    },
+    "ornament": {
+      "density": 0,
+      "border_width": 1,
+      "corner_radius": 0
+    },
+    "layouts": {
+      "hero": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              26,
+              74
+            ],
+            "children": [
+              {
+                "type": "drawing",
+                "width": 28,
+                "height": 10,
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 2,
+                    "y": 3,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "sky",
+                    "fill": "sky",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 11,
+                    "y": 3,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 20,
+                    "y": 3,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 1
+                  }
+                ],
+                "style": {
+                  "padding": [
+                    4,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "kicker",
+                "style": {
+                  "size": "label",
+                  "color": "primary",
+                  "weight": 700,
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                4,
+                11,
+                4,
+                11
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "size": "label",
+              "line_height": 1.35
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "title",
+              "weight": 800,
+              "line_height": 1.4,
+              "padding": [
+                19,
+                24,
+                22,
+                24
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border": {
+            "width": 1,
+            "color": "primary",
+            "style": "solid"
+          },
+          "background": "accent_pale",
+          "margin": [
+            0,
+            0,
+            5,
+            0
+          ]
+        }
+      },
+      "heading": {
+        "type": "marker_row",
+        "marker_width": 13,
+        "gap": 9,
+        "children": [
+          {
+            "type": "field",
+            "bind": "index",
+            "style": {
+              "font": "mono",
+              "size": "body",
+              "line_height": 1.6,
+              "weight": 750,
+              "color": "primary",
+              "background": "pale",
+              "align": "center",
+              "margin": [
+                2,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "heading",
+              "line_height": 1.45
+            }
+          }
+        ],
+        "style": {
+          "border_top": {
+            "width": 1,
+            "color": "primary",
+            "style": "solid"
+          },
+          "padding": [
+            10,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "subheading": {
+        "type": "field",
+        "bind": "title",
+        "style": {
+          "size": "subheading",
+          "color": "primary",
+          "weight": 750,
+          "border_left": {
+            "width": 3,
+            "color": "primary",
+            "style": "solid"
+          },
+          "padding": [
+            1,
+            0,
+            1,
+            10
+          ]
+        }
+      },
+      "quote": {
+        "type": "marker_row",
+        "marker_width": 9,
+        "gap": 7,
+        "children": [
+          {
+            "type": "text",
+            "text": "“",
+            "style": {
+              "weight": 700,
+              "color": "primary",
+              "size": "heading",
+              "font": "serif",
+              "line_height": 1.4,
+              "align": "center",
+              "background": "surface"
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "font": "serif",
+              "weight": 700,
+              "line_height": 1.8
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            7,
+            0,
+            9,
+            0
+          ],
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "lead": {
+        "type": "field",
+        "bind": "body",
+        "style": {
+          "size": "body",
+          "line_height": 1.9,
+          "padding": [
+            0,
+            0,
+            0,
+            13
+          ],
+          "border_left": {
+            "width": 2,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "list": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 6,
+            "gap": 7,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "size": "caption",
+                  "font": "mono",
+                  "weight": 700,
+                  "color": "primary",
+                  "line_height": 1.9,
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "right"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {}
+              }
+            ],
+            "style": {
+              "padding": [
+                2,
+                0,
+                2,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "question_hook": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "text",
+            "text": "?",
+            "style": {
+              "weight": 700,
+              "color": "primary",
+              "size": "heading",
+              "font": "mono",
+              "align": "center",
+              "background": "pale",
+              "fit": "content",
+              "padding": [
+                0,
+                10,
+                0,
+                10
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "heading",
+              "weight": 780,
+              "padding": [
+                6,
+                0,
+                10,
+                0
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {}
+      },
+      "numbered_insight": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              76,
+              24
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "要点索引",
+                "style": {
+                  "weight": 700,
+                  "color": "primary"
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 36,
+                "height": 10,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        7
+                      ],
+                      [
+                        7,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        14,
+                        7
+                      ],
+                      [
+                        14,
+                        2
+                      ],
+                      [
+                        20,
+                        2
+                      ],
+                      [
+                        20,
+                        7
+                      ],
+                      [
+                        14,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        2
+                      ],
+                      [
+                        34,
+                        8
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        8
+                      ],
+                      [
+                        34,
+                        2
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  }
+                ],
+                "style": {
+                  "align": "right",
+                  "padding": [
+                    4,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "border_bottom": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "padding": [
+                5,
+                11,
+                5,
+                12
+              ],
+              "size": "label",
+              "line_height": 1.35
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "repeat",
+                "bind": "items",
+                "children": [
+                  {
+                    "type": "marker_row",
+                    "marker_width": 12,
+                    "gap": 8,
+                    "children": [
+                      {
+                        "type": "field",
+                        "bind": "index",
+                        "style": {
+                          "font": "mono",
+                          "weight": 750,
+                          "color": "primary",
+                          "align": "center",
+                          "background": "pale",
+                          "size": "caption",
+                          "line_height": 1.8,
+                          "margin": [
+                            3,
+                            0,
+                            0,
+                            0
+                          ]
+                        }
+                      },
+                      {
+                        "type": "field",
+                        "bind": "item",
+                        "style": {}
+                      }
+                    ],
+                    "style": {
+                      "padding": [
+                        8,
+                        0,
+                        8,
+                        0
+                      ],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "dotted"
+                      }
+                    }
+                  }
+                ],
+                "style": {}
+              }
+            ],
+            "style": {
+              "padding": [
+                1,
+                12,
+                7,
+                12
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border": {
+            "width": 1,
+            "color": "primary",
+            "style": "solid"
+          }
+        }
+      },
+      "logic_path": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 3,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 29,
+                "height": 21,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        2,
+                        6
+                      ],
+                      [
+                        11,
+                        6
+                      ],
+                      [
+                        14,
+                        9
+                      ],
+                      [
+                        26,
+                        9
+                      ],
+                      [
+                        26,
+                        18
+                      ],
+                      [
+                        2,
+                        18
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        18
+                      ],
+                      [
+                        2,
+                        6
+                      ],
+                      [
+                        11,
+                        6
+                      ],
+                      [
+                        14,
+                        9
+                      ],
+                      [
+                        26,
+                        9
+                      ],
+                      [
+                        26,
+                        18
+                      ],
+                      [
+                        2,
+                        18
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        5,
+                        12
+                      ],
+                      [
+                        23,
+                        12
+                      ]
+                    ],
+                    "stroke": "surface",
+                    "stroke_width": 1
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "步骤路径",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "padding": [
+                    2,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                0,
+                0,
+                4,
+                2
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "repeat",
+                "bind": "items",
+                "children": [
+                  {
+                    "type": "marker_row",
+                    "marker_width": 6,
+                    "gap": 2,
+                    "children": [
+                      {
+                        "type": "drawing",
+                        "width": 17,
+                        "height": 21,
+                        "parts": [
+                          {
+                            "kind": "polyline",
+                            "points": [
+                              [
+                                0,
+                                0
+                              ],
+                              [
+                                0,
+                                11
+                              ],
+                              [
+                                13,
+                                11
+                              ]
+                            ],
+                            "stroke": "secondary",
+                            "stroke_width": 1
+                          },
+                          {
+                            "kind": "ellipse",
+                            "x": 12,
+                            "y": 9.5,
+                            "w": 3,
+                            "h": 3,
+                            "stroke": "primary",
+                            "fill": "primary",
+                            "stroke_width": 0.75
+                          }
+                        ]
+                      },
+                      {
+                        "type": "marker_row",
+                        "marker_width": 10,
+                        "gap": 6,
+                        "children": [
+                          {
+                            "type": "field",
+                            "bind": "index",
+                            "style": {
+                              "font": "mono",
+                              "size": "caption",
+                              "weight": 800,
+                              "color": "primary",
+                              "background": "pale",
+                              "fit": "content",
+                              "padding": [
+                                1,
+                                4,
+                                1,
+                                4
+                              ],
+                              "border_bottom": {
+                                "width": 1,
+                                "color": "secondary",
+                                "style": "solid"
+                              }
+                            }
+                          },
+                          {
+                            "type": "field",
+                            "bind": "item",
+                            "style": {
+                              "color": "ink",
+                              "line_height": 1.8,
+                              "padding": [
+                                0,
+                                1,
+                                0,
+                                0
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "style": {
+                  "padding": [
+                    5,
+                    1,
+                    5,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "margin": [
+                3,
+                0,
+                0,
+                13
+              ],
+              "border_left": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dotted"
+              }
+            }
+          }
+        ],
+        "style": {}
+      },
+      "action_checklist": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "row",
+                "widths": [
+                  80,
+                  20
+                ],
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "行动清单",
+                    "style": {
+                      "size": "caption",
+                      "color": "ink",
+                      "weight": 830,
+                      "padding": [
+                        3,
+                        0,
+                        2,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "drawing",
+                    "width": 56,
+                    "height": 24,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            2,
+                            11
+                          ],
+                          [
+                            9,
+                            11
+                          ]
+                        ],
+                        "stroke": "primary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            14,
+                            7
+                          ],
+                          [
+                            21,
+                            7
+                          ],
+                          [
+                            21,
+                            13
+                          ],
+                          [
+                            14,
+                            13
+                          ],
+                          [
+                            14,
+                            7
+                          ]
+                        ],
+                        "stroke": "primary",
+                        "stroke_width": 0.95
+                      },
+                      {
+                        "kind": "polygon",
+                        "points": [
+                          [
+                            27,
+                            4
+                          ],
+                          [
+                            43,
+                            2
+                          ],
+                          [
+                            46,
+                            17
+                          ],
+                          [
+                            29,
+                            19
+                          ]
+                        ],
+                        "stroke": "primary",
+                        "fill": "primary",
+                        "stroke_width": 0.5
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            32,
+                            7
+                          ],
+                          [
+                            40,
+                            13
+                          ]
+                        ],
+                        "stroke": "surface",
+                        "stroke_width": 0.95
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            39,
+                            6
+                          ],
+                          [
+                            33,
+                            14
+                          ]
+                        ],
+                        "stroke": "surface",
+                        "stroke_width": 0.95
+                      },
+                      {
+                        "kind": "polygon",
+                        "points": [
+                          [
+                            43,
+                            11
+                          ],
+                          [
+                            54,
+                            17
+                          ],
+                          [
+                            49,
+                            18
+                          ],
+                          [
+                            51,
+                            22
+                          ],
+                          [
+                            48,
+                            23
+                          ],
+                          [
+                            46,
+                            19
+                          ],
+                          [
+                            43,
+                            21
+                          ]
+                        ],
+                        "stroke": "ink",
+                        "fill": "ink",
+                        "stroke_width": 0.5
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            43,
+                            12
+                          ],
+                          [
+                            52,
+                            17
+                          ],
+                          [
+                            48,
+                            17
+                          ],
+                          [
+                            50,
+                            22
+                          ],
+                          [
+                            48,
+                            22
+                          ],
+                          [
+                            46,
+                            18
+                          ],
+                          [
+                            44,
+                            20
+                          ],
+                          [
+                            43,
+                            12
+                          ]
+                        ],
+                        "stroke": "surface",
+                        "stroke_width": 0.7
+                      }
+                    ],
+                    "style": {
+                      "align": "right"
+                    }
+                  }
+                ],
+                "style": {
+                  "background": "secondary_pale",
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "primary",
+                    "style": "solid"
+                  },
+                  "padding": [
+                    3,
+                    4,
+                    3,
+                    10
+                  ]
+                }
+              },
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "repeat",
+                    "bind": "items",
+                    "children": [
+                      {
+                        "type": "marker_row",
+                        "marker_width": 8,
+                        "gap": 6,
+                        "children": [
+                          {
+                            "type": "drawing",
+                            "width": 18,
+                            "height": 23,
+                            "parts": [
+                              {
+                                "kind": "polygon",
+                                "points": [
+                                  [
+                                    2,
+                                    7
+                                  ],
+                                  [
+                                    13,
+                                    7
+                                  ],
+                                  [
+                                    13,
+                                    18
+                                  ],
+                                  [
+                                    2,
+                                    18
+                                  ]
+                                ],
+                                "stroke": "pale",
+                                "fill": "pale",
+                                "stroke_width": 0.5
+                              },
+                              {
+                                "kind": "polyline",
+                                "points": [
+                                  [
+                                    2,
+                                    7
+                                  ],
+                                  [
+                                    13,
+                                    7
+                                  ],
+                                  [
+                                    13,
+                                    18
+                                  ],
+                                  [
+                                    2,
+                                    18
+                                  ],
+                                  [
+                                    2,
+                                    7
+                                  ]
+                                ],
+                                "stroke": "primary",
+                                "stroke_width": 0.95
+                              },
+                              {
+                                "kind": "polyline",
+                                "points": [
+                                  [
+                                    3.4,
+                                    16.5
+                                  ],
+                                  [
+                                    11.5,
+                                    16.5
+                                  ],
+                                  [
+                                    11.5,
+                                    8.5
+                                  ]
+                                ],
+                                "stroke": "secondary",
+                                "stroke_width": 0.7
+                              }
+                            ]
+                          },
+                          {
+                            "type": "field",
+                            "bind": "item",
+                            "style": {
+                              "color": "ink",
+                              "line_height": 1.82
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "style": {
+                      "padding": [
+                        6,
+                        0,
+                        6,
+                        0
+                      ],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "dotted"
+                      }
+                    }
+                  }
+                ],
+                "style": {
+                  "padding": [
+                    1,
+                    10,
+                    6,
+                    10
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "border": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            3,
+            0,
+            0
+          ],
+          "border_top": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          },
+          "border_right": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "section_summary": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 18,
+            "gap": 3,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 18,
+                "height": 13,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        4
+                      ],
+                      [
+                        6,
+                        4
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        7,
+                        6
+                      ],
+                      [
+                        10,
+                        9
+                      ],
+                      [
+                        16,
+                        3
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1.35
+                  }
+                ],
+                "style": {
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "text",
+                "text": "小结",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 760,
+                  "font": "mono",
+                  "padding": [
+                    1,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "width": 98,
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              },
+              "padding": [
+                0,
+                0,
+                3,
+                0
+              ]
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 6,
+                "gap": 5,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "›",
+                    "style": {
+                      "size": "caption",
+                      "color": "accent",
+                      "weight": 720
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "color": "ink",
+                      "line_height": 1.8
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                4,
+                0,
+                2,
+                2
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "evidence_callout": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 10,
+                "gap": 5,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 21,
+                    "height": 8,
+                    "parts": [
+                      {
+                        "kind": "ellipse",
+                        "x": 1,
+                        "y": 2,
+                        "w": 4,
+                        "h": 4,
+                        "stroke": "accent",
+                        "fill": "accent",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 8,
+                        "y": 2,
+                        "w": 4,
+                        "h": 4,
+                        "stroke": "sky",
+                        "fill": "sky",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 15,
+                        "y": 2,
+                        "w": 4,
+                        "h": 4,
+                        "stroke": "secondary",
+                        "fill": "secondary",
+                        "stroke_width": 0.75
+                      }
+                    ],
+                    "style": {
+                      "margin": [
+                        2,
+                        0,
+                        0,
+                        4
+                      ]
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "证据摘录",
+                    "style": {
+                      "size": "label",
+                      "color": "primary",
+                      "weight": 720
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                4,
+                5,
+                4,
+                6
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "color": "ink",
+              "line_height": 1.85,
+              "font": "serif",
+              "padding": [
+                8,
+                9,
+                2,
+                10
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "warning_note": {
+        "type": "marker_row",
+        "marker_width": 10,
+        "gap": 4,
+        "children": [
+          {
+            "type": "drawing",
+            "width": 26,
+            "height": 24,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    13,
+                    2
+                  ],
+                  [
+                    24,
+                    21
+                  ],
+                  [
+                    2,
+                    21
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "fill": "sky_pale",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    13,
+                    2
+                  ],
+                  [
+                    24,
+                    21
+                  ],
+                  [
+                    2,
+                    21
+                  ],
+                  [
+                    13,
+                    2
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    13,
+                    7
+                  ],
+                  [
+                    13,
+                    13
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.6
+              },
+              {
+                "kind": "ellipse",
+                "x": 12,
+                "y": 16,
+                "w": 2,
+                "h": 2,
+                "stroke": "sky",
+                "fill": "sky",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "margin": [
+                2,
+                0,
+                0,
+                1
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "text",
+                "text": "注意",
+                "style": {
+                  "size": "caption",
+                  "color": "sky",
+                  "weight": 720,
+                  "padding": [
+                    0,
+                    0,
+                    3,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85
+                }
+              }
+            ],
+            "style": {}
+          }
+        ]
+      },
+      "before_after_timeline": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "变更记录",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "padding": [
+                    1,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 56,
+                "height": 24,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        11
+                      ],
+                      [
+                        9,
+                        11
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        14,
+                        7
+                      ],
+                      [
+                        21,
+                        7
+                      ],
+                      [
+                        21,
+                        13
+                      ],
+                      [
+                        14,
+                        13
+                      ],
+                      [
+                        14,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.95
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        29,
+                        7
+                      ],
+                      [
+                        35,
+                        13
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        35,
+                        7
+                      ],
+                      [
+                        29,
+                        13
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                2,
+                6,
+                2,
+                8
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "background": "pale"
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 15,
+            "gap": 6,
+            "children": [
+              {
+                "type": "text",
+                "text": "之前",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 780,
+                  "background": "pale",
+                  "fit": "content",
+                  "padding": [
+                    1,
+                    4,
+                    1,
+                    4
+                  ],
+                  "border": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                8,
+                8,
+                8,
+                8
+              ]
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 40,
+            "height": 17,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    5,
+                    1
+                  ],
+                  [
+                    5,
+                    8
+                  ],
+                  [
+                    17,
+                    8
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    13,
+                    4
+                  ],
+                  [
+                    17,
+                    8
+                  ],
+                  [
+                    13,
+                    12
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1.15
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    22,
+                    4
+                  ],
+                  [
+                    34,
+                    10
+                  ],
+                  [
+                    28,
+                    11
+                  ],
+                  [
+                    30,
+                    15
+                  ],
+                  [
+                    27,
+                    16
+                  ],
+                  [
+                    25,
+                    12
+                  ],
+                  [
+                    22,
+                    14
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "primary",
+                "stroke_width": 0.5
+              }
+            ],
+            "style": {
+              "margin": [
+                0,
+                0,
+                0,
+                16
+              ]
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 15,
+            "gap": 6,
+            "children": [
+              {
+                "type": "text",
+                "text": "之后",
+                "style": {
+                  "size": "caption",
+                  "color": "surface",
+                  "weight": 780,
+                  "background": "primary",
+                  "fit": "content",
+                  "padding": [
+                    1,
+                    4,
+                    1,
+                    4
+                  ],
+                  "border": {
+                    "width": 1,
+                    "color": "primary",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    1
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                8,
+                8,
+                8,
+                8
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border_left": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          },
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "comparison_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 11,
+            "gap": 3,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 26,
+                "height": 12,
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 2,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 10,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "sky",
+                    "fill": "sky",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 18,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "secondary",
+                    "fill": "secondary",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "text",
+                "text": "对照",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 720,
+                  "font": "mono",
+                  "padding": [
+                    1,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                3,
+                6,
+                3,
+                7
+              ],
+              "border_top": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 4,
+            "children": [
+              {
+                "type": "text",
+                "text": "A",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "font": "mono",
+                  "padding": [
+                    3,
+                    0,
+                    0,
+                    3
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.82,
+                  "padding": [
+                    0,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                6,
+                5,
+                6,
+                5
+              ]
+            }
+          },
+          {
+            "type": "rule",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dotted"
+              },
+              "margin": [
+                1,
+                6,
+                1,
+                33
+              ]
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 4,
+            "children": [
+              {
+                "type": "text",
+                "text": "B",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "font": "mono",
+                  "padding": [
+                    3,
+                    0,
+                    0,
+                    3
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.82,
+                  "padding": [
+                    0,
+                    1,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                6,
+                5,
+                6,
+                5
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "concept_explainer": {
+        "type": "repeat",
+        "bind": "entries",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "weight": 780,
+                  "color": "primary",
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dotted"
+                  },
+                  "fit": "content",
+                  "padding": [
+                    2,
+                    5,
+                    1,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    3,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            8,
+            0
+          ]
+        }
+      },
+      "case_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "案例",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 720,
+                  "font": "mono"
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 37,
+                "height": 19,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        2,
+                        4
+                      ],
+                      [
+                        12,
+                        4
+                      ],
+                      [
+                        17,
+                        8
+                      ],
+                      [
+                        35,
+                        8
+                      ],
+                      [
+                        35,
+                        17
+                      ],
+                      [
+                        2,
+                        17
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "fill": "sky_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        16
+                      ],
+                      [
+                        2,
+                        4
+                      ],
+                      [
+                        12,
+                        4
+                      ],
+                      [
+                        17,
+                        8
+                      ],
+                      [
+                        35,
+                        8
+                      ],
+                      [
+                        35,
+                        16
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 0.9
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        7,
+                        13
+                      ],
+                      [
+                        28,
+                        13
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.8
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                0,
+                0,
+                2,
+                0
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 780,
+                  "padding": [
+                    5,
+                    9,
+                    2,
+                    10
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    5,
+                    9,
+                    7,
+                    10
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "border_top": {
+                "width": 2,
+                "color": "primary",
+                "style": "solid"
+              },
+              "border_left": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {}
+      },
+      "faq_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 5,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 26,
+                "height": 12,
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 2,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 10,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "sky",
+                    "fill": "sky",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 18,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "secondary",
+                    "fill": "secondary",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 790,
+                  "line_height": 1.55,
+                  "padding": [
+                    5,
+                    0,
+                    5,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                0,
+                8,
+                0,
+                7
+              ],
+              "border_top": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 9,
+            "gap": 4,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 21,
+                "height": 25,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        3,
+                        2
+                      ],
+                      [
+                        17,
+                        14
+                      ],
+                      [
+                        11,
+                        15
+                      ],
+                      [
+                        13,
+                        21
+                      ],
+                      [
+                        9,
+                        23
+                      ],
+                      [
+                        6,
+                        16
+                      ],
+                      [
+                        3,
+                        20
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        6,
+                        6
+                      ],
+                      [
+                        14,
+                        13
+                      ],
+                      [
+                        9,
+                        14
+                      ],
+                      [
+                        11,
+                        19
+                      ]
+                    ],
+                    "stroke": "pale",
+                    "stroke_width": 0.8
+                  }
+                ],
+                "style": {
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                9,
+                4,
+                2,
+                8
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "divider": {
+        "type": "ornament_rule",
+        "slot_width": 19,
+        "line_color": "secondary",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 24,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    3,
+                    1
+                  ],
+                  [
+                    16,
+                    1
+                  ],
+                  [
+                    16,
+                    8
+                  ],
+                  [
+                    3,
+                    8
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    8,
+                    4
+                  ],
+                  [
+                    21,
+                    4
+                  ],
+                  [
+                    21,
+                    11
+                  ],
+                  [
+                    8,
+                    11
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "surface",
+                "stroke_width": 1
+              }
+            ],
+            "style": {}
+          }
+        ]
+      },
+      "image_caption": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 44,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    17,
+                    14
+                  ],
+                  [
+                    92,
+                    1
+                  ],
+                  [
+                    97,
+                    27
+                  ],
+                  [
+                    22,
+                    40
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    19,
+                    23
+                  ],
+                  [
+                    94,
+                    10
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    82,
+                    6
+                  ],
+                  [
+                    88,
+                    5
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    80,
+                    9
+                  ],
+                  [
+                    155,
+                    18
+                  ],
+                  [
+                    152,
+                    43
+                  ],
+                  [
+                    77,
+                    35
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "accent_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    79,
+                    18
+                  ],
+                  [
+                    154,
+                    27
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    145,
+                    22
+                  ],
+                  [
+                    151,
+                    23
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    88,
+                    25
+                  ],
+                  [
+                    109,
+                    28
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    87,
+                    30
+                  ],
+                  [
+                    99,
+                    32
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1
+              }
+            ],
+            "style": {
+              "align": "right",
+              "padding": [
+                0,
+                54,
+                0,
+                0
+              ],
+              "margin": [
+                0,
+                0,
+                -14,
+                0
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "drawing",
+                "width": 36,
+                "height": 10,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        7
+                      ],
+                      [
+                        7,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        14,
+                        7
+                      ],
+                      [
+                        14,
+                        2
+                      ],
+                      [
+                        20,
+                        2
+                      ],
+                      [
+                        20,
+                        7
+                      ],
+                      [
+                        14,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        2
+                      ],
+                      [
+                        34,
+                        8
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        8
+                      ],
+                      [
+                        34,
+                        2
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  }
+                ],
+                "style": {
+                  "align": "right",
+                  "padding": [
+                    5,
+                    8,
+                    5,
+                    8
+                  ],
+                  "background": "pale",
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "primary",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "media"
+                  }
+                ],
+                "style": {
+                  "padding": 6,
+                  "background": "surface"
+                }
+              }
+            ],
+            "style": {
+              "border": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "margin": [
+                0,
+                7,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "caption",
+            "style": {
+              "size": "caption",
+              "color": "primary",
+              "background": "accent_pale",
+              "line_height": 1.65,
+              "border_left": {
+                "width": 3,
+                "color": "primary",
+                "style": "solid"
+              },
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              },
+              "padding": [
+                6,
+                9,
+                6,
+                10
+              ],
+              "margin": [
+                -1,
+                19,
+                0,
+                13
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "closing_cta": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "padding": [
+                    12,
+                    0,
+                    10,
+                    0
+                  ],
+                  "weight": 550
+                }
+              },
+              {
+                "type": "media"
+              }
+            ],
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "padding": [
+                0,
+                0,
+                6,
+                0
+              ]
+            }
+          },
+          {
+            "type": "rule",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              },
+              "margin": [
+                0,
+                18,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      }
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

@@ -103,13 +103,13 @@ Agent 先回答这些问题，再选择适合的呈现方式：让对比有边�
 
 选题、资料、纯文本或 Markdown 都可以作为起点。Agent 整理内容并输出结构化规划，本地程序通过受控组件完成 Markdown 到微信兼容 HTML 的转换，形成统一、可编辑的文章版式。
 
-### 12 套主题，换的是整篇文章的阅读气质
+### 30 套主题，换的是整篇文章的阅读气质
 
-从轻盈阅读、温暖人文，到编辑对比、新中式雅集、未来科技；每套主题都有自己的标题、色彩、留白、章节节奏和组件样式。
+从轻盈阅读、温暖人文，到城市导视、旧式窗口、靛蓝布标；每套主题都有自己的标题、色彩、留白、章节节奏和组件样式。
 
 可以在工作台整篇切换，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
 
-[![12 套真实主题的在线样本册](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
+[![在线主题样本册的预览示例](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
 [打开在线主题样本册，比较同一篇文章的不同表达 →](https://zhouke0929.github.io/wechat-visual-director/#themes)
 

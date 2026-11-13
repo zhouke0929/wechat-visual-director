@@ -52,6 +52,14 @@ def test_review_bundle_is_complete_offline_and_does_not_claim_acceptance(tmp_pat
     assert result['case_count'] == 164  # Four profiles; divider has no prose.
     assert not result['missing_roles']
     assert result['visual_review'] == result['wechat_saved_roundtrip'] == 'not_verified'
+    assert result['foundation_pages'] == ['foundations-mobile.html', 'foundations-proof.html']
+    for file in result['foundation_pages']:
+        foundations = BeautifulSoup((out / file).read_text(encoding='utf-8'), 'html.parser')
+        assert len(foundations.select('[data-foundation-role]')) == 14
+        assert foundations.select_one('[data-foundation-role="paragraph"] strong[data-content-role="inline-emphasis"]')
+        assert [n.get_text() for n in foundations.select('[data-foundation-role="ordered_list"] [data-theme-list-index]')] == ["01", "02", "03"]
+        assert not foundations.select('[data-foundation-role="unordered_list"] [data-theme-list-index]')
+        assert foundations.select_one('[data-foundation-role="table"] table')
     soup = BeautifulSoup((out / 'long-narrow.html').read_text(encoding='utf-8'), 'html.parser')
     assert len(soup.select('[data-review-role]')) == 20
     assert all(i['src'].startswith('data:image/png;base64,') for i in soup.select('img'))

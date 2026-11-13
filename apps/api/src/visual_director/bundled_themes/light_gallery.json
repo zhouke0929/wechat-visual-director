@@ -1,0 +1,120 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "light_gallery",
+  "name": "光影画册",
+  "english": "LIGHT GALLERY",
+  "description": "满幅照片、偏置图注与舒展留白，适合空间记录、生活观察和图文叙事。",
+  "version": "1.0.1",
+  "author": "Visual Director",
+  "base_theme": "light_reading",
+  "ideal_for": [
+    "空间记录",
+    "图文叙事",
+    "生活观察"
+  ],
+  "personality": [
+    "明静",
+    "舒展",
+    "疏朗"
+  ],
+  "palette": {
+    "primary": "#596154",
+    "secondary": "#DADDD3",
+    "accent": "#A58961",
+    "sky": "#A5AEA0",
+    "pale": "#F0E9DB",
+    "secondary_pale": "#DCCAA6",
+    "accent_pale": "#EEE5D5",
+    "sky_pale": "#EAEBE2",
+    "surface": "#FFFFFF",
+    "ink": "#302E27"
+  },
+  "visual_dna": {
+    "warmth": 0.62,
+    "saturation": 0.25,
+    "contrast": 0.48,
+    "geometry": 0.72,
+    "tactility": 0.32,
+    "dimensionality": 0.31,
+    "energy": 0.22,
+    "information_density": 0.3,
+    "brand_formality": 0.63
+  },
+  "material_tags": [
+    "matte_print",
+    "cast_light",
+    "uncoated_paper"
+  ],
+  "tone": [
+    "有光感",
+    "开阔",
+    "克制"
+  ],
+  "design_system": {
+    "composition": "modular_exhibit",
+    "motifs": [
+      "none"
+    ],
+    "frame": "open_corner",
+    "marker": "coordinate",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 36,
+      "component_gap": 24,
+      "inset": 14
+    },
+    "typography": {
+      "heading_scale": 1.02,
+      "body_scale": 1.06,
+      "letter_spacing": "normal",
+      "heading_weight": 650
+    },
+    "ornament": {
+      "density": 0.12,
+      "border_width": 1,
+      "corner_radius": 0
+    },
+    "layouts": {
+      "image_caption": {"type":"stack","children":[{"type":"media"},{"type":"row","widths":[78,22],"children":[{"type":"field","bind":"caption","style":{"font":"sans","size":"caption","color":"primary","line_height":1.75,"padding":[14,3,0,0]}},{"type":"drawing","width":99,"height":64,"style":{"align":"right"},"parts":[{"kind":"polygon","stroke":"secondary","stroke_width":0.5,"fill":"secondary","points":[[9.9,0],[99,0],[99,64],[74.7,53.57],[53.1,38.96],[36,22.26]]},{"kind":"polygon","stroke":"sky","stroke_width":0.5,"fill":"sky","points":[[58.5,0],[99,0],[99,34.09],[77.4,25.04]]},{"kind":"polygon","stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale","points":[[99,34.09],[99,64],[74.7,53.57],[58.5,42.43]]},{"kind":"polyline","stroke":"surface","stroke_width":1,"points":[[58.5,42.43],[99,34.09]]}]}]}]},
+      "quote": {"type":"stack","style":{"padding":[4,0,6,0]},"children":[{"type":"drawing","width":92,"height":32,"style":{"margin":[0,0,5,0]},"parts":[{"kind":"polygon","stroke":"pale","stroke_width":0.5,"fill":"pale","points":[[0,0],[91,0],[82,3.48],[74,7.65],[67,12.52],[61,18.78],[58,25.74],[58,31.3],[0,31.3]]},{"kind":"polygon","stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale","points":[[0,0],[47,0],[39,4.87],[33,10.43],[28,17.39],[25,25.04],[25,31.3],[0,31.3]]}]},{"type":"field","bind":"body","style":{"font":"serif","size":"subheading","color":"ink","weight":500,"line_height":1.8,"padding":[0,0,0,24]}}]},
+      "hero": {"type":"stack","children":[{"type":"field","bind":"kicker","style":{"size":"label","font":"sans","color":"primary","weight":650,"padding":[0,0,8,0],"border_bottom":{"width":1,"color":"secondary","style":"solid"}}},{"type":"field","bind":"title","style":{"size":"title","font":"serif","color":"ink","weight":750,"line_height":1.43,"padding":[14,0,0,0]}}]},
+      "heading": {"type":"stack","children":[{"type":"stack","children":[{"type":"drawing","width":114,"height":10,"parts":[{"kind":"polygon","points":[[0,0],[112,0],[102,10],[0,10]],"stroke":"pale","stroke_width":0.5,"fill":"pale"},{"kind":"polygon","points":[[0,0],[30,0],[20,10],[0,10]],"stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale"}]}],"style":{"border_bottom":{"width":1,"color":"secondary","style":"solid"}}},{"type":"field","bind":"index","style":{"size":"caption","font":"mono","color":"primary","weight":650,"align":"right","line_height":1.35}},{"type":"field","bind":"title","style":{"size":"heading","font":"serif","weight":710,"line_height":1.45,"padding":[5,0,1,0]}}]},
+      "subheading": {"type":"field","bind":"title","style":{"size":"subheading","color":"primary","weight":710,"line_height":1.48,"border_left":{"width":2,"color":"secondary_pale","style":"solid"},"padding":[0,0,0,8]}},
+      "lead": {"type":"stack","children":[{"type":"field","bind":"body","style":{"size":"body","font":"sans","color":"ink","line_height":1.87,"background":"sky_pale","padding":[12,15,13,15]}},{"type":"rule","style":{"border_top":{"width":2,"color":"sky","style":"solid"}}}]},
+      "list": {"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":6,"gap":0,"children":[{"type":"drawing","width":16,"height":11,"parts":[{"kind":"ellipse","x":3,"y":3,"w":4,"h":4,"stroke":"primary","fill":"primary","stroke_width":0.5}],"style":{"padding":[9,0,0,0]}},{"type":"field","bind":"item","style":{"size":"body","line_height":1.78}}]}],"style":{"padding":[3,0,3,0]}},
+      "question_hook": {"type":"stack","children":[{"type":"marker_row","marker_width":7,"gap":0,"children":[{"type":"text","text":"?","style":{"size":"subheading","weight":700,"color":"accent","font":"serif","line_height":1.56}},{"type":"field","bind":"title","style":{"size":"heading","font":"serif","weight":700,"line_height":1.55}}]},{"type":"rule","style":{"border_top":{"width":2,"color":"secondary_pale","style":"solid"},"margin":[9,0,0,0],"width":46}}]},
+      "evidence_callout": {"type":"stack","children":[{"type":"field","bind":"body","style":{"size":"body","line_height":1.83,"padding":[3,12,7,0],"border_right":{"color":"sky","style":"solid","width":2}}},{"type":"stack","children":[{"type":"text","text":"依据","style":{"size":"label","weight":700,"color":"primary","background":"sky_pale","fit":"content","padding":[3,11,3,11]}}],"style":{"align":"right","border_top":{"color":"secondary","style":"solid","width":1}}}]},
+      "concept_explainer": {"type":"repeat","bind":"entries","children":[{"type":"stack","children":[{"type":"field","bind":"title","style":{"size":"subheading","color":"primary","weight":710,"line_height":1.5,"padding":[0,0,7,0]}},{"type":"field","bind":"body","style":{"size":"body","line_height":1.8}}],"style":{"border_left":{"color":"secondary_pale","style":"solid","width":2},"padding":[0,0,1,12],"margin":[0,0,9,0]}}],"style":{"padding":[0,0,0,0]}},
+      "case_card": {"type":"stack","children":[{"type":"text","text":"案例","style":{"size":"label","weight":700,"color":"primary","background":"secondary","fit":"content","padding":[4,12,3,12]}},{"type":"field","bind":"title","style":{"size":"subheading","font":"serif","color":"ink","weight":710,"line_height":1.52,"background":"sky_pale","padding":[7,7,8,15]}},{"type":"drawing","width":75,"height":12,"parts":[{"kind":"polygon","stroke":"sky_pale","stroke_width":0.5,"fill":"sky_pale","points":[[0,0],[74,0],[63,5],[15,5],[15,12],[0,7]]},{"kind":"polygon","stroke":"secondary","stroke_width":0.5,"fill":"secondary","points":[[0,0],[15,0],[15,12],[0,7]]}]},{"type":"field","bind":"body","style":{"size":"body","line_height":1.83,"padding":[5,0,1,15]}}]},
+      "warning_note": {"type":"stack","children":[{"type":"row","widths":[74,26],"children":[{"type":"text","text":"注意","style":{"size":"caption","weight":750,"color":"ink","background":"secondary_pale","line_height":2.02,"padding":[0,0,0,12]}},{"type":"drawing","width":27,"height":28,"parts":[{"kind":"polygon","stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale","points":[[0,0],[27,0],[27,14],[13,28],[0,28]]},{"kind":"polygon","stroke":"accent","stroke_width":0.5,"fill":"accent","points":[[13,28],[13,14],[27,14]]}]}],"style":{"width":105}},{"type":"field","bind":"body","style":{"size":"body","line_height":1.82,"padding":[9,0,0,0]}}]},
+      "faq_card": {"type":"stack","children":[{"type":"text","text":"问","style":{"size":"label","weight":700,"color":"ink","background":"secondary_pale","align":"center","line_height":1.9,"width":25}},{"type":"field","bind":"title","style":{"size":"subheading","color":"ink","weight":720,"line_height":1.55,"padding":[5,0,8,0]}},{"type":"text","text":"答","style":{"size":"label","weight":700,"color":"primary","fit":"content","border_top":{"width":2,"color":"sky","style":"solid"},"padding":[4,9,0,9]}},{"type":"field","bind":"body","style":{"size":"body","line_height":1.82,"padding":[5,0,0,9]}}]},
+      "comparison_card": {"type":"stack","children":[{"type":"stack","children":[{"type":"drawing","width":62,"height":8,"parts":[{"kind":"polygon","points":[[0,0],[60,0],[52,8],[0,8]],"stroke":"secondary","stroke_width":0.5,"fill":"secondary"}]},{"type":"field","bind":"left","style":{"size":"body","line_height":1.8,"padding":[8,0,0,0]}}],"style":{"margin":[0,9,10,0],"border_top":{"width":1,"color":"secondary","style":"solid"}}},{"type":"stack","children":[{"type":"drawing","width":62,"height":8,"parts":[{"kind":"polygon","points":[[10,0],[62,0],[62,8],[2,8]],"stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale"}],"style":{"align":"right"}},{"type":"field","bind":"right","style":{"size":"body","line_height":1.8,"padding":[8,0,0,0]}}],"style":{"margin":[0,0,0,9],"border_top":{"width":1,"color":"secondary_pale","style":"solid"}}}]},
+      "numbered_insight": {"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":8,"gap":4,"children":[{"type":"field","bind":"index","style":{"size":"caption","font":"mono","color":"primary","weight":650,"line_height":2.05,"border_bottom":{"width":2,"color":"secondary_pale","style":"solid"},"width":22}},{"type":"field","bind":"item","style":{"size":"body","line_height":1.77}}]}],"style":{"padding":[5,0,5,0]}},
+      "before_after_timeline": {"type":"stack","children":[{"type":"text","text":"之前","style":{"size":"label","weight":700,"color":"primary","fit":"content","background":"sky_pale","padding":[3,8,3,8]}},{"type":"field","bind":"left","style":{"size":"body","line_height":1.8,"padding":[4,0,2,0]}},{"type":"drawing","width":24,"height":22,"parts":[{"kind":"polyline","points":[[4,1],[4,15],[20,15]],"stroke":"sky","stroke_width":1.4},{"kind":"polyline","points":[[16,11],[20,15],[16,19]],"stroke":"primary","stroke_width":1.4}],"style":{"margin":[5,0,5,0]}},{"type":"text","text":"之后","style":{"size":"label","weight":700,"color":"ink","fit":"content","background":"pale","padding":[3,8,3,8]}},{"type":"field","bind":"right","style":{"size":"body","line_height":1.8,"padding":[4,0,0,0]}}]},
+      "logic_path": {"type":"stack","children":[{"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":8,"gap":4,"children":[{"type":"field","bind":"index","style":{"size":"caption","font":"mono","color":"ink","weight":650,"width":22,"background":"pale","align":"center","margin":[2,0,0,0],"line_height":1.7}},{"type":"field","bind":"item","style":{"size":"body","line_height":1.77}}]}],"style":{"padding":[4,0,5,0]}}],"style":{"border_left":{"width":2,"color":"secondary_pale","style":"solid"}}},
+      "action_checklist": {"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":6,"gap":2,"children":[{"type":"drawing","width":16,"height":12,"parts":[{"kind":"polyline","points":[[2,1],[11,1],[11,10],[2,10],[2,1]],"stroke":"primary","stroke_width":1.4}],"style":{"padding":[7,0,0,0]}},{"type":"field","bind":"item","style":{"size":"body","line_height":1.8}}]}],"style":{"padding":[4,0,5,0],"border_bottom":{"width":1,"color":"secondary","style":"solid"}}},
+      "section_summary": {"type":"stack","children":[{"type":"text","text":"小结","style":{"size":"label","weight":700,"color":"primary","border_bottom":{"width":1,"color":"secondary","style":"solid"},"padding":[0,0,5,0]}},{"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":6,"gap":0,"children":[{"type":"drawing","width":16,"height":12,"parts":[{"kind":"polyline","points":[[2,6],[12,6]],"stroke":"accent","stroke_width":1.4}],"style":{"padding":[7,0,0,0]}},{"type":"field","bind":"item","style":{"size":"body","line_height":1.78}}]}],"style":{"padding":[3,0,3,0]}}],"style":{"padding":[0,0,5,0]}},
+      "divider": {"type":"ornament_rule","slot_width":16,"line_color":"secondary","children":[{"type":"drawing","width":28,"height":10,"parts":[{"kind":"polygon","points":[[2,8],[7,2],[12,2],[7,8]],"stroke":"secondary_pale","stroke_width":0.5,"fill":"secondary_pale"},{"kind":"polygon","points":[[13,8],[18,2],[23,2],[18,8]],"stroke":"sky","stroke_width":0.5,"fill":"sky"}]}]},
+      "closing_cta": {"type":"stack","children":[{"type":"rule","style":{"border_top":{"width":2,"color":"sky","style":"solid"}}},{"type":"field","bind":"body","style":{"size":"body","color":"primary","line_height":1.78,"padding":[8,0,10,0]}},{"type":"media"}]}
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

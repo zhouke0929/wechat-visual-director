@@ -20,6 +20,7 @@ from visual_director.image_provider import (
     build_theme_fallback_cover,
     create_image_provider_from_env,
     resolve_images_api_adapter,
+    validate_provider_prompt,
 )
 from visual_director.main import create_app
 from visual_director.visual_dna import resolve_article_image_direction
@@ -65,6 +66,35 @@ def prompt_slot(*, purpose: str, subject: str, item_count: int = 0) -> dict[str,
             "facts_locked": True,
         },
     }
+
+
+@pytest.mark.parametrize("purpose", ["atmosphere", "structured_infographic"])
+def test_custom_theme_numeric_hex_palette_keeps_exact_color_without_false_sensitive_match(purpose: str) -> None:
+    slot = prompt_slot(purpose=purpose, subject="记录一次散步", item_count=2)
+    slot["visual_intent"].update({
+        "palette_roles": ["#568454", "#E8A8B6", "#FFFFFF"],
+        "article_art_direction": {"palette_roles": ["#568454", "#E8A8B6", "#FFFFFF"]},
+    })
+    prompt = build_provider_prompt(
+        slot, "tutorial_steps", infographic_title="留下街区手记",
+        infographic_items=["选一个片刻", "补两项信息"],
+    )
+    assert "RGB(86, 132, 84)" in prompt
+    assert "RGB(232, 168, 182)" in prompt
+    validate_provider_prompt(prompt)
+
+
+@pytest.mark.parametrize("private_text", ["123456", "13800138000", "person@example.com", "联系电话"])
+def test_color_prompt_compilation_does_not_relax_sensitive_content_checks(private_text: str) -> None:
+    with pytest.raises(ImageProviderError) as exc:
+        validate_provider_prompt(f"RGB(86, 132, 84) {private_text}")
+    assert exc.value.code == "provider_prompt_sensitive"
+
+
+@pytest.mark.parametrize("aspect_ratio", ["16:9", "4:3"])
+def test_generic_atmosphere_prompt_includes_slot_aspect_ratio(aspect_ratio: str) -> None:
+    slot = {**prompt_slot(purpose="atmosphere", subject="街区散步"), "aspect_ratio": aspect_ratio}
+    assert f"横版{aspect_ratio}语义插画" in build_provider_prompt(slot, "tutorial_steps")
 
 
 def test_provider_prompt_routes_article_style_and_locks_infographic_copy() -> None:

@@ -1,0 +1,3006 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "ticket_and_stub",
+  "name": "票面与副联",
+  "english": "TICKET & STUB",
+  "description": "用出票槽和纸票边界串联片头、图文与短信息，长段正文在白底舒展排版。",
+  "version": "1.2.1",
+  "author": "Visual Director",
+  "base_theme": "light_reading",
+  "ideal_for": [
+    "活动指南",
+    "参观手记",
+    "展览与社区报道"
+  ],
+  "personality": [
+    "清楚",
+    "质朴",
+    "有秩序"
+  ],
+  "palette": {
+    "primary": "#255345",
+    "secondary": "#9EA591",
+    "accent": "#8B5228",
+    "sky": "#586551",
+    "pale": "#F7F0DE",
+    "secondary_pale": "#EDE3C9",
+    "accent_pale": "#F8ECDD",
+    "sky_pale": "#F3EDDD",
+    "surface": "#FFFFFF",
+    "ink": "#25332D"
+  },
+  "visual_dna": {
+    "warmth": 0.47,
+    "saturation": 0.34,
+    "contrast": 0.69,
+    "geometry": 0.82,
+    "tactility": 0.64,
+    "dimensionality": 0.26,
+    "energy": 0.45,
+    "information_density": 0.5,
+    "brand_formality": 0.58
+  },
+  "material_tags": [
+    "ticket_stock",
+    "perforated_paper",
+    "printed_ink"
+  ],
+  "tone": [
+    "利落",
+    "温和",
+    "易扫读"
+  ],
+  "design_system": {
+    "composition": "ribbon_story",
+    "motifs": [
+      "none"
+    ],
+    "frame": "stitched",
+    "marker": "ticket",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 36,
+      "component_gap": 24,
+      "inset": 14
+    },
+    "typography": {
+      "heading_scale": 1.04,
+      "body_scale": 1,
+      "letter_spacing": "normal",
+      "heading_weight": 760
+    },
+    "ornament": {
+      "density": 0.28,
+      "border_width": 1,
+      "corner_radius": 0
+    },
+    "layouts": {
+      "hero": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 128,
+            "height": 37,
+            "sizing": "natural",
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    11,
+                    36
+                  ],
+                  [
+                    19,
+                    7
+                  ],
+                  [
+                    23,
+                    4
+                  ],
+                  [
+                    27,
+                    8
+                  ],
+                  [
+                    30,
+                    6
+                  ],
+                  [
+                    56,
+                    15
+                  ],
+                  [
+                    50,
+                    36
+                  ]
+                ],
+                "fill": "secondary_pale",
+                "stroke": "primary",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    19,
+                    21
+                  ],
+                  [
+                    51,
+                    30
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    25,
+                    12
+                  ],
+                  [
+                    46,
+                    18
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1.4
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    68,
+                    36
+                  ],
+                  [
+                    64,
+                    13
+                  ],
+                  [
+                    103,
+                    2
+                  ],
+                  [
+                    106,
+                    5
+                  ],
+                  [
+                    111,
+                    3
+                  ],
+                  [
+                    120,
+                    36
+                  ]
+                ],
+                "fill": "sky_pale",
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    68,
+                    21
+                  ],
+                  [
+                    109,
+                    10
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    74,
+                    28
+                  ],
+                  [
+                    85,
+                    25
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    91,
+                    24
+                  ],
+                  [
+                    110,
+                    19
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1
+              }
+            ],
+            "style": {
+              "align": "right",
+              "padding": [
+                0,
+                12,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "rule",
+                "style": {
+                  "border_top": {
+                    "width": 1,
+                    "color": "secondary_pale",
+                    "style": "solid"
+                  }
+                }
+              }
+            ],
+            "style": {
+              "background": "primary",
+              "padding": [
+                5,
+                13,
+                6,
+                13
+              ],
+              "radius": [
+                4,
+                4,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "title",
+                  "align": "center",
+                  "line_height": 1.43,
+                  "weight": 850,
+                  "background": "pale",
+                  "padding": [
+                    26,
+                    27,
+                    25,
+                    27
+                  ]
+                }
+              },
+              {
+                "type": "rule",
+                "style": {
+                  "border_top": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "kicker",
+                "style": {
+                  "size": "caption",
+                  "align": "center",
+                  "weight": 650,
+                  "color": "primary",
+                  "background": "secondary_pale",
+                  "padding": [
+                    9,
+                    16,
+                    8,
+                    16
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 160,
+                "height": 8,
+                "sizing": "full_width",
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        0,
+                        0
+                      ],
+                      [
+                        80,
+                        0
+                      ],
+                      [
+                        80,
+                        7
+                      ],
+                      [
+                        75,
+                        3
+                      ],
+                      [
+                        70,
+                        7
+                      ],
+                      [
+                        65,
+                        3
+                      ],
+                      [
+                        60,
+                        7
+                      ],
+                      [
+                        55,
+                        3
+                      ],
+                      [
+                        50,
+                        7
+                      ],
+                      [
+                        45,
+                        3
+                      ],
+                      [
+                        40,
+                        7
+                      ],
+                      [
+                        35,
+                        3
+                      ],
+                      [
+                        30,
+                        7
+                      ],
+                      [
+                        25,
+                        3
+                      ],
+                      [
+                        20,
+                        7
+                      ],
+                      [
+                        15,
+                        3
+                      ],
+                      [
+                        10,
+                        7
+                      ],
+                      [
+                        5,
+                        3
+                      ],
+                      [
+                        0,
+                        7
+                      ]
+                    ],
+                    "fill": "secondary_pale",
+                    "stroke": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        80,
+                        0
+                      ],
+                      [
+                        160,
+                        0
+                      ],
+                      [
+                        160,
+                        7
+                      ],
+                      [
+                        155,
+                        3
+                      ],
+                      [
+                        150,
+                        7
+                      ],
+                      [
+                        145,
+                        3
+                      ],
+                      [
+                        140,
+                        7
+                      ],
+                      [
+                        135,
+                        3
+                      ],
+                      [
+                        130,
+                        7
+                      ],
+                      [
+                        125,
+                        3
+                      ],
+                      [
+                        120,
+                        7
+                      ],
+                      [
+                        115,
+                        3
+                      ],
+                      [
+                        110,
+                        7
+                      ],
+                      [
+                        105,
+                        3
+                      ],
+                      [
+                        100,
+                        7
+                      ],
+                      [
+                        95,
+                        3
+                      ],
+                      [
+                        90,
+                        7
+                      ],
+                      [
+                        85,
+                        3
+                      ],
+                      [
+                        80,
+                        7
+                      ]
+                    ],
+                    "fill": "secondary_pale",
+                    "stroke": "secondary_pale",
+                    "stroke_width": 0.5
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "margin": [
+                0,
+                9,
+                0,
+                9
+              ]
+            }
+          }
+        ]
+      },
+      "heading": {
+        "type": "marker_row",
+        "children": [
+          {
+            "type": "field",
+            "bind": "index",
+            "style": {
+              "font": "mono",
+              "size": "subheading",
+              "line_height": 1.5,
+              "weight": 700,
+              "color": "primary",
+              "align": "center",
+              "background": "secondary_pale"
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "heading",
+              "color": "primary",
+              "line_height": 1.45
+            }
+          }
+        ],
+        "marker_width": 12,
+        "gap": 9,
+        "style": {
+          "padding": [
+            7,
+            4,
+            8,
+            0
+          ],
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          }
+        }
+      },
+      "lead": {
+        "type": "field",
+        "bind": "body",
+        "style": {
+          "padding": [
+            4,
+            0,
+            4,
+            13
+          ],
+          "border_left": {
+            "width": 2,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "image_caption": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "rule",
+                "style": {
+                  "border_top": {
+                    "width": 1,
+                    "color": "secondary_pale",
+                    "style": "solid"
+                  }
+                }
+              }
+            ],
+            "style": {
+              "background": "primary",
+              "padding": [
+                5,
+                13,
+                6,
+                13
+              ],
+              "radius": [
+                4,
+                4,
+                1,
+                1
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "media"
+                  }
+                ],
+                "style": {
+                  "padding": [
+                    6,
+                    4,
+                    0,
+                    4
+                  ]
+                }
+              },
+              {
+                "type": "rule",
+                "style": {
+                  "border_top": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "caption",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "align": "left",
+                  "line_height": 1.6,
+                  "padding": [
+                    4,
+                    8,
+                    4,
+                    8
+                  ],
+                  "background": "secondary_pale"
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 160,
+                "height": 8,
+                "sizing": "full_width",
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        0,
+                        0
+                      ],
+                      [
+                        80,
+                        0
+                      ],
+                      [
+                        80,
+                        7
+                      ],
+                      [
+                        75,
+                        3
+                      ],
+                      [
+                        70,
+                        7
+                      ],
+                      [
+                        65,
+                        3
+                      ],
+                      [
+                        60,
+                        7
+                      ],
+                      [
+                        55,
+                        3
+                      ],
+                      [
+                        50,
+                        7
+                      ],
+                      [
+                        45,
+                        3
+                      ],
+                      [
+                        40,
+                        7
+                      ],
+                      [
+                        35,
+                        3
+                      ],
+                      [
+                        30,
+                        7
+                      ],
+                      [
+                        25,
+                        3
+                      ],
+                      [
+                        20,
+                        7
+                      ],
+                      [
+                        15,
+                        3
+                      ],
+                      [
+                        10,
+                        7
+                      ],
+                      [
+                        5,
+                        3
+                      ],
+                      [
+                        0,
+                        7
+                      ]
+                    ],
+                    "fill": "secondary_pale",
+                    "stroke": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        80,
+                        0
+                      ],
+                      [
+                        160,
+                        0
+                      ],
+                      [
+                        160,
+                        7
+                      ],
+                      [
+                        155,
+                        3
+                      ],
+                      [
+                        150,
+                        7
+                      ],
+                      [
+                        145,
+                        3
+                      ],
+                      [
+                        140,
+                        7
+                      ],
+                      [
+                        135,
+                        3
+                      ],
+                      [
+                        130,
+                        7
+                      ],
+                      [
+                        125,
+                        3
+                      ],
+                      [
+                        120,
+                        7
+                      ],
+                      [
+                        115,
+                        3
+                      ],
+                      [
+                        110,
+                        7
+                      ],
+                      [
+                        105,
+                        3
+                      ],
+                      [
+                        100,
+                        7
+                      ],
+                      [
+                        95,
+                        3
+                      ],
+                      [
+                        90,
+                        7
+                      ],
+                      [
+                        85,
+                        3
+                      ],
+                      [
+                        80,
+                        7
+                      ]
+                    ],
+                    "fill": "secondary_pale",
+                    "stroke": "secondary_pale",
+                    "stroke_width": 0.5
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "margin": [
+                0,
+                9,
+                0,
+                9
+              ]
+            }
+          }
+        ]
+      },
+      "faq_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 5,
+            "children": [
+              {
+                "type": "text",
+                "text": "问",
+                "style": {
+                  "size": "subheading",
+                  "color": "accent",
+                  "weight": 760,
+                  "font": "serif",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    2
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "color": "primary",
+                  "size": "subheading",
+                  "weight": 800,
+                  "line_height": 1.48,
+                  "padding": [
+                    0,
+                    6,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                7,
+                8,
+                3,
+                11
+              ]
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 8,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    160,
+                    0
+                  ],
+                  [
+                    160,
+                    2
+                  ],
+                  [
+                    148,
+                    4
+                  ],
+                  [
+                    140,
+                    3
+                  ],
+                  [
+                    131,
+                    5
+                  ],
+                  [
+                    121,
+                    4
+                  ],
+                  [
+                    112,
+                    7
+                  ],
+                  [
+                    102,
+                    4
+                  ],
+                  [
+                    91,
+                    6
+                  ],
+                  [
+                    80,
+                    3
+                  ],
+                  [
+                    71,
+                    5
+                  ],
+                  [
+                    61,
+                    3
+                  ],
+                  [
+                    49,
+                    5
+                  ],
+                  [
+                    41,
+                    3
+                  ],
+                  [
+                    30,
+                    5
+                  ],
+                  [
+                    23,
+                    2
+                  ],
+                  [
+                    13,
+                    4
+                  ],
+                  [
+                    0,
+                    2
+                  ]
+                ],
+                "stroke": "pale",
+                "fill": "pale",
+                "stroke_width": 0.5
+              }
+            ],
+            "sizing": "full_width"
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 7,
+            "children": [
+              {
+                "type": "text",
+                "text": "答",
+                "style": {
+                  "size": "label",
+                  "color": "accent",
+                  "weight": 760,
+                  "padding": [
+                    3,
+                    0,
+                    0,
+                    2
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      },
+      "case_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "案例",
+                    "style": {
+                      "size": "caption",
+                      "color": "accent",
+                      "weight": 720,
+                      "padding": [
+                        0,
+                        0,
+                        2,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "title",
+                    "style": {
+                      "size": "subheading",
+                      "weight": 780,
+                      "color": "primary",
+                      "line_height": 1.48,
+                      "padding": [
+                        0,
+                        6,
+                        3,
+                        0
+                      ]
+                    }
+                  }
+                ],
+                "style": {}
+              },
+              {
+                "type": "drawing",
+                "width": 51,
+                "height": 45,
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 5,
+                    "y": 3,
+                    "w": 39,
+                    "h": 39,
+                    "stroke": "accent",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 8,
+                    "y": 6,
+                    "w": 33,
+                    "h": 33,
+                    "stroke": "accent",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        12,
+                        26
+                      ],
+                      [
+                        36,
+                        15
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.8
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        16,
+                        29
+                      ],
+                      [
+                        38,
+                        19
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.65
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        20,
+                        32
+                      ],
+                      [
+                        40,
+                        23
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.65
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        13,
+                        21
+                      ],
+                      [
+                        23,
+                        17
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1.15
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        22,
+                        14
+                      ],
+                      [
+                        31,
+                        11
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 13,
+                    "y": 16,
+                    "w": 2.5,
+                    "h": 2.5,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 30,
+                    "y": 30,
+                    "w": 2.5,
+                    "h": 2.5,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right",
+                  "margin": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "rule",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              },
+              "margin": [
+                1,
+                0,
+                7,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "color": "ink",
+              "line_height": 1.85,
+              "padding": [
+                0,
+                3,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "comparison_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 2,
+            "children": [
+              {
+                "type": "text",
+                "text": "A",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 800,
+                  "font": "mono",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    3
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.83,
+                  "padding": [
+                    1,
+                    3,
+                    0,
+                    9
+                  ],
+                  "border_left": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 8,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    4
+                  ],
+                  [
+                    14,
+                    4
+                  ],
+                  [
+                    18,
+                    7
+                  ],
+                  [
+                    22,
+                    4
+                  ],
+                  [
+                    139,
+                    4
+                  ],
+                  [
+                    144,
+                    7
+                  ],
+                  [
+                    149,
+                    4
+                  ],
+                  [
+                    160,
+                    4
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    4
+                  ],
+                  [
+                    9,
+                    4
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    151,
+                    4
+                  ],
+                  [
+                    160,
+                    4
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 1.25
+              }
+            ],
+            "style": {
+              "margin": [
+                5,
+                0,
+                5,
+                0
+              ]
+            },
+            "sizing": "full_width"
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 2,
+            "children": [
+              {
+                "type": "text",
+                "text": "B",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 800,
+                  "font": "mono",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    3
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.83,
+                  "padding": [
+                    1,
+                    3,
+                    0,
+                    9
+                  ],
+                  "border_left": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "style": {}
+      },
+      "warning_note": {
+        "type": "marker_row",
+        "marker_width": 13,
+        "gap": 5,
+        "children": [
+          {
+            "type": "drawing",
+            "width": 33,
+            "height": 27,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    1,
+                    5
+                  ],
+                  [
+                    24,
+                    5
+                  ],
+                  [
+                    31,
+                    12
+                  ],
+                  [
+                    31,
+                    22
+                  ],
+                  [
+                    4,
+                    22
+                  ],
+                  [
+                    4,
+                    18
+                  ],
+                  [
+                    1,
+                    16
+                  ]
+                ],
+                "stroke": "accent",
+                "fill": "accent",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    9,
+                    8
+                  ],
+                  [
+                    12,
+                    8
+                  ],
+                  [
+                    12,
+                    15
+                  ],
+                  [
+                    17,
+                    15
+                  ],
+                  [
+                    17,
+                    18
+                  ],
+                  [
+                    9,
+                    18
+                  ]
+                ],
+                "stroke": "surface",
+                "fill": "surface",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20,
+                    9
+                  ],
+                  [
+                    23,
+                    9
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 0.8
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20,
+                    12
+                  ],
+                  [
+                    26,
+                    12
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 0.8
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20,
+                    16
+                  ],
+                  [
+                    27,
+                    16
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 0.8
+              }
+            ],
+            "style": {
+              "margin": [
+                1,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "text",
+                "text": "留意",
+                "style": {
+                  "size": "caption",
+                  "color": "accent",
+                  "weight": 720,
+                  "padding": [
+                    1,
+                    0,
+                    3,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    0,
+                    5,
+                    2,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          }
+        ]
+      },
+      "subheading": {
+        "type": "field",
+        "bind": "title",
+        "style": {
+          "size": "subheading",
+          "padding": [
+            0,
+            0,
+            0,
+            11
+          ],
+          "border_left": {
+            "width": 3,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "quote": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "font": "serif",
+              "size": "subheading",
+              "color": "primary",
+              "weight": 620,
+              "line_height": 1.75,
+              "padding": [
+                1,
+                8,
+                5,
+                0
+              ]
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 26,
+            "height": 19,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    23,
+                    4
+                  ],
+                  [
+                    23,
+                    7
+                  ],
+                  [
+                    21,
+                    9
+                  ],
+                  [
+                    23,
+                    11
+                  ],
+                  [
+                    23,
+                    15
+                  ],
+                  [
+                    2,
+                    15
+                  ],
+                  [
+                    2,
+                    12
+                  ],
+                  [
+                    4,
+                    9
+                  ],
+                  [
+                    2,
+                    7
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "fill": "secondary_pale",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    23,
+                    4
+                  ],
+                  [
+                    23,
+                    7
+                  ],
+                  [
+                    21,
+                    9
+                  ],
+                  [
+                    23,
+                    11
+                  ],
+                  [
+                    23,
+                    15
+                  ],
+                  [
+                    2,
+                    15
+                  ],
+                  [
+                    2,
+                    12
+                  ],
+                  [
+                    4,
+                    9
+                  ],
+                  [
+                    2,
+                    7
+                  ],
+                  [
+                    2,
+                    4
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    9,
+                    5
+                  ],
+                  [
+                    9,
+                    7
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 0.8
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    9,
+                    9
+                  ],
+                  [
+                    9,
+                    11
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 0.8
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    9,
+                    13
+                  ],
+                  [
+                    9,
+                    14
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 0.8
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    12,
+                    10
+                  ],
+                  [
+                    18,
+                    10
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 0.8
+              }
+            ],
+            "style": {
+              "align": "right",
+              "margin": [
+                0,
+                2,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "list": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "font": "mono",
+                  "size": "body",
+                  "line_height": 1.85,
+                  "weight": 700,
+                  "color": "primary",
+                  "align": "center"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item"
+              }
+            ],
+            "marker_width": 8,
+            "gap": 7
+          }
+        ],
+        "style": {
+          "padding": [
+            2,
+            0,
+            2,
+            0
+          ]
+        }
+      },
+      "question_hook": {
+        "type": "marker_row",
+        "children": [
+          {
+            "type": "text",
+            "text": "?",
+            "style": {
+              "font": "mono",
+              "weight": 700,
+              "color": "primary",
+              "size": "heading",
+              "line_height": 1.4,
+              "align": "center",
+              "background": "secondary_pale",
+              "border_right": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dotted"
+              }
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "heading",
+              "line_height": 1.4,
+              "color": "primary"
+            }
+          }
+        ],
+        "marker_width": 6,
+        "gap": 1,
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          },
+          "padding": [
+            0,
+            0,
+            8,
+            0
+          ]
+        }
+      },
+      "numbered_insight": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 5,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "font": "mono",
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "border_bottom": {
+                    "width": 2,
+                    "color": "accent",
+                    "style": "solid"
+                  },
+                  "fit": "content",
+                  "padding": [
+                    3,
+                    3,
+                    0,
+                    3
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.76,
+                  "weight": 570
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            0,
+            5,
+            0
+          ]
+        }
+      },
+      "evidence_callout": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "font": "serif",
+              "color": "primary",
+              "size": "subheading",
+              "weight": 620,
+              "line_height": 1.7,
+              "padding": [
+                0,
+                11,
+                4,
+                10
+              ],
+              "border_left": {
+                "width": 2,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "rule",
+                    "style": {
+                      "border_top": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "dotted"
+                      },
+                      "margin": [
+                        5,
+                        0,
+                        0,
+                        9
+                      ]
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "text": "摘录",
+                    "style": {
+                      "size": "caption",
+                      "color": "accent",
+                      "weight": 720,
+                      "padding": [
+                        2,
+                        0,
+                        0,
+                        9
+                      ]
+                    }
+                  }
+                ],
+                "style": {}
+              },
+              {
+                "type": "drawing",
+                "width": 40,
+                "height": 23,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        3,
+                        4
+                      ],
+                      [
+                        34,
+                        4
+                      ],
+                      [
+                        31,
+                        7
+                      ],
+                      [
+                        35,
+                        9
+                      ],
+                      [
+                        31,
+                        11
+                      ],
+                      [
+                        35,
+                        14
+                      ],
+                      [
+                        31,
+                        16
+                      ],
+                      [
+                        35,
+                        19
+                      ],
+                      [
+                        3,
+                        19
+                      ],
+                      [
+                        3,
+                        14
+                      ],
+                      [
+                        6,
+                        11
+                      ],
+                      [
+                        3,
+                        8
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        7
+                      ],
+                      [
+                        25,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1.1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        11
+                      ],
+                      [
+                        20,
+                        11
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        10,
+                        16
+                      ],
+                      [
+                        10,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        13,
+                        16
+                      ],
+                      [
+                        13,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        16,
+                        16
+                      ],
+                      [
+                        16,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        19,
+                        16
+                      ],
+                      [
+                        19,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ]
+          }
+        ],
+        "style": {}
+      },
+      "before_after_timeline": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 9,
+            "gap": 5,
+            "children": [
+              {
+                "type": "text",
+                "text": "前",
+                "style": {
+                  "size": "subheading",
+                  "color": "accent",
+                  "weight": 760,
+                  "font": "serif"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8
+                }
+              }
+            ]
+          },
+          {
+            "type": "drawing",
+            "width": 36,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    2,
+                    7
+                  ],
+                  [
+                    33,
+                    7
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "ellipse",
+                "x": 3,
+                "y": 4,
+                "w": 6,
+                "h": 6,
+                "stroke": "accent",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 26,
+                "y": 4,
+                "w": 6,
+                "h": 6,
+                "stroke": "primary",
+                "fill": "primary",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "margin": [
+                4,
+                0,
+                4,
+                0
+              ]
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 9,
+            "gap": 5,
+            "children": [
+              {
+                "type": "text",
+                "text": "后",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 760,
+                  "font": "serif"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8
+                }
+              }
+            ]
+          }
+        ],
+        "style": {}
+      },
+      "logic_path": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "font": "mono",
+                  "size": "body",
+                  "line_height": 1.85,
+                  "weight": 700,
+                  "color": "primary",
+                  "align": "center",
+                  "border_right": {
+                    "width": 2,
+                    "color": "secondary",
+                    "style": "dotted"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item"
+              }
+            ],
+            "marker_width": 10,
+            "gap": 11
+          }
+        ],
+        "style": {
+          "padding": [
+            4,
+            0,
+            4,
+            0
+          ]
+        }
+      },
+      "concept_explainer": {
+        "type": "repeat",
+        "bind": "entries",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "weight": 760,
+                  "color": "primary",
+                  "fit": "content",
+                  "background": "secondary_pale",
+                  "padding": [
+                    3,
+                    12,
+                    3,
+                    8
+                  ],
+                  "radius": [
+                    4,
+                    4,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 32,
+                "height": 12,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        1,
+                        0
+                      ],
+                      [
+                        31,
+                        0
+                      ],
+                      [
+                        31,
+                        3
+                      ],
+                      [
+                        25,
+                        10
+                      ],
+                      [
+                        1,
+                        10
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        4,
+                        8
+                      ],
+                      [
+                        23,
+                        8
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.7
+                  }
+                ]
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    1,
+                    0,
+                    0,
+                    8
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            10,
+            0
+          ]
+        }
+      },
+      "action_checklist": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "children": [
+              {
+                "type": "drawing",
+                "width": 18,
+                "height": 22,
+                "sizing": "natural",
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 6,
+                    "y": 8,
+                    "w": 6,
+                    "h": 6,
+                    "stroke": "primary",
+                    "stroke_width": 1,
+                    "fill": "surface"
+                  }
+                ],
+                "style": {
+                  "align": "center",
+                  "margin": [
+                    3,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item"
+              }
+            ],
+            "marker_width": 8,
+            "gap": 7,
+            "style": {
+              "padding": [
+                5,
+                0,
+                5,
+                0
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dotted"
+              }
+            }
+          }
+        ]
+      },
+      "section_summary": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 14,
+            "gap": 4,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 40,
+                "height": 23,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        3,
+                        4
+                      ],
+                      [
+                        34,
+                        4
+                      ],
+                      [
+                        31,
+                        7
+                      ],
+                      [
+                        35,
+                        9
+                      ],
+                      [
+                        31,
+                        11
+                      ],
+                      [
+                        35,
+                        14
+                      ],
+                      [
+                        31,
+                        16
+                      ],
+                      [
+                        35,
+                        19
+                      ],
+                      [
+                        3,
+                        19
+                      ],
+                      [
+                        3,
+                        14
+                      ],
+                      [
+                        6,
+                        11
+                      ],
+                      [
+                        3,
+                        8
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        7
+                      ],
+                      [
+                        25,
+                        7
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1.1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        11
+                      ],
+                      [
+                        20,
+                        11
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        10,
+                        16
+                      ],
+                      [
+                        10,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        13,
+                        16
+                      ],
+                      [
+                        13,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        16,
+                        16
+                      ],
+                      [
+                        16,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        19,
+                        16
+                      ],
+                      [
+                        19,
+                        13
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.75
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "小结",
+                "style": {
+                  "size": "subheading",
+                  "color": "primary",
+                  "weight": 720,
+                  "padding": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "rule",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              },
+              "margin": [
+                5,
+                0,
+                5,
+                0
+              ]
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 6,
+                "gap": 5,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "·",
+                    "style": {
+                      "size": "label",
+                      "color": "accent",
+                      "weight": 720
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "color": "ink",
+                      "line_height": 1.78
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                3,
+                0,
+                2,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "divider": {
+        "type": "ornament_rule",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 34,
+            "height": 12,
+            "sizing": "natural",
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    4,
+                    3
+                  ],
+                  [
+                    12,
+                    3
+                  ],
+                  [
+                    16,
+                    6
+                  ],
+                  [
+                    12,
+                    9
+                  ],
+                  [
+                    4,
+                    9
+                  ]
+                ],
+                "fill": "secondary_pale",
+                "stroke": "primary",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    30,
+                    3
+                  ],
+                  [
+                    22,
+                    3
+                  ],
+                  [
+                    18,
+                    6
+                  ],
+                  [
+                    22,
+                    9
+                  ],
+                  [
+                    30,
+                    9
+                  ]
+                ],
+                "fill": "secondary_pale",
+                "stroke": "primary",
+                "stroke_width": 0.5
+              }
+            ]
+          }
+        ],
+        "slot_width": 16,
+        "line_color": "secondary"
+      },
+      "closing_cta": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 10,
+            "gap": 5,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 26,
+                "height": 19,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        2,
+                        4
+                      ],
+                      [
+                        23,
+                        4
+                      ],
+                      [
+                        23,
+                        7
+                      ],
+                      [
+                        21,
+                        9
+                      ],
+                      [
+                        23,
+                        11
+                      ],
+                      [
+                        23,
+                        15
+                      ],
+                      [
+                        2,
+                        15
+                      ],
+                      [
+                        2,
+                        12
+                      ],
+                      [
+                        4,
+                        9
+                      ],
+                      [
+                        2,
+                        7
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        4
+                      ],
+                      [
+                        23,
+                        4
+                      ],
+                      [
+                        23,
+                        7
+                      ],
+                      [
+                        21,
+                        9
+                      ],
+                      [
+                        23,
+                        11
+                      ],
+                      [
+                        23,
+                        15
+                      ],
+                      [
+                        2,
+                        15
+                      ],
+                      [
+                        2,
+                        12
+                      ],
+                      [
+                        4,
+                        9
+                      ],
+                      [
+                        2,
+                        7
+                      ],
+                      [
+                        2,
+                        4
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        5
+                      ],
+                      [
+                        9,
+                        7
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.8
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        9
+                      ],
+                      [
+                        9,
+                        11
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.8
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        13
+                      ],
+                      [
+                        9,
+                        14
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.8
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        12,
+                        10
+                      ],
+                      [
+                        18,
+                        10
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 0.8
+                  }
+                ]
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.85,
+                  "padding": [
+                    0,
+                    0,
+                    4,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "media"
+          },
+          {
+            "type": "rule",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              },
+              "margin": [
+                7,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      }
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

@@ -1,4 +1,4 @@
-"""Probe declared theme layouts through production entry points, with no user data."""
+"""Probe theme layouts and shared foundations through production, with no user data."""
 from __future__ import annotations
 
 from html.parser import HTMLParser
@@ -18,11 +18,14 @@ class _LayoutProbe(HTMLParser):
         super().__init__()
         self.stack: list[tuple[str, dict]] = []
         self.roles: dict[str, list[list[dict]]] = {}
+        self.nodes: list[tuple[str, list[dict]]] = []
+        self.list_indexes: dict[str, list[str]] = {}
         self.feed(document)
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
         ancestors = [item[1] for item in self.stack] + [attributes]
+        self.nodes.append((tag, ancestors))
         if attributes.get("data-theme-layout"):
             self.roles.setdefault(attributes["data-theme-layout"], []).append(ancestors)
         if tag not in {"img", "br", "hr", "meta", "link", "input", "source", "wbr"}:
@@ -35,9 +38,25 @@ class _LayoutProbe(HTMLParser):
         if self.stack and self.stack[-1][0] == tag:
             self.stack.pop()
 
+    def handle_data(self, data):
+        if not data.strip() or not any(attrs.get("data-theme-list-index") == "true" for _, attrs in self.stack):
+            return
+        block_id = next((attrs["data-editor-block-ids"] for _, attrs in self.stack
+                         if "data-editor-block-ids" in attrs), None)
+        if block_id:
+            self.list_indexes.setdefault(block_id, []).append(data.strip())
+
     def owns(self, role, key=None, value=None):
         return any(key is None or any(node.get(key) == value for node in ancestors)
                    for ancestors in self.roles.get(role, []))
+
+    def contains(self, block_id, *, tag=None, content_role=None):
+        return any(
+            (tag is None or name == tag)
+            and (content_role is None or ancestors[-1].get("data-content-role") == content_role)
+            and any(node.get("data-editor-block-ids") == block_id for node in ancestors)
+            for name, ancestors in self.nodes
+        )
 
 
 def _fixture(long: bool):
@@ -50,7 +69,7 @@ def _fixture(long: bool):
 
 ### 为什么需要先判断再行动？
 
-因为需要把观察与结论分开。{phrase}
+因为需要把**观察与结论分开**。{phrase}
 
 > 引文保持原意。{phrase}
 
@@ -77,6 +96,16 @@ def _fixture(long: bool):
 ---
 
 ![公开图文测试](probe-image.png)
+
+| 对象 | 表达 |
+| --- | --- |
+| 并列事项 | 普通列表 |
+
+来源：公开合成试样。
+
+### 参考资料
+
+- [示例资料](https://example.com/reference)
 """)
 
 
@@ -86,9 +115,10 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
         return {"status": "not_applicable", "scope": "declared_production_entrypoints", "cases": [], "checked_roles": []}
     config = visual_system_configuration(manifest["base_theme"])
     config.update(palette=manifest["palette"], accent=manifest["palette"]["primary"],
-                  generated_design_system=manifest["design_system"], visual_system="production_probe")
+                  generated_design_system=manifest["design_system"], visual_system="production_probe", theme_id=manifest["id"])
     brand = {"standard_kicker": "阅读检查", "fixed_footer": {"enabled": True, "text": "保持完整表达。"}}
     cases = []
+    foundations = []
     for long in (False, True):
         length = "long" if long else "short"
         parsed = _fixture(long)
@@ -115,6 +145,18 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
         lead_id, _ = _opening_highlight(parsed)
         try:
             plain = _LayoutProbe(render_preview(parsed, plan, brand_profile=brand))
+            for role, hit in {
+                "inline_emphasis": plain.contains(paragraphs[1].id, tag="strong", content_role="inline-emphasis"),
+                "ordered_list": (
+                    plain.list_indexes.get(lists[1].id, []) == [f"{i:02d}" for i in range(1, len(lists[1].content) + 1)]
+                    and not plain.list_indexes.get(lists[0].id)
+                ),
+                "table": plain.contains(next(b.id for b in parsed.blocks if b.type == "table"), tag="table"),
+                "source": plain.contains(next(b.id for b in parsed.blocks if b.type == "source"), content_role="source"),
+                "reference_list": plain.contains(next(b.id for b in parsed.blocks if b.type == "reference_list"), content_role="reference-list"),
+            }.items():
+                foundations.append({"role": role, "length": length, "status": "pass" if hit else "blocking",
+                                    **({} if hit else {"message": "正式正文未保留该基础样式或编号语义"})})
             picture = _LayoutProbe(_materialized_image_markup(
                 element_id="probe-image", anchor_class="source-image-anchor", content_url="asset://probe-image",
                 width=600, height=400, alt="公开图文检查", frame_variant="neutral",
@@ -125,7 +167,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
                 "subheading": plain.owns("subheading", "data-editor-block-ids", headings[0].id),
                 "lead": plain.owns("lead", "data-editor-block-ids", lead_id),
                 "quote": plain.owns("quote", "data-editor-block-ids", quote.id),
-                "list": all(plain.owns("list", "data-editor-block-ids", block.id) for block in lists),
+                "list": plain.owns("list", "data-editor-block-ids", lists[0].id),
                 "divider": plain.owns("divider"),
                 "closing_cta": plain.owns("closing_cta", "data-content-role", "brand-cta"),
                 "image_caption": picture.owns("image_caption"),
@@ -158,7 +200,8 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
             except (ValueError, KeyError, OSError) as exc:
                 cases.append({"role": role, "length": length, "status": "blocking", "message": str(exc)})
     checked = [role for role in ROLE_FIELDS if any(case["role"] == role for case in cases)]
-    return {"status": "blocking" if any(case["status"] == "blocking" for case in cases) else "pass",
+    return {"status": "blocking" if any(case["status"] == "blocking" for case in [*cases, *foundations]) else "pass",
             "scope": "declared_production_entrypoints", "checked_roles": checked,
             "undeclared_roles": [role for role in ROLE_FIELDS if role not in layouts], "cases": cases,
+            "foundation_checks": foundations,
             "visual_review": "not_verified", "wechat_saved_roundtrip": "not_verified"}

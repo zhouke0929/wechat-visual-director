@@ -6,6 +6,7 @@ from typing import Any
 
 from .parser import ParsedArticle
 from .heading_numbers import has_explicit_heading_number
+from .official_theme_tables import render_official_theme_table
 from .theme_extensions import _palette, _payload
 from .theme_layouts import render_layout, text_style
 
@@ -39,7 +40,7 @@ def render_generated_paragraph(content: str, config: dict[str, Any], *, lead: bo
     design, palette = _metrics(config)
     density = {"airy": 1.2, "balanced": 1, "compact": .85}[design["rhythm"]["density"]]
     margin = round(18 * density)
-    inline = _inline(content).replace("<strong>", f'<strong style="{generated_inline_emphasis_style(config)}">')
+    inline = _inline(content).replace("<strong>", f'<strong data-content-role="inline-emphasis" style="{generated_inline_emphasis_style(config)}">')
     return f'<p style="margin:0 0 {margin}px;{text_style(config)}text-align:justify;overflow-wrap:anywhere;">{inline}</p>'
 
 
@@ -215,17 +216,36 @@ def render_generated_break(config: dict[str, Any]) -> str | None:
     return f'<section data-content-role="thematic-break" data-theme-grammar="generated-{design["composition"]}-divider" style="margin:{design["rhythm"]["component_gap"] + 10}px 0;padding-top:10px;border-top:1px solid {p["secondary"]};text-align:center;">{_motif(config, compact=True)}</section>'
 
 
+def _has_list_index(node: dict[str, Any]) -> bool:
+    return node.get("bind") == "index" or any(_has_list_index(child) for child in node.get("children", []))
+
+
 def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
-    custom = render_layout("list", {"items": items}, config)
+    layout = design.get("layouts", {}).get("list")
+    if ordered and layout and not _has_list_index(layout):
+        # An authored bullet list must not erase the sequence of an ordered
+        # Markdown list. Keep its paragraph typography and explicit, copyable
+        # numbers without introducing another layout role or a semantic card.
+        rows = "".join(
+            '<section style="padding:5px 0;">'
+            f'<span data-theme-static="true" data-theme-list-index="true" style="display:inline-block;'
+            f'width:10%;vertical-align:top;color:{p["primary"]};font-weight:700;">{index:02d}</span>'
+            f'<p data-theme-field="item" style="display:inline-block;width:90%;vertical-align:top;margin:0;overflow-wrap:anywhere;">'
+            f'{_inline(item)}</p></section>'
+            for index, item in enumerate(items, 1)
+        )
+        return f'<section style="margin:{design["rhythm"]["component_gap"]}px 0;{text_style(config)}">{rows}</section>'
+    custom = render_layout("list", {"items": items, "ordered": ordered}, config)
     if custom is not None:
         return custom
     rows = []
     for index, item in enumerate(items, 1):
         value = f"{index:02d}" if ordered else ("✓" if semantic_role == "action_checklist" else chr(64 + index) if semantic_role == "case_points" and index <= 26 else "·")
-        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p style="box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
+        index_attr = ' data-theme-list-index="true"' if ordered else ''
+        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span{index_attr} style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p style="box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
     return f'<section data-theme-grammar="generated-{design["marker"]}-list" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:-5px 0 9px;text-align:right;">{_motif(config, compact=True)}</p>{"".join(rows)}</section>'
 
 
@@ -233,13 +253,36 @@ def render_generated_table(rows: list[list[str]], config: dict[str, Any]) -> str
     design, p = _metrics(config)
     if not design or not rows:
         return None
+    official = render_official_theme_table(config.get("theme_id"), rows, p, design["rhythm"]["component_gap"], _inline)
+    if official is not None:
+        return _body_metrics(official, config)
     header, *body = rows
-    ths = "".join(f'<th style="padding:10px 8px;border:1px solid {p["primary"]};background-color:{p["pale"]};color:{p["ink"]};font-size:12px;line-height:1.45;text-align:left;">{_inline(cell)}</th>' for cell in header)
+    # Give the table a palette accent on the header itself. Do not rely on a
+    # paragraph between an outer rule and the table to carry the decoration.
+    top_width = design["ornament"]["border_width"] + 2
+    ths = "".join(
+        f'<th style="padding:10px 8px;border:1px solid {p["primary"]};'
+        f'border-top:{top_width}px solid {p["accent"] if i == 0 else p["primary"]};'
+        f'background-color:{p["pale"]};color:{p["ink"]};font-size:12px;line-height:1.45;text-align:left;">'
+        f'{_inline(cell)}</th>'
+        for i, cell in enumerate(header)
+    )
     trs = []
     for row_index, row in enumerate(body):
         cells = "".join(f'<td style="padding:10px 8px;border:1px solid {p["secondary"]};background-color:{_surface(config, row_index)};color:{p["ink"]};font-size:13px;line-height:1.58;vertical-align:top;">{_inline(cell)}</td>' for cell in row)
         trs.append(f'<tr>{cells}</tr>')
-    return _body_metrics(f'<section data-theme-grammar="generated-{design["frame"]}-table" style="margin:{design["rhythm"]["component_gap"]}px 0;padding-top:9px;border-top:{design["ornament"]["border_width"] + 2}px solid {p["accent"]};overflow-wrap:anywhere;"><p style="margin:-1px 0 9px;text-align:right;">{_motif(config, compact=True)}</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>', config)
+    motif = _motif(config, compact=True)
+    ornament = (
+        f'<section aria-hidden="true" style="margin:0 0 4px;text-align:right;'
+        f'font-size:0;line-height:0;">{motif}</section>' if motif else ""
+    )
+    return _body_metrics(
+        f'<section data-theme-grammar="generated-{design["frame"]}-table" '
+        f'style="margin:{design["rhythm"]["component_gap"]}px 0;overflow-wrap:anywhere;">'
+        f'{ornament}<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
+        f'<thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>',
+        config,
+    )
 
 
 def render_generated_quote(content: str, config: dict[str, Any]) -> str | None:

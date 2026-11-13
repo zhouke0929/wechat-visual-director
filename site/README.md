@@ -82,7 +82,7 @@ python scripts/test_theme_gallery_browser.py
 
 By default it routes public assets from this checkout inside the test browser,
 so no server is required. Pass `--url http://127.0.0.1:<port>/` to test a running
-preview or the deployed site. It checks six viewport widths, 12 themes, keyboard
+preview or the deployed site. It checks six viewport widths, 30 themes, keyboard
 selection, phone scroll boundaries and narrow-screen fit, copy layout stability,
 manual-copy fallback, catalog retry and no-JS
 article links. `--refresh-promotional-assets` explicitly refreshes the hero,

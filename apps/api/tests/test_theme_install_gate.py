@@ -143,7 +143,7 @@ def test_bad_custom_preview_is_isolated_and_does_not_fake_fallback_artwork(pack_
 
     monkeypatch.setattr(theme_gallery, "build_production_specimens", fail_only_custom)
     items = theme_gallery.build_theme_gallery()
-    assert len([item for item in items if item["source"] == "official"]) == 12
+    assert [item["id"] for item in items if item["source"] == "official"] == list(VISUAL_SYSTEM_ORDER)
     bad = next(item for item in items if item["id"] == value["id"])
     assert bad["availability"] == "unavailable" and bad["diagnostic"]["code"] == "theme_preview_failed"
     assert bad["components"] == [] and bad["article_preview_html"] == ""

@@ -65,6 +65,38 @@ def _page(title: str, body: str, profile: dict | None = None) -> str:
             f'<main style="{style}">{body}</main></body></html>')
 
 
+def build_foundation_preview(manifest: dict) -> dict[str, str]:
+    """The same 14 production specimens as the workbench, without installing a pack."""
+    from .theme_specimens import build_production_specimens
+
+    samples, _ = build_production_specimens(manifest["base_theme"], theme_config={
+        "theme_id": manifest["id"], "palette": manifest["palette"], "accent": manifest["palette"]["primary"],
+        "generated_design_system": manifest.get("design_system", {}),
+    })
+    documents = {}
+    for profile in REVIEW_PROFILES:
+        if not profile["primary"]:
+            continue
+        cards = "".join(
+            f'<article data-foundation-role="{sample["role"]}" style="min-width:0;padding:18px 0;border-top:1px solid #bebdb0;">'
+            f'<h2 style="font:600 13px/1.4 sans-serif;color:#535e53;margin:0 0 16px;">'
+            f'{i:02d} · {html.escape(sample["label"])}</h2>{sample["html"]}</article>'
+            for i, sample in enumerate(samples, 1)
+        )
+        other = "proof" if profile["id"] == "mobile" else "mobile"
+        intro = (
+            f'<header style="margin:24px 0 18px;"><p style="color:#833e2b;font:12px monospace;">'
+            f'FOUNDATION / {profile["viewport_width"]} px</p>'
+            f'<h1 style="font-size:25px;margin:0;">{html.escape(manifest["name"])} · 基础样式</h1>'
+            f'<p>14 种正式渲染样张 · <a href="foundations-{other}.html">{"切到校对宽度" if other == "proof" else "切到手机宽度"}</a></p></header>'
+        )
+        documents[f'foundations-{profile["id"]}.html'] = _page(
+            manifest["name"] + " · 基础样式",
+            f'<div style="max-width:{profile["content_width"]}px;margin:auto;">'
+            + scale_preview_fonts(intro + cards, profile) + "</div>", profile)
+    return documents
+
+
 def build_theme_review(file: Path, output: Path, image: Path, references: list[Path] | None = None) -> dict:
     if file.stat().st_size > THEME_PACK_MAX_BYTES:
         raise ValueError("主题包超过大小限制")
@@ -100,9 +132,13 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
             documents[name] = _page(manifest["name"], "".join(specimens), profile)
             pages.append({"file": name, **profile, "length": length, "roles": roles})
     links = ''.join(f'<li><a href="{p["file"]}">{p["length"]} · {p["id"]} · 视口 {p["viewport_width"]}px / 正文 {p["content_width"]}px · {"主验收" if p["primary"] else "补充适配"}</a></li>' for p in pages)
+    foundation_documents = build_foundation_preview(manifest)
+    documents.update(foundation_documents)
     refs = ''.join(f'<figure><img src="{uri}" style="max-width:100%"><figcaption>参考 {i + 1}：{html.escape((references or [])[i].name)}</figcaption></figure>' for i, uri in enumerate(reference_uris))
     documents['index.html'] = _page(manifest['name'] + ' · 自检',
-        f'<h1>{html.escape(manifest["name"])} · 组件自检</h1><p>这是检查材料，不是验收通过报告。分别查看短文、长文与真实图片；正常文章节奏与微信保存后效果须另行检查。</p><ul>{links}</ul><h2>参考对照</h2>' + (refs or '<p>未提供参考截图，请另行对照实际查看的来源。</p>'))
+        f'<h1>{html.escape(manifest["name"])} · 组件自检</h1><p>这是检查材料，不是验收通过报告。分别查看短文、长文与真实图片；正常文章节奏与微信保存后效果须另行检查。</p>'
+        '<p>14 种基础样式：<a href="foundations-mobile.html">手机样张</a> · <a href="foundations-proof.html">校对样张</a></p>'
+        f'<ul>{links}</ul><h2>参考对照</h2>' + (refs or '<p>未提供参考截图，请另行对照实际查看的来源。</p>'))
     from .theme_production import check_theme_production
     production = check_theme_production(manifest)
     result = {"ok": production["status"] != "blocking", "schema_version": "theme_review.v2", "preview_config": PREVIEW_CONFIG,
@@ -114,7 +150,7 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
         "real_image_fixture": True, "reference_count": len(reference_uris),
         "browser_geometry": "not_verified", "visual_review": "not_verified",
         "normal_article": "not_verified", "wechat_saved_roundtrip": "not_verified",
-        "production_check": production,
+        "production_check": production, "foundation_pages": list(foundation_documents),
         "review_file": str((output / 'index.html').resolve())}
     output.mkdir(parents=True, exist_ok=False)
     for name, document in documents.items():

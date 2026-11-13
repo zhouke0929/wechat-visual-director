@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
 import json
 import os
@@ -9,6 +10,8 @@ import shutil
 import tempfile
 import threading
 import zipfile
+from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -18,6 +21,29 @@ from .theme_layouts import validate_layouts
 THEME_PACK_SCHEMA_VERSION = "visual_director.theme_pack.v1"
 THEME_PACK_FILE_NAME = "theme.json"
 THEME_PACK_MAX_BYTES = 2 * 1024 * 1024
+ORIGINAL_BUNDLED_THEME_IDS = (
+    "weekend_fieldnotes",
+    "after_screening",
+    "light_gallery",
+    "pixel_live",
+    "collage_fieldguide",
+    "round_table_bistro",
+)
+REVIEWED_BUNDLED_THEME_IDS = (
+    "retro_window", "city_wayfinding", "folded_fan_detail", "color_paper_corners",
+    "paper_fold", "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth",
+    "night_walk_illustration", "ink_traces", "soft_emboss", "ticket_and_stub",
+)
+BUNDLED_THEME_IDS = ORIGINAL_BUNDLED_THEME_IDS + REVIEWED_BUNDLED_THEME_IDS
+
+# These are presentation groups, not semantic inheritance or image-style IDs.
+BUNDLED_THEME_GROUPS = {
+    **dict.fromkeys(("weekend_fieldnotes", "light_gallery", "folded_fan_detail", "color_paper_corners",
+                     "paper_fold", "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth", "ink_traces"), "清新与手作"),
+    **dict.fromkeys(("after_screening", "collage_fieldguide", "round_table_bistro",
+                     "night_walk_illustration", "ticket_and_stub"), "叙事与复古"),
+    **dict.fromkeys(("pixel_live", "retro_window", "city_wayfinding", "soft_emboss"), "结构与现代"),
+}
 THEME_PACK_ID_RE = re.compile(r"^[a-z][a-z0-9_]{2,47}$")
 HEX_COLOR_RE = re.compile(r"^#[0-9A-Fa-f]{6}$")
 PALETTE_KEYS = (
@@ -121,6 +147,8 @@ def configure_theme_packs(
         for manifest_path in sorted(_pack_dir.glob(f"*/{THEME_PACK_FILE_NAME}")):
             if manifest_path.parent.name.startswith("."):
                 continue  # Never register transaction staging or backup folders.
+            if manifest_path.parent.name in BUNDLED_THEME_IDS:
+                continue  # Keep a pre-promotion local copy on disk without shadowing the official one.
             try:
                 manifest = validate_theme_pack_manifest(
                     json.loads(manifest_path.read_text(encoding="utf-8-sig"))
@@ -298,7 +326,7 @@ def validate_theme_pack_manifest(payload: Any, *, reserved_ids: Iterable[str] | 
                                  core_components: Iterable[str] | None = None) -> dict[str, Any]:
     # Offline tools validate against the official catalog without initializing
     # or mutating the user's installed-theme registry.
-    reserved = _reserved_ids if reserved_ids is None else frozenset(reserved_ids)
+    reserved = (_reserved_ids | frozenset(BUNDLED_THEME_IDS)) if reserved_ids is None else frozenset(reserved_ids)
     components = _core_components if core_components is None else tuple(core_components)
     if not isinstance(payload, dict):
         raise ThemePackError("主题扩展包清单必须是 JSON 对象")
@@ -481,7 +509,39 @@ def theme_pack_load_errors() -> list[dict[str, Any]]:
         return copy.deepcopy(_load_errors)
 
 
+@lru_cache(maxsize=len(BUNDLED_THEME_IDS))
+def _bundled_theme_pack(theme_id: str) -> dict[str, Any]:
+    from .component_catalog import CORE_THEME_COMPONENTS, LEGACY_VISUAL_SYSTEM_ORDER
+
+    resource = files(__package__).joinpath("bundled_themes", f"{theme_id}.json")
+    manifest = validate_theme_pack_manifest(json.loads(resource.read_text(encoding="utf-8")),
+                                            reserved_ids=LEGACY_VISUAL_SYSTEM_ORDER,
+                                            core_components=CORE_THEME_COMPONENTS)
+    if manifest["id"] != theme_id:
+        raise ThemePackError("内置主题文件与官方目录不一致")
+    return manifest
+
+
+@lru_cache(maxsize=len(REVIEWED_BUNDLED_THEME_IDS))
+def bundled_theme_acceptance(theme_id: str) -> dict[str, Any] | None:
+    if theme_id not in REVIEWED_BUNDLED_THEME_IDS:
+        return None
+    from .component_catalog import RENDERER_VERSION
+
+    package = files(__package__)
+    evidence = json.loads(package.joinpath("bundled_theme_acceptance.json").read_text(encoding="utf-8"))
+    record = evidence["themes"][theme_id]
+    manifest_bytes = package.joinpath("bundled_themes", f"{theme_id}.json").read_bytes()
+    # Git normalizes line endings; no layout edits inherit prior evidence.
+    checksum = hashlib.sha256(manifest_bytes.replace(b"\r\n", b"\n")).hexdigest()
+    if checksum != record["manifest_lf_sha256"] or RENDERER_VERSION != evidence["renderer"]:
+        return None
+    return {"status": "owner_reported_pass", "paths": list(evidence["paths"]), "scope": evidence["scope"]}
+
+
 def theme_pack(theme_id: str) -> dict[str, Any] | None:
+    if theme_id in BUNDLED_THEME_IDS:
+        return copy.deepcopy(_bundled_theme_pack(theme_id))
     with _lock:
         manifest = _installed.get(theme_id)
         return copy.deepcopy(manifest) if manifest else None
@@ -489,7 +549,10 @@ def theme_pack(theme_id: str) -> dict[str, Any] | None:
 
 def resolve_theme_base(theme_id: str) -> str:
     manifest = theme_pack(theme_id)
-    return str(manifest["base_theme"]) if manifest else theme_id
+    if not manifest:
+        return theme_id
+    base = str(manifest["base_theme"])
+    return str(_bundled_theme_pack(base)["base_theme"]) if base in BUNDLED_THEME_IDS else base
 
 
 def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
@@ -499,6 +562,8 @@ def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
     if not manifest:
         return None
     palette = manifest["palette"]
+    bundled = theme_id in BUNDLED_THEME_IDS
+    acceptance = bundled_theme_acceptance(theme_id) if bundled else None
     return {
         "label": manifest["name"],
         "english": manifest["english"],
@@ -506,12 +571,15 @@ def theme_pack_catalog_entry(theme_id: str) -> dict[str, Any] | None:
         "ideal_for": list(manifest["ideal_for"]),
         "personality": list(manifest["personality"]),
         "palette": [palette["primary"], palette["secondary"], palette["accent"], palette["surface"]],
-        "status": "user_theme_pack",
-        "source": "custom",
+        "status": "theme_kit_v1_review" if bundled else "user_theme_pack",
+        "source": "official" if bundled else "custom",
         "base_theme": manifest["base_theme"],
         "pack_version": manifest["version"],
         "layout_coverage": theme_layout_coverage(manifest),
         "author": manifest["author"],
+        "theme_group": BUNDLED_THEME_GROUPS[theme_id] if bundled else "我的主题",
+        "auto_recommendable": bundled,
+        **({"wechat_acceptance": acceptance} if acceptance else {}),
     }
 
 
@@ -520,12 +588,14 @@ def theme_pack_visual_dna(theme_id: str) -> dict[str, Any] | None:
     if not manifest:
         return None
     palette = manifest["palette"]
+    official = theme_id in BUNDLED_THEME_IDS
+    palette_family = f"official_pack:{theme_id}" if official else f"user_pack:{theme_id}"
     return {
         "dna": copy.deepcopy(manifest["visual_dna"]),
         "material_tags": list(manifest["material_tags"]),
-        "palette_family": f"user_pack:{theme_id}",
+        "palette_family": palette_family,
         "palette_variants": {
-            "custom": [
+            (palette_family if official else "custom"): [
                 palette["primary"],
                 palette["secondary"],
                 palette["accent"],
@@ -644,7 +714,7 @@ def install_theme_pack_bytes(content: bytes, filename: str, *, with_report: bool
 
 
 def delete_theme_pack(theme_id: str) -> bool:
-    if theme_id in _reserved_ids:
+    if theme_id in _reserved_ids or theme_id in BUNDLED_THEME_IDS:
         raise ThemePackError("官方主题不能删除")
     destination = theme_pack_directory() / theme_id
     if not destination.is_dir():
@@ -657,7 +727,8 @@ def delete_theme_pack(theme_id: str) -> bool:
 
 
 def export_theme_pack(theme_id: str) -> bytes:
-    manifest = theme_pack(theme_id)
+    with _lock:
+        manifest = _installed.get(theme_id)
     if not manifest:
         raise ThemePackError("主题扩展包不存在")
     buffer = io.BytesIO()

@@ -79,7 +79,7 @@ import json, urllib.request
 with urllib.request.urlopen("http://127.0.0.1:8000/api/v1/theme-gallery", timeout=60) as response:
     gallery = json.load(response)
 assert gallery["schema_version"] == "theme_gallery.v0.5"
-assert len(gallery["themes"]) == 12
+assert len(gallery["themes"]) == 30
 for theme in gallery["themes"]:
     assert len(theme["foundation_specimens"]) == 14, theme["id"]
     assert len(theme["components"]) == 12, theme["id"]

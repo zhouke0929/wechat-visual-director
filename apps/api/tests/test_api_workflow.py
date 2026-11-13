@@ -1,8 +1,10 @@
 from io import BytesIO
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+from visual_director.component_catalog import VISUAL_SYSTEM_ORDER
 
 from visual_director.main import (
     CreateMockDraftRequest,
@@ -1227,7 +1229,7 @@ article_type: tutorial_steps
             ]
 
         assert semantic_slots(plans[0])
-        assert len(plans[0]["visual_system_metadata"]["available_visual_systems"]) == 12
+        assert {item["value"] for item in plans[0]["visual_system_metadata"]["available_visual_systems"]} == set(VISUAL_SYSTEM_ORDER)
         assert plans[0]["visual_system_metadata"]["switch_requires_planner_call"] is False
 
 
@@ -1307,7 +1309,8 @@ article_type: tutorial_steps
         assert "plan_change_undone" in event_types
 
 
-def test_switch_whole_theme_preserves_structure_images_and_supports_undo(tmp_path: Path) -> None:
+@pytest.mark.parametrize("bundled", [False, True], ids=["legacy-theme", "bundled-theme"])
+def test_switch_whole_theme_preserves_structure_images_and_supports_undo(tmp_path: Path, bundled: bool) -> None:
     app = create_app(str(tmp_path / "theme-switch.db"), image_provider=MockImageProvider())
     with TestClient(app) as client:
         markdown = """---
@@ -1323,6 +1326,11 @@ article_type: tutorial_steps
 3. 开始行动
 
 > 每一步都需要留下可复核证据。
+
+| 时间 | 地点 | 记录 |
+| --- | --- | --- |
+| 周六 | 公园 | 步行 |
+| 周日 | 图书馆 | 阅读 |
 """
         task = client.post(
             "/api/v1/article-tasks",
@@ -1344,7 +1352,7 @@ article_type: tutorial_steps
         generated_candidate_id = generated["candidates"][0]["id"]
         snapshot = generated["candidates"][0]["machine_checks"]["art_direction_snapshot"]
         assert snapshot["visual_system"] == original["visual_system"]
-        target = next(
+        target = "weekend_fieldnotes" if bundled else next(
             item["value"]
             for item in original["visual_system_metadata"]["available_visual_systems"]
             if item["value"] != original["visual_system"]
@@ -1368,6 +1376,10 @@ article_type: tutorial_steps
         assert changed["visual_system"] == target
         assert changed["structure_fingerprint"] == original["structure_fingerprint"]
         assert changed["image_slots"] == original["image_slots"]
+        if bundled:
+            preview = client.get(changed["preview_url"])
+            assert preview.status_code == 200
+            assert 'data-theme-grammar="weekend-fieldnotes-notebook-table"' in preview.text
         switched_images = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots'
         ).json()

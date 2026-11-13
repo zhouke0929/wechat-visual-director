@@ -8,8 +8,8 @@ from typing import Any
 
 from .component_catalog import (
     AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
+    BASE_AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
     COMPONENT_CATALOG,
-    VISUAL_SYSTEM_CATALOG,
     VISUAL_SYSTEM_ORDER,
     automatic_variants,
     registered_visual_system_catalog,
@@ -606,6 +606,7 @@ def visual_system_configuration(visual_system: str) -> dict[str, Any]:
         configuration["theme_id"] = visual_system
         configuration["base_theme"] = custom_pack["base_theme"]
         if custom_pack.get("style_recipe"):
+            configuration.pop("generated_design_system", None)
             configuration["render_theme_roles"] = copy.deepcopy(custom_pack["style_recipe"])
         if custom_pack.get("design_system"):
             configuration["generated_design_system"] = copy.deepcopy(custom_pack["design_system"])
@@ -710,10 +711,13 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
 ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     "data_policy": (
         "structured_grid",
+        "city_wayfinding",
         "business_review",
+        "retro_window",
         "vintage_press",
         "editorial_contrast",
         "future_tech",
+        "soft_emboss",
         "oriental_archive",
         "light_reading",
         "natural_atlas",
@@ -724,10 +728,17 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     ),
     "tutorial_steps": (
         "structured_grid",
+        "city_wayfinding",
         "pop_poster",
+        "paper_fold",
+        "color_paper_corners",
         "natural_atlas",
         "youth_campus",
+        "retro_window",
+        "pixel_live",
         "light_reading",
+        "ticket_and_stub",
+        "soft_emboss",
         "business_review",
         "future_tech",
         "oriental_archive",
@@ -738,10 +749,16 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     ),
     "viewpoint_trend": (
         "editorial_contrast",
+        "collage_fieldguide",
         "business_review",
         "vintage_press",
+        "ink_traces",
         "future_tech",
         "cinematic_story",
+        "after_screening",
+        "light_gallery",
+        "folded_fan_detail",
+        "indigo_cloth",
         "oriental_archive",
         "light_reading",
         "pop_poster",
@@ -752,9 +769,18 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     ),
     "lively_growth": (
         "natural_atlas",
+        "weekend_fieldnotes",
         "cinematic_story",
+        "night_walk_illustration",
         "warm_humanist",
+        "toy_storybook",
+        "candidate_light_blue_watercolor",
         "youth_campus",
+        "round_table_bistro",
+        "folded_fan_detail",
+        "color_paper_corners",
+        "indigo_cloth",
+        "ticket_and_stub",
         "pop_poster",
         "oriental_archive",
         "light_reading",
@@ -794,14 +820,18 @@ def recommend_visual_system(
     recent = recent_summaries[:history_window]
     counts = _visual_system_counts(recent)
     previous = _normalized_visual_system(recent[0]) if recent else None
-    affinity = ARTICLE_TYPE_THEME_AFFINITY.get(article_type, VISUAL_SYSTEM_ORDER)
+    affinity = ARTICLE_TYPE_THEME_AFFINITY.get(article_type, BASE_AUTO_RECOMMENDABLE_VISUAL_SYSTEMS)
+    eligible = [value for value in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS
+                if value in BASE_AUTO_RECOMMENDABLE_VISUAL_SYSTEMS or value in affinity]
     affinity_rank = {value: index for index, value in enumerate(affinity)}
     features = article_features or {}
     fit_adjustment: Counter[str] = Counter()
     if features.get("table_count", 0):
-        fit_adjustment.update({"structured_grid": -3, "future_tech": -1, "business_review": -2})
+        fit_adjustment.update({"structured_grid": -3, "future_tech": -1, "business_review": -2,
+                               "city_wayfinding": -2, "retro_window": -1})
     if features.get("list_count", 0) >= 2:
-        fit_adjustment.update({"structured_grid": -2, "youth_campus": -1, "pop_poster": -1})
+        fit_adjustment.update({"structured_grid": -2, "youth_campus": -1, "pop_poster": -1,
+                               "city_wayfinding": -2, "paper_fold": -1})
     if features.get("quote_count", 0) >= 2:
         fit_adjustment.update({"editorial_contrast": -2, "warm_humanist": -1, "vintage_press": -2})
     if features.get("source_count", 0) >= 2:
@@ -811,7 +841,7 @@ def recommend_visual_system(
     if features.get("paragraph_count", 0) >= 10 and features.get("list_count", 0) <= 1:
         fit_adjustment.update({"warm_humanist": -2, "editorial_contrast": -1, "cinematic_story": -2})
     selected = min(
-        AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
+        eligible,
         key=lambda value: (
             value == previous,
             counts[value],
@@ -920,6 +950,7 @@ def apply_visual_system(
                 "label": system_catalog[value]["label"],
                 "description": system_catalog[value]["description"],
                 "recent_use_count": counts[value],
+                "theme_group": system_catalog[value].get("theme_group", "经典主题"),
             }
             for value in available_order
         ],
@@ -1006,10 +1037,8 @@ def compile_editorial_brief_variants(
     )
     plans = [copy.deepcopy(base), copy.deepcopy(base)]
 
-    labels = {
-        value: (VISUAL_SYSTEM_CATALOG[value]["label"], VISUAL_SYSTEM_CATALOG[value]["description"])
-        for value in VISUAL_SYSTEM_ORDER
-    }
+    catalog = registered_visual_system_catalog()
+    labels = {value: (catalog[value]["label"], catalog[value]["description"]) for value in VISUAL_SYSTEM_ORDER}
     for plan, visual_system in zip(plans, selected_systems, strict=True):
         for slot in plan.get("slots", []):
             slot["variant"] = visual_system_variant(slot["component_type"], visual_system)

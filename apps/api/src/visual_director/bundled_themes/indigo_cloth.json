@@ -1,0 +1,5302 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "indigo_cloth",
+  "name": "靛蓝布标",
+  "english": "INDIGO CLOTH",
+  "description": "靛蓝斜纹布从相片和标题边缘露出，明线串起白底上的手作记录。",
+  "version": "1.2.3",
+  "author": "WeChat Visual Director",
+  "base_theme": "light_reading",
+  "ideal_for": [
+    "手作教程",
+    "社区纪实",
+    "生活方式"
+  ],
+  "personality": [
+    "朴素",
+    "利落",
+    "亲切"
+  ],
+  "palette": {
+    "primary": "#283855",
+    "secondary": "#9C9EAD",
+    "accent": "#894F35",
+    "sky": "#52617D",
+    "pale": "#EAEDF3",
+    "secondary_pale": "#F0E8D9",
+    "accent_pale": "#F7ECE2",
+    "sky_pale": "#E1E5EE",
+    "surface": "#FFFFFF",
+    "ink": "#292C37"
+  },
+  "visual_dna": {
+    "warmth": 0.38,
+    "saturation": 0.32,
+    "contrast": 0.78,
+    "geometry": 0.59,
+    "tactility": 0.73,
+    "dimensionality": 0.22,
+    "energy": 0.39,
+    "information_density": 0.42,
+    "brand_formality": 0.4
+  },
+  "material_tags": [
+    "indigo_denim",
+    "cotton_twill",
+    "topstitch"
+  ],
+  "tone": [
+    "干净",
+    "有触感",
+    "安静"
+  ],
+  "design_system": {
+    "composition": "woven_catalog",
+    "motifs": [
+      "none"
+    ],
+    "frame": "stitched",
+    "marker": "bar",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 30,
+      "component_gap": 20,
+      "inset": 14
+    },
+    "typography": {
+      "heading_scale": 1.1,
+      "body_scale": 1.0,
+      "letter_spacing": "tight",
+      "heading_weight": 800
+    },
+    "ornament": {
+      "density": 0,
+      "border_width": 1,
+      "corner_radius": 0
+    },
+    "layouts": {
+      "hero": {
+        "type": "stack",
+        "style": {
+          "padding": [
+            8,
+            0,
+            0,
+            0
+          ]
+        },
+        "children": [
+          {
+            "type": "drawing",
+            "style": {
+              "align": "right",
+              "padding": [
+                0,
+                7,
+                0,
+                0
+              ],
+              "margin": [
+                0,
+                0,
+                -6,
+                0
+              ]
+            },
+            "width": 104,
+            "height": 25,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    35.36,
+                    3
+                  ],
+                  [
+                    66.56,
+                    3.5
+                  ],
+                  [
+                    101,
+                    1.5
+                  ],
+                  [
+                    102,
+                    20
+                  ],
+                  [
+                    61.36,
+                    20.7
+                  ],
+                  [
+                    7,
+                    23
+                  ],
+                  [
+                    4,
+                    20
+                  ]
+                ],
+                "fill": "primary",
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    18.55
+                  ],
+                  [
+                    15.84,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    12.166666666666668,
+                    19.0
+                  ],
+                  [
+                    20.006666666666668,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    16.333333333333336,
+                    19.45
+                  ],
+                  [
+                    24.173333333333336,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20.5,
+                    18.55
+                  ],
+                  [
+                    28.34,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    24.666666666666668,
+                    19.0
+                  ],
+                  [
+                    32.50666666666667,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    28.833333333333332,
+                    19.45
+                  ],
+                  [
+                    36.67333333333333,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    33.0,
+                    18.55
+                  ],
+                  [
+                    40.84,
+                    5
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    37.16666666666667,
+                    19.0
+                  ],
+                  [
+                    45.006666666666675,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    41.333333333333336,
+                    19.45
+                  ],
+                  [
+                    49.17333333333334,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    45.5,
+                    18.55
+                  ],
+                  [
+                    53.34,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    49.666666666666664,
+                    19.0
+                  ],
+                  [
+                    57.50666666666667,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    53.833333333333336,
+                    19.45
+                  ],
+                  [
+                    61.67333333333334,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    58.0,
+                    18.55
+                  ],
+                  [
+                    65.84,
+                    5
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    62.166666666666664,
+                    19.0
+                  ],
+                  [
+                    70.00666666666666,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    66.33333333333334,
+                    19.45
+                  ],
+                  [
+                    74.17333333333335,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    70.5,
+                    18.55
+                  ],
+                  [
+                    78.34,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    74.66666666666667,
+                    19.0
+                  ],
+                  [
+                    82.50666666666667,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    78.83333333333333,
+                    19.45
+                  ],
+                  [
+                    86.67333333333333,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    83.0,
+                    18.55
+                  ],
+                  [
+                    90.84,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    43.68,
+                    7.7
+                  ],
+                  [
+                    70.72,
+                    5.8
+                  ],
+                  [
+                    99,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    10.0
+                  ],
+                  [
+                    43.68,
+                    9.7
+                  ],
+                  [
+                    70.72,
+                    7.8
+                  ],
+                  [
+                    99,
+                    8.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    12.0
+                  ],
+                  [
+                    43.68,
+                    11.7
+                  ],
+                  [
+                    70.72,
+                    9.8
+                  ],
+                  [
+                    99,
+                    10.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    14.0
+                  ],
+                  [
+                    43.68,
+                    13.7
+                  ],
+                  [
+                    70.72,
+                    11.8
+                  ],
+                  [
+                    99,
+                    12.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    16.0
+                  ],
+                  [
+                    43.68,
+                    15.7
+                  ],
+                  [
+                    70.72,
+                    13.8
+                  ],
+                  [
+                    99,
+                    14.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    18.0
+                  ],
+                  [
+                    43.68,
+                    17.7
+                  ],
+                  [
+                    70.72,
+                    15.8
+                  ],
+                  [
+                    99,
+                    16.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    20.0
+                  ],
+                  [
+                    43.68,
+                    19.7
+                  ],
+                  [
+                    70.72,
+                    17.8
+                  ],
+                  [
+                    99,
+                    18.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    6.846153846153846
+                  ],
+                  [
+                    17.647058823529413,
+                    6.646153846153846
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    24.4,
+                    6.530769230769231
+                  ],
+                  [
+                    34.04705882352941,
+                    6.3307692307692305
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    40.8,
+                    6.2153846153846155
+                  ],
+                  [
+                    50.44705882352941,
+                    6.015384615384615
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    57.2,
+                    5.9
+                  ],
+                  [
+                    66.84705882352941,
+                    5.7
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    73.6,
+                    5.584615384615384
+                  ],
+                  [
+                    83.2470588235294,
+                    5.384615384615384
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "style": {
+              "background": "surface",
+              "border_top": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "padding": [
+                15,
+                0,
+                0,
+                0
+              ],
+              "margin": [
+                0,
+                20,
+                0,
+                0
+              ]
+            },
+            "children": [
+              {
+                "type": "field",
+                "style": {
+                  "size": "label",
+                  "color": "primary",
+                  "weight": 750,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    8
+                  ],
+                  "border_left": {
+                    "width": 2,
+                    "color": "primary",
+                    "style": "solid"
+                  },
+                  "margin": [
+                    0,
+                    0,
+                    12,
+                    0
+                  ]
+                },
+                "bind": "kicker"
+              }
+            ]
+          },
+          {
+            "type": "field",
+            "style": {
+              "size": "title",
+              "color": "primary",
+              "line_height": 1.45,
+              "weight": 850
+            },
+            "bind": "title"
+          }
+        ]
+      },
+      "heading": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "style": {
+              "padding": [
+                1,
+                0,
+                9,
+                0
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "sky_pale",
+                "style": "solid"
+              }
+            },
+            "marker_width": 8,
+            "gap": 2,
+            "children": [
+              {
+                "type": "field",
+                "style": {
+                  "size": "body",
+                  "font": "mono",
+                  "weight": 700,
+                  "color": "primary"
+                },
+                "bind": "index"
+              },
+              {
+                "type": "field",
+                "style": {
+                  "size": "heading",
+                  "color": "primary",
+                  "line_height": 1.45,
+                  "weight": 800
+                },
+                "bind": "title"
+              }
+            ]
+          },
+          {
+            "type": "drawing",
+            "style": {
+              "margin": [
+                -6,
+                0,
+                0,
+                0
+              ],
+              "align": "right"
+            },
+            "width": 67,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    64,
+                    1.5
+                  ],
+                  [
+                    65,
+                    7
+                  ],
+                  [
+                    7,
+                    10
+                  ],
+                  [
+                    4,
+                    7
+                  ]
+                ],
+                "fill": "primary",
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    6
+                  ],
+                  [
+                    8.56,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    10.714285714285715,
+                    6
+                  ],
+                  [
+                    11.274285714285716,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    13.428571428571429,
+                    6
+                  ],
+                  [
+                    13.98857142857143,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    16.142857142857142,
+                    6
+                  ],
+                  [
+                    16.70285714285714,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    18.857142857142858,
+                    6
+                  ],
+                  [
+                    19.417142857142856,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    21.57142857142857,
+                    6
+                  ],
+                  [
+                    22.131428571428568,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    24.285714285714285,
+                    6
+                  ],
+                  [
+                    24.845714285714283,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    27.0,
+                    6
+                  ],
+                  [
+                    27.56,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    29.714285714285715,
+                    6
+                  ],
+                  [
+                    30.274285714285714,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    32.42857142857143,
+                    6
+                  ],
+                  [
+                    32.98857142857143,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    35.14285714285714,
+                    6
+                  ],
+                  [
+                    35.70285714285714,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    37.85714285714286,
+                    6
+                  ],
+                  [
+                    38.41714285714286,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    40.57142857142857,
+                    6
+                  ],
+                  [
+                    41.13142857142857,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    43.285714285714285,
+                    6
+                  ],
+                  [
+                    43.84571428571429,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    46.0,
+                    6
+                  ],
+                  [
+                    46.56,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    62,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    7.666666666666667
+                  ],
+                  [
+                    62,
+                    5.666666666666667
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    7.333333333333333
+                  ],
+                  [
+                    62,
+                    5.333333333333333
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    7.0
+                  ],
+                  [
+                    62,
+                    5.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    6.7611940298507465
+                  ],
+                  [
+                    10.406417112299465,
+                    6.561194029850746
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    12.09090909090909,
+                    6.6390773405698775
+                  ],
+                  [
+                    14.497326203208555,
+                    6.439077340569877
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    16.18181818181818,
+                    6.5169606512890095
+                  ],
+                  [
+                    18.588235294117645,
+                    6.316960651289009
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20.272727272727273,
+                    6.394843962008141
+                  ],
+                  [
+                    22.67914438502674,
+                    6.194843962008141
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    24.363636363636363,
+                    6.2727272727272725
+                  ],
+                  [
+                    26.77005347593583,
+                    6.072727272727272
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    28.454545454545453,
+                    6.150610583446404
+                  ],
+                  [
+                    30.86096256684492,
+                    5.950610583446404
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    32.54545454545455,
+                    6.0284938941655355
+                  ],
+                  [
+                    34.95187165775401,
+                    5.828493894165535
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    36.63636363636364,
+                    5.906377204884667
+                  ],
+                  [
+                    39.042780748663105,
+                    5.706377204884667
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    40.72727272727273,
+                    5.784260515603799
+                  ],
+                  [
+                    43.13368983957219,
+                    5.584260515603799
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    44.81818181818182,
+                    5.6621438263229305
+                  ],
+                  [
+                    47.224598930481285,
+                    5.46214382632293
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    48.90909090909091,
+                    5.540027137042062
+                  ],
+                  [
+                    51.31550802139037,
+                    5.340027137042062
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              }
+            ]
+          }
+        ]
+      },
+      "subheading": {
+        "type": "field",
+        "style": {
+          "size": "subheading",
+          "color": "primary",
+          "line_height": 1.45,
+          "weight": 800,
+          "padding": [
+            0,
+            0,
+            3,
+            0
+          ],
+          "fit": "content",
+          "border_bottom": {
+            "width": 1,
+            "color": "sky",
+            "style": "dashed"
+          }
+        },
+        "bind": "title"
+      },
+      "lead": {
+        "type": "field",
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          },
+          "padding": [
+            0,
+            0,
+            12,
+            0
+          ],
+          "color": "ink"
+        },
+        "bind": "body"
+      },
+      "quote": {
+        "type": "stack",
+        "style": {
+          "border_left": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          },
+          "padding": [
+            2,
+            0,
+            3,
+            9
+          ]
+        },
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 2,
+            "children": [
+              {
+                "type": "text",
+                "style": {
+                  "size": "heading",
+                  "font": "serif",
+                  "color": "sky",
+                  "weight": 800,
+                  "line_height": 1.35
+                },
+                "text": "“"
+              },
+              {
+                "type": "field",
+                "style": {
+                  "color": "primary",
+                  "font": "serif",
+                  "weight": 600,
+                  "line_height": 1.9
+                },
+                "bind": "body"
+              }
+            ]
+          }
+        ]
+      },
+      "list": {
+        "type": "repeat",
+        "style": {
+          "padding": [
+            3,
+            0,
+            3,
+            0
+          ]
+        },
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 7,
+            "gap": 3,
+            "children": [
+              {
+                "type": "field",
+                "style": {
+                  "size": "body",
+                  "font": "mono",
+                  "weight": 700,
+                  "color": "primary"
+                },
+                "bind": "index"
+              },
+              {
+                "type": "field",
+                "bind": "item"
+              }
+            ]
+          }
+        ]
+      },
+      "question_hook": {
+        "type": "stack",
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "sky_pale",
+            "style": "solid"
+          }
+        },
+        "children": [
+          {
+            "type": "field",
+            "style": {
+              "size": "heading",
+              "color": "primary",
+              "line_height": 1.45,
+              "padding": [
+                0,
+                5,
+                8,
+                0
+              ],
+              "weight": 750
+            },
+            "bind": "title"
+          },
+          {
+            "type": "drawing",
+            "width": 71,
+            "height": 13,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    68,
+                    1.5
+                  ],
+                  [
+                    69,
+                    8
+                  ],
+                  [
+                    7,
+                    11
+                  ],
+                  [
+                    4,
+                    8
+                  ]
+                ],
+                "fill": "primary",
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    7
+                  ],
+                  [
+                    9.120000000000001,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    11.0,
+                    7
+                  ],
+                  [
+                    12.120000000000001,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    14.0,
+                    7
+                  ],
+                  [
+                    15.120000000000001,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    17.0,
+                    7
+                  ],
+                  [
+                    18.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    20.0,
+                    7
+                  ],
+                  [
+                    21.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    23.0,
+                    7
+                  ],
+                  [
+                    24.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    26.0,
+                    7
+                  ],
+                  [
+                    27.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    29.0,
+                    7
+                  ],
+                  [
+                    30.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    32.0,
+                    7
+                  ],
+                  [
+                    33.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    35.0,
+                    7
+                  ],
+                  [
+                    36.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    38.0,
+                    7
+                  ],
+                  [
+                    39.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    41.0,
+                    7
+                  ],
+                  [
+                    42.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    44.0,
+                    7
+                  ],
+                  [
+                    45.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    47.0,
+                    7
+                  ],
+                  [
+                    48.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    50.0,
+                    7
+                  ],
+                  [
+                    51.12,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    66,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    66,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    66,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    66,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    6.774647887323944
+                  ],
+                  [
+                    10.620320855614974,
+                    6.574647887323944
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    12.454545454545453,
+                    6.649167733674776
+                  ],
+                  [
+                    15.074866310160427,
+                    6.449167733674776
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    16.909090909090907,
+                    6.523687580025609
+                  ],
+                  [
+                    19.52941176470588,
+                    6.3236875800256085
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    21.363636363636363,
+                    6.39820742637644
+                  ],
+                  [
+                    23.983957219251337,
+                    6.19820742637644
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    25.818181818181817,
+                    6.2727272727272725
+                  ],
+                  [
+                    28.43850267379679,
+                    6.072727272727272
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    30.272727272727273,
+                    6.147247119078105
+                  ],
+                  [
+                    32.893048128342244,
+                    5.947247119078105
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    34.72727272727273,
+                    6.021766965428937
+                  ],
+                  [
+                    37.3475935828877,
+                    5.821766965428937
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    39.18181818181819,
+                    5.8962868117797695
+                  ],
+                  [
+                    41.80213903743316,
+                    5.696286811779769
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    43.63636363636363,
+                    5.770806658130602
+                  ],
+                  [
+                    46.2566844919786,
+                    5.570806658130602
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    48.09090909090909,
+                    5.645326504481434
+                  ],
+                  [
+                    50.711229946524064,
+                    5.445326504481434
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    52.54545454545455,
+                    5.519846350832267
+                  ],
+                  [
+                    55.16577540106952,
+                    5.319846350832266
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              }
+            ]
+          }
+        ]
+      },
+      "numbered_insight": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 12,
+            "gap": 8,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "size": "caption",
+                  "weight": 820,
+                  "align": "center",
+                  "line_height": 1.5,
+                  "font": "mono",
+                  "color": "surface",
+                  "background": "primary",
+                  "radius": [
+                    2,
+                    5,
+                    3,
+                    1
+                  ],
+                  "border_bottom": {
+                    "width": 2,
+                    "color": "accent",
+                    "style": "dashed"
+                  },
+                  "border_right": {
+                    "width": 2,
+                    "color": "sky",
+                    "style": "solid"
+                  },
+                  "padding": [
+                    2,
+                    2,
+                    2,
+                    2
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    0,
+                    0,
+                    4,
+                    0
+                  ]
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            0,
+            3,
+            0
+          ]
+        }
+      },
+      "evidence_callout": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 11,
+            "gap": 5,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 27,
+                "height": 12,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        6
+                      ],
+                      [
+                        6,
+                        6
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        6
+                      ],
+                      [
+                        14,
+                        6
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        17,
+                        6
+                      ],
+                      [
+                        22,
+                        6
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 23,
+                    "y": 4,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "证据",
+                "style": {
+                  "size": "label",
+                  "color": "primary",
+                  "weight": 720
+                }
+              }
+            ]
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "color": "ink",
+              "line_height": 1.85,
+              "font": "serif",
+              "padding": [
+                6,
+                0,
+                0,
+                4
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          },
+          "padding": [
+            0,
+            0,
+            7,
+            0
+          ]
+        }
+      },
+      "before_after_timeline": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "text",
+                "text": "之前",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "background": "secondary_pale",
+                  "fit": "content",
+                  "padding": [
+                    1,
+                    7,
+                    1,
+                    7
+                  ],
+                  "radius": [
+                    0,
+                    5,
+                    0,
+                    4
+                  ],
+                  "border_bottom": {
+                    "width": 2,
+                    "color": "secondary",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    5,
+                    4,
+                    3,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          },
+          {
+            "type": "ornament_rule",
+            "slot_width": 26,
+            "line_color": "sky",
+            "children": [
+              {
+                "type": "drawing",
+                "width": 60,
+                "height": 18,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        4,
+                        13
+                      ],
+                      [
+                        8,
+                        7
+                      ],
+                      [
+                        13,
+                        5
+                      ],
+                      [
+                        18,
+                        8
+                      ],
+                      [
+                        22,
+                        13
+                      ],
+                      [
+                        26,
+                        15
+                      ],
+                      [
+                        32,
+                        13
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        14
+                      ],
+                      [
+                        43,
+                        5
+                      ],
+                      [
+                        53,
+                        2
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 1.35
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 49,
+                    "y": 3,
+                    "w": 3,
+                    "h": 2,
+                    "stroke": "accent",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        7
+                      ],
+                      [
+                        6,
+                        7
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        53,
+                        10
+                      ],
+                      [
+                        58,
+                        10
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.75
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "margin": [
+                5,
+                0,
+                5,
+                0
+              ]
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "text",
+                "text": "之后",
+                "style": {
+                  "size": "caption",
+                  "color": "surface",
+                  "weight": 800,
+                  "background": "primary",
+                  "fit": "content",
+                  "padding": [
+                    1,
+                    7,
+                    1,
+                    7
+                  ],
+                  "radius": [
+                    0,
+                    5,
+                    0,
+                    4
+                  ],
+                  "border_bottom": {
+                    "width": 2,
+                    "color": "accent",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    5,
+                    4,
+                    3,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          }
+        ],
+        "style": {
+          "padding": [
+            1,
+            3,
+            1,
+            3
+          ]
+        }
+      },
+      "logic_path": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 7,
+                "gap": 3,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 21,
+                    "height": 23,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            0,
+                            12
+                          ],
+                          [
+                            8,
+                            12
+                          ],
+                          [
+                            11,
+                            9
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 0.9
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 9,
+                        "y": 5,
+                        "w": 9,
+                        "h": 9,
+                        "stroke": "sky",
+                        "fill": "secondary_pale",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 11.5,
+                        "y": 7.5,
+                        "w": 4,
+                        "h": 4,
+                        "stroke": "accent",
+                        "fill": "surface",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            16,
+                            12
+                          ],
+                          [
+                            20,
+                            12
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 0.7
+                      }
+                    ]
+                  },
+                  {
+                    "type": "marker_row",
+                    "marker_width": 10,
+                    "gap": 6,
+                    "children": [
+                      {
+                        "type": "field",
+                        "bind": "index",
+                        "style": {
+                          "size": "caption",
+                          "weight": 820,
+                          "align": "center",
+                          "line_height": 1.5,
+                          "font": "mono",
+                          "color": "primary",
+                          "padding": [
+                            1,
+                            1,
+                            1,
+                            1
+                          ]
+                        }
+                      },
+                      {
+                        "type": "field",
+                        "bind": "item",
+                        "style": {
+                          "color": "ink",
+                          "line_height": 1.8
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                3,
+                0,
+                4,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border_left": {
+            "width": 2,
+            "color": "sky",
+            "style": "dashed"
+          },
+          "padding": [
+            3,
+            0,
+            1,
+            0
+          ]
+        }
+      },
+      "action_checklist": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "行动清单",
+                "style": {
+                  "size": "caption",
+                  "color": "surface",
+                  "weight": 800,
+                  "padding": [
+                    3,
+                    0,
+                    3,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 67,
+                "height": 20,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        59,
+                        2
+                      ],
+                      [
+                        65,
+                        5
+                      ],
+                      [
+                        61,
+                        9
+                      ],
+                      [
+                        65,
+                        13
+                      ],
+                      [
+                        61,
+                        17
+                      ],
+                      [
+                        2,
+                        18
+                      ],
+                      [
+                        4,
+                        14
+                      ],
+                      [
+                        0,
+                        9
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "fill": "sky",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        4
+                      ],
+                      [
+                        3,
+                        15
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        16,
+                        4
+                      ],
+                      [
+                        10,
+                        15
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        23,
+                        4
+                      ],
+                      [
+                        17,
+                        15
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        30,
+                        4
+                      ],
+                      [
+                        24,
+                        15
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        37,
+                        4
+                      ],
+                      [
+                        31,
+                        15
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        44,
+                        4
+                      ],
+                      [
+                        38,
+                        15
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        51,
+                        4
+                      ],
+                      [
+                        45,
+                        15
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        58,
+                        4
+                      ],
+                      [
+                        52,
+                        15
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.55
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        7,
+                        14
+                      ],
+                      [
+                        11,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        15,
+                        14
+                      ],
+                      [
+                        19,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        23,
+                        14
+                      ],
+                      [
+                        27,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        31,
+                        14
+                      ],
+                      [
+                        35,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        39,
+                        14
+                      ],
+                      [
+                        43,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        47,
+                        14
+                      ],
+                      [
+                        51,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        55,
+                        14
+                      ],
+                      [
+                        59,
+                        14
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.85
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 54,
+                    "y": 5,
+                    "w": 4,
+                    "h": 4,
+                    "stroke": "accent_pale",
+                    "fill": "accent_pale",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "background": "primary",
+              "padding": [
+                2,
+                5,
+                2,
+                10
+              ],
+              "border_bottom": {
+                "width": 2,
+                "color": "accent",
+                "style": "dashed"
+              }
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 7,
+                "gap": 6,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 19,
+                    "height": 23,
+                    "parts": [
+                      {
+                        "kind": "polygon",
+                        "points": [
+                          [
+                            3,
+                            5
+                          ],
+                          [
+                            14,
+                            5
+                          ],
+                          [
+                            15,
+                            14
+                          ],
+                          [
+                            10,
+                            18
+                          ],
+                          [
+                            3,
+                            14
+                          ]
+                        ],
+                        "stroke": "surface",
+                        "fill": "surface",
+                        "stroke_width": 0.5
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            3,
+                            5
+                          ],
+                          [
+                            14,
+                            5
+                          ],
+                          [
+                            15,
+                            14
+                          ],
+                          [
+                            10,
+                            18
+                          ],
+                          [
+                            3,
+                            14
+                          ],
+                          [
+                            3,
+                            5
+                          ]
+                        ],
+                        "stroke": "primary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            5,
+                            7
+                          ],
+                          [
+                            12,
+                            7
+                          ]
+                        ],
+                        "stroke": "accent",
+                        "stroke_width": 0.7
+                      }
+                    ]
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "color": "ink",
+                      "line_height": 1.8
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                6,
+                8,
+                5,
+                8
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              }
+            }
+          }
+        ],
+        "style": {
+          "border_left": {
+            "width": 1,
+            "color": "sky",
+            "style": "solid"
+          },
+          "border_right": {
+            "width": 1,
+            "color": "sky",
+            "style": "solid"
+          },
+          "border_bottom": {
+            "width": 2,
+            "color": "sky",
+            "style": "solid"
+          }
+        }
+      },
+      "section_summary": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "小结",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "weight": 800,
+                  "padding": [
+                    2,
+                    8,
+                    2,
+                    8
+                  ],
+                  "fit": "content",
+                  "background": "secondary_pale",
+                  "radius": [
+                    2,
+                    5,
+                    0,
+                    2
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 38,
+                "height": 17,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        6
+                      ],
+                      [
+                        14,
+                        6
+                      ],
+                      [
+                        19,
+                        9
+                      ],
+                      [
+                        24,
+                        6
+                      ],
+                      [
+                        36,
+                        6
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        11
+                      ],
+                      [
+                        13,
+                        11
+                      ],
+                      [
+                        19,
+                        14
+                      ],
+                      [
+                        25,
+                        11
+                      ],
+                      [
+                        35,
+                        11
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 0.8
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                1,
+                2,
+                0,
+                0
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              }
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 7,
+                "gap": 5,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 17,
+                    "height": 23,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            3,
+                            13
+                          ],
+                          [
+                            7,
+                            9
+                          ],
+                          [
+                            12,
+                            9
+                          ],
+                          [
+                            15,
+                            6
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.3
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            5,
+                            15
+                          ],
+                          [
+                            8,
+                            12
+                          ]
+                        ],
+                        "stroke": "accent",
+                        "stroke_width": 0.8
+                      }
+                    ]
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "color": "ink",
+                      "line_height": 1.8
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                4,
+                3,
+                3,
+                4
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "warning_note": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 12,
+            "gap": 4,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 32,
+                "height": 28,
+                "parts": [
+                  {
+                    "kind": "ellipse",
+                    "x": 3,
+                    "y": 4,
+                    "w": 10,
+                    "h": 10,
+                    "stroke": "accent",
+                    "fill": "accent_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        12,
+                        13
+                      ],
+                      [
+                        25,
+                        24
+                      ],
+                      [
+                        30,
+                        22
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        9,
+                        9
+                      ],
+                      [
+                        16,
+                        9
+                      ],
+                      [
+                        21,
+                        5
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 0.8
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "留意",
+                "style": {
+                  "size": "caption",
+                  "color": "accent",
+                  "weight": 800,
+                  "padding": [
+                    1,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "border_bottom": {
+                "width": 1,
+                "color": "accent",
+                "style": "dashed"
+              },
+              "padding": [
+                1,
+                0,
+                0,
+                4
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "color": "ink",
+              "line_height": 1.8,
+              "padding": [
+                7,
+                7,
+                7,
+                9
+              ],
+              "background": "accent_pale"
+            }
+          }
+        ],
+        "style": {}
+      },
+      "comparison_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "A",
+                    "style": {
+                      "size": "caption",
+                      "color": "surface",
+                      "weight": 800,
+                      "font": "mono",
+                      "background": "primary",
+                      "fit": "content",
+                      "padding": [
+                        2,
+                        11,
+                        2,
+                        11
+                      ],
+                      "radius": [
+                        2,
+                        2,
+                        5,
+                        0
+                      ]
+                    }
+                  }
+                ],
+                "style": {
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  },
+                  "padding": [
+                    0,
+                    0,
+                    2,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "left",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    6,
+                    2,
+                    5,
+                    7
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          },
+          {
+            "type": "drawing",
+            "width": 67,
+            "height": 20,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    1,
+                    3
+                  ],
+                  [
+                    59,
+                    2
+                  ],
+                  [
+                    65,
+                    5
+                  ],
+                  [
+                    61,
+                    9
+                  ],
+                  [
+                    65,
+                    13
+                  ],
+                  [
+                    61,
+                    17
+                  ],
+                  [
+                    2,
+                    18
+                  ],
+                  [
+                    4,
+                    14
+                  ],
+                  [
+                    0,
+                    9
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "primary",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    9,
+                    4
+                  ],
+                  [
+                    3,
+                    15
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    16,
+                    4
+                  ],
+                  [
+                    10,
+                    15
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    23,
+                    4
+                  ],
+                  [
+                    17,
+                    15
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    30,
+                    4
+                  ],
+                  [
+                    24,
+                    15
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    37,
+                    4
+                  ],
+                  [
+                    31,
+                    15
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    44,
+                    4
+                  ],
+                  [
+                    38,
+                    15
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    51,
+                    4
+                  ],
+                  [
+                    45,
+                    15
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    58,
+                    4
+                  ],
+                  [
+                    52,
+                    15
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    14
+                  ],
+                  [
+                    11,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    15,
+                    14
+                  ],
+                  [
+                    19,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    23,
+                    14
+                  ],
+                  [
+                    27,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    31,
+                    14
+                  ],
+                  [
+                    35,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    39,
+                    14
+                  ],
+                  [
+                    43,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    47,
+                    14
+                  ],
+                  [
+                    51,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    55,
+                    14
+                  ],
+                  [
+                    59,
+                    14
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "ellipse",
+                "x": 54,
+                "y": 5,
+                "w": 4,
+                "h": 4,
+                "stroke": "accent_pale",
+                "fill": "accent_pale",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "align": "center"
+            }
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "stack",
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "B",
+                    "style": {
+                      "size": "caption",
+                      "color": "surface",
+                      "weight": 800,
+                      "font": "mono",
+                      "background": "primary",
+                      "fit": "content",
+                      "padding": [
+                        2,
+                        11,
+                        2,
+                        11
+                      ],
+                      "radius": [
+                        2,
+                        2,
+                        5,
+                        0
+                      ]
+                    }
+                  }
+                ],
+                "style": {
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "secondary",
+                    "style": "dashed"
+                  },
+                  "padding": [
+                    0,
+                    0,
+                    2,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "right",
+                "style": {
+                  "color": "ink",
+                  "line_height": 1.8,
+                  "padding": [
+                    6,
+                    2,
+                    5,
+                    7
+                  ]
+                }
+              }
+            ],
+            "style": {}
+          }
+        ],
+        "style": {
+          "border_left": {
+            "width": 1,
+            "color": "sky",
+            "style": "dashed"
+          },
+          "padding": [
+            0,
+            0,
+            0,
+            8
+          ]
+        }
+      },
+      "concept_explainer": {
+        "type": "repeat",
+        "style": {
+          "padding": [
+            4,
+            0,
+            10,
+            0
+          ]
+        },
+        "bind": "entries",
+        "children": [
+          {
+            "type": "field",
+            "style": {
+              "size": "subheading",
+              "color": "primary",
+              "line_height": 1.45,
+              "fit": "content",
+              "weight": 800,
+              "padding": [
+                2,
+                12,
+                3,
+                9
+              ],
+              "background": "pale",
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              }
+            },
+            "bind": "title"
+          },
+          {
+            "type": "field",
+            "style": {
+              "padding": [
+                8,
+                0,
+                3,
+                9
+              ],
+              "border_left": {
+                "width": 1,
+                "color": "sky_pale",
+                "style": "solid"
+              }
+            },
+            "bind": "body"
+          }
+        ]
+      },
+      "case_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "field",
+            "style": {
+              "size": "subheading",
+              "color": "primary",
+              "line_height": 1.45,
+              "weight": 800,
+              "padding": [
+                0,
+                0,
+                0,
+                0
+              ]
+            },
+            "bind": "title"
+          },
+          {
+            "type": "drawing",
+            "width": 122,
+            "height": 27,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    3,
+                    4
+                  ],
+                  [
+                    20,
+                    2
+                  ],
+                  [
+                    108,
+                    3
+                  ],
+                  [
+                    119,
+                    6
+                  ],
+                  [
+                    115,
+                    10
+                  ],
+                  [
+                    119,
+                    13
+                  ],
+                  [
+                    115,
+                    17
+                  ],
+                  [
+                    117,
+                    22
+                  ],
+                  [
+                    105,
+                    25
+                  ],
+                  [
+                    17,
+                    24
+                  ],
+                  [
+                    3,
+                    22
+                  ]
+                ],
+                "fill": "primary",
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    22
+                  ],
+                  [
+                    18.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    14.6,
+                    22
+                  ],
+                  [
+                    24.6,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    21.2,
+                    22
+                  ],
+                  [
+                    31.2,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    27.799999999999997,
+                    22
+                  ],
+                  [
+                    37.8,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    34.4,
+                    22
+                  ],
+                  [
+                    44.4,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    41.0,
+                    22
+                  ],
+                  [
+                    51.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    47.599999999999994,
+                    22
+                  ],
+                  [
+                    57.599999999999994,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    54.199999999999996,
+                    22
+                  ],
+                  [
+                    64.19999999999999,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    60.8,
+                    22
+                  ],
+                  [
+                    70.8,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    67.4,
+                    22
+                  ],
+                  [
+                    77.4,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    74.0,
+                    22
+                  ],
+                  [
+                    84.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    80.6,
+                    22
+                  ],
+                  [
+                    90.6,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    87.19999999999999,
+                    22
+                  ],
+                  [
+                    97.19999999999999,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    93.8,
+                    22
+                  ],
+                  [
+                    103.8,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    100.39999999999999,
+                    22
+                  ],
+                  [
+                    110.39999999999999,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    5,
+                    8
+                  ],
+                  [
+                    51,
+                    8.45
+                  ],
+                  [
+                    112,
+                    8
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    5,
+                    12
+                  ],
+                  [
+                    51,
+                    12.45
+                  ],
+                  [
+                    112,
+                    12
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    5,
+                    16
+                  ],
+                  [
+                    51,
+                    16.45
+                  ],
+                  [
+                    112,
+                    16
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    5,
+                    20
+                  ],
+                  [
+                    51,
+                    20.45
+                  ],
+                  [
+                    112,
+                    20
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    9,
+                    6
+                  ],
+                  [
+                    16,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    22,
+                    6
+                  ],
+                  [
+                    29,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    35,
+                    6
+                  ],
+                  [
+                    42,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    48,
+                    6
+                  ],
+                  [
+                    55,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    61,
+                    6
+                  ],
+                  [
+                    68,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    74,
+                    6
+                  ],
+                  [
+                    81,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    87,
+                    6
+                  ],
+                  [
+                    94,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    100,
+                    6
+                  ],
+                  [
+                    107,
+                    6
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    5
+                  ],
+                  [
+                    7,
+                    20
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1.15
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8,
+                    21
+                  ],
+                  [
+                    110,
+                    22
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "margin": [
+                3,
+                0,
+                -7,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "style": {
+              "border_top": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              },
+              "padding": [
+                12,
+                0,
+                2,
+                10
+              ],
+              "border_left": {
+                "width": 1,
+                "color": "sky_pale",
+                "style": "solid"
+              }
+            },
+            "bind": "body"
+          }
+        ]
+      },
+      "faq_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              80,
+              20
+            ],
+            "children": [
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "color": "primary",
+                  "size": "subheading",
+                  "weight": 780,
+                  "line_height": 1.52,
+                  "padding": [
+                    3,
+                    0,
+                    5,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 48,
+                "height": 19,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        1,
+                        3
+                      ],
+                      [
+                        39,
+                        2
+                      ],
+                      [
+                        46,
+                        6
+                      ],
+                      [
+                        42,
+                        11
+                      ],
+                      [
+                        46,
+                        15
+                      ],
+                      [
+                        3,
+                        17
+                      ],
+                      [
+                        0,
+                        12
+                      ],
+                      [
+                        3,
+                        8
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        6,
+                        13
+                      ],
+                      [
+                        9,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        12,
+                        13
+                      ],
+                      [
+                        15,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        18,
+                        13
+                      ],
+                      [
+                        21,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        24,
+                        13
+                      ],
+                      [
+                        27,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        30,
+                        13
+                      ],
+                      [
+                        33,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        36,
+                        13
+                      ],
+                      [
+                        39,
+                        12.6
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        5,
+                        6
+                      ],
+                      [
+                        38,
+                        4
+                      ]
+                    ],
+                    "stroke": "sky_pale",
+                    "stroke_width": 0.6
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 39,
+                    "y": 6,
+                    "w": 3,
+                    "h": 3,
+                    "stroke": "accent_pale",
+                    "fill": "accent_pale",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right",
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                0,
+                5,
+                0,
+                8
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "color": "ink",
+              "line_height": 1.8,
+              "padding": [
+                8,
+                0,
+                4,
+                8
+              ],
+              "border_left": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dashed"
+              }
+            }
+          }
+        ],
+        "style": {}
+      },
+      "divider": {
+        "type": "ornament_rule",
+        "slot_width": 19,
+        "line_color": "secondary",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 46,
+            "height": 16,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    4,
+                    11
+                  ],
+                  [
+                    19,
+                    11
+                  ],
+                  [
+                    27,
+                    5
+                  ],
+                  [
+                    42,
+                    5
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    4,
+                    5
+                  ],
+                  [
+                    19,
+                    5
+                  ],
+                  [
+                    27,
+                    11
+                  ],
+                  [
+                    42,
+                    11
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.2
+              }
+            ]
+          }
+        ],
+        "style": {}
+      },
+      "image_caption": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "drawing",
+            "style": {
+              "align": "right",
+              "margin": [
+                0,
+                0,
+                -24,
+                0
+              ]
+            },
+            "width": 133,
+            "height": 53,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    45.220000000000006,
+                    3
+                  ],
+                  [
+                    85.12,
+                    3.5
+                  ],
+                  [
+                    130,
+                    1.5
+                  ],
+                  [
+                    131,
+                    48
+                  ],
+                  [
+                    78.47,
+                    48.7
+                  ],
+                  [
+                    7,
+                    51
+                  ],
+                  [
+                    4,
+                    48
+                  ]
+                ],
+                "fill": "primary",
+                "stroke": "primary",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    46.55
+                  ],
+                  [
+                    24.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    13.777777777777779,
+                    47.0
+                  ],
+                  [
+                    29.77777777777778,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    19.555555555555557,
+                    47.45
+                  ],
+                  [
+                    35.55555555555556,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    25.333333333333332,
+                    46.55
+                  ],
+                  [
+                    41.33333333333333,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    31.11111111111111,
+                    47.0
+                  ],
+                  [
+                    47.111111111111114,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    36.888888888888886,
+                    47.45
+                  ],
+                  [
+                    52.888888888888886,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    42.666666666666664,
+                    46.55
+                  ],
+                  [
+                    58.666666666666664,
+                    5
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    48.44444444444444,
+                    47.0
+                  ],
+                  [
+                    64.44444444444444,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    54.22222222222222,
+                    47.45
+                  ],
+                  [
+                    70.22222222222223,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    60.0,
+                    46.55
+                  ],
+                  [
+                    76.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    65.77777777777777,
+                    47.0
+                  ],
+                  [
+                    81.77777777777777,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    71.55555555555556,
+                    47.45
+                  ],
+                  [
+                    87.55555555555556,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    77.33333333333333,
+                    46.55
+                  ],
+                  [
+                    93.33333333333333,
+                    5
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    83.11111111111111,
+                    47.0
+                  ],
+                  [
+                    99.11111111111111,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    88.88888888888889,
+                    47.45
+                  ],
+                  [
+                    104.88888888888889,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    94.66666666666667,
+                    46.55
+                  ],
+                  [
+                    110.66666666666667,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    100.44444444444444,
+                    47.0
+                  ],
+                  [
+                    116.44444444444444,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    106.22222222222223,
+                    47.45
+                  ],
+                  [
+                    122.22222222222223,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    112.0,
+                    46.55
+                  ],
+                  [
+                    128.0,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    8.0
+                  ],
+                  [
+                    55.86,
+                    7.7
+                  ],
+                  [
+                    90.44000000000001,
+                    5.8
+                  ],
+                  [
+                    128,
+                    6.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    14.666666666666668
+                  ],
+                  [
+                    55.86,
+                    14.366666666666667
+                  ],
+                  [
+                    90.44000000000001,
+                    12.466666666666669
+                  ],
+                  [
+                    128,
+                    12.666666666666668
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    21.333333333333336
+                  ],
+                  [
+                    55.86,
+                    21.033333333333335
+                  ],
+                  [
+                    90.44000000000001,
+                    19.133333333333336
+                  ],
+                  [
+                    128,
+                    19.333333333333336
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    28.0
+                  ],
+                  [
+                    55.86,
+                    27.7
+                  ],
+                  [
+                    90.44000000000001,
+                    25.8
+                  ],
+                  [
+                    128,
+                    26.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    34.66666666666667
+                  ],
+                  [
+                    55.86,
+                    34.366666666666674
+                  ],
+                  [
+                    90.44000000000001,
+                    32.46666666666667
+                  ],
+                  [
+                    128,
+                    32.66666666666667
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    41.333333333333336
+                  ],
+                  [
+                    55.86,
+                    41.03333333333334
+                  ],
+                  [
+                    90.44000000000001,
+                    39.13333333333333
+                  ],
+                  [
+                    128,
+                    39.333333333333336
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    48.0
+                  ],
+                  [
+                    55.86,
+                    47.7
+                  ],
+                  [
+                    90.44000000000001,
+                    45.8
+                  ],
+                  [
+                    128,
+                    46.0
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    8.0,
+                    6.879699248120301
+                  ],
+                  [
+                    21.058823529411764,
+                    6.679699248120301
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    30.2,
+                    6.545864661654135
+                  ],
+                  [
+                    43.258823529411764,
+                    6.345864661654135
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    52.4,
+                    6.21203007518797
+                  ],
+                  [
+                    65.45882352941176,
+                    6.01203007518797
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    74.6,
+                    5.878195488721804
+                  ],
+                  [
+                    87.65882352941176,
+                    5.678195488721804
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    96.8,
+                    5.544360902255639
+                  ],
+                  [
+                    109.85882352941177,
+                    5.344360902255639
+                  ]
+                ],
+                "stroke": "secondary_pale",
+                "stroke_width": 1
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "style": {
+              "background": "surface",
+              "border_left": {
+                "width": 1,
+                "color": "primary",
+                "style": "solid"
+              },
+              "padding": [
+                0,
+                0,
+                0,
+                8
+              ],
+              "margin": [
+                0,
+                17,
+                0,
+                0
+              ]
+            },
+            "children": [
+              {
+                "type": "media"
+              },
+              {
+                "type": "field",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "line_height": 1.65,
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "accent",
+                    "style": "dashed"
+                  },
+                  "padding": [
+                    8,
+                    0,
+                    7,
+                    0
+                  ]
+                },
+                "bind": "caption"
+              }
+            ]
+          }
+        ]
+      },
+      "closing_cta": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "ornament_rule",
+            "slot_width": 19,
+            "line_color": "secondary",
+            "children": [
+              {
+                "type": "drawing",
+                "width": 46,
+                "height": 16,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        4,
+                        11
+                      ],
+                      [
+                        19,
+                        11
+                      ],
+                      [
+                        27,
+                        5
+                      ],
+                      [
+                        42,
+                        5
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        4,
+                        5
+                      ],
+                      [
+                        19,
+                        5
+                      ],
+                      [
+                        27,
+                        11
+                      ],
+                      [
+                        42,
+                        11
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 1.2
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "margin": [
+                0,
+                0,
+                9,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "style": {
+              "color": "primary",
+              "align": "center",
+              "weight": 700,
+              "padding": [
+                2,
+                4,
+                6,
+                4
+              ]
+            },
+            "bind": "body"
+          },
+          {
+            "type": "media",
+            "style": {
+              "margin": [
+                8,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

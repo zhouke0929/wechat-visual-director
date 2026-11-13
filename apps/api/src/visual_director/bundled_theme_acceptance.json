@@ -1,0 +1,71 @@
+{
+  "evidence": "owner_reported_wechat_roundtrip",
+  "renderer": "preview_renderer.v0.21.8-bundled-themes",
+  "paths": [
+    "clipboard",
+    "api_draft"
+  ],
+  "scope": "acceptance_fixture_saved_roundtrip",
+  "themes": {
+    "retro_window": {
+      "version": "1.1.2",
+      "manifest_lf_sha256": "202313853deb0bfcabf60637ce58a58f8e8fe6e25ed278de1871f1c8ec9dcc21",
+      "fixture_sha256": "29b4d2ec845b06854e541697b14501ce900a2ffbffae3f842da243a6971940cb"
+    },
+    "city_wayfinding": {
+      "version": "1.0.3",
+      "manifest_lf_sha256": "3fb39d34a5036cf7aa38dbf730796c4d1b21eec6faafeab77039ff1dac0b58a6",
+      "fixture_sha256": "d0ee923f3a1591140875f98485c95fc5a702a15f10dd0aad9fcdbeb97a3deb4f"
+    },
+    "folded_fan_detail": {
+      "version": "1.3.1",
+      "manifest_lf_sha256": "9f37f651f808d6645dc8eeec5e60af27f1bb69c5f2d6f6642ca31a1f36859320",
+      "fixture_sha256": "d6edc7d74e10a63376333e261a9a7f96e1599d2f2efd307c31b9c4067aafd838"
+    },
+    "color_paper_corners": {
+      "version": "1.3.1",
+      "manifest_lf_sha256": "f6aa0557cef9f62371c31e86bae42b5fd3ff99104fb8ed01029deabb905d5949",
+      "fixture_sha256": "50825206e21cadd04af40e6ebe299ce8dde40648fdc33507c5c106ecea818d7f"
+    },
+    "paper_fold": {
+      "version": "1.2.3",
+      "manifest_lf_sha256": "0670e69568cf77f89c39fdbc3469a462c422665e24c1ddbfa312dbdc05742d2b",
+      "fixture_sha256": "87fddd73f523195dfca496a4115c5fcaf07e55b1c2947640444c7975cd88ca80"
+    },
+    "candidate_light_blue_watercolor": {
+      "version": "1.2.3",
+      "manifest_lf_sha256": "c4eb5bb03b4bc86c044808b63db892a4d44bbc07a9d0365852d6dc50aa2c32b2",
+      "fixture_sha256": "508c12b5f304a9b9ff406b686ffdd8a4a81333a91620eb29aac8f04fe032cfa1"
+    },
+    "toy_storybook": {
+      "version": "1.1.4",
+      "manifest_lf_sha256": "5a7a05d3ac1a56b88814ab859820617b982056d720cb2a1236eb4e28f327413e",
+      "fixture_sha256": "40a02c62699f115040cb683f1aa2d9411216766ffc5385cad0b94f3bd03e2230"
+    },
+    "indigo_cloth": {
+      "version": "1.2.3",
+      "manifest_lf_sha256": "a2d8e8a6239fc1906073a6077ef17c1c18ce0d8123198777c7884122575e5c7a",
+      "fixture_sha256": "7f5433a6cec5e5917f1b15338df6bba24aa8c71c07951d07218ebb4bb3cf5898"
+    },
+    "night_walk_illustration": {
+      "version": "1.2.1",
+      "manifest_lf_sha256": "bd9cd4996855b14325c3b6db4a97272257733142ce4a61c2b4ad897e8892ea9f",
+      "fixture_sha256": "55b7636970c54ee71bcbf59ce43f4c074d55dd119f7aeb413a04207d65df447f"
+    },
+    "ink_traces": {
+      "version": "1.2.4",
+      "manifest_lf_sha256": "eaf589d69a0f11004581ef67a0dfd6451da22efab93cbd0cd48b48d7ba1cfe1e",
+      "fixture_sha256": "55a192b836a38711851b8f57fef9f54242594cbf8238e7f6f22e85469c72cb77"
+    },
+    "soft_emboss": {
+      "version": "1.2.4",
+      "manifest_lf_sha256": "c1d07be087d62f4cd444838f3f87a16e99c0becd44477976976ddbf197fb8f17",
+      "fixture_sha256": "4c33553075c7216cd31fbfd4f85f3899d05adbcd26803b9cf4fc3afe926dc5a2"
+    },
+    "ticket_and_stub": {
+      "version": "1.2.1",
+      "manifest_lf_sha256": "3bbd07b990110c32a079fb3fa6f81b66e424ae6aabfbc74014ce8d444cca0708",
+      "fixture_sha256": "a3aad91ce1e2b3bea36083bc40f1cf18c86ae5bce5742f7ad2977d4263949356"
+    }
+  }
+}

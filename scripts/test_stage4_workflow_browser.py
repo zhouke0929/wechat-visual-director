@@ -153,14 +153,24 @@ def main():
             page.screenshot(path=str(out / "workbench-desktop.png"))
             checks.append("compact body/cover entries; task-bound prompt; clipboard failure manual selection; native dialog focus/Escape/backdrop; 320/405px layouts; no model calls")
             before = page.locator("select").first.input_value()
+            picker = page.get_by_role("combobox", name="选择整篇文章主题")
+            assert picker.locator("option").count() == 30
+            assert picker.locator('optgroup[label="结构与现代"] option[value="city_wayfinding"]').count() == 1
+            assert page.get_by_role("link", name="对比主题样张").get_attribute("href") == "/theme-gallery"
+            picker.select_option("city_wayfinding")
+            expect(page.get_by_role("button", name="回到上一版", exact=True)).to_be_enabled()
+            expect(picker).to_have_value("city_wayfinding")
+            page.locator(".active-plan-summary").screenshot(path=str(out / "official-theme-picker.png"))
+            page.get_by_role("button", name="回到上一版", exact=True).click()
+            expect(picker).to_have_value(before)
             page.get_by_role("button", name="换一个主题", exact=True).click()
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_be_enabled()
             page.get_by_role("button", name="回到上一版", exact=True).click()
             expect(page.locator("select").first).to_have_value(before)
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_have_count(0)
-            checks.append("theme switch and undo restore original selection without regeneration")
+            checks.append("30 official options grouped by visual family; city theme switches and undo restores selection without regeneration")
             page.goto(base + "/settings", wait_until="networkidle")
-            expect(page.get_by_text("这里配置的是工作台图片 API。", exact=False)).to_be_visible()
+            expect(page.get_by_text("本地设置", exact=True).first).to_be_visible()
             assert not forbidden, forbidden
             assert not errors, errors
             browser.close()

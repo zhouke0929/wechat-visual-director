@@ -1,0 +1,3464 @@
+{
+  "schema_version": "visual_director.theme_pack.v1",
+  "id": "city_wayfinding",
+  "name": "城市导视",
+  "english": "CITY WAYFINDING",
+  "description": "珐琅路牌、换乘导轨和地图图例组织正文，白底和可编辑文字保留长文呼吸。",
+  "version": "1.0.3",
+  "author": "WeChat Visual Director",
+  "base_theme": "structured_grid",
+  "ideal_for": [
+    "城市生活",
+    "活动指引",
+    "路线攻略",
+    "流程说明"
+  ],
+  "personality": [
+    "清晰",
+    "果断",
+    "亲和"
+  ],
+  "palette": {
+    "primary": "#143D50",
+    "secondary": "#B68135",
+    "accent": "#A64B29",
+    "sky": "#356977",
+    "pale": "#EEF5F4",
+    "secondary_pale": "#F5E5C5",
+    "accent_pale": "#FAEEE7",
+    "sky_pale": "#DCE9E8",
+    "surface": "#FFFFFF",
+    "ink": "#202D33"
+  },
+  "visual_dna": {
+    "warmth": 0.46,
+    "saturation": 0.44,
+    "contrast": 0.68,
+    "geometry": 0.82,
+    "tactility": 0.35,
+    "dimensionality": 0.14,
+    "energy": 0.57,
+    "information_density": 0.55,
+    "brand_formality": 0.55
+  },
+  "material_tags": [
+    "enamel",
+    "printed_map",
+    "matte_metal"
+  ],
+  "tone": [
+    "青蓝珐琅",
+    "暖色导向",
+    "明快留白"
+  ],
+  "design_system": {
+    "layouts": {
+      "hero": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "row",
+                "widths": [
+                  80,
+                  20
+                ],
+                "children": [
+                  {
+                    "type": "field",
+                    "bind": "kicker",
+                    "style": {
+                      "size": "label",
+                      "color": "secondary_pale",
+                      "weight": 780,
+                      "padding": [
+                        4,
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "drawing",
+                    "width": 54,
+                    "height": 32,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            3,
+                            27
+                          ],
+                          [
+                            17,
+                            27
+                          ],
+                          [
+                            21,
+                            20
+                          ],
+                          [
+                            36,
+                            20
+                          ],
+                          [
+                            43,
+                            11
+                          ],
+                          [
+                            51,
+                            11
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.3
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            2,
+                            15
+                          ],
+                          [
+                            15,
+                            15
+                          ],
+                          [
+                            24,
+                            5
+                          ],
+                          [
+                            49,
+                            5
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            12,
+                            3
+                          ],
+                          [
+                            12,
+                            15
+                          ],
+                          [
+                            17,
+                            21
+                          ],
+                          [
+                            17,
+                            30
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            31,
+                            1
+                          ],
+                          [
+                            31,
+                            11
+                          ],
+                          [
+                            26,
+                            16
+                          ],
+                          [
+                            26,
+                            29
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            41,
+                            4
+                          ],
+                          [
+                            41,
+                            27
+                          ],
+                          [
+                            51,
+                            27
+                          ]
+                        ],
+                        "stroke": "secondary",
+                        "stroke_width": 1
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 18,
+                        "y": 17,
+                        "w": 6,
+                        "h": 6,
+                        "stroke": "sky",
+                        "fill": "surface",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 46,
+                        "y": 7,
+                        "w": 8,
+                        "h": 8,
+                        "stroke": "accent",
+                        "fill": "secondary_pale",
+                        "stroke_width": 0.75
+                      }
+                    ],
+                    "style": {
+                      "align": "right"
+                    }
+                  }
+                ],
+                "style": {
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "sky",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "title",
+                  "weight": 820,
+                  "line_height": 1.36,
+                  "color": "surface",
+                  "padding": [
+                    8,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "primary",
+              "padding": [
+                11,
+                16,
+                7,
+                16
+              ],
+              "border_top": {
+                "width": 3,
+                "color": "secondary",
+                "style": "solid"
+              },
+              "radius": [
+                5,
+                5,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 9,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    160,
+                    0
+                  ],
+                  [
+                    160,
+                    4
+                  ],
+                  [
+                    118,
+                    4
+                  ],
+                  [
+                    112,
+                    8
+                  ],
+                  [
+                    50,
+                    8
+                  ],
+                  [
+                    44,
+                    4
+                  ],
+                  [
+                    0,
+                    4
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "primary",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    7,
+                    3.2
+                  ],
+                  [
+                    42,
+                    3.2
+                  ],
+                  [
+                    50,
+                    7
+                  ],
+                  [
+                    111,
+                    7
+                  ],
+                  [
+                    118,
+                    3.2
+                  ],
+                  [
+                    153,
+                    3.2
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.55
+              },
+              {
+                "kind": "ellipse",
+                "x": 55,
+                "y": 5,
+                "w": 2.7,
+                "h": 2.7,
+                "stroke": "secondary_pale",
+                "fill": "secondary_pale",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 79,
+                "y": 5,
+                "w": 2.7,
+                "h": 2.7,
+                "stroke": "surface",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 103,
+                "y": 5,
+                "w": 2.7,
+                "h": 2.7,
+                "stroke": "secondary_pale",
+                "fill": "secondary_pale",
+                "stroke_width": 0.75
+              }
+            ],
+            "sizing": "full_width"
+          }
+        ],
+        "style": {}
+      },
+      "heading": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 4,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "size": "caption",
+                  "font": "mono",
+                  "color": "sky",
+                  "weight": 840,
+                  "line_height": 1.46,
+                  "align": "left",
+                  "padding": [
+                    1,
+                    0,
+                    1,
+                    3
+                  ],
+                  "width": 29,
+                  "margin": [
+                    4,
+                    0,
+                    0,
+                    0
+                  ],
+                  "border_left": {
+                    "width": 2,
+                    "color": "secondary",
+                    "style": "solid"
+                  }
+                }
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "heading",
+                  "weight": 760,
+                  "line_height": 1.43,
+                  "color": "primary",
+                  "padding": [
+                    0,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 8,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0.5,
+                    4.5
+                  ],
+                  [
+                    39,
+                    4.5
+                  ],
+                  [
+                    44,
+                    2
+                  ],
+                  [
+                    154,
+                    2
+                  ]
+                ],
+                "stroke": "sky_pale",
+                "stroke_width": 0.65
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0.5,
+                    4.5
+                  ],
+                  [
+                    39,
+                    4.5
+                  ],
+                  [
+                    44,
+                    2
+                  ],
+                  [
+                    55,
+                    2
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.85
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    0.4,
+                    4.5
+                  ],
+                  [
+                    2.2,
+                    2.1
+                  ],
+                  [
+                    5.5,
+                    2.1
+                  ],
+                  [
+                    7.3,
+                    4.5
+                  ],
+                  [
+                    5.5,
+                    6.9
+                  ],
+                  [
+                    2.2,
+                    6.9
+                  ]
+                ],
+                "stroke": "primary",
+                "fill": "primary",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "ellipse",
+                "x": 2.7,
+                "y": 3.35,
+                "w": 2.3,
+                "h": 2.3,
+                "stroke": "secondary_pale",
+                "fill": "secondary_pale",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 53.85,
+                "y": 0.85,
+                "w": 2.3,
+                "h": 2.3,
+                "stroke": "secondary",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    153,
+                    1
+                  ],
+                  [
+                    156,
+                    2
+                  ],
+                  [
+                    153,
+                    3
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.65
+              }
+            ],
+            "sizing": "full_width"
+          }
+        ],
+        "style": {}
+      },
+      "subheading": {
+        "type": "marker_row",
+        "marker_width": 8,
+        "gap": 4,
+        "children": [
+          {
+            "type": "drawing",
+            "width": 25,
+            "height": 25,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    3,
+                    11
+                  ],
+                  [
+                    21,
+                    11
+                  ],
+                  [
+                    15,
+                    5
+                  ],
+                  [
+                    21,
+                    11
+                  ],
+                  [
+                    15,
+                    17
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.85
+              }
+            ],
+            "style": {
+              "margin": [
+                2,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "subheading",
+              "weight": 780,
+              "line_height": 1.43,
+              "color": "primary",
+              "padding": [
+                1,
+                1,
+                3,
+                1
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          }
+        ]
+      },
+      "lead": {
+        "type": "marker_row",
+        "marker_width": 8,
+        "gap": 6,
+        "children": [
+          {
+            "type": "drawing",
+            "width": 25,
+            "height": 24,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    12
+                  ],
+                  [
+                    24,
+                    12
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.35
+              },
+              {
+                "kind": "ellipse",
+                "x": 5,
+                "y": 4,
+                "w": 16,
+                "h": 16,
+                "stroke": "sky",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 9,
+                "y": 8,
+                "w": 8,
+                "h": 8,
+                "stroke": "sky",
+                "fill": "sky",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 11,
+                "y": 10,
+                "w": 4,
+                "h": 4,
+                "stroke": "surface",
+                "fill": "surface",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "margin": [
+                3,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "ink",
+              "padding": [
+                1,
+                0,
+                4,
+                2
+              ],
+              "border_bottom": {
+                "width": 1,
+                "color": "secondary",
+                "style": "dotted"
+              }
+            }
+          }
+        ]
+      },
+      "quote": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 9,
+            "gap": 4,
+            "children": [
+              {
+                "type": "text",
+                "text": "“",
+                "style": {
+                  "size": "heading",
+                  "color": "accent",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "align": "center"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "size": "subheading",
+                  "line_height": 1.82,
+                  "color": "primary",
+                  "font": "serif",
+                  "weight": 630,
+                  "padding": [
+                    0,
+                    2,
+                    4,
+                    1
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "drawing",
+            "width": 65,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    1,
+                    4
+                  ],
+                  [
+                    61,
+                    4
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 39,
+                "y": 1,
+                "w": 6,
+                "h": 6,
+                "stroke": "sky",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 53,
+                "y": 1,
+                "w": 6,
+                "h": 6,
+                "stroke": "accent",
+                "fill": "secondary_pale",
+                "stroke_width": 0.75
+              }
+            ],
+            "style": {
+              "align": "right"
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            4,
+            3,
+            0,
+            4
+          ]
+        }
+      },
+      "list": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 7,
+            "gap": 4,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "font": "mono",
+                  "size": "caption",
+                  "color": "sky",
+                  "weight": 740,
+                  "padding": [
+                    4,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink"
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            0,
+            3,
+            0
+          ]
+        }
+      },
+      "numbered_insight": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 11,
+            "gap": 7,
+            "children": [
+              {
+                "type": "field",
+                "bind": "index",
+                "style": {
+                  "size": "caption",
+                  "font": "mono",
+                  "color": "surface",
+                  "weight": 840,
+                  "line_height": 1.46,
+                  "align": "center",
+                  "padding": [
+                    2,
+                    0,
+                    2,
+                    0
+                  ],
+                  "background": "primary",
+                  "width": 33,
+                  "radius": [
+                    5,
+                    5,
+                    10,
+                    10
+                  ],
+                  "border_bottom": {
+                    "width": 3,
+                    "color": "secondary",
+                    "style": "solid"
+                  },
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink",
+                  "padding": [
+                    2,
+                    0,
+                    5,
+                    1
+                  ],
+                  "border_bottom": {
+                    "width": 1,
+                    "color": "sky_pale",
+                    "style": "dotted"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "logic_path": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 12,
+            "gap": 0,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 37,
+                "height": 30,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        15
+                      ],
+                      [
+                        37,
+                        15
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 8,
+                    "y": 3,
+                    "w": 24,
+                    "h": 24,
+                    "stroke": "sky",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 12,
+                    "y": 7,
+                    "w": 16,
+                    "h": 16,
+                    "stroke": "secondary",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 17,
+                    "y": 12,
+                    "w": 6,
+                    "h": 6,
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right",
+                  "margin": [
+                    2,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "item",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink",
+                  "padding": [
+                    3,
+                    3,
+                    8,
+                    9
+                  ],
+                  "border_left": {
+                    "width": 2,
+                    "color": "sky",
+                    "style": "solid"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "question_hook": {
+        "type": "marker_row",
+        "marker_width": 10,
+        "gap": 0,
+        "children": [
+          {
+            "type": "drawing",
+            "width": 39,
+            "height": 36,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    18
+                  ],
+                  [
+                    39,
+                    18
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 2
+              },
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    12,
+                    4
+                  ],
+                  [
+                    26,
+                    4
+                  ],
+                  [
+                    34,
+                    12
+                  ],
+                  [
+                    34,
+                    24
+                  ],
+                  [
+                    26,
+                    32
+                  ],
+                  [
+                    12,
+                    32
+                  ],
+                  [
+                    4,
+                    24
+                  ],
+                  [
+                    4,
+                    12
+                  ]
+                ],
+                "stroke": "accent",
+                "fill": "accent",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    10,
+                    18
+                  ],
+                  [
+                    27,
+                    18
+                  ],
+                  [
+                    22,
+                    13
+                  ],
+                  [
+                    27,
+                    18
+                  ],
+                  [
+                    22,
+                    23
+                  ]
+                ],
+                "stroke": "surface",
+                "stroke_width": 1.7
+              }
+            ],
+            "style": {
+              "align": "right",
+              "margin": [
+                2,
+                0,
+                0,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "title",
+            "style": {
+              "size": "heading",
+              "weight": 780,
+              "line_height": 1.4,
+              "color": "surface",
+              "background": "primary",
+              "fit": "content",
+              "padding": [
+                6,
+                6,
+                6,
+                6
+              ],
+              "radius": [
+                0,
+                6,
+                6,
+                0
+              ],
+              "border_bottom": {
+                "width": 2,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          }
+        ]
+      },
+      "faq_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 13,
+            "gap": 6,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 31,
+                "height": 32,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        2,
+                        5
+                      ],
+                      [
+                        24,
+                        5
+                      ],
+                      [
+                        29,
+                        10
+                      ],
+                      [
+                        29,
+                        22
+                      ],
+                      [
+                        2,
+                        22
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        7,
+                        11
+                      ],
+                      [
+                        23,
+                        11
+                      ]
+                    ],
+                    "stroke": "surface",
+                    "stroke_width": 1.2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        7,
+                        16
+                      ],
+                      [
+                        17,
+                        16
+                      ]
+                    ],
+                    "stroke": "secondary_pale",
+                    "stroke_width": 1.2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        10,
+                        22
+                      ],
+                      [
+                        10,
+                        30
+                      ],
+                      [
+                        26,
+                        30
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 1.5
+                  }
+                ],
+                "style": {
+                  "align": "center"
+                }
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "weight": 780,
+                  "line_height": 1.43,
+                  "color": "primary",
+                  "padding": [
+                    1,
+                    6,
+                    4,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "border_top": {
+                "width": 2,
+                "color": "primary",
+                "style": "solid"
+              },
+              "border_bottom": {
+                "width": 2,
+                "color": "sky",
+                "style": "solid"
+              },
+              "padding": [
+                5,
+                2,
+                3,
+                3
+              ]
+            }
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 11,
+            "gap": 3,
+            "children": [
+              {
+                "type": "text",
+                "text": "答",
+                "style": {
+                  "size": "caption",
+                  "color": "sky",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "align": "center",
+                  "margin": [
+                    4,
+                    0,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink",
+                  "padding": [
+                    2,
+                    5,
+                    4,
+                    8
+                  ],
+                  "border_left": {
+                    "width": 2,
+                    "color": "sky_pale",
+                    "style": "solid"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "evidence_callout": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "row",
+            "widths": [
+              75,
+              25
+            ],
+            "children": [
+              {
+                "type": "text",
+                "text": "证据摘录",
+                "style": {
+                  "size": "label",
+                  "color": "surface",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "fit": "content",
+                  "padding": [
+                    3,
+                    9,
+                    3,
+                    9
+                  ],
+                  "background": "primary",
+                  "border_bottom": {
+                    "width": 2,
+                    "color": "secondary",
+                    "style": "solid"
+                  },
+                  "radius": [
+                    0,
+                    4,
+                    0,
+                    0
+                  ]
+                }
+              },
+              {
+                "type": "drawing",
+                "width": 54,
+                "height": 32,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        3,
+                        27
+                      ],
+                      [
+                        17,
+                        27
+                      ],
+                      [
+                        21,
+                        20
+                      ],
+                      [
+                        36,
+                        20
+                      ],
+                      [
+                        43,
+                        11
+                      ],
+                      [
+                        51,
+                        11
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 1.3
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        2,
+                        15
+                      ],
+                      [
+                        15,
+                        15
+                      ],
+                      [
+                        24,
+                        5
+                      ],
+                      [
+                        49,
+                        5
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        12,
+                        3
+                      ],
+                      [
+                        12,
+                        15
+                      ],
+                      [
+                        17,
+                        21
+                      ],
+                      [
+                        17,
+                        30
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        31,
+                        1
+                      ],
+                      [
+                        31,
+                        11
+                      ],
+                      [
+                        26,
+                        16
+                      ],
+                      [
+                        26,
+                        29
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        41,
+                        4
+                      ],
+                      [
+                        41,
+                        27
+                      ],
+                      [
+                        51,
+                        27
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 18,
+                    "y": 17,
+                    "w": 6,
+                    "h": 6,
+                    "stroke": "sky",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 46,
+                    "y": 7,
+                    "w": 8,
+                    "h": 8,
+                    "stroke": "accent",
+                    "fill": "secondary_pale",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              }
+            ],
+            "style": {
+              "border_bottom": {
+                "width": 1,
+                "color": "sky",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "primary",
+              "font": "serif",
+              "padding": [
+                8,
+                9,
+                7,
+                11
+              ],
+              "border_left": {
+                "width": 1,
+                "color": "sky",
+                "style": "solid"
+              },
+              "border_right": {
+                "width": 1,
+                "color": "sky_pale",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 91,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    89,
+                    4
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    2,
+                    1
+                  ],
+                  [
+                    2,
+                    8
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    31,
+                    1
+                  ],
+                  [
+                    31,
+                    8
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    60,
+                    1
+                  ],
+                  [
+                    60,
+                    8
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    89,
+                    1
+                  ],
+                  [
+                    89,
+                    8
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.25
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    2,
+                    4
+                  ],
+                  [
+                    31,
+                    4
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 2.35
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    60,
+                    4
+                  ],
+                  [
+                    89,
+                    4
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 2.35
+              }
+            ],
+            "style": {
+              "align": "right"
+            }
+          }
+        ],
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "sky_pale",
+            "style": "solid"
+          },
+          "padding": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      },
+      "case_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "row",
+                "widths": [
+                  75,
+                  25
+                ],
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "案例",
+                    "style": {
+                      "size": "label",
+                      "color": "surface",
+                      "weight": 760,
+                      "line_height": 1.45,
+                      "fit": "content",
+                      "padding": [
+                        3,
+                        9,
+                        3,
+                        9
+                      ],
+                      "background": "sky",
+                      "radius": [
+                        0,
+                        3,
+                        3,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "drawing",
+                    "width": 40,
+                    "height": 16,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            0,
+                            12
+                          ],
+                          [
+                            18,
+                            12
+                          ],
+                          [
+                            25,
+                            5
+                          ],
+                          [
+                            38,
+                            5
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.25
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 23,
+                        "y": 2,
+                        "w": 6,
+                        "h": 6,
+                        "stroke": "sky",
+                        "fill": "surface",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 33,
+                        "y": 2,
+                        "w": 6,
+                        "h": 6,
+                        "stroke": "accent",
+                        "fill": "secondary_pale",
+                        "stroke_width": 0.75
+                      }
+                    ],
+                    "style": {
+                      "align": "right"
+                    }
+                  }
+                ],
+                "style": {}
+              },
+              {
+                "type": "field",
+                "bind": "title",
+                "style": {
+                  "size": "subheading",
+                  "weight": 780,
+                  "line_height": 1.43,
+                  "color": "primary",
+                  "padding": [
+                    3,
+                    0,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "background": "pale",
+              "padding": [
+                6,
+                9,
+                2,
+                9
+              ],
+              "border_top": {
+                "width": 2,
+                "color": "sky",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 8,
+            "parts": [
+              {
+                "kind": "polygon",
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    160,
+                    0
+                  ],
+                  [
+                    160,
+                    2
+                  ],
+                  [
+                    129,
+                    2
+                  ],
+                  [
+                    119,
+                    7
+                  ],
+                  [
+                    0,
+                    7
+                  ]
+                ],
+                "stroke": "pale",
+                "fill": "pale",
+                "stroke_width": 0.5
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    6.6
+                  ],
+                  [
+                    119,
+                    6.6
+                  ],
+                  [
+                    129,
+                    1.6
+                  ],
+                  [
+                    160,
+                    1.6
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.7
+              }
+            ],
+            "sizing": "full_width"
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "ink",
+              "padding": [
+                4,
+                6,
+                1,
+                10
+              ],
+              "border_left": {
+                "width": 2,
+                "color": "sky_pale",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {}
+      },
+      "concept_explainer": {
+        "type": "repeat",
+        "bind": "entries",
+        "children": [
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 12,
+                "gap": 2,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 32,
+                    "height": 30,
+                    "parts": [
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            8,
+                            1
+                          ],
+                          [
+                            8,
+                            29
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.8
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            8,
+                            15
+                          ],
+                          [
+                            30,
+                            15
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.8
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 3,
+                        "y": 10,
+                        "w": 10,
+                        "h": 10,
+                        "stroke": "sky",
+                        "fill": "surface",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "ellipse",
+                        "x": 6,
+                        "y": 13,
+                        "w": 4,
+                        "h": 4,
+                        "stroke": "accent",
+                        "fill": "accent",
+                        "stroke_width": 0.75
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            24,
+                            10
+                          ],
+                          [
+                            30,
+                            15
+                          ],
+                          [
+                            24,
+                            20
+                          ]
+                        ],
+                        "stroke": "sky",
+                        "stroke_width": 1.3
+                      }
+                    ],
+                    "style": {
+                      "align": "right"
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "title",
+                    "style": {
+                      "size": "subheading",
+                      "weight": 780,
+                      "line_height": 1.43,
+                      "color": "primary",
+                      "padding": [
+                        1,
+                        1,
+                        4,
+                        0
+                      ],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "dotted"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink",
+                  "padding": [
+                    4,
+                    2,
+                    5,
+                    10
+                  ],
+                  "margin": [
+                    0,
+                    0,
+                    2,
+                    0
+                  ],
+                  "border_left": {
+                    "width": 2,
+                    "color": "sky",
+                    "style": "solid"
+                  }
+                }
+              }
+            ],
+            "style": {}
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            2,
+            0
+          ]
+        }
+      },
+      "warning_note": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 13,
+            "gap": 1,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 38,
+                "height": 31,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        17,
+                        2
+                      ],
+                      [
+                        32,
+                        26
+                      ],
+                      [
+                        2,
+                        26
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "fill": "secondary_pale",
+                    "stroke_width": 1.2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        17,
+                        9
+                      ],
+                      [
+                        17,
+                        17
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 16,
+                    "y": 20,
+                    "w": 2.5,
+                    "h": 2.5,
+                    "stroke": "accent",
+                    "fill": "accent",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        32,
+                        26
+                      ],
+                      [
+                        37,
+                        26
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 1.3
+                  }
+                ],
+                "style": {
+                  "align": "right"
+                }
+              },
+              {
+                "type": "text",
+                "text": "留意",
+                "style": {
+                  "size": "label",
+                  "color": "accent",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "fit": "content",
+                  "padding": [
+                    3,
+                    10,
+                    3,
+                    8
+                  ],
+                  "background": "secondary_pale",
+                  "radius": [
+                    0,
+                    5,
+                    5,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "field",
+            "bind": "body",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "ink",
+              "padding": [
+                4,
+                7,
+                4,
+                10
+              ],
+              "border_left": {
+                "width": 2,
+                "color": "accent",
+                "style": "solid"
+              },
+              "margin": [
+                3,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "dashed"
+          },
+          "padding": [
+            0,
+            0,
+            3,
+            0
+          ]
+        }
+      },
+      "comparison_card": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 12,
+            "gap": 4,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 39,
+                "height": 30,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        1,
+                        30
+                      ],
+                      [
+                        1,
+                        15
+                      ],
+                      [
+                        15,
+                        15
+                      ],
+                      [
+                        23,
+                        6
+                      ],
+                      [
+                        37,
+                        6
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        15,
+                        15
+                      ],
+                      [
+                        23,
+                        24
+                      ],
+                      [
+                        37,
+                        24
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 11,
+                    "y": 11,
+                    "w": 8,
+                    "h": 8,
+                    "stroke": "primary",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 32,
+                    "y": 3,
+                    "w": 6,
+                    "h": 6,
+                    "stroke": "sky",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 32,
+                    "y": 21,
+                    "w": 6,
+                    "h": 6,
+                    "stroke": "accent",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  }
+                ],
+                "style": {
+                  "align": "left"
+                }
+              },
+              {
+                "type": "text",
+                "text": "对照",
+                "style": {
+                  "size": "label",
+                  "color": "primary",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "fit": "content",
+                  "padding": [
+                    2,
+                    8,
+                    2,
+                    3
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 11,
+                "gap": 8,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "A",
+                    "style": {
+                      "size": "caption",
+                      "color": "primary",
+                      "weight": 760,
+                      "line_height": 1.45,
+                      "align": "center",
+                      "font": "mono",
+                      "background": "pale",
+                      "border_bottom": {
+                        "width": 2,
+                        "color": "sky",
+                        "style": "solid"
+                      },
+                      "radius": [
+                        0,
+                        5,
+                        5,
+                        0
+                      ],
+                      "padding": [
+                        2,
+                        0,
+                        2,
+                        0
+                      ],
+                      "margin": [
+                        3,
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "left",
+                    "style": {
+                      "size": "body",
+                      "line_height": 1.82,
+                      "color": "ink",
+                      "padding": [
+                        1,
+                        3,
+                        6,
+                        0
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "marker_row",
+                "marker_width": 11,
+                "gap": 8,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "B",
+                    "style": {
+                      "size": "caption",
+                      "color": "primary",
+                      "weight": 760,
+                      "line_height": 1.45,
+                      "align": "center",
+                      "font": "mono",
+                      "background": "accent_pale",
+                      "border_bottom": {
+                        "width": 2,
+                        "color": "accent",
+                        "style": "solid"
+                      },
+                      "radius": [
+                        0,
+                        5,
+                        5,
+                        0
+                      ],
+                      "padding": [
+                        2,
+                        0,
+                        2,
+                        0
+                      ],
+                      "margin": [
+                        3,
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "right",
+                    "style": {
+                      "size": "body",
+                      "line_height": 1.82,
+                      "color": "ink",
+                      "padding": [
+                        1,
+                        3,
+                        6,
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "border_left": {
+                "width": 2,
+                "color": "sky",
+                "style": "solid"
+              },
+              "padding": [
+                3,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "before_after_timeline": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "text",
+            "text": "之前",
+            "style": {
+              "size": "label",
+              "color": "accent",
+              "weight": 760,
+              "line_height": 1.45,
+              "fit": "content",
+              "padding": [
+                3,
+                9,
+                3,
+                9
+              ],
+              "background": "secondary_pale",
+              "radius": [
+                0,
+                5,
+                5,
+                0
+              ]
+            }
+          },
+          {
+            "type": "field",
+            "bind": "left",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "ink",
+              "padding": [
+                2,
+                8,
+                2,
+                9
+              ],
+              "border_left": {
+                "width": 2,
+                "color": "accent",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    2
+                  ],
+                  [
+                    58,
+                    2
+                  ],
+                  [
+                    67,
+                    7
+                  ],
+                  [
+                    80,
+                    7
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 0.9
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    80,
+                    7
+                  ],
+                  [
+                    93,
+                    7
+                  ],
+                  [
+                    101,
+                    11
+                  ],
+                  [
+                    160,
+                    11
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.9
+              },
+              {
+                "kind": "ellipse",
+                "x": 76.5,
+                "y": 3.5,
+                "w": 7,
+                "h": 7,
+                "stroke": "primary",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 79,
+                "y": 6,
+                "w": 2,
+                "h": 2,
+                "stroke": "secondary",
+                "fill": "secondary",
+                "stroke_width": 0.75
+              }
+            ],
+            "sizing": "full_width"
+          },
+          {
+            "type": "stack",
+            "children": [
+              {
+                "type": "text",
+                "text": "之后",
+                "style": {
+                  "size": "label",
+                  "color": "surface",
+                  "weight": 760,
+                  "line_height": 1.45,
+                  "fit": "content",
+                  "padding": [
+                    3,
+                    9,
+                    3,
+                    9
+                  ],
+                  "background": "sky",
+                  "radius": [
+                    5,
+                    0,
+                    0,
+                    5
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "align": "right"
+            }
+          },
+          {
+            "type": "field",
+            "bind": "right",
+            "style": {
+              "size": "body",
+              "line_height": 1.82,
+              "color": "ink",
+              "padding": [
+                2,
+                9,
+                3,
+                3
+              ],
+              "border_right": {
+                "width": 2,
+                "color": "sky",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            1,
+            0
+          ]
+        }
+      },
+      "action_checklist": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "text",
+            "text": "行动清单",
+            "style": {
+              "size": "label",
+              "color": "surface",
+              "weight": 760,
+              "line_height": 1.45,
+              "fit": "content",
+              "padding": [
+                3,
+                9,
+                3,
+                9
+              ],
+              "background": "primary",
+              "radius": [
+                0,
+                6,
+                6,
+                0
+              ],
+              "border_bottom": {
+                "width": 2,
+                "color": "secondary",
+                "style": "solid"
+              }
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 12,
+                "gap": 7,
+                "children": [
+                  {
+                    "type": "drawing",
+                    "width": 33,
+                    "height": 28,
+                    "parts": [
+                      {
+                        "kind": "polygon",
+                        "points": [
+                          [
+                            3,
+                            5
+                          ],
+                          [
+                            24,
+                            5
+                          ],
+                          [
+                            30,
+                            14
+                          ],
+                          [
+                            24,
+                            23
+                          ],
+                          [
+                            3,
+                            23
+                          ]
+                        ],
+                        "stroke": "primary",
+                        "fill": "primary",
+                        "stroke_width": 0.5
+                      },
+                      {
+                        "kind": "polyline",
+                        "points": [
+                          [
+                            8,
+                            14
+                          ],
+                          [
+                            23,
+                            14
+                          ],
+                          [
+                            18,
+                            9
+                          ],
+                          [
+                            23,
+                            14
+                          ],
+                          [
+                            18,
+                            19
+                          ]
+                        ],
+                        "stroke": "surface",
+                        "stroke_width": 1.45
+                      }
+                    ],
+                    "style": {
+                      "align": "right",
+                      "margin": [
+                        3,
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "size": "body",
+                      "line_height": 1.82,
+                      "color": "ink",
+                      "padding": [
+                        3,
+                        0,
+                        5,
+                        0
+                      ],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "sky_pale",
+                        "style": "dotted"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                4,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {}
+      },
+      "section_summary": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "text",
+            "text": "小结",
+            "style": {
+              "size": "label",
+              "color": "primary",
+              "weight": 760,
+              "line_height": 1.45,
+              "fit": "content",
+              "padding": [
+                3,
+                9,
+                3,
+                9
+              ],
+              "background": "pale",
+              "border_left": {
+                "width": 3,
+                "color": "sky",
+                "style": "solid"
+              },
+              "radius": [
+                0,
+                4,
+                4,
+                0
+              ]
+            }
+          },
+          {
+            "type": "repeat",
+            "bind": "items",
+            "children": [
+              {
+                "type": "marker_row",
+                "marker_width": 9,
+                "gap": 8,
+                "children": [
+                  {
+                    "type": "field",
+                    "bind": "index",
+                    "style": {
+                      "size": "caption",
+                      "font": "mono",
+                      "color": "sky",
+                      "weight": 840,
+                      "line_height": 1.46,
+                      "align": "center",
+                      "padding": [
+                        2,
+                        0,
+                        2,
+                        0
+                      ],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "solid"
+                      },
+                      "margin": [
+                        3,
+                        0,
+                        0,
+                        0
+                      ]
+                    }
+                  },
+                  {
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "size": "body",
+                      "line_height": 1.82,
+                      "color": "ink",
+                      "padding": [
+                        2,
+                        1,
+                        4,
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "padding": [
+                4,
+                0,
+                1,
+                0
+              ]
+            }
+          },
+          {
+            "type": "drawing",
+            "width": 160,
+            "height": 8,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    5
+                  ],
+                  [
+                    61,
+                    5
+                  ],
+                  [
+                    67,
+                    2
+                  ],
+                  [
+                    158,
+                    2
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.6
+              },
+              {
+                "kind": "ellipse",
+                "x": 2,
+                "y": 2,
+                "w": 6,
+                "h": 6,
+                "stroke": "accent",
+                "fill": "secondary_pale",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    158,
+                    0
+                  ],
+                  [
+                    158,
+                    5
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 0.7
+              }
+            ],
+            "sizing": "full_width"
+          }
+        ],
+        "style": {
+          "padding": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      },
+      "divider": {
+        "type": "ornament_rule",
+        "slot_width": 26,
+        "line_color": "secondary",
+        "children": [
+          {
+            "type": "drawing",
+            "width": 61,
+            "height": 18,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    0,
+                    9
+                  ],
+                  [
+                    61,
+                    9
+                  ]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 1.2
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    3,
+                    9
+                  ],
+                  [
+                    26,
+                    9
+                  ]
+                ],
+                "stroke": "sky",
+                "stroke_width": 2
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    35,
+                    9
+                  ],
+                  [
+                    58,
+                    9
+                  ]
+                ],
+                "stroke": "accent",
+                "stroke_width": 2
+              },
+              {
+                "kind": "ellipse",
+                "x": 22,
+                "y": 5,
+                "w": 8,
+                "h": 8,
+                "stroke": "sky",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "ellipse",
+                "x": 31,
+                "y": 5,
+                "w": 8,
+                "h": 8,
+                "stroke": "accent",
+                "fill": "surface",
+                "stroke_width": 0.75
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [
+                    28,
+                    9
+                  ],
+                  [
+                    33,
+                    9
+                  ]
+                ],
+                "stroke": "primary",
+                "stroke_width": 1
+              }
+            ]
+          }
+        ],
+        "style": {}
+      },
+      "image_caption": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "media"
+          },
+          {
+            "type": "marker_row",
+            "marker_width": 9,
+            "gap": 5,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 25,
+                "height": 25,
+                "parts": [
+                  {
+                    "kind": "polygon",
+                    "points": [
+                      [
+                        12,
+                        23
+                      ],
+                      [
+                        6,
+                        15
+                      ],
+                      [
+                        4,
+                        11
+                      ],
+                      [
+                        4,
+                        7
+                      ],
+                      [
+                        7,
+                        3
+                      ],
+                      [
+                        11,
+                        2
+                      ],
+                      [
+                        15,
+                        2
+                      ],
+                      [
+                        19,
+                        5
+                      ],
+                      [
+                        21,
+                        9
+                      ],
+                      [
+                        20,
+                        13
+                      ],
+                      [
+                        16,
+                        18
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "fill": "primary",
+                    "stroke_width": 0.5
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 9,
+                    "y": 6,
+                    "w": 7,
+                    "h": 7,
+                    "stroke": "surface",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        0,
+                        24
+                      ],
+                      [
+                        4,
+                        24
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        20,
+                        24
+                      ],
+                      [
+                        24,
+                        24
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 0.75
+                  }
+                ]
+              },
+              {
+                "type": "field",
+                "bind": "caption",
+                "style": {
+                  "size": "caption",
+                  "color": "primary",
+                  "line_height": 1.58,
+                  "weight": 660,
+                  "padding": [
+                    2,
+                    1,
+                    1,
+                    0
+                  ]
+                }
+              }
+            ],
+            "style": {
+              "padding": [
+                4,
+                5,
+                2,
+                6
+              ],
+              "background": "pale",
+              "border_top": {
+                "width": 2,
+                "color": "surface",
+                "style": "solid"
+              },
+              "border_left": {
+                "width": 2,
+                "color": "sky",
+                "style": "solid"
+              }
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            3,
+            2,
+            3
+          ],
+          "border_top": {
+            "width": 2,
+            "color": "primary",
+            "style": "solid"
+          },
+          "border_bottom": {
+            "width": 1,
+            "color": "secondary",
+            "style": "solid"
+          }
+        }
+      },
+      "closing_cta": {
+        "type": "stack",
+        "children": [
+          {
+            "type": "marker_row",
+            "marker_width": 8,
+            "gap": 5,
+            "children": [
+              {
+                "type": "drawing",
+                "width": 25,
+                "height": 25,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        3,
+                        11
+                      ],
+                      [
+                        21,
+                        11
+                      ],
+                      [
+                        15,
+                        5
+                      ],
+                      [
+                        21,
+                        11
+                      ],
+                      [
+                        15,
+                        17
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 1.85
+                  }
+                ]
+              },
+              {
+                "type": "field",
+                "bind": "body",
+                "style": {
+                  "size": "body",
+                  "line_height": 1.82,
+                  "color": "ink",
+                  "padding": [
+                    1,
+                    1,
+                    4,
+                    0
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "media"
+          },
+          {
+            "type": "ornament_rule",
+            "slot_width": 26,
+            "line_color": "secondary",
+            "children": [
+              {
+                "type": "drawing",
+                "width": 61,
+                "height": 18,
+                "parts": [
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        0,
+                        9
+                      ],
+                      [
+                        61,
+                        9
+                      ]
+                    ],
+                    "stroke": "secondary",
+                    "stroke_width": 1.2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        3,
+                        9
+                      ],
+                      [
+                        26,
+                        9
+                      ]
+                    ],
+                    "stroke": "sky",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        35,
+                        9
+                      ],
+                      [
+                        58,
+                        9
+                      ]
+                    ],
+                    "stroke": "accent",
+                    "stroke_width": 2
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 22,
+                    "y": 5,
+                    "w": 8,
+                    "h": 8,
+                    "stroke": "sky",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "ellipse",
+                    "x": 31,
+                    "y": 5,
+                    "w": 8,
+                    "h": 8,
+                    "stroke": "accent",
+                    "fill": "surface",
+                    "stroke_width": 0.75
+                  },
+                  {
+                    "kind": "polyline",
+                    "points": [
+                      [
+                        28,
+                        9
+                      ],
+                      [
+                        33,
+                        9
+                      ]
+                    ],
+                    "stroke": "primary",
+                    "stroke_width": 1
+                  }
+                ]
+              }
+            ],
+            "style": {
+              "margin": [
+                4,
+                0,
+                0,
+                0
+              ]
+            }
+          }
+        ],
+        "style": {
+          "padding": [
+            3,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    "composition": "woven_catalog",
+    "motifs": [
+      "none"
+    ],
+    "frame": "open_corner",
+    "marker": "coordinate",
+    "surface": "quiet",
+    "rhythm": {
+      "density": "balanced",
+      "section_gap": 32,
+      "component_gap": 21,
+      "inset": 12
+    },
+    "typography": {
+      "heading_scale": 1.06,
+      "body_scale": 1.0,
+      "letter_spacing": "normal",
+      "heading_weight": 770
+    },
+    "ornament": {
+      "density": 0,
+      "border_width": 1,
+      "corner_radius": 4
+    }
+  },
+  "component_contract": {
+    "mode": "inherit",
+    "coverage": [
+      "question_hook",
+      "numbered_insight",
+      "evidence_callout",
+      "before_after_timeline",
+      "logic_path",
+      "concept_explainer",
+      "case_card",
+      "warning_note",
+      "action_checklist",
+      "faq_card",
+      "comparison_card",
+      "section_summary"
+    ],
+    "edit_contract": "semantic_dom_v1"
+  }
+}

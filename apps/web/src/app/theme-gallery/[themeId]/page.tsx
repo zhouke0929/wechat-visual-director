@@ -21,8 +21,15 @@ export default function ThemeDetailPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    getThemeGallery().then(setThemes).catch((reason: Error) => setError(reason.message));
-  }, []);
+    let ignore = false;
+    setError("");
+    getThemeGallery(themeId).then((items) => {
+      if (ignore) return;
+      setThemes(items);
+      if (!items.some((item) => item.id === themeId)) setError("没有找到这个主题。");
+    }).catch((reason: Error) => { if (!ignore) setError(reason.message); });
+    return () => { ignore = true; };
+  }, [themeId]);
 
   const theme = useMemo(() => themes.find((item) => item.id === themeId), [themeId, themes]);
 
@@ -38,6 +45,7 @@ export default function ThemeDetailPage() {
   const specimenTotal = theme.components.length + foundations.length;
   const coverage = theme.delivery_report?.coverage;
   const isPartial = coverage?.status === "partial";
+  const roundtripChecked = theme.wechat_acceptance?.status === "owner_reported_pass";
 
   return (
     <main className={styles.page} style={{ "--theme-primary": theme.palette[0], "--theme-accent": theme.palette[2], "--gallery-viewport-width": `${PREVIEW_PROFILES.mobile.viewport_width}px`, "--gallery-body-padding": `${PREVIEW_BODY_PADDING_X}px` } as React.CSSProperties}>
@@ -60,12 +68,14 @@ export default function ThemeDetailPage() {
               {isPartial ? <>
                 <p>这是尚未完成的主题试样，预览混合了已设计布局与默认样式。请让 Agent 补齐后再作为完整主题使用。</p>
                 <p>待设计：{coverage.missing_roles.map(themeRoleLabel).join("、")}。</p>
-              </> : <p>{coverage.status === "complete" ? "全部布局角色已有声明；视觉效果仍需整体复核，微信保存效果需单独实测。" : "此主题使用基础样式进行气质调整，不代表重新设计了整套布局。"}</p>}
+              </> : <p>{coverage.status === "complete"
+                ? roundtripChecked ? "全部布局角色已覆盖。" : "全部布局角色已有声明；视觉效果仍需整体复核，微信保存效果需单独实测。"
+                : "此主题使用基础样式进行气质调整，不代表重新设计了整套布局。"}</p>}
             </section>
           )}
           <p>{theme.description}</p>
           <div className={styles.palette}>
-            {theme.palette.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
+            {theme.palette.map((color, i) => <i key={i} style={{ backgroundColor: color }} />)}
           </div>
           <div className={styles.tags}>
             {theme.ideal_for.map((item) => <span key={item}>{item}</span>)}
@@ -73,7 +83,7 @@ export default function ThemeDetailPage() {
           {theme.delivery_report && (
             <section className={styles.deliveryNote} aria-label="主题交付检查">
               <strong>{theme.delivery_report.rehearsal.status === "blocking" ? "交付检查发现问题" : theme.delivery_report.rehearsal.status === "pass" ? "已声明布局的本地编译检查通过" : "沿用基础主题交付结构"}</strong>
-              <p>{theme.delivery_report.capabilities.raster_decoration?.length ? "装饰使用高清图片，正文保持可编辑。" : "正文与主题结构保持独立。"}微信保存后的实际效果尚待核对。</p>
+              <p>{theme.delivery_report.capabilities.raster_decoration?.length ? "装饰使用高清图片，正文保持可编辑。" : "正文与主题结构保持独立。"}{roundtripChecked ? "该版验收稿已通过复制粘贴和 API 保存实测。" : "微信保存后的实际效果尚待核对。"}</p>
               {theme.delivery_report.findings.length > 0 && (
                 <p>本轮重点：{Array.from(new Set(theme.delivery_report.findings.map((item) => ({ fixed_label_review: "固定标签与正文含义", gradient_edge: "凹口边缘", rotated_layout: "旋转位置", surface_shadow: "阴影", overlap_spacing: "错位留白" }[item.code] || item.code)))).join("、")}。</p>
               )}

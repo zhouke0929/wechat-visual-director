@@ -51,8 +51,9 @@ def test_layout_coverage_distinguishes_complete_partial_and_inherited():
 
 def test_partial_pack_api_and_gallery_report_missing_layouts(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
+    from visual_director.component_catalog import LEGACY_VISUAL_SYSTEM_ORDER
     from visual_director.main import create_app
-    from visual_director.theme_packs import theme_pack_catalog_entry
+    from visual_director.theme_packs import BUNDLED_THEME_IDS, theme_pack_catalog_entry
     from test_api_workflow import _prepare_publication_ready_task
 
     root = Path(__file__).resolve().parents[3]
@@ -75,7 +76,12 @@ def test_partial_pack_api_and_gallery_report_missing_layouts(tmp_path, monkeypat
         assert custom['delivery_report']['coverage']['status'] == 'partial'
         assert len(custom['delivery_report']['coverage']['missing_roles']) == 20
         assert theme_pack_catalog_entry(manifest['id'])['layout_coverage']['status'] == 'partial'
-        assert all(not item.get('delivery_report') for item in gallery if item['source'] == 'official')
+        official = {item['id']: item for item in gallery if item['source'] == 'official'}
+        assert all(not official[theme_id].get('delivery_report') for theme_id in LEGACY_VISUAL_SYSTEM_ORDER)
+        for theme_id in BUNDLED_THEME_IDS:
+            report = official[theme_id]['delivery_report']
+            assert report['coverage']['status'] == 'complete'
+            assert report['wechat_saved_roundtrip'] == 'not_verified'
         def current_option():
             plan = client.get(f"/api/v1/article-tasks/{task['id']}/plans").json()['plans'][0]
             return next(item for item in plan['visual_system_metadata']['available_visual_systems'] if item['value'] == manifest['id'])

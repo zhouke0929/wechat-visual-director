@@ -105,12 +105,16 @@ class _Nodes(HTMLParser):
         self.nodes.append((tag, attrs, self.document[start:end]))
 
 
-def build_production_specimens(visual_system: str) -> tuple[list[dict[str, Any]], str]:
+def build_production_specimens(
+    visual_system: str, *, theme_config: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], str]:
     parsed = parse_markdown(ARTICLE)
     lead_id, _ = _opening_highlight(parsed)
     if lead_id is None:
         raise ValueError("样本册原稿没有可由正式渲染器识别的导读，不能用普通正文代替")
     plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], visual_system, recent_summaries=[])
+    if theme_config is not None:
+        plan["configuration"] = {**plan["configuration"], **theme_config}
     configuration = plan["configuration"]
     plan["image_slots"] = []
     # The library exposes unconsumed Markdown primitives, unlike semantic cards.

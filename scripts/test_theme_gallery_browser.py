@@ -11,6 +11,7 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -25,11 +26,19 @@ class PublicFixtureHandler(QuietHandler):
     def do_GET(self):
         if self.path == "/health":
             content = json.dumps({"status": "ok", "application_version": (ROOT / "VERSION").read_text().strip()}).encode()
-        elif self.path == "/api/v1/theme-gallery":
+        elif urlsplit(self.path).path == "/api/v1/theme-gallery":
             payload = json.loads((ROOT / "site/data/themes.json").read_text(encoding="utf-8"))
             if getattr(self.server, "with_unavailable_fixture", False):
                 payload["themes"].append({"id": "broken_fixture", "label": "公开故障试样", "source": "custom",
                                          "availability": "unavailable", "diagnostic": {"code": "theme_pack_load_failed", "message": "主题文件无法加载，原文件未删除。"}})
+            query = parse_qs(urlsplit(self.path).query)
+            if query.get("theme_id"):
+                payload["themes"] = [theme for theme in payload["themes"] if theme["id"] == query["theme_id"][0]]
+            if query.get("summary") == ["true"]:
+                for theme in payload["themes"]:
+                    theme["foundation_count"] = len(theme.get("foundation_specimens", []))
+                    for key in ("components", "rhythm_primitives", "foundation_specimens", "article_preview_html", "full_preview_html"):
+                        theme.pop(key, None)
             content = json.dumps(payload, ensure_ascii=False).replace("assets/theme-stickers/", "/gallery-assets/").encode()
         else:
             return super().do_GET()
@@ -79,12 +88,12 @@ def main():
                 page.screenshot(path=str(output / f"site-{width}-hero.png"))
                 page.locator("#faq").scroll_into_view_if_needed()
                 page.screenshot(path=str(output / f"site-{width}-faq.png"))
-                assert page.locator(".theme-button").count() == 12
+                assert page.locator(".theme-button").count() == 30
                 assert page.locator("#specimenSelect option").count() == 27
                 for button in page.locator(".theme-button").all():
                     button.click()
                     page.locator("#specimenSelect").select_option("lead")
-                    assert page.locator('#themePreview [data-content-role="lead"]').count() == 1
+                    assert page.locator('#themePreview :is([data-content-role="lead"], [data-theme-layout="lead"])').count() == 1
                     page.locator("#specimenSelect").select_option("quote")
                     assert page.locator('#themePreview [data-editor-block-type="quote"]').count() == 1
                     page.locator("#specimenSelect").select_option("image_caption")
@@ -94,7 +103,7 @@ def main():
                 page.locator("[data-copy-theme]").click()
                 assert "一整套新的主题" in page.evaluate("navigator.clipboard.readText()")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "site horizontal overflow"
-                checks.append(f"site {width}: 12 themes, 26 specimens, loaded images, theme prompt")
+                checks.append(f"site {width}: 30 themes, 26 specimens, loaded images, theme prompt")
 
                 page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/light_reading", wait_until="networkidle")
                 page.get_by_role("button", name="02　主题部件库").click()
@@ -111,6 +120,14 @@ def main():
                 page.get_by_role("button", name="01　整篇样张").click()
                 assert page.locator('[data-gallery-production-article]').count() == 1
                 assert page.locator('[data-gallery-production-article] [data-editor-block-type="quote"]').count() == 1
+                page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/city_wayfinding", wait_until="networkidle")
+                page.get_by_role("heading", name="城市导视", exact=True).wait_for()
+                assert page.locator('[data-gallery-production-article] [data-theme-layout="heading"]').count() > 0
+                assert page.get_by_text("该版验收稿已通过复制粘贴和 API 保存实测。", exact=False).is_visible()
+                page.get_by_role("button", name="02　主题部件库").click()
+                assert page.locator('[id^="foundation-"]').count() == 14
+                assert page.locator('[id^="component-"]').count() == 12
+                assert page.get_by_text("公众号已验证", exact=True).count() == 12
                 page.goto(f"http://127.0.0.1:{args.web_port}", wait_until="networkidle")
                 page.get_by_role("button", name="我想创作新主题").click()
                 visible_prompt = page.locator("#agent-writing-prompt").input_value()
@@ -127,7 +144,7 @@ def main():
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery", wait_until="networkidle")
                     diagnostic = page.get_by_role("status", name="暂不可用的主题")
                     assert diagnostic.is_visible() and "公开故障试样" in diagnostic.inner_text()
-                    assert page.locator('a[href^="/theme-gallery/"]').count() >= 12
+                    assert page.locator('a[href^="/theme-gallery/"]').count() >= 30
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                     diagnostic.screenshot(path=str(output / f"unavailable-notice-{width}.png"))
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/broken_fixture", wait_until="networkidle")

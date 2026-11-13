@@ -7,6 +7,7 @@ from visual_director.component_catalog import (
     AUTO_RECOMMENDABLE_VISUAL_SYSTEMS,
     COMPONENT_CATALOG,
     CORE_THEME_COMPONENTS,
+    LEGACY_VISUAL_SYSTEM_ORDER,
     VISUAL_SYSTEM_ORDER,
     VISUAL_SYSTEM_MARKERS,
     component_options,
@@ -23,6 +24,7 @@ from visual_director.planner import generate_plans, structural_difference_count
 from visual_director.plan_schema import validate_plan_for_article
 from visual_director.renderer import render_preview
 from visual_director.theme_gallery import build_theme_gallery
+from visual_director.theme_packs import REVIEWED_BUNDLED_THEME_IDS
 from visual_director.theme_assets import referenced_theme_assets, theme_asset_metadata
 
 
@@ -256,7 +258,7 @@ def test_second_primary_variants_are_exposed_and_render_without_layout_tables() 
     for component_type, candidate_variant in target_variants.items():
         options = component_options(component_type)
         assert [option["marker"] for option in options] == [
-            *(VISUAL_SYSTEM_MARKERS[system] for system in VISUAL_SYSTEM_ORDER),
+            *(VISUAL_SYSTEM_MARKERS[system] for system in LEGACY_VISUAL_SYSTEM_ORDER),
             "Z",
         ]
         candidate = next(option for option in options if option["value"] == candidate_variant)
@@ -305,17 +307,17 @@ def test_first_batch_components_have_distinct_system_morphologies() -> None:
         "faq_card": {"question": question.id, "answer": answer.id},
         "action_checklist": {"items": refs},
     }
-    systems = VISUAL_SYSTEM_ORDER
+    systems = LEGACY_VISUAL_SYSTEM_ORDER
 
     for component_type, content_bindings in bindings.items():
         variants = [visual_system_variant(component_type, system) for system in systems]
-        assert len(set(variants)) == len(VISUAL_SYSTEM_ORDER)
+        assert len(set(variants)) == len(systems)
         options = component_options(component_type)
         assert [option["marker"] for option in options] == [
-            *(VISUAL_SYSTEM_MARKERS[system] for system in VISUAL_SYSTEM_ORDER),
+            *(VISUAL_SYSTEM_MARKERS[system] for system in systems),
             "Z",
         ]
-        assert [option["value"] for option in options[:len(VISUAL_SYSTEM_ORDER)]] == variants
+        assert [option["value"] for option in options[:len(systems)]] == variants
         documents = [
             render_component(
                 {
@@ -327,7 +329,7 @@ def test_first_batch_components_have_distinct_system_morphologies() -> None:
             )
             for variant in variants
         ]
-        assert len(set(documents)) == len(VISUAL_SYSTEM_ORDER)
+        assert len(set(documents)) == len(systems)
         assert all("<table" not in document.lower() for document in documents)
         assert all("display:flex" not in document.lower() for document in documents)
         assert all("display:grid" not in document.lower() for document in documents)
@@ -438,6 +440,7 @@ def test_consecutive_concepts_render_as_one_theme_specific_glossary() -> None:
                 "variant": visual_system_variant("concept_explainer", visual_system),
             },
             article,
+                config=visual_system_configuration(visual_system),
         )
         documents.append(document)
         assert "院校专业组" in document
@@ -638,12 +641,12 @@ def test_all_themes_cover_all_core_components_without_cross_theme_fallbacks() ->
     for component_type in CORE_THEME_COMPONENTS:
         definition = COMPONENT_CATALOG[component_type]
         system_variants = definition.get("system_variants", {})
-        assert tuple(system_variants) == VISUAL_SYSTEM_ORDER
+        assert tuple(system_variants) == LEGACY_VISUAL_SYSTEM_ORDER
         variants = [
             visual_system_variant(component_type, visual_system)
-            for visual_system in VISUAL_SYSTEM_ORDER
+            for visual_system in LEGACY_VISUAL_SYSTEM_ORDER
         ]
-        assert len(set(variants)) == len(VISUAL_SYSTEM_ORDER)
+        assert len(set(variants)) == len(LEGACY_VISUAL_SYSTEM_ORDER)
         assert definition["fallback_variant"] not in variants
 
 
@@ -995,7 +998,7 @@ def test_light_reading_h2_uses_wechat_stable_thin_border() -> None:
     assert "font-size:0;line-height:0" in document
 
 
-def test_all_theme_semantic_variants_are_wechat_verified() -> None:
+def test_wechat_verification_is_scoped_to_legacy_variants_and_tested_bundled_packs() -> None:
     gallery = build_theme_gallery()
     themes = {theme["id"]: theme for theme in gallery}
 
@@ -1010,10 +1013,9 @@ def test_all_theme_semantic_variants_are_wechat_verified() -> None:
             == "wechat_verified"
             for component_type in CORE_THEME_COMPONENTS
         )
-        assert all(
-            component["status"] == "wechat_verified"
-            for component in theme["components"]
-        )
+        status = ("wechat_verified" if visual_system in (*LEGACY_VISUAL_SYSTEM_ORDER, *REVIEWED_BUNDLED_THEME_IDS)
+                  else "wechat_candidate")
+        assert {component["status"] for component in theme["components"]} == {status}
 
 
 def test_youth_campus_question_hook_uses_wechat_stable_rule() -> None:
@@ -1140,7 +1142,7 @@ def test_all_theme_rhythm_primitives_are_wired_to_production_markdown() -> None:
         "cinematic_story": "extended_cinema",
     }
     rendered: dict[str, str] = {}
-    for visual_system in VISUAL_SYSTEM_ORDER:
+    for visual_system in LEGACY_VISUAL_SYSTEM_ORDER:
         plan = copy.deepcopy(base)
         plan["configuration"] = visual_system_configuration(visual_system)
         document = render_preview(article, plan, brand_profile=brand_profile)
@@ -1151,4 +1153,4 @@ def test_all_theme_rhythm_primitives_are_wired_to_production_markdown() -> None:
         assert 'data-image-caption="志愿核对流程示意"' in document
         assert 'data-content-role="brand-cta"' in document
         rendered[visual_system] = document
-    assert len(set(rendered.values())) == len(VISUAL_SYSTEM_ORDER)
+    assert len(set(rendered.values())) == len(LEGACY_VISUAL_SYSTEM_ORDER)

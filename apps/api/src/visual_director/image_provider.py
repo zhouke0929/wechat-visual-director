@@ -325,6 +325,8 @@ SURFACE_LABELS = {
     "signal_map_page": "信号轨道与编辑图形自然融合的画报页面",
     "film_festival_program": "明亮温暖的电影节节目册纸面",
     "light_storyboard_page": "带细腻胶片颗粒的浅色分镜纸页",
+    "woven_indigo": "有细密斜纹和克制缝线的靛蓝织物",
+    "matte_relief": "光线柔和、起伏浅而清晰的哑光浮雕材质",
 }
 
 COMPOSITION_FAMILY_LABELS = {
@@ -361,10 +363,21 @@ COMPOSITION_FAMILY_LABELS = {
 }
 
 
+def _palette_prompt_label(role: Any) -> str:
+    value = str(role)
+    # Custom themes use hex colors. Express their channels separately so an
+    # all-digit hex value is not mistaken for a private long number. Keep the
+    # sensitive-content validator unchanged for article and label text.
+    if re.fullmatch(r"#[0-9A-Fa-f]{6}", value):
+        channels = [int(value[index:index + 2], 16) for index in (1, 3, 5)]
+        return f"RGB({channels[0]}, {channels[1]}, {channels[2]})"
+    return PALETTE_ROLE_LABELS.get(value, value)
+
+
 def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
     direction = intent.get("article_art_direction") or {}
     roles = direction.get("palette_roles") or intent.get("palette_roles") or []
-    palette = "、".join(PALETTE_ROLE_LABELS.get(str(role), str(role)) for role in roles)
+    palette = "、".join(_palette_prompt_label(role) for role in roles)
     surface_key = str(direction.get("surface_treatment") or "")
     composition_key = str(direction.get("composition_family") or "")
     tone = "、".join(str(value) for value in direction.get("tone") or intent.get("tone") or [])
@@ -591,7 +604,7 @@ def build_provider_prompt(
         article_type,
         fallback_palettes["viewpoint_trend"],
     )
-    palette = "、".join(PALETTE_ROLE_LABELS.get(str(role), str(role)) for role in palette_roles)
+    palette = "、".join(_palette_prompt_label(role) for role in palette_roles)
     tone = "、".join(str(value) for value in intent.get("tone") or ["清晰", "可信", "克制"])
     composition_labels = {
         "branching": "用清楚的阅读动线连接各信息节点，节点之间有充分留白",
@@ -658,7 +671,7 @@ def build_provider_prompt(
     _, surface, article_composition, direction_tone = _resolved_art_labels(intent)
     prompt = " ".join(
         [
-            "为微信公众号正文生成一张完整的横版语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
+            f"为微信公众号正文生成一张完整的横版{image_slot.get('aspect_ratio') if image_slot.get('aspect_ratio') in ALLOWED_RATIOS else '16:9'}语义插画，不是信息图、海报或界面模板。所有主体完整留在画面中央80%的安全区内，不贴边、不截断。",
             f"章节语义：{semantic_focus}。",
             f"具体视觉隐喻：{sanitize_subject(str(intent.get('subject') or ''))}。",
             f"构图：{composition}；{negative_space}；整篇采用{article_composition}。",
@@ -701,11 +714,11 @@ def build_cover_prompt(
         or str(cover_brief.get("reader_task") or "")
     ) or subject
     direction = cover_brief.get("image_art_direction") or {}
-    palette, _, _, tone = _resolved_art_labels(
+    palette, article_surface, _, tone = _resolved_art_labels(
         {"article_art_direction": direction}
     )
     style_family = str(direction.get("style_family") or "editorial_paper_cut")
-    cover_surface = _cover_surface_direction(style_family)
+    cover_surface = article_surface if str(direction.get("palette_family", "")).startswith("official_pack:") else _cover_surface_direction(style_family)
     cover_composition = _cover_composition_direction(
         str(direction.get("composition_family") or "")
     )
@@ -759,7 +772,7 @@ def build_cover_prompt(
         "cinematic_storyboard_collage": "bright cinematic editorial collage with one unified scene and subtle film grain",
     }
     style = style_labels.get(style_family, fallback_style)
-    direction_palette = ", ".join(str(value) for value in direction.get("palette_roles") or [])
+    direction_palette = ", ".join(_palette_prompt_label(value) for value in direction.get("palette_roles") or [])
     prompt = " ".join(
         [
             "Create a premium 5:4 image-only cover background for a WeChat article.",
@@ -777,6 +790,8 @@ def build_cover_prompt(
 
 def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
     """Create an image-only local cover so delivery never depends on a model or upload."""
+    from .theme_packs import theme_pack, resolve_theme_base
+
     width, height = 1080, 864
     visual_system = str(cover_brief.get("visual_system") or "light_reading")
     palettes = {
@@ -793,7 +808,13 @@ def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
         "business_review": ("#F5F3EE", "#CED8D9", "#1F414A", "#C49645"),
         "cinematic_story": ("#F1EDE4", "#D3C6AE", "#272B31", "#A84B3E"),
     }
-    background, soft, primary, accent = palettes.get(visual_system, palettes["light_reading"])
+    pack = theme_pack(visual_system)
+    render_system = resolve_theme_base(visual_system) if pack else visual_system
+    if pack:
+        colors = pack["palette"]
+        background, soft, primary, accent = (colors[k] for k in ("surface", "pale", "primary", "accent"))
+    else:
+        background, soft, primary, accent = palettes.get(visual_system, palettes["light_reading"])
     image = Image.new("RGBA", (width, height), background)
     draw = ImageDraw.Draw(image, "RGBA")
     for step in range(0, height, 8):
@@ -803,24 +824,24 @@ def build_theme_fallback_cover(cover_brief: dict[str, Any]) -> bytes:
     digest = hashlib.sha256(
         f"{cover_brief.get('title', '')}|{cover_brief.get('article_type', '')}|{visual_system}".encode("utf-8")
     ).digest()
-    if visual_system in {"light_reading", "warm_humanist", "oriental_archive", "natural_atlas"}:
+    if render_system in {"light_reading", "warm_humanist", "oriental_archive", "natural_atlas"}:
         draw.ellipse((615, 180, 1025, 590), fill=soft, outline=primary, width=5)
         draw.arc((535, 95, 940, 500), 205, 355, fill=accent, width=18)
         for index in range(5):
             x = 690 + index * 55
             y = 585 + (digest[index] % 75)
             draw.ellipse((x, y, x + 32, y + 18), fill=primary)
-    elif visual_system in {"youth_campus", "pop_poster"}:
+    elif render_system in {"youth_campus", "pop_poster"}:
         draw.rounded_rectangle((610, 155, 1015, 330), radius=50, fill=soft, outline=primary, width=5)
         draw.polygon(((650, 630), (810, 345), (995, 630)), fill=primary)
         draw.polygon(((725, 630), (820, 465), (930, 630)), fill=accent)
         draw.arc((560, 75, 1010, 520), 205, 332, fill=accent, width=16)
-    elif visual_system in {"editorial_contrast", "vintage_press", "cinematic_story"}:
+    elif render_system in {"editorial_contrast", "vintage_press", "cinematic_story"}:
         draw.rectangle((645, 145, 1010, 610), fill=soft)
         draw.rectangle((715, 90, 865, 700), fill=primary)
         draw.rectangle((590, 405, 1025, 525), fill=accent)
         draw.line((595, 690, 1015, 690), fill=primary, width=6)
-    elif visual_system in {"structured_grid", "business_review"}:
+    elif render_system in {"structured_grid", "business_review"}:
         for x in range(620, 1040, 70):
             draw.line((x, 135, x, 710), fill=soft, width=3)
         for y in range(150, 720, 70):

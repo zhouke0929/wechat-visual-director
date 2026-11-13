@@ -127,6 +127,7 @@ index.addEventListener("keydown", (event) => {
   if (event.key === "Home") target = 0;
   if (event.key === "End") target = buttons.length - 1;
   buttons[target].focus({ preventScroll: true });
+  buttons[target].scrollIntoView({ block: "nearest", inline: "nearest" });
   buttons[target].click();
 });
 

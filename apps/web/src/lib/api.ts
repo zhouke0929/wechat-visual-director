@@ -142,12 +142,19 @@ export async function deleteTasks(taskIds: string[]): Promise<{
   return parseResponse(response);
 }
 
-export async function getThemeGallery(): Promise<ThemeGalleryItem[]> {
-  const response = await fetch(`${API_BASE}/theme-gallery`, { cache: "no-store" });
+export async function getThemeGallery(themeId?: string): Promise<ThemeGalleryItem[]> {
+  const query = themeId ? `?theme_id=${encodeURIComponent(themeId)}` : "";
+  const response = await fetch(`${API_BASE}/theme-gallery${query}`, { cache: "no-store" });
   const payload = await parseResponse<{
     schema_version: "theme_gallery.v0.5";
     themes: ThemeGalleryItem[];
   }>(response);
+  return payload.themes;
+}
+
+export async function getThemeGallerySummary(): Promise<import("./types").ThemeGallerySummary[]> {
+  const response = await fetch(`${API_BASE}/theme-gallery?summary=true`, { cache: "no-store" });
+  const payload = await parseResponse<{ themes: import("./types").ThemeGallerySummary[] }>(response);
   return payload.themes;
 }
 

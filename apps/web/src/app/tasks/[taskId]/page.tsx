@@ -890,6 +890,13 @@ export default function TaskReviewPage() {
     ?? planList?.plans[0]
     ?? null;
   const activePlanSelected = Boolean(activePlan && detail.task.selected_plan_id === activePlan.id);
+  const themeOptions: NonNullable<VisualPlan["visual_system_metadata"]>["available_visual_systems"] = activePlan?.visual_system_metadata?.available_visual_systems?.length
+    ? activePlan.visual_system_metadata.available_visual_systems
+    : Object.entries(styleLabels).slice(3).map(([value, label]) => ({ value, label, description: "", recent_use_count: 0 }));
+  const themeGroups = ["经典主题", "清新与手作", "叙事与复古", "结构与现代", "我的主题"].map((label) => ({
+    label,
+    options: themeOptions.filter((theme) => (theme.theme_group ?? "经典主题") === label),
+  })).filter((group) => group.options.length);
   const resolvedImageCount = imageReview?.items.filter(
     (item) => Boolean(item.state.selected_candidate_id) || item.state.status === "skipped",
   ).length ?? 0;
@@ -1003,30 +1010,21 @@ export default function TaskReviewPage() {
                         onChange={(event) => handleThemeSwitch(activePlan, event.target.value)}
                         value={activePlan.visual_system ?? activePlan.style_mode}
                       >
-                        {(activePlan.visual_system_metadata?.available_visual_systems ?? [
-                          { value: "light_reading", label: "轻盈阅读", description: "", recent_use_count: 0 },
-                          { value: "warm_humanist", label: "温暖人文", description: "", recent_use_count: 0 },
-                          { value: "youth_campus", label: "青春校园", description: "", recent_use_count: 0 },
-                          { value: "editorial_contrast", label: "编辑对比", description: "", recent_use_count: 0 },
-                          { value: "structured_grid", label: "理性网格", description: "", recent_use_count: 0 },
-                          { value: "future_tech", label: "未来科技", description: "", recent_use_count: 0 },
-                          { value: "oriental_archive", label: "新中式雅集", description: "", recent_use_count: 0 },
-                          { value: "vintage_press", label: "复古报刊", description: "", recent_use_count: 0 },
-                          { value: "pop_poster", label: "波普海报", description: "", recent_use_count: 0 },
-                          { value: "natural_atlas", label: "自然图鉴", description: "", recent_use_count: 0 },
-                          { value: "business_review", label: "商业画报", description: "", recent_use_count: 0 },
-                          { value: "cinematic_story", label: "电影叙事", description: "", recent_use_count: 0 },
-                        ]).map((theme) => (
-                          <option key={theme.value} value={theme.value}>
-                            {theme.label}{"layout_coverage" in theme && theme.layout_coverage?.status === "partial" ? ` · 未完成 ${theme.layout_coverage.covered_count}/${theme.layout_coverage.total_count}` : ""}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
-                          </option>
+                        {themeGroups.map((group) => (
+                          <optgroup key={group.label} label={group.label}>
+                            {group.options.map((theme) => (
+                              <option key={theme.value} value={theme.value}>
+                                {theme.label}{theme.layout_coverage?.status === "partial" ? ` · 未完成 ${theme.layout_coverage.covered_count}/${theme.layout_coverage.total_count}` : ""}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                     </label>
                     <button
                       disabled={Boolean(switchingTheme) || Boolean(restoring)}
                       onClick={() => {
-                        const themes = activePlan.visual_system_metadata?.available_visual_systems ?? [];
+                        const themes = themeGroups.flatMap((group) => group.options);
                         const currentIndex = themes.findIndex((item) => item.value === (activePlan.visual_system ?? activePlan.style_mode));
                         const next = themes.length ? themes[(currentIndex + 1) % themes.length] : null;
                         if (next) void handleThemeSwitch(activePlan, next.value);
@@ -1052,6 +1050,7 @@ export default function TaskReviewPage() {
                       >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
                     ) : null}
                   </div>
+                  <Link className="theme-switch-gallery" href="/theme-gallery" target="_blank" rel="noopener">对比主题样张 ↗</Link>
                   {!activePlanSelected ? (
                     <button
                       className="select-button"

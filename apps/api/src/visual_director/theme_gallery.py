@@ -7,8 +7,6 @@ from .component_catalog import (
     COMPONENT_CATALOG,
     COMPONENT_LIBRARY_VERSION,
     CORE_THEME_COMPONENTS,
-    VISUAL_SYSTEM_CATALOG,
-    VISUAL_SYSTEM_ORDER,
     registered_visual_system_catalog,
     registered_visual_system_order,
     render_visual_system,
@@ -17,7 +15,7 @@ from .components import render_component
 from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
-from .theme_packs import check_theme_pack_delivery, theme_pack, theme_pack_load_errors
+from .theme_packs import BUNDLED_THEME_IDS, bundled_theme_acceptance, check_theme_pack_delivery, theme_pack, theme_pack_load_errors
 from .theme_specimens import build_production_specimens
 
 
@@ -148,12 +146,13 @@ def _component_specimen(
         "label": COMPONENT_CATALOG[component_type]["label"],
         "variant": variant,
         "variant_label": (
-            "自定义生成语法"
+            ("主题专属布局" if visual_system in BUNDLED_THEME_IDS else "自定义生成语法")
             if manifest and manifest.get("design_system")
             else COMPONENT_CATALOG[component_type]["system_variants"][variant_source]["label"]
         ),
         "status": (
-            "wechat_candidate" if manifest and manifest.get("design_system") else
+            ("wechat_verified" if bundled_theme_acceptance(visual_system) else "wechat_candidate")
+            if manifest and manifest.get("design_system") else
             COMPONENT_CATALOG[component_type].get("variant_statuses", {}).get(variant, COMPONENT_CATALOG[component_type]["status"])
         ),
         "purpose": purpose,
@@ -843,22 +842,34 @@ def _unavailable_item(theme_id, metadata, diagnostic, report=None):
             "components": [], "rhythm_primitives": [], "foundation_specimens": [], "article_preview_html": "", "full_preview_html": ""}
 
 
-def build_theme_gallery() -> list[dict[str, Any]]:
+def build_theme_gallery(*, theme_id: str | None = None, summary: bool = False) -> list[dict[str, Any]]:
     parsed = parse_markdown(THEME_FIXTURE)
     bindings = _fixture_bindings(parsed)
     themes = []
     catalog = registered_visual_system_catalog()
-    for theme_id in registered_visual_system_order():
-        metadata = catalog[theme_id]
+    for current_id in registered_visual_system_order():
+        if theme_id is not None and current_id != theme_id:
+            continue
+        metadata = catalog[current_id]
+        if summary and metadata.get("source") != "custom":
+            themes.append({"id": current_id, **metadata, "source": "official",
+                           "foundation_count": 14, "semantic_component_count": len(CORE_THEME_COMPONENTS)})
+            continue
         try:
-            themes.append(_gallery_item(parsed, bindings, theme_id, metadata))
+            item = _gallery_item(parsed, bindings, current_id, metadata)
+            if summary:
+                item["foundation_count"] = len(item["foundation_specimens"])
+                for key in ("components", "rhythm_primitives", "foundation_specimens", "article_preview_html", "full_preview_html"):
+                    item.pop(key)
+            themes.append(item)
         except (ValueError, KeyError, TypeError, OSError, RuntimeError) as exc:
             if metadata.get("source") != "custom":
                 raise  # Shared/official failures must not be hidden as user errors.
-            themes.append(_unavailable_item(theme_id, metadata,
+            themes.append(_unavailable_item(current_id, metadata,
                           {"code": getattr(exc, "code", "theme_preview_failed"),
                            "message": "主题检查或样张渲染失败，请修复后重新导入。原文件未删除。"},
                           getattr(exc, "delivery_report", None)))
     for error in theme_pack_load_errors():
-        themes.append(_unavailable_item(error["id"], {"label": error["label"]}, error))
+        if theme_id is None or theme_id == error["id"]:
+            themes.append(_unavailable_item(error["id"], {"label": error["label"]}, error))
     return themes

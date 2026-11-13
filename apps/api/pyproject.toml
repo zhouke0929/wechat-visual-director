@@ -33,7 +33,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-visual_director = ["preview_profiles.json"]
+visual_director = ["preview_profiles.json", "bundled_theme_acceptance.json", "bundled_themes/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
