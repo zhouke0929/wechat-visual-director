@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -8,20 +9,19 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .component_catalog import COMPONENT_CATALOG, PLAN_SCHEMA_VERSION, allowed_variants
 from .image_intent import build_visual_grammar, normalize_source_copy
 from .parser import ParsedArticle
+from .visual_dna import IMAGE_STYLE_MANIFESTS
 
 
 BLOCK_REF_RE = re.compile(r"^(block-\d{3})(?::item:(\d+))?$")
-STYLE_TREATMENT_PATTERN = (
-    r"^(tactile_editorial_collage|soft_educational_illustration|clean_spatial_geometry|"
-    r"editorial_spatial_collage|oriental_ink_folio_illustration|archival_halftone_collage|"
-    r"graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|"
-    r"cinematic_storyboard_collage)$"
-)
-EDGE_TREATMENT_PATTERN = (
-    r"^(deckled_paper_frame|open_illustrated_edge|clean_spatial_edge|layered_translucent_edge|"
-    r"bound_folio_edge|clipped_newsprint_edge|misregistered_poster_edge|organic_specimen_edge|"
-    r"clean_signal_edge|film_program_edge)$"
-)
+
+
+def _registered_pattern(values: Iterable[str]) -> str:
+    return r"^(" + "|".join(re.escape(value) for value in dict.fromkeys(values)) + r")$"
+
+
+STYLE_FAMILY_PATTERN = _registered_pattern(IMAGE_STYLE_MANIFESTS)
+STYLE_TREATMENT_PATTERN = _registered_pattern(style["style_treatment"] for style in IMAGE_STYLE_MANIFESTS.values())
+EDGE_TREATMENT_PATTERN = _registered_pattern(style["edge_treatment"] for style in IMAGE_STYLE_MANIFESTS.values())
 
 
 class HistoryEvidence(BaseModel):
@@ -102,7 +102,7 @@ class ArticleImageArtDirection(BaseModel):
     visual_dna_schema_version: str = Field(default="visual_dna.v0.1")
     visual_system: str
     article_type: str
-    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage|oriental_ink_folio|archival_halftone_collage|graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|cinematic_storyboard_collage)$")
+    style_family: str = Field(pattern=STYLE_FAMILY_PATTERN)
     style_treatment: str = Field(
         pattern=STYLE_TREATMENT_PATTERN,
     )
@@ -142,7 +142,7 @@ class ImageVisualIntent(BaseModel):
         pattern=r"^(semantic_scene|linear_progression|binary_comparison|comparison_matrix|hierarchical_layers|hub_spoke|structural_breakdown|timeline|pathway)$",
     )
     composition: str = Field(pattern=r"^(branching|layered|wide_scene|centered)$")
-    style_family: str = Field(pattern=r"^(editorial_paper_cut|soft_flat_illustration|clean_3d_geometry|editorial_tech_collage|oriental_ink_folio|archival_halftone_collage|graphic_poster_collage|botanical_field_illustration|executive_signal_editorial|cinematic_storyboard_collage)$")
+    style_family: str = Field(pattern=STYLE_FAMILY_PATTERN)
     style_treatment: str = Field(
         default="tactile_editorial_collage",
         pattern=STYLE_TREATMENT_PATTERN,

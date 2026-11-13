@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 from collections import Counter
+from dataclasses import dataclass
 from typing import Any
 
 from .theme_extensions import EXTENDED_THEME_VISUAL_DNA
@@ -183,8 +184,21 @@ OFFICIAL_PACK_SURFACES = {
 }
 
 
-# Image styles are independent capability manifests. They describe what a
-# medium is good at, not which article theme it is allowed to pair with.
+# New media declare a recipe here. Each compiler consumes it without knowing
+# theme or style IDs. Keep compiled wording stable for issued host requests
+# (test_image_style_registry.py); the original media still use their v10 paths.
+@dataclass(frozen=True)
+class ImageStyleRecipe:
+    artwork_zh: str
+    artwork_en: str
+    surface_id: str
+    surface_zh: str
+    surface_en: str
+    structured_note_zh: str = ""
+    cover_framing_zh: str = ""
+    cover_framing_en: str = ""
+
+
 IMAGE_STYLE_MANIFESTS: dict[str, dict[str, Any]] = {
     "editorial_paper_cut": {
         "dna": {
@@ -436,6 +450,47 @@ IMAGE_STYLE_MANIFESTS: dict[str, dict[str, Any]] = {
         },
         "provider_reliability": {"seedream": 0.92, "gemini": 0.93, "openai": 0.91, "generic": 0.92},
     },
+    "pixel_editorial": {
+        "dna": {
+            "warmth": 0.52,
+            "saturation": 0.62,
+            "contrast": 0.69,
+            "geometry": 0.91,
+            "tactility": 0.22,
+            "dimensionality": 0.25,
+            "energy": 0.66,
+            "information_density": 0.57,
+            "brand_formality": 0.36,
+        },
+        "material_tags": ["pixel_graphics", "colored_stock"],
+        "required_theme_tags": ("pixel_graphics",),
+        "style_treatment": "pixel_editorial",
+        "edge_treatment": "stepped_pixel_edge",
+        "decorative_motifs": ["阶梯形边缘", "简洁的像素色块"],
+        "composition_families": ["open_scene", "gentle_path", "balanced_focus"],
+        "content_fit": {
+            "data_policy": 0.88,
+            "tutorial_steps": 0.95,
+            "viewpoint_trend": 0.93,
+            "lively_growth": 0.95,
+        },
+        # Neutral until there is evidence for per-provider differences.
+        "provider_reliability": {"generic": 0.90},
+        "recipe": ImageStyleRecipe(
+            artwork_zh="像素编辑插画，人物、物件和环境统一采用清晰的阶梯轮廓、有限色阶与块状阴影；"
+                       "在手机缩略尺寸仍能读清主体，不做模糊像素滤镜、丝网印刷网点或游戏界面",
+            artwork_en="editorial pixel art with crisp stepped silhouettes, limited tonal steps and block shadows "
+                       "across people, objects and scenery; readable at thumbnail size, without blur, halftone or game UI",
+            surface_id="crisp_pixel_surface",
+            surface_zh="边界分明的平涂像素色面",
+            surface_en="crisp flat pixel color fields",
+            structured_note_zh="像素画法仅用于物件与场景；标题和原文标签用清晰的大号常规字形，不使用像素字体。",
+            cover_framing_zh="仍输出5:4母图，但以居中的2.35:1横幅构图：主体的完整轮廓和关键动作"
+                             "都放进画面高度中央45%的横带，向左右展开，不贴边。上下只留可裁掉的背景，不画横带边框。",
+            cover_framing_en="One scene, one focus. For a centered 2.35:1 crop, fit the full subject and key action "
+                             "within the middle 45 percent of canvas height. Only background above and below; no visible band or frame.",
+        ),
+    },
 }
 
 
@@ -518,21 +573,29 @@ def resolve_article_image_direction(
     article_type: str,
     recent_summaries: list[dict[str, Any]] | None = None,
     provider_profile: str = "generic",
+    legacy_only: bool = False,
 ) -> dict[str, Any]:
     """Resolve one shared art direction from independent Visual DNA manifests.
 
-    The resolver evaluates every style against the current theme and article,
-    then rotates palette, surface and composition with recent frozen visual
-    signatures. It never stores a theme-to-style compatibility matrix.
+    Eligible styles compete against the current theme and article, with
+    recent frozen signatures rotating palette, surface and composition.
+    Recipes may require visual traits, never specific theme IDs.
     """
     theme_name = str(visual_system or "light_reading")
     theme = theme_manifest(theme_name)
     signatures = _recent_signatures(recent_summaries or [])
     scene_family = SCENE_FAMILIES.get(article_type, "editorial_transition")
+    theme_tags = set(theme.get("material_tags") or [])
     candidates: list[dict[str, Any]] = []
     for style_index, (style_name, style) in enumerate(IMAGE_STYLE_MANIFESTS.items()):
+        recipe = style.get("recipe")
+        if legacy_only and recipe is not None:
+            continue
+        if not theme_tags.issuperset(style.get("required_theme_tags", ())):
+            continue
+        surfaces = [recipe.surface_id] if recipe is not None else theme["surface_variants"]
         for palette_index, (palette_variant, palette_roles) in enumerate(theme["palette_variants"].items()):
-            for surface_index, surface in enumerate(theme["surface_variants"]):
+            for surface_index, surface in enumerate(surfaces):
                 for composition_index, composition in enumerate(style["composition_families"]):
                     content_fit = _bounded(style["content_fit"].get(article_type), 0.75)
                     theme_fit = _theme_fit(theme, style)
@@ -619,6 +682,10 @@ def theme_manifest(visual_system: str | None) -> dict[str, Any]:
 def style_manifest(style_family: str | None) -> dict[str, Any]:
     name = str(style_family or "editorial_paper_cut")
     return copy.deepcopy(IMAGE_STYLE_MANIFESTS.get(name, IMAGE_STYLE_MANIFESTS["editorial_paper_cut"]))
+
+
+def image_style_recipe(style_family: str) -> ImageStyleRecipe | None:
+    return IMAGE_STYLE_MANIFESTS.get(style_family, {}).get("recipe")
 
 
 def compatibility_score(snapshot: dict[str, Any], target_visual_system: str | None) -> float:

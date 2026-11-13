@@ -775,10 +775,10 @@ components:
           enum: [branching, layered, wide_scene, centered]
         style_family:
           type: string
-          enum: [editorial_paper_cut, soft_flat_illustration, clean_3d_geometry, editorial_tech_collage]
+          description: Stable family ID from the server image-style registry.
         style_treatment:
           type: string
-          enum: [tactile_editorial_collage, soft_educational_illustration, clean_spatial_geometry, editorial_spatial_collage]
+          description: Treatment ID from the server image-style registry.
         palette_role: {type: string, const: plan_palette}
         palette_roles:
           type: array
@@ -877,7 +877,7 @@ components:
         content_occupancy: {type: string, const: dense_70_85}
         edge_treatment:
           type: string
-          enum: [deckled_paper_frame, open_illustrated_edge, clean_spatial_edge, layered_translucent_edge]
+          description: Edge treatment ID from the server image-style registry.
 
     ImageFactBindings:
       type: object

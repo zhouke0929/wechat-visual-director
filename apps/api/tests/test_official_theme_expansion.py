@@ -75,17 +75,25 @@ def test_recommendation_only_rotates_reviewed_themes_into_relevant_content(theme
 
 
 @pytest.mark.parametrize("theme_id", BUNDLED_THEME_IDS)
-def test_existing_image_families_use_official_theme_palette_surface_and_fallback_cover(theme_id):
+def test_image_families_use_official_theme_palette_and_publishable_fallback_cover(theme_id):
     manifest = theme_pack(theme_id)
     direction = resolve_article_image_direction(visual_system=theme_id, article_type="tutorial_steps")
     assert direction["style_family"] in IMAGE_STYLE_MANIFESTS
     assert direction["palette_family"] == f"official_pack:{theme_id}"
-    assert direction["surface_treatment"] in OFFICIAL_PACK_SURFACES[theme_id]
+    recipe = IMAGE_STYLE_MANIFESTS[direction["style_family"]].get("recipe")
+    if recipe is None:
+        assert direction["surface_treatment"] in OFFICIAL_PACK_SURFACES[theme_id]
+    else:
+        assert direction["surface_treatment"] == recipe.surface_id
     assert direction["palette_roles"] == [manifest["palette"][role] for role in ("primary", "secondary", "accent", "surface")]
     brief = {"title": "给社区开放日做一份指引", "article_type": "tutorial_steps", "visual_system": theme_id,
              "image_art_direction": direction}
     for profile in ("generic", "seedream"):
-        assert SURFACE_LABELS[direction["surface_treatment"]] in build_cover_prompt(brief, prompt_profile=profile)
+        if recipe is None:
+            expected_surface = SURFACE_LABELS[direction["surface_treatment"]]
+        else:
+            expected_surface = recipe.surface_zh if profile == "seedream" else recipe.surface_en
+        assert expected_surface in build_cover_prompt(brief, prompt_profile=profile)
     with Image.open(BytesIO(build_theme_fallback_cover(brief))) as cover:
         rgb = tuple(bytes.fromhex(manifest["palette"]["primary"][1:]))
         assert Counter(cover.convert("RGB").getdata())[rgb] > 0

@@ -239,6 +239,8 @@ class ArtDirection(BaseModel):
             "soft_sky",
         ]
     ] = Field(min_length=2, max_length=5)
+    # The planner's advisory vocabulary stays stable. The confirmed theme
+    # resolves the actual image style separately, including newer recipes.
     style_family: Literal[
         "editorial_paper_cut",
         "soft_flat_illustration",

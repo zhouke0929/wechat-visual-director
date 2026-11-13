@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from .image_intent import build_visual_grammar, resolve_display_copy
 from .preview_profiles import REVIEW_PROFILES
+from .visual_dna import image_style_recipe
 
 
 EMAIL_RE = re.compile(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", re.IGNORECASE)
@@ -159,6 +160,9 @@ def image_prompt_profile(provider: ImageProvider) -> str:
 
 
 def _structured_style_direction(style_family: str, candidate_index: int) -> str:
+    recipe = image_style_recipe(style_family)
+    if recipe is not None:
+        return "。".join(part for part in (recipe.artwork_zh, recipe.structured_note_zh.rstrip("。")) if part)
     variant = max(0, candidate_index - 1) % 3
     if style_family == "soft_flat_illustration":
         edges = (
@@ -379,11 +383,12 @@ def _resolved_art_labels(intent: dict[str, Any]) -> tuple[str, str, str, str]:
     roles = direction.get("palette_roles") or intent.get("palette_roles") or []
     palette = "、".join(_palette_prompt_label(role) for role in roles)
     surface_key = str(direction.get("surface_treatment") or "")
+    recipe = image_style_recipe(str(direction.get("style_family") or intent.get("style_family") or ""))
     composition_key = str(direction.get("composition_family") or "")
     tone = "、".join(str(value) for value in direction.get("tone") or intent.get("tone") or [])
     return (
         palette or "暖白、墨蓝与少量克制强调色",
-        SURFACE_LABELS.get(surface_key, surface_key or "统一、克制的编辑表面"),
+        recipe.surface_zh if recipe is not None else SURFACE_LABELS.get(surface_key, surface_key or "统一、克制的编辑表面"),
         COMPOSITION_FAMILY_LABELS.get(composition_key, composition_key or "连续单一阅读动线"),
         tone or "清晰、可信、克制",
     )
@@ -521,7 +526,10 @@ def _seedream_provider_prompt(
         return prompt
 
     scene, composition, medium = _seedream_scene(subject, article_type, candidate_index)
-    if style_family == "editorial_tech_collage":
+    recipe = image_style_recipe(style_family)
+    if recipe is not None:
+        composition, medium = article_composition, recipe.artwork_zh
+    elif style_family == "editorial_tech_collage":
         composition = "不对称横向编辑构图，主体与信号动线占据画面75%到85%"
         medium = "科技编辑拼贴、磨砂半透明薄片、细腻纸张纤维与克制的2.5D空间"
     elif style_family in {
@@ -578,6 +586,8 @@ def build_provider_prompt(
     learning_objective = sanitize_subject(str(intent.get("learning_objective") or ""))
     semantic_focus = _semantic_focus(str(intent.get("subject") or ""), learning_objective)
     layout_family = str(intent.get("layout_family") or "semantic_scene")
+    style_family = str(intent.get("style_family") or "")
+    recipe = image_style_recipe(style_family)
     style_labels = {
         "editorial_paper_cut": "精致的编辑纸雕拼贴风，具有杂志感、轻微纸张层次和克制的装饰细节",
         "soft_flat_illustration": "柔和扁平编辑插画风，图形简洁但不幼稚，边缘清晰",
@@ -596,10 +606,7 @@ def build_provider_prompt(
         "lively_growth": ["warm_ivory", "soft_sky", "coral_accent", "sunlit_yellow"],
         "viewpoint_trend": ["warm_ivory", "deep_navy", "soft_sky", "coral_accent"],
     }
-    style = style_labels.get(
-        str(intent.get("style_family") or ""),
-        style_labels["editorial_paper_cut"],
-    )
+    style = recipe.artwork_zh if recipe is not None else style_labels.get(style_family, style_labels["editorial_paper_cut"])
     palette_roles = intent.get("palette_roles") or fallback_palettes.get(
         article_type,
         fallback_palettes["viewpoint_trend"],
@@ -718,13 +725,20 @@ def build_cover_prompt(
         {"article_art_direction": direction}
     )
     style_family = str(direction.get("style_family") or "editorial_paper_cut")
-    cover_surface = article_surface if str(direction.get("palette_family", "")).startswith("official_pack:") else _cover_surface_direction(style_family)
+    recipe = image_style_recipe(style_family)
+    if recipe is not None:
+        cover_surface = recipe.surface_zh if prompt_profile == "seedream" else recipe.surface_en
+    else:
+        cover_surface = (
+            article_surface if str(direction.get("palette_family", "")).startswith("official_pack:")
+            else _cover_surface_direction(style_family)
+        )
     cover_composition = _cover_composition_direction(
         str(direction.get("composition_family") or "")
     )
     if prompt_profile == "seedream":
         scene, composition, _ = _seedream_scene(scene_anchor, article_type, candidate_index)
-        style_direction = _cover_style_direction(style_family, candidate_index)
+        style_direction = recipe.artwork_zh if recipe is not None else _cover_style_direction(style_family, candidate_index)
         prompt = " ".join(
             [
                 "微信公众号5:4封面底图，只生成图片，不排标题。",
@@ -732,7 +746,8 @@ def build_cover_prompt(
                 f"{composition}；整篇构图为{cover_composition}；{style_direction}，表面语言为{cover_surface}，配色只用{palette}，气质{tone}。",
                 "只保留一个鲜明视觉隐喻，不做信息图、多面板或并排步骤卡。",
                 "文章主题的抽象特征只通过色彩、材质、留白以及人物与物体的空间关系表达，不生成任何承载信息的版面元素。",
-                "重要主体完整位于中央70%，左上与中央保留平静的标题安全区，不贴边、不截断。",
+                (recipe.cover_framing_zh if recipe and recipe.cover_framing_zh else
+                 "重要主体完整位于中央70%，左上与中央保留平静的标题安全区，不贴边、不截断。"),
                 "不出现文字、字母、数字、表格、图表、文档界面、Logo、水印、二维码、条形码、印章或招牌。",
             ]
         )
@@ -771,7 +786,7 @@ def build_cover_prompt(
         "executive_signal_editorial": "executive editorial illustration with restrained paths, circular forms, and crisp geometric contrast",
         "cinematic_storyboard_collage": "bright cinematic editorial collage with one unified scene and subtle film grain",
     }
-    style = style_labels.get(style_family, fallback_style)
+    style = recipe.artwork_en if recipe is not None else style_labels.get(style_family, fallback_style)
     direction_palette = ", ".join(_palette_prompt_label(value) for value in direction.get("palette_roles") or [])
     prompt = " ".join(
         [
@@ -779,8 +794,9 @@ def build_cover_prompt(
             f"Scene: {scene_anchor[:90]}.",
             f"Mood, never copy: {concept[:40]}.",
             f"Visual style: {style}. Materials: {cover_surface}. Layout: {cover_composition}. Palette: {direction_palette or fallback_palette}.",
-            "One coherent scene, one focus, generous breathing room. Express abstract ideas only with color, material, light, and real spatial relationships.",
-            "Keep the upper-left and center calm; keep important subjects inside the middle 70 percent.",
+            (recipe.cover_framing_en if recipe and recipe.cover_framing_en else
+             "One coherent scene, one focus, generous breathing room. Express abstract ideas only with color, material, light, and real spatial relationships. "
+             "Keep the upper-left and center calm; keep important subjects inside the middle 70 percent."),
             "STRICT IMAGE-ONLY RULE: no text, letters, Chinese characters, numbers, tables, charts, documents, interfaces, logos, watermarks, QR codes, barcodes, seals, or signs.",
         ]
     )

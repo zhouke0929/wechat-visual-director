@@ -16,6 +16,7 @@ from visual_director.main import (
 from visual_director.wechat_publisher import WechatPublishResult
 from visual_director.image_provider import ManualImageProvider, MockImageProvider
 from visual_director.text_planner import MockTextPlannerProvider
+from visual_director.visual_dna import IMAGE_STYLE_MANIFESTS
 
 
 class _SuccessfulWechatPublisher:
@@ -1884,6 +1885,108 @@ def test_host_agent_can_append_after_selection_without_candidate_limit(tmp_path:
         assert updated["decision"] == "accepted"
         assert updated["candidates"][-1]["provider"] == "host_agent"
         assert updated["candidates"][-1]["human_decision"] == "pending"
+
+
+def test_pixel_style_upgrade_preserves_old_host_requests_and_adopted_body_image(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db = str(tmp_path / "image-style-upgrade.db")
+    old_provider = MockImageProvider()
+    # Simulate the pre-upgrade candidate pool. The registry tests separately
+    # pin the exact legacy prompts, so this exercises real request IDs and data.
+    with monkeypatch.context() as old:
+        old.delitem(IMAGE_STYLE_MANIFESTS, "pixel_editorial")
+        with TestClient(create_app(db, image_provider=old_provider, text_planner_provider=MockTextPlannerProvider())) as client:
+            task_response = client.post(
+                "/api/v1/article-tasks",
+                files={"markdown_file": ("open-day.md", (
+                    "# 社区开放日\n\n## 三步行动\n\n1. 确定入口\n2. 找到体验区\n3. 到休息区停留\n"
+                ).encode(), "text/markdown")},
+                data={"article_type": "tutorial_steps"},
+            )
+            assert task_response.status_code == 201, task_response.text
+            task = task_response.json()["task"]
+            task_url = f'/api/v1/article-tasks/{task["id"]}'
+            client.post(
+                f"{task_url}/generate-plans",
+                json={"mode": "start", "expected_task_version": task["version"]},
+            )
+            initial = client.get(f"{task_url}/plans").json()["plans"][0]
+            plan_url = f'{task_url}/plans/{initial["id"]}'
+            old_plan = client.patch(
+                f"{plan_url}/theme",
+                json={"visual_system": "pixel_live", "expected_plan_revision": initial["revision"]},
+            ).json()["plan"]
+            assert old_plan["image_art_direction"]["style_family"] != "pixel_editorial"
+            slot = client.get(f"{plan_url}/image-slots").json()["items"][0]
+            slot_url = f'{plan_url}/image-slots/{slot["image_slot_id"]}'
+            generated = client.post(
+                f"{slot_url}/generate",
+                json={"mode": "start", "expected_image_revision": slot["state"]["image_revision"]},
+            ).json()["image_slot"]
+            adopted = generated["candidates"][0]
+            accepted = client.post(
+                f'{slot_url}/candidates/{adopted["id"]}/accept',
+                json={"expected_image_revision": generated["image_revision"], "text_verified": True},
+            )
+            assert accepted.status_code == 200, accepted.text
+            requests = client.get(f"{plan_url}/host-image-context?asset_type=all").json()["requests"]
+            body_request = next(r for r in requests if r.get("image_slot_id") == slot["image_slot_id"])
+            cover_request = next(r for r in requests if r["asset_type"] == "cover")
+
+    with TestClient(create_app(db, image_provider=MockImageProvider(), text_planner_provider=MockTextPlannerProvider())) as client:
+        # Reading an old plan must neither change its art direction nor its issued IDs.
+        assert client.get(f"{plan_url}/host-image-context?asset_type=all").json()["requests"] == requests
+        current = old_plan
+        for theme in ("light_reading", "pixel_live"):
+            switched = client.patch(
+                f"{plan_url}/theme",
+                json={"visual_system": theme, "expected_plan_revision": current["revision"]},
+            )
+            assert switched.status_code == 200, switched.text
+            assert switched.json()["images_regenerated"] is False
+            current = switched.json()["plan"]
+        assert current["image_art_direction"]["style_family"] == "pixel_editorial"
+        new_requests = client.get(f"{plan_url}/host-image-context?asset_type=all").json()["requests"]
+        body_requests = [r for r in new_requests if r["asset_type"] == "body_image"]
+        assert body_requests and all("阶梯轮廓" in r["prompt"] for r in body_requests)
+        assert "editorial pixel art" in next(r["prompt"] for r in new_requests if r["asset_type"] == "cover")
+
+        size = (960, 720) if body_request["aspect_ratio"] == "4:3" else (960, 540)
+        returned_body = client.post(
+            f"{slot_url}/host-import",
+            data={key: str(body_request[key]) for key in ("request_id", "expected_plan_revision", "expected_image_revision")},
+            files={"image_file": ("old-body.png", _png_bytes(*size), "image/png")},
+        )
+        assert returned_body.status_code == 200, returned_body.text
+        state = returned_body.json()["image_slot"]
+        assert state["selected_candidate_id"] == adopted["id"]
+        assert state["candidates"][0]["machine_checks"]["art_direction_snapshot"] == adopted["machine_checks"]["art_direction_snapshot"]
+        returned_candidate = state["candidates"][-1]
+        assert returned_candidate["human_decision"] == "pending"
+        assert returned_candidate["machine_checks"]["art_direction_snapshot"]["style_family"] == old_plan["image_art_direction"]["style_family"]
+        returned_cover = client.post(
+            f"{plan_url}/cover-candidates/host-import",
+            data={key: str(cover_request[key]) for key in ("request_id", "expected_plan_revision", "expected_cover_candidate_count")},
+            files={"image_file": ("old-cover.png", _png_bytes(1080, 864), "image/png")},
+        )
+        assert returned_cover.status_code == 200, returned_cover.text
+        assert returned_cover.json()["workspace"]["selected_cover"] is None
+
+        fresh_body = client.post(
+            f"{slot_url}/generate",
+            json={"mode": "regenerate", "expected_image_revision": state["image_revision"]},
+        )
+        assert fresh_body.status_code == 200, fresh_body.text
+        fresh_state = fresh_body.json()["image_slot"]
+        assert fresh_state["selected_candidate_id"] == adopted["id"]
+        assert fresh_state["candidates"][-1]["machine_checks"]["art_direction_snapshot"]["style_family"] == "pixel_editorial"
+        task_version = client.get(task_url).json()["task"]["version"]
+        fresh_cover = client.post(f"{plan_url}/cover-candidates/generate", json={"expected_task_version": task_version})
+        assert fresh_cover.status_code == 200, fresh_cover.text
+        cover_candidate = fresh_cover.json()["candidate"]
+        assert "editorial pixel art" in cover_candidate["provider_prompt"]
+        assert (cover_candidate["width"], cover_candidate["height"]) == (1080, 864)
 
 
 def test_host_agent_cover_context_imports_unselected_candidate(tmp_path: Path) -> None:

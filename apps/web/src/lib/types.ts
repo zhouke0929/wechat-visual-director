@@ -343,7 +343,7 @@ export type VisualPlan = {
     visual_dna_schema_version: "visual_dna.v0.1";
     visual_system: string;
     article_type: string;
-    style_family: "editorial_paper_cut" | "soft_flat_illustration" | "clean_3d_geometry" | "editorial_tech_collage";
+    style_family: string; // Server image-style registry ID
     palette_family: string;
     palette_variant: string;
     palette_roles: string[];
@@ -375,8 +375,8 @@ export type ImageSlotPlan = {
     fact_anchors: string[];
     layout_family: "semantic_scene" | "linear_progression" | "binary_comparison" | "comparison_matrix" | "hierarchical_layers" | "hub_spoke" | "structural_breakdown" | "timeline" | "pathway";
     composition: "branching" | "layered" | "wide_scene" | "centered";
-    style_family: "editorial_paper_cut" | "soft_flat_illustration" | "clean_3d_geometry";
-    style_treatment: "tactile_editorial_collage" | "soft_educational_illustration" | "clean_spatial_geometry";
+    style_family: string;
+    style_treatment: string;
     palette_role: "plan_palette";
     palette_roles?: string[];
     palette_intent: string[];
@@ -394,7 +394,7 @@ export type ImageSlotPlan = {
       text_mode: "label_only" | "verbatim_full_copy";
       title_mode?: "semantic_suffix" | "none";
       content_occupancy?: "dense_70_85";
-      edge_treatment?: "deckled_paper_frame" | "open_illustrated_edge" | "clean_spatial_edge";
+      edge_treatment?: string;
     };
     intent_version: "image_visual_intent.v2" | "image_visual_intent.v3";
     article_type: "data_policy" | "tutorial_steps" | "viewpoint_trend" | "lively_growth";

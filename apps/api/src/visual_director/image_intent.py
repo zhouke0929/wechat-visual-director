@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 from .visual_dna import (
+    IMAGE_STYLE_MANIFESTS,
     compatibility_score,
     resolve_article_image_direction,
 )
@@ -67,19 +68,6 @@ _STRUCTURAL_TITLE_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
-_STYLE_TREATMENT_BY_FAMILY = {
-    "editorial_paper_cut": "tactile_editorial_collage",
-    "soft_flat_illustration": "soft_educational_illustration",
-    "clean_3d_geometry": "clean_spatial_geometry",
-    "editorial_tech_collage": "editorial_spatial_collage",
-    "oriental_ink_folio": "oriental_ink_folio_illustration",
-    "archival_halftone_collage": "archival_halftone_collage",
-    "graphic_poster_collage": "graphic_poster_collage",
-    "botanical_field_illustration": "botanical_field_illustration",
-    "executive_signal_editorial": "executive_signal_editorial",
-    "cinematic_storyboard_collage": "cinematic_storyboard_collage",
-}
-
 _ROLE_LABELS = {
     "explain_sequence": "先后顺序与行动路径",
     "compare_options": "差异与对照关系",
@@ -113,12 +101,14 @@ def theme_image_profile(
     *,
     article_type: str = "viewpoint_trend",
     recent_summaries: list[dict[str, Any]] | None = None,
+    legacy_only: bool = False,
 ) -> dict[str, Any]:
     """Return a backwards-compatible profile compiled from Visual DNA."""
     return resolve_article_image_direction(
         visual_system=visual_system,
         article_type=article_type,
         recent_summaries=recent_summaries,
+        legacy_only=legacy_only,
     )
 
 
@@ -134,7 +124,8 @@ def apply_theme_to_image_slot(
 
     Persisted article facts and image anchors stay untouched. This lets a user
     switch themes freely while ensuring only future generations adopt the new
-    art direction.
+    art direction. Older saved plans without a direction use the original
+    registry for deterministic host-request reconstruction.
     """
     revised = copy.deepcopy(image_slot)
     intent = revised.setdefault("visual_intent", {})
@@ -142,6 +133,7 @@ def apply_theme_to_image_slot(
         visual_system,
         article_type=article_type or str(intent.get("article_type") or "viewpoint_trend"),
         recent_summaries=recent_summaries,
+        legacy_only=True,
     )
     intent["style_family"] = profile["style_family"]
     intent["style_treatment"] = profile["style_treatment"]
@@ -201,7 +193,7 @@ def evaluate_theme_compatibility(
     source_name = str(snapshot.get("visual_system") or "")
     if source_name == target_name:
         level = "compatible"
-        message = "图片与当前主题使用同一美术方向。"
+        message = "图片是在当前主题下生成的，可继续保留。"
     else:
         score = compatibility_score(snapshot, target_name)
         if score >= 0.72:
@@ -269,33 +261,11 @@ def _node_visual(label: str, article_type: str) -> str:
 
 
 def _decorative_motifs(style_family: str) -> list[str]:
-    return {
-        "editorial_paper_cut": ["自然纸张毛边", "铅笔批注", "小型索引签"],
-        "soft_flat_illustration": ["手绘弧线", "微小星点", "轻盈植物或书页"],
-        "clean_3d_geometry": ["统一材质小模型", "柔和投影", "细小坐标点"],
-        "editorial_tech_collage": ["半透明信息薄片", "连续信号曲线", "克制的数据光晕"],
-        "oriental_ink_folio": ["册页折线", "淡墨晕染", "克制朱砂印记"],
-        "archival_halftone_collage": ["网点油墨", "剪报毛边", "窄版新闻索引"],
-        "graphic_poster_collage": ["错位套印", "异形贴纸", "手绘速度线"],
-        "botanical_field_illustration": ["植物线稿", "观察编号", "自然生长曲线"],
-        "executive_signal_editorial": ["信号轨道", "指标圆盘", "克制方向箭头"],
-        "cinematic_storyboard_collage": ["分镜框线", "电影票根", "细腻胶片颗粒"],
-    }.get(style_family, ["细线", "少量手绘标记"])
+    return list(IMAGE_STYLE_MANIFESTS.get(style_family, {}).get("decorative_motifs", ["细线", "少量手绘标记"]))
 
 
 def _edge_treatment(style_family: str) -> str:
-    return {
-        "editorial_paper_cut": "deckled_paper_frame",
-        "soft_flat_illustration": "open_illustrated_edge",
-        "clean_3d_geometry": "clean_spatial_edge",
-        "editorial_tech_collage": "layered_translucent_edge",
-        "oriental_ink_folio": "bound_folio_edge",
-        "archival_halftone_collage": "clipped_newsprint_edge",
-        "graphic_poster_collage": "misregistered_poster_edge",
-        "botanical_field_illustration": "organic_specimen_edge",
-        "executive_signal_editorial": "clean_signal_edge",
-        "cinematic_storyboard_collage": "film_program_edge",
-    }.get(style_family, "open_illustrated_edge")
+    return IMAGE_STYLE_MANIFESTS.get(style_family, {}).get("edge_treatment", "open_illustrated_edge")
 
 
 def build_visual_grammar(
@@ -502,10 +472,7 @@ def build_visual_intent(
             "edge_treatment": "open_illustrated_edge",
         }
 
-    treatment = _STYLE_TREATMENT_BY_FAMILY.get(
-        style_family,
-        "tactile_editorial_collage",
-    )
+    treatment = IMAGE_STYLE_MANIFESTS.get(style_family, {}).get("style_treatment", "tactile_editorial_collage")
     return {
         "subject": clean_subject,
         "visual_role": visual_role,
