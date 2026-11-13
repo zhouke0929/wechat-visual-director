@@ -118,7 +118,6 @@
   padding: 56px clamp(20px, 5vw, 80px) 80px;
 }
 
-.providerSection,
 .targetSection,
 .wechatSection,
 .keySection,
@@ -128,10 +127,8 @@
 }
 
 .targetSection,
-.providerSection,
 .wechatSection { padding: clamp(24px, 3vw, 42px); }
 
-.providerSection,
 .wechatSection { margin-top: 16px; }
 
 .targetSection {
@@ -246,96 +243,6 @@
   text-align: right;
 }
 
-.providerGrid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.providerCard {
-  min-height: 272px;
-  padding: 20px;
-  position: relative;
-  display: grid;
-  grid-template-columns: 42px 1fr;
-  grid-template-rows: auto auto auto 1fr auto;
-  align-content: start;
-  column-gap: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(20, 33, 31, .22);
-  background: #f8f5ec;
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-}
-
-.providerCard:hover {
-  transform: translateY(-2px);
-  border-color: var(--settings-teal);
-  box-shadow: 0 14px 30px rgba(20, 33, 31, .08);
-}
-
-.providerCard input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.providerIndex {
-  grid-row: 1 / 6;
-  font: 800 30px/1 Georgia, serif;
-  color: rgba(20, 33, 31, .27);
-}
-
-.providerEyebrow {
-  color: #65716e;
-  font: 800 9px/1.3 Arial, sans-serif;
-  letter-spacing: .14em;
-}
-
-.providerCard > strong {
-  margin-top: 22px;
-  font-family: "Noto Serif SC", "Songti SC", serif;
-  font-size: 25px;
-}
-
-.providerCard > p {
-  margin: 12px 0 20px;
-  color: #4f5d5a;
-  font-size: 14px;
-}
-
-.providerCard > small {
-  padding-top: 12px;
-  border-top: 1px solid rgba(20, 33, 31, .14);
-  color: #6a7572;
-  font-size: 11px;
-}
-
-.providerCard > i {
-  width: 34px;
-  height: 34px;
-  position: absolute;
-  top: 0;
-  right: 0;
-  display: grid;
-  place-items: center;
-  background: var(--settings-teal);
-  color: white;
-}
-
-.providerCard > i:empty { background: transparent; }
-.providerCard > i svg { width: 17px; }
-
-.providerSelected {
-  border-color: var(--settings-teal);
-  background:
-    linear-gradient(135deg, rgba(14, 117, 109, .08), transparent 45%),
-    #fffef9;
-  box-shadow: inset 4px 0 0 var(--settings-teal);
-}
-
-.providerSelected .providerIndex { color: var(--settings-teal); }
-
 .detailGrid {
   margin-top: 16px;
   display: grid;
@@ -344,6 +251,12 @@
 }
 
 .keySection { padding: clamp(24px, 3vw, 42px); }
+
+.advancedSource { margin-top: 18px; padding-top: 10px; border-top: 1px solid rgba(20, 33, 31, .18); }
+.advancedSource summary { color: var(--settings-teal); font-size: 13px; font-weight: 800; cursor: pointer; }
+.advancedSource label { display: grid; gap: 6px; margin: 12px 0 6px; color: #4f5d5a; font-size: 12px; }
+.advancedSource select { width: min(100%, 310px); min-height: 44px; padding: 6px 10px; border: 1px solid #aab5ac; background: var(--settings-surface); color: var(--settings-ink); }
+.advancedSource small { color: #52605c; font-size: 12px; }
 
 .keyStatus {
   padding: 17px 19px;
@@ -671,10 +584,8 @@
 @media (max-width: 960px) {
   .hero { grid-template-columns: 34px 1fr; }
   .hero aside { grid-column: 2; }
-  .providerGrid { grid-template-columns: 1fr; }
   .targetGrid { grid-template-columns: 1fr; }
   .typesetReadyPanel { grid-template-columns: 1fr; }
-  .providerCard { min-height: 210px; }
   .detailGrid { grid-template-columns: 1fr; }
   .wechatSection { background: var(--settings-surface); }
   .wechatGrid { grid-template-columns: 1fr; }

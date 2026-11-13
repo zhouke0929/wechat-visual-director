@@ -22,40 +22,6 @@ import type {
 } from "@/lib/types";
 import styles from "./settings.module.css";
 
-const providerCards: Array<{
-  mode: ImageProviderMode;
-  index: string;
-  name: string;
-  eyebrow: string;
-  description: string;
-  note: string;
-}> = [
-  {
-    mode: "manual",
-    index: "01",
-    name: "人工上传",
-    eyebrow: "MANUAL / SAFE DEFAULT",
-    description: "关闭模型生图，只保留正文配图和封面的人工上传、替换与复用。",
-    note: "适合正式生产前的稳定兜底",
-  },
-  {
-    mode: "mock",
-    index: "02",
-    name: "Mock 演示",
-    eyebrow: "LOCAL / NO QUOTA",
-    description: "生成确定性的本地占位图，用来验收交互、插图位置和候选切换。",
-    note: "不消耗额度，不可作为发布素材",
-  },
-  {
-    mode: "images_api",
-    index: "03",
-    name: "图片模型 API",
-    eyebrow: "ONE CONNECTION / AUTO ADAPTER",
-    description: "填写完整 Endpoint、模型与 Key，连接 GPT Image、Nano Banana、Seedream、通义万相等主流服务。",
-    note: "接口类型由系统自动识别；未知地址按 OpenAI Images 格式请求",
-  },
-];
-
 const targetCards: Array<{
   mode: SetupTargetMode;
   index: string;
@@ -81,7 +47,7 @@ const targetCards: Array<{
     mode: "full_delivery",
     index: "C",
     name: "完整交付",
-    description: "配置图片服务和微信公众号，将最终版本直接写入公众号草稿箱。",
+    description: "连接微信公众号后，可把最终版本直接存入草稿箱。图片服务按需配置。",
     output: "微信草稿 + 本地备份",
   },
 ];
@@ -97,7 +63,7 @@ export default function ImageProviderSettingsPage() {
   const [capabilities, setCapabilities] = useState<CapabilitySettings | null>(null);
   const [settings, setSettings] = useState<ImageProviderSettings | null>(null);
   const [wechatSettings, setWechatSettings] = useState<WechatPublisherSettings | null>(null);
-  const [mode, setMode] = useState<ImageProviderMode>("manual");
+  const [mode, setMode] = useState<ImageProviderMode>("images_api");
   const [apiKey, setApiKey] = useState("");
   const [clearApiKey, setClearApiKey] = useState(false);
   const [endpoint, setEndpoint] = useState("");
@@ -128,12 +94,10 @@ export default function ImageProviderSettingsPage() {
         setCapabilities(capabilityResult);
         setSettings(imageResult);
         setWechatSettings(wechatResult);
-        setMode(imageResult.mode);
-        if (imageResult.mode === "images_api") {
-          setEndpoint(imageResult.providers.images_api.endpoint);
-          setModel(imageResult.providers.images_api.model);
-          setResolution(imageResult.providers.images_api.resolution);
-        }
+        const config = imageResult.providers.images_api;
+        setEndpoint(config.endpoint);
+        setModel(config.model);
+        setResolution(config.resolution);
       })
       .catch((reason: Error) => setError(reason.message))
       .finally(() => setLoading(false));
@@ -160,6 +124,11 @@ export default function ImageProviderSettingsPage() {
 
   const activeConfig = mode === "images_api" ? settings?.providers.images_api : null;
   const selectedKeyConfigured = Boolean(activeConfig?.api_key_configured);
+  const canSave = mode !== "images_api" || Boolean(endpoint.trim() && model.trim()
+    && (selectedKeyConfigured || apiKey.trim()));
+  const targetReady = capabilities?.target_mode === "full_delivery"
+    ? capabilities.capabilities.wechat_draft.state === "ready"
+    : capabilities?.complete_for_target;
 
   const hasUnsavedChanges = useMemo(() => {
     if (!settings) return false;
@@ -186,7 +155,7 @@ export default function ImageProviderSettingsPage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!settings || settings.managed_by_environment) return;
+    if (!settings || settings.managed_by_environment || saving || !hasUnsavedChanges || !canSave) return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -331,16 +300,16 @@ export default function ImageProviderSettingsPage() {
           <p>正在读取本机图片设置…</p>
         </section>
       ) : settings && capabilities && wechatSettings ? (
-        <form className={styles.workspace} onSubmit={handleSubmit}>
+        <div className={styles.workspace}>
           <section className={styles.targetSection} aria-labelledby="target-heading">
             <header className={styles.sectionHeading}>
               <div>
                 <span>01 / TARGET</span>
                 <h2 id="target-heading">这台电脑准备做到哪一步？</h2>
               </div>
-              <div className={`${styles.targetSummary} ${capabilities.complete_for_target ? styles.targetReady : ""}`}>
-                <strong>{capabilities.complete_for_target ? "目标能力已就绪" : "还差一项配置"}</strong>
-                <small>{capabilities.complete_for_target ? "可以返回工作台继续文章" : "按下方提示完成所需连接"}</small>
+              <div className={`${styles.targetSummary} ${targetReady ? styles.targetReady : ""}`}>
+                <strong>{targetReady ? "目标能力已就绪" : "所选功能待连接"}</strong>
+                <small>排版和复制图文始终可用</small>
               </div>
             </header>
             <div className={styles.targetGrid}>
@@ -376,52 +345,15 @@ export default function ImageProviderSettingsPage() {
               <Link href="/">返回任务台</Link>
             </section>
           ) : (
-          <>
-          <section className={styles.providerSection} aria-labelledby="provider-heading">
-            <header className={styles.sectionHeading}>
-              <div>
-                <span>02 / IMAGE PROVIDER</span>
-                <h2 id="provider-heading">选择图片来源</h2>
-              </div>
-              <p>可以随时切换。已保存的 API Key 不会因为切到人工或 Mock 模式而被删除。</p>
-            </header>
-
-            <div className={styles.providerGrid}>
-              {providerCards.map((provider) => {
-                const selected = mode === provider.mode;
-                return (
-                  <label
-                    className={`${styles.providerCard} ${selected ? styles.providerSelected : ""}`}
-                    key={provider.mode}
-                  >
-                    <input
-                      checked={selected}
-                      disabled={settings.managed_by_environment}
-                      name="provider"
-                      onChange={() => selectMode(provider.mode)}
-                      type="radio"
-                      value={provider.mode}
-                    />
-                    <span className={styles.providerIndex}>{provider.index}</span>
-                    <span className={styles.providerEyebrow}>{provider.eyebrow}</span>
-                    <strong>{provider.name}</strong>
-                    <p>{provider.description}</p>
-                    <small>{provider.note}</small>
-                    <i aria-hidden="true">{selected ? <CheckIcon /> : null}</i>
-                  </label>
-                );
-              })}
-            </div>
-          </section>
-
+          <form onSubmit={handleSubmit}>
           <div className={styles.detailGrid}>
             <section className={styles.keySection} aria-labelledby="key-heading">
               <header className={styles.sectionHeading}>
                 <div>
-                  <span>03 / IMAGE CONNECTION</span>
+                  <span>02 / IMAGE CONNECTION</span>
                   <h2 id="key-heading">
                     {mode === "images_api"
-                      ? "图片模型连接"
+                      ? "图片模型连接（可选）"
                         : "无需外部连接"}
                   </h2>
                 </div>
@@ -434,8 +366,8 @@ export default function ImageProviderSettingsPage() {
                     <div>
                       <strong>{selectedKeyConfigured ? "本机已有 Key" : "尚未配置 Key"}</strong>
                       <small>
-                        {selectedKeyConfigured && mode === settings.mode
-                          ? `来源：${settings.credential_source === "process_environment" ? "启动环境变量" : "本地私有配置"}`
+                        {selectedKeyConfigured
+                          ? "留空保留已保存的 Key。"
                           : "Key 仅写入本机私有配置，不会交给宿主智能体。"}
                       </small>
                     </div>
@@ -526,7 +458,20 @@ export default function ImageProviderSettingsPage() {
                   <strong>当前由启动环境管理</strong>
                   <p>工作台不会覆盖：{settings.managed_fields.join("、")}。请在启动脚本或系统环境变量中修改。</p>
                 </div>
-              ) : null}
+              ) : (
+                <details className={styles.advancedSource}>
+                  <summary>高级：切换工作台生图方式</summary>
+                  <label>
+                    <span>保存后的生图方式</span>
+                    <select value={mode} disabled={saving} onChange={(event) => selectMode(event.target.value as ImageProviderMode)}>
+                      <option value="images_api">图片模型 API</option>
+                      <option value="manual">手动上传（不调用模型）</option>
+                      <option value="mock">本地演示（仅用于测试）</option>
+                    </select>
+                  </label>
+                  <small>切换方式不会删除已保存的 API Key；演示图片不用于发布。</small>
+                </details>
+              )}
             </section>
 
             <aside className={styles.systemSection}>
@@ -537,8 +482,8 @@ export default function ImageProviderSettingsPage() {
               <dl>
                 <div><dt>当前 Provider</dt><dd>{settings.active_provider.toUpperCase()}</dd></div>
                 <div><dt>当前模型</dt><dd>{settings.active_model}</dd></div>
-                <div><dt>图片清晰度</dt><dd>{activeConfig?.resolution ?? "LOCAL"}</dd></div>
-                <div><dt>接口适配</dt><dd>{activeConfig?.adapter.toUpperCase() ?? "LOCAL"}</dd></div>
+                <div><dt>图片清晰度</dt><dd>{settings.mode === "images_api" ? settings.providers.images_api.resolution : "LOCAL"}</dd></div>
+                <div><dt>接口适配</dt><dd>{settings.mode === "images_api" ? settings.providers.images_api.adapter.toUpperCase() : "LOCAL"}</dd></div>
                 <div><dt>提示词</dt><dd>视觉主编自动生成</dd></div>
                 <div><dt>外部连接</dt><dd>首次真实生图时验证</dd></div>
               </dl>
@@ -554,24 +499,24 @@ export default function ImageProviderSettingsPage() {
             <div aria-live="polite">
               {error ? <p className={styles.error} role="alert">{error}</p> : null}
               {notice ? <p className={styles.success}><CheckIcon />{notice}</p> : null}
-              {!error && !notice ? <p>这里仅保存图片服务配置；不会为了测试连接而消耗生图额度。</p> : null}
+              {!error && !notice ? <p>只保存配置，不调用生图接口。未配置也可上传图片或沿用原图。</p> : null}
             </div>
             <button
-              disabled={saving || settings.managed_by_environment || !hasUnsavedChanges}
+              disabled={saving || settings.managed_by_environment || !hasUnsavedChanges || !canSave}
               type="submit"
             >
               <span>{saving ? "正在保存…" : "保存图片设置"}</span>
-              <i>{mode.toUpperCase()}</i>
+              <i aria-hidden="true">{mode === "images_api" ? "API" : mode === "mock" ? "DEMO" : "LOCAL"}</i>
             </button>
           </footer>
-          </>
+          </form>
           )}
 
           {capabilities.target_mode === "full_delivery" ? (
           <section className={styles.wechatSection} aria-labelledby="wechat-heading">
             <header className={styles.sectionHeading}>
               <div>
-                <span>04 / WECHAT DELIVERY</span>
+                <span>03 / WECHAT DELIVERY</span>
                 <h2 id="wechat-heading">连接微信公众号草稿箱</h2>
               </div>
               <p>保存凭据、检测连接、创建草稿是三个独立动作。这里的检测只验证权限，不会往后台写文章。</p>
@@ -682,7 +627,7 @@ export default function ImageProviderSettingsPage() {
           </section>
           ) : null}
 
-        </form>
+        </div>
       ) : (
         <section className={styles.failure}>
           <strong>无法读取图片设置</strong>
