@@ -34,7 +34,7 @@ the live site while retaining each article's actual heading and text styles.
 ## A gallery, not a long-form manual
 
 The homepage has five main sections: a first-screen product introduction and
-film, three real article editions, the interactive 12-theme atelier, a
+film, three real article editions, the interactive theme atelier, a
 reference-to-custom-theme creation entry, and a compact installation CTA.
 On phones the first screen presents the introduction, film and installation
 action in that order. Image examples are integrated into the article gallery rather than repeated
@@ -45,8 +45,10 @@ disclosure. The header contains the brand, GitHub and installation action only;
 the hero retains its theme-gallery link.
 Do not turn search optimization into another wall of feature cards.
 
-The article cards open complete static articles. Theme changes use the real
-exported catalog, not hand-drawn approximations. Preserve the established
+The article cards open complete static articles. The atelier uses the official
+catalog's seven browsing groups and real rendered samples, not hand-drawn
+approximations. Use `?theme=<id>#themes` to link to a specific theme.
+Preserve the established
 `#cases`, `#themes`, `#image-system`, `#workflow` and `#faq` link targets.
 The three complete articles share `articles/article.css`: a 405px viewport with
 24px inner gutters, matching the workbench's mobile source width (not its 600px
@@ -82,10 +84,12 @@ python scripts/test_theme_gallery_browser.py
 
 By default it routes public assets from this checkout inside the test browser,
 so no server is required. Pass `--url http://127.0.0.1:<port>/` to test a running
-preview or the deployed site. It checks six viewport widths, 30 themes, keyboard
-selection, phone scroll boundaries and narrow-screen fit, copy layout stability,
+preview or the deployed site. It checks the exported groups, all themes at two
+widths, six viewport widths overall, keyboard selection, direct theme links,
+specimen selection persistence, phone scroll boundaries and narrow-screen fit, copy layout stability,
 manual-copy fallback, catalog retry and no-JS
-article links. `--refresh-promotional-assets` explicitly refreshes the hero,
+article links. Use `--refresh-theme-image` after a theme-gallery change to
+refresh only the README gallery screenshot. `--refresh-promotional-assets` refreshes the hero,
 article excerpts and theme screenshots used in README/social sharing; do not
 overwrite approved art. README keeps three visual groups: finished editions,
 theme switching and the real editing workbench. Avoid repeating the same image

@@ -6,6 +6,7 @@ import re
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
@@ -169,6 +170,30 @@ def test_product_search_metadata_matches_visible_product_facts() -> None:
         assert fact in " ".join(data["featureList"])
         assert fact in (ROOT / "site/llms.txt").read_text(encoding="utf-8")
     assert 'id="faq"' in body
+
+
+def test_public_theme_count_and_links_follow_the_official_catalog() -> None:
+    from visual_director.component_catalog import OFFICIAL_THEME_GROUPS, VISUAL_SYSTEM_ORDER
+
+    path = ROOT / "site"
+    themes = json.loads((path / "data/themes.json").read_text(encoding="utf-8"))["themes"]
+    assert [theme["id"] for theme in themes] == list(VISUAL_SYSTEM_ORDER)
+    for order, (group, members) in enumerate(OFFICIAL_THEME_GROUPS.items()):
+        exported = [t for t in themes if t["theme_group"] == group]
+        assert {t["id"] for t in exported} == set(members)
+        assert all(t["theme_group_order"] == order and t["source"] == "official" for t in exported)
+
+    count = len(themes)
+    for file in ("README.md", "site/index.html", "site/llms.txt"):
+        text = (ROOT / file).read_text(encoding="utf-8")
+        advertised_counts = {int(m) for m in re.findall(r"(\d+)\s*套(?:内置|视觉|官方)?主题", text)}
+        assert advertised_counts == {count}, file
+        for url in _prose_links(text):
+            if url.startswith(SITE_URL):
+                target = urlsplit(url)
+                requested = parse_qs(target.query).get("theme", [])
+                if requested:
+                    assert requested[0] in VISUAL_SYSTEM_ORDER and target.fragment == "themes"
 
 
 def test_public_sitemap_points_to_real_canonical_pages() -> None:

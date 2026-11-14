@@ -12,7 +12,8 @@
   </p>
   <p>
   <a href="#快速开始"><b>交给 Agent 安装</b></a>
-  · <a href="https://zhouke0929.github.io/wechat-visual-director/"><b>查看成稿示例</b></a>
+  · <a href="https://zhouke0929.github.io/wechat-visual-director/#cases"><b>查看成稿示例</b></a>
+  · <a href="https://zhouke0929.github.io/wechat-visual-director/#themes"><b>浏览内置主题</b></a>
   · <a href="#给参考创作自己的整套主题"><b>自定义排版样式</b></a>
   · <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>版本记录</b></a>
   </p>
@@ -103,13 +104,13 @@ Agent 先回答这些问题，再选择适合的呈现方式：让对比有边�
 
 选题、资料、纯文本或 Markdown 都可以作为起点。Agent 整理内容并输出结构化规划，本地程序通过受控组件完成 Markdown 到微信兼容 HTML 的转换，形成统一、可编辑的文章版式。
 
-### 30 套主题，换的是整篇文章的阅读气质
+### 26 套内置主题，同一篇文章有不同表达
 
-从轻盈阅读、温暖人文，到城市导视、旧式窗口、靛蓝布标；每套主题都有自己的标题、色彩、留白、章节节奏和组件样式。
+想写一篇轻松的生活手记，或排一篇棱角分明的科技稿？样本册按风格分为清新自然、生活手帐、手作绘本、东方意境、杂志与海报、光影叙事、数字与导视 7 组。可以先看[像素现场](https://zhouke0929.github.io/wechat-visual-director/?theme=pixel_live#themes)的像素线条、[折扇与局部特写](https://zhouke0929.github.io/wechat-visual-director/?theme=folded_fan_detail#themes)的东方留白，或[黑白墨迹](https://zhouke0929.github.io/wechat-visual-director/?theme=ink_traces#themes)的水墨细节，再切换同一篇文章，比较标题、图文和重点组件。
 
 可以在工作台整篇切换，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
 
-[![在线主题样本册的预览示例](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
+[![在线样本册：按风格浏览 26 套内置主题，右侧手机显示像素现场的真实排版](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
 [打开在线主题样本册，比较同一篇文章的不同表达 →](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
@@ -117,7 +118,7 @@ Agent 先回答这些问题，再选择适合的呈现方式：让对比有边�
 
 喜欢秀米、135 编辑器里的某个组件，或有自己想要的品牌气质？**推荐附上喜欢的组件截图**，交给已安装 Skill 的 Agent，更容易对齐你想要的风格。不需要准备整套参考，也不需要自己写 HTML。
 
-Agent 会分析参考的构图与视觉语言，寻找相关组件参考、联想同方向元素，再延展整套标题、引用、列表、图文和重点组件；不是只给现有主题换色，也不是只优化少数部件。随后进行本地结构检查与视觉评审，用完整文章展示阅读效果。
+Agent 会保留参考里值得辨认的构图，再寻找相关组件、联想元素，把风格延展到整套标题、引用、列表、图文和重点组件。排版不靠重复贴图来统一；简洁的组件也要放回整篇文章里检查阅读和风格是否协调。验收可以同时看完整文章和组件样本册。
 
 ```text
 请用 wechat-visual-director，根据我附上的组件参考图，创作一整套新的主题。

@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urlencode, urljoin, urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -17,6 +17,7 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 SITE = ROOT / "site"
 LOCAL_URL = "http://127.0.0.1:8765/"
+FEATURED_THEME = "pixel_live"
 
 
 def capture_readme_editions(context, gallery_page, url):
@@ -84,6 +85,7 @@ def main() -> None:
     parser.add_argument("--url")
     parser.add_argument("--artifacts", type=Path)
     parser.add_argument("--refresh-promotional-assets", action="store_true", help="Refresh the public hero and theme screenshots after checking the gallery")
+    parser.add_argument("--refresh-theme-image", action="store_true", help="Refresh only the README theme-gallery screenshot")
     args = parser.parse_args()
     if args.artifacts:
         args.artifacts.mkdir(parents=True, exist_ok=True)
@@ -111,13 +113,13 @@ def main() -> None:
         # a low-resolution crop when GitHub expands the README image.
         context = new_context(
             permissions=["clipboard-read", "clipboard-write"],
-            device_scale_factor=3 if args.refresh_promotional_assets else 1,
+            device_scale_factor=3 if args.refresh_promotional_assets or args.refresh_theme_image else 1,
         )
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url, wait_until="networkidle")
-        page.locator(".theme-button").nth(11).wait_for()
+        page.locator(".theme-button").first.wait_for()
         assert page.locator("main#main > section").count() == 5
         assert page.locator(".edition").count() == 3
         assert page.locator("#faq .notes-content").is_visible()
@@ -166,33 +168,57 @@ def main() -> None:
             page.evaluate("window.scrollTo(0,0)")
             page.locator(".hero").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-hero.png"))
             capture_readme_editions(context, page, url)
-        for button in page.locator(".theme-button").all():
-            button.click()
-            assert button.get_attribute("aria-pressed") == "true"
-            assert page.locator(".theme-button.active").count() == 1
-            assert page.locator("#themePreview [data-gallery-production-article] > main").count() == 1
-            assert page.locator("#themePreview").evaluate("el => el.scrollTop === 0")
-            assert button.locator("strong").inner_text() == page.locator("#themeLabel").inner_text()
-            check_phone()
-            results["themes"] += 1
-        # All themes must also fit the narrow phone, not just the default theme.
-        page.set_viewport_size({"width": 360, "height": 800})
-        for button in page.locator(".theme-button").all():
-            button.click()
-            check_phone()
+        catalog = page.request.get(urljoin(url, "data/themes.json")).json()["themes"] if args.url else json.loads(
+            (SITE / "data/themes.json").read_text(encoding="utf-8")
+        )["themes"]
+        expected_groups = {}
+        for theme in sorted(catalog, key=lambda theme: theme["theme_group_order"]):
+            expected_groups.setdefault(theme["theme_group"], []).append(theme["id"])
+        group_buttons = page.locator("#themeGroups button")
+        assert [button.get_attribute("data-group") for button in group_buttons.all()] == list(expected_groups)
+        for width, height in ((1440, 1000), (360, 800)):
+            page.set_viewport_size({"width": width, "height": height})
+            for group_button in group_buttons.all():
+                group_button.click()
+                assert group_button.get_attribute("aria-pressed") == "true"
+                members = page.locator(".theme-button")
+                assert [button.get_attribute("data-theme-id") for button in members.all()] == expected_groups[group_button.get_attribute("data-group")]
+                for button in members.all():
+                    button.click()
+                    assert button.get_attribute("aria-pressed") == "true"
+                    assert page.locator(".theme-button.active").count() == 1
+                    assert page.locator("#themePreview [data-gallery-production-article] > main").count() == 1
+                    assert page.locator("#themePreview").evaluate("el => el.scrollTop === 0")
+                    assert button.locator("strong").inner_text() == page.locator("#themeLabel").inner_text()
+                    check_phone()
+                    if width == 1440:
+                        assert page.locator("#themePreview img").evaluate_all(
+                            "imgs => Promise.all(imgs.map(img => img.decode().then(() => true, () => false))).then(results => results.every(Boolean))"
+                        ), button.get_attribute("data-theme-id")
+                        results["themes"] += 1
         page.set_viewport_size({"width": 1440, "height": 1000})
         page.locator(".theme-button").last.press("Home")
         assert page.locator(".theme-button").first.get_attribute("aria-pressed") == "true"
         page.locator(".theme-button").first.press("ArrowRight")
         assert page.locator(".theme-button").nth(1).get_attribute("aria-pressed") == "true"
-        page.locator('[data-theme-id="youth_campus"]').click()
+        page.locator("#specimenSelect").select_option("ordered_list")
+        page.locator(".theme-button").first.click()
+        assert page.locator("#specimenSelect").input_value() == "ordered_list"
+        group_buttons.first.click()
+        assert page.locator("#specimenSelect").input_value() == "ordered_list"
+        assert "有序列表" in page.locator("#themePreview").get_attribute("aria-label")
+        deep_link = urljoin(url, "?" + urlencode({"theme": "ink_traces"}) + "#themes")
+        page.goto(deep_link, wait_until="networkidle")
+        page.locator('[data-theme-id="ink_traces"][aria-pressed="true"]').wait_for()
+        page.goto(url, wait_until="networkidle")
+        page.locator(f'[data-theme-id="{FEATURED_THEME}"][aria-pressed="true"]').wait_for()
         # Leave room for the sticky navigation above a full-height phone shot.
         theme_height = page.locator("#themes").bounding_box()["height"]
         page.set_viewport_size({"width": 1440, "height": max(1000, int(theme_height) + 120)})
         page.locator("#themes").evaluate("el => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 90)")
         if args.artifacts:
             page.locator("#themes").screenshot(path=str(args.artifacts / "themes.png"))
-        if args.refresh_promotional_assets:
+        if args.refresh_promotional_assets or args.refresh_theme_image:
             page.locator("#themes").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-themes.png"))
         page.set_viewport_size({"width": 1440, "height": 1000})
 
@@ -260,7 +286,7 @@ def main() -> None:
             retry_page = retry_context.new_page()
             retry_page.goto(url, wait_until="networkidle")
             retry_page.locator(".theme-retry").click()
-            retry_page.locator(".theme-button").nth(11).wait_for()
+            retry_page.locator(".theme-button").first.wait_for()
             results["retry"] = True
             retry_context.close()
 

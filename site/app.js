@@ -1,4 +1,5 @@
 const index = document.querySelector("#themeIndex");
+const groupIndex = document.querySelector("#themeGroups");
 const preview = document.querySelector("#themePreview");
 const label = document.querySelector("#themeLabel");
 const english = document.querySelector("#themeEnglish");
@@ -11,7 +12,7 @@ const dialog = document.querySelector("#installDialog");
 const promptField = document.querySelector("#installPromptText");
 const specimenSelect = document.querySelector("#specimenSelect");
 let currentTheme;
-let selectedThemeId = "youth_campus";
+let selectedThemeId = new URLSearchParams(window.location.search).get("theme") || "pixel_live";
 let toastTimer;
 let dialogTrigger = null;
 
@@ -89,17 +90,50 @@ function createThemeButton(theme, themeIndex) {
   return button;
 }
 
+function renderGroup(group, themeId) {
+  groupIndex.querySelectorAll("button").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.group === group.label));
+  });
+  index.replaceChildren(...group.entries.map(({ theme, position }) => createThemeButton(theme, position)));
+  index.setAttribute("aria-label", group.label + " · 选择文章主题");
+  const next = group.entries.find(({ theme }) => theme.id === themeId) ?? group.entries[0];
+  renderTheme(next.theme, Boolean(currentTheme));
+}
+
 async function loadThemes() {
   index.setAttribute("aria-busy", "true");
   try {
-    const response = await fetch("./data/themes.json");
+    const response = await fetch("./data/themes.json", { cache: "no-cache" });
     if (!response.ok) throw new Error("theme_fetch_failed");
     const payload = await response.json();
     const themes = payload.themes;
     if (!Array.isArray(themes) || !themes.length) throw new Error("theme_catalog_empty");
-    index.replaceChildren(...themes.map(createThemeButton));
-    renderTheme(themes.find((theme) => theme.id === selectedThemeId) ?? themes[0], false);
+    const groupsByLabel = new Map();
+    themes.forEach((theme, position) => {
+      const label = theme.theme_group || "未分组";
+      if (!groupsByLabel.has(label)) {
+        groupsByLabel.set(label, { label, order: theme.theme_group_order ?? Infinity, entries: [] });
+      }
+      groupsByLabel.get(label).entries.push({ theme, position });
+    });
+    const groups = [...groupsByLabel.values()].sort((a, b) => a.order - b.order);
+    groupIndex.replaceChildren(...groups.map((group) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.dataset.group = group.label;
+      button.setAttribute("aria-controls", index.id);
+      button.append(group.label);
+      const count = document.createElement("span");
+      count.textContent = group.entries.length;
+      button.append(count);
+      button.addEventListener("click", () => renderGroup(group, selectedThemeId));
+      return button;
+    }));
+    groupIndex.hidden = false;
+    const selectedGroup = groups.find(({ entries }) => entries.some(({ theme }) => theme.id === selectedThemeId));
+    renderGroup(selectedGroup ?? groups[0], selectedThemeId);
   } catch {
+    groupIndex.hidden = true;
     const notice = document.createElement("p");
     notice.className = "theme-loading";
     notice.textContent = "主题暂时未加载。你仍可阅读上方完整成稿，或";

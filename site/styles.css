@@ -68,11 +68,18 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px s
 .themes .eyebrow { color: #dfd0f1; }
 .themes h2 { margin: 0; font: 600 clamp(34px, 3.8vw, 59px)/1.25 var(--sans); letter-spacing: -.055em; }
 .themes h2 em { color: #f26078; font-style: normal; }
-.theme-intro { font-size: 12px; line-height: 1.9; color: #d6cadf; margin: 21px 0 30px; }
-.theme-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 380px; overflow: auto; scrollbar-color: #9d87a7 #30223b; border-top: 1px solid #ffffff26; border-left: 1px solid #ffffff26; }
-.theme-button { position: relative; min-width: 0; min-height: 53px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-right: 1px solid #ffffff26; border-bottom: 1px solid #ffffff26; background: transparent; color: #f2eaf5; text-align: left; transition: background .2s, color .2s; }
+.theme-total { margin-inline-start: 12px; padding-inline-start: 12px; border-left: 1px solid #f2607890; color: #ff9eab; font-family: var(--sans); letter-spacing: .08em; white-space: nowrap; }
+.theme-intro { font-size: 13px; line-height: 1.9; color: #e2d7e8; margin: 18px 0 24px; }
+.theme-groups:not([hidden]) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px 7px; margin-bottom: 14px; }
+.theme-groups button { min-height: 36px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px; border: 1px solid #ffffff40; border-radius: 3px; background: transparent; color: #f2eaf5; font-size: 12px; }
+.theme-groups button span { margin-inline-start: auto; font: 11px/1 Georgia, serif; color: #ddc9e5; }
+.theme-groups button:hover { background: #ffffff12; }
+.theme-groups button[aria-pressed="true"] { background: #fff8f4; color: #30223b; border-color: #fff8f4; }
+.theme-groups button[aria-pressed="true"] span { color: #9c2b46; }
+.theme-index { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; min-height: 160px; border-top: 1px solid #ffffff26; }
+.theme-button { position: relative; min-width: 0; min-height: 53px; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-bottom: 1px solid #ffffff26; background: transparent; color: #f2eaf5; text-align: left; transition: background .2s, color .2s; }
 .theme-button:hover { background: #ffffff0b; }
-.theme-button.active { background: #f26078; color: #30223b; border-radius: 10px; }
+.theme-button.active { background: #f58496; color: #30223b; }
 .theme-num { font: 10px/1 Georgia, serif; opacity: .65; }
 .theme-button strong { min-width: 0; font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
 .mini-swatches { display: flex; margin-left: auto; flex: none; }
@@ -186,9 +193,12 @@ button:focus-visible, a:focus-visible, [tabindex]:focus-visible { outline: 3px s
   .themes h2 { font-size: 34px; }
   .themes h2 br { display: block; }
   .theme-intro { font-size: 11px; margin-top: 16px; }
+  .theme-index { grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 145px; }
+  .theme-groups:not([hidden]) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .theme-groups button { min-height: 40px; }
   .theme-button { padding: 10px 8px; min-height: 48px; gap: 6px; }
   .theme-num { font-size: 8px; }
-  .theme-button strong { font-size: 10px; }
+  .theme-button strong { font-size: 12px; }
   .mini-swatches { gap: 1px; }
   .mini-swatches i { width: 3px; height: 10px; }
   .theme-footnote { gap: 12px; font-size: 9px; }
