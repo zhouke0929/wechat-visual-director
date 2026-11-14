@@ -1,12 +1,12 @@
 "use client";
 
 import Link, { useRouteParam } from "@/lib/router";
-import { groupThemes } from "@/lib/theme-groups";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BackIcon } from "@/components/icons";
 import { ImageReviewPanel } from "@/components/image-review-panel";
 import { CoverReviewPanel } from "@/components/cover-review-panel";
 import { HostImageEntry } from "@/components/host-image-entry";
+import { ThemeQuickPick } from "@/components/theme-quick-pick";
 import { PreflightPanel } from "@/components/preflight-panel";
 import { PublicationPanel } from "@/components/publication-panel";
 import {
@@ -124,7 +124,7 @@ export default function TaskReviewPage() {
   const taskId = useRouteParam("tasks");
   const [detail, setDetail] = useState<TaskDetail | null>(null);
   const [planList, setPlanList] = useState<PlanList | null>(null);
-  const [activeEditorTab, setActiveEditorTab] = useState<"images" | "cover">("images");
+  const [activeEditorTab, setActiveEditorTab] = useState<"images" | "cover" | "themes">("themes");
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState("");
   const [switchingTheme, setSwitchingTheme] = useState("");
@@ -134,6 +134,7 @@ export default function TaskReviewPage() {
   const [contentEditor, setContentEditor] = useState<ContentEditorDocument | null>(null);
   const contentEditorRef = useRef<ContentEditorDocument | null>(null);
   const flushInlineEditsRef = useRef<(() => Promise<void>) | null>(null);
+  const themeChangeBusyRef = useRef(false);
   const [contentSaveState, setContentSaveState] = useState<InlineSaveState>("idle");
   const [contentSaveMessage, setContentSaveMessage] = useState("");
   const [contentPreviewRefreshToken, setContentPreviewRefreshToken] = useState(0);
@@ -157,7 +158,6 @@ export default function TaskReviewPage() {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [workspaceWarning, setWorkspaceWarning] = useState("");
-  const initialWorkspaceResolved = useRef(false);
   const imageWorkspaceRequestRef = useRef(0);
 
   const loadSupplementalWorkspace = useCallback(async (nextDetail: TaskDetail) => {
@@ -172,10 +172,6 @@ export default function TaskReviewPage() {
     const selectedPlanId = nextDetail.task.selected_plan_id;
     if (selectedPlanId) {
       const requestId = ++imageWorkspaceRequestRef.current;
-      if (!initialWorkspaceResolved.current) {
-        setActiveEditorTab("images");
-        initialWorkspaceResolved.current = true;
-      }
       try {
         const nextImageReview = await getImageSlots(taskId, selectedPlanId);
         const nextCoverReview = await getCoverWorkspace(taskId, selectedPlanId);
@@ -250,7 +246,7 @@ export default function TaskReviewPage() {
       const wasSelected = detail.task.selected_plan_id;
       await selectPlan(detail.task, plan.id);
       await load();
-      setActiveEditorTab("images");
+      setActiveEditorTab("themes");
       setNotice(wasSelected && wasSelected !== plan.id ? "方案已切换；没有重新调用规划器。" : "方案已选中，可以继续进入下一阶段。 ");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "选择方案失败");
@@ -260,12 +256,20 @@ export default function TaskReviewPage() {
   }
 
   async function handleThemeSwitch(plan: VisualPlan, visualSystem: string, refreshCurrent = false) {
-    if (!refreshCurrent && visualSystem === (plan.visual_system ?? plan.style_mode)) return;
+    if (themeChangeBusyRef.current || (!refreshCurrent && visualSystem === (plan.visual_system ?? plan.style_mode))) return;
+    themeChangeBusyRef.current = true;
     setSwitchingTheme(visualSystem);
     setError("");
     setNotice("");
     try {
+      try {
+        await flushInlineEditsRef.current?.();
+      } catch (reason) {
+        setError(`正文未保存，未切换主题。${reason instanceof Error ? reason.message : "请检查正文后重试。"}`);
+        return;
+      }
       const result = await switchPlanTheme(taskId, plan.id, visualSystem, plan.revision, refreshCurrent);
+      recordThemePreview(result.plan);
       setPlanList((current) => current ? {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
@@ -284,17 +288,26 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "切换主题失败");
     } finally {
+      themeChangeBusyRef.current = false;
       setSwitchingTheme("");
     }
   }
 
   async function handleRestore(plan: VisualPlan) {
-    if (!(plan.undo_stack ?? []).length) return;
+    if (themeChangeBusyRef.current || !(plan.undo_stack ?? []).length) return;
+    themeChangeBusyRef.current = true;
     setRestoring(plan.id);
     setError("");
     setNotice("");
     try {
+      try {
+        await flushInlineEditsRef.current?.();
+      } catch (reason) {
+        setError(`正文未保存，未撤回。${reason instanceof Error ? reason.message : "请检查正文后重试。"}`);
+        return;
+      }
       const result = await undoPlanChange(taskId, plan.id, plan.revision);
+      recordThemePreview(result.plan);
       setPlanList((current) => current ? {
         ...current,
         plans: current.plans.map((item) => item.id === result.plan.id ? result.plan : item),
@@ -307,8 +320,21 @@ export default function TaskReviewPage() {
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "恢复修订失败");
     } finally {
+      themeChangeBusyRef.current = false;
       setRestoring("");
     }
+  }
+
+  function recordThemePreview(plan: VisualPlan) {
+    const editor = contentEditorRef.current;
+    if (editor?.plan_id !== plan.id) return;
+    // The new artifact already contains the flushed revision. Do not let the
+    // editor's blur callback replace it with the previous theme's artifact.
+    appliedContentRevisionRef.current = editor.revision;
+    previewInlineEditingRef.current = false;
+    const next = { ...editor, preview_url: plan.preview_url };
+    contentEditorRef.current = next;
+    setContentEditor(next);
   }
 
   async function refreshImageReview(planId: string) {
@@ -620,7 +646,7 @@ export default function TaskReviewPage() {
     });
     contentEditorRef.current = next;
     setContentEditor(next);
-    if (!previewInlineEditingRef.current) applyContentPreview(next);
+    if (!previewInlineEditingRef.current && !themeChangeBusyRef.current) applyContentPreview(next);
     if (target.kind === "title" && typeof content === "string") {
       setDetail((currentDetail) => currentDetail ? {
         ...currentDetail,
@@ -644,7 +670,7 @@ export default function TaskReviewPage() {
 
   function handleInlineEditingChange(editing: boolean) {
     previewInlineEditingRef.current = editing;
-    if (!editing && contentEditorRef.current) applyContentPreview(contentEditorRef.current);
+    if (!editing && !themeChangeBusyRef.current && contentEditorRef.current) applyContentPreview(contentEditorRef.current);
   }
 
   async function handleFreezePublication(metadata: PublicationMetadata) {
@@ -711,7 +737,11 @@ export default function TaskReviewPage() {
         throw new Error("当前浏览器不支持图文剪贴板，尚未复制。请换用支持富文本复制的浏览器。");
       }
       await copyRichArticle(async () => {
-        await flushInlineEditsRef.current?.();
+        try {
+          await flushInlineEditsRef.current?.();
+        } catch (reason) {
+          throw new Error(`正文未保存，尚未复制：${reason instanceof Error ? reason.message : "请检查正文后重试。"}`);
+        }
         const editor = contentEditorRef.current;
         if (!editor || editor.plan_id !== plan.id) {
           throw new Error("当前正文尚未就绪，尚未复制。请刷新工作台后再试。");
@@ -894,7 +924,9 @@ export default function TaskReviewPage() {
   const themeOptions: NonNullable<VisualPlan["visual_system_metadata"]>["available_visual_systems"] = activePlan?.visual_system_metadata?.available_visual_systems?.length
     ? activePlan.visual_system_metadata.available_visual_systems
     : Object.entries(styleLabels).slice(3).map(([value, label]) => ({ value, label, description: "", recent_use_count: 0 }));
-  const themeGroups = groupThemes(themeOptions);
+  const currentTheme = activePlan?.visual_system ?? activePlan?.style_mode ?? "";
+  const currentThemeLabel = themeOptions.find((theme) => theme.value === currentTheme)?.label
+    ?? activePlan?.visual_system_metadata?.label ?? styleLabels[currentTheme] ?? currentTheme;
   const resolvedImageCount = imageReview?.items.filter(
     (item) => Boolean(item.state.selected_candidate_id) || item.state.status === "skipped",
   ).length ?? 0;
@@ -998,70 +1030,19 @@ export default function TaskReviewPage() {
           {activePlan ? (
             <section className="editor-workbench" id="editor-workbench" aria-label={`${activePlan.plan_name} 编辑工作台`}>
               <aside className="editor-controls">
-                <div className="active-plan-summary">
-                  <div className="theme-switch-controls">
-                    <label>
-                      <span>当前主题</span>
-                      <select
-                        aria-label="选择整篇文章主题"
-                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
-                        onChange={(event) => handleThemeSwitch(activePlan, event.target.value)}
-                        value={activePlan.visual_system ?? activePlan.style_mode}
-                      >
-                        {themeGroups.map((group) => (
-                          <optgroup key={group.label} label={group.label}>
-                            {group.options.map((theme) => (
-                              <option key={theme.value} value={theme.value}>
-                                {theme.label}{theme.layout_coverage?.status === "partial" ? ` · 未完成 ${theme.layout_coverage.covered_count}/${theme.layout_coverage.total_count}` : ""}{theme.recent_use_count ? ` · 近五篇 ${theme.recent_use_count} 次` : ""}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </label>
-                    <button
-                      disabled={Boolean(switchingTheme) || Boolean(restoring)}
-                      onClick={() => {
-                        const themes = themeGroups.flatMap((group) => group.options);
-                        const currentIndex = themes.findIndex((item) => item.value === (activePlan.visual_system ?? activePlan.style_mode));
-                        const next = themes.length ? themes[(currentIndex + 1) % themes.length] : null;
-                        if (next) void handleThemeSwitch(activePlan, next.value);
-                      }}
-                      type="button"
-                    >
-                      {switchingTheme ? "更新中…" : "换一个主题"}
-                    </button>
-                    {activePlan.render_refresh_available ? (
-                      <button
-                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
-                        onClick={() => handleThemeSwitch(activePlan, activePlan.visual_system ?? activePlan.style_mode, true)}
-                        title="保留当前主题和内容，使用新版渲染器更新预览"
-                        type="button"
-                      >{switchingTheme ? "更新中…" : "更新主题渲染"}</button>
-                    ) : null}
-                    {(activePlan.undo_stack ?? []).length ? (
-                      <button
-                        disabled={Boolean(switchingTheme) || Boolean(restoring)}
-                        onClick={() => handleRestore(activePlan)}
-                        title={`撤回上次主题或方案修改，恢复修订 ${activePlan.undo_stack.at(-1)} 的样式；保留当前正文和图片，可连续回退`}
-                        type="button"
-                      >{restoring === activePlan.id ? "回退中…" : "回到上一版"}</button>
-                    ) : null}
-                  </div>
-                  <Link className="theme-switch-gallery" href="/theme-gallery" target="_blank" rel="noopener">对比主题样张 ↗</Link>
-                  {!activePlanSelected ? (
-                    <button
-                      className="select-button"
-                      disabled={Boolean(selecting)}
-                      onClick={() => handleSelection(activePlan)}
-                      type="button"
-                    >
-                      {selecting === activePlan.id ? "保存中…" : "选定这篇旧任务方案"}
-                    </button>
-                  ) : null}
-                </div>
-
                 <div className="workbench-mode-tabs" role="tablist" aria-label="切换编辑内容">
+                  <button
+                    aria-controls="workbench-theme-picker"
+                    aria-selected={activeEditorTab === "themes"}
+                    className={activeEditorTab === "themes" ? "active" : ""}
+                    id="workbench-theme-tab"
+                    onClick={() => setActiveEditorTab("themes")}
+                    role="tab"
+                    type="button"
+                  >
+                    <span>01</span>
+                    <strong>主题选择</strong>
+                  </button>
                   <button
                     aria-selected={activeEditorTab === "images"}
                     className={activeEditorTab === "images" ? "active" : ""}
@@ -1069,7 +1050,7 @@ export default function TaskReviewPage() {
                     role="tab"
                     type="button"
                   >
-                    <span>01</span>
+                    <span>02</span>
                     <strong>配图审核</strong>
                     <small>{imageReview ? `${resolvedImageCount}/${totalImageCount}` : "加载中"}</small>
                   </button>
@@ -1080,15 +1061,36 @@ export default function TaskReviewPage() {
                     role="tab"
                     type="button"
                   >
-                    <span>02</span>
+                    <span>03</span>
                     <strong>文章封面</strong>
                     <small>{coverReview ? coverStatusLabel : "加载中"}</small>
                   </button>
                 </div>
 
-                <div className="editor-control-scroll">
-                  {activePlanSelected ? <HostImageEntry key={`${taskId}:${activeEditorTab}`} taskId={taskId} assetType={activeEditorTab === "cover" ? "cover" : "body"} /> : null}
-                  {!activePlanSelected ? (
+                <div className={`editor-control-scroll${activeEditorTab === "themes" ? " editor-theme-scroll" : ""}`}>
+                  <div aria-labelledby="workbench-theme-tab" hidden={activeEditorTab !== "themes"} id="workbench-theme-picker" role="tabpanel">
+                    <ThemeQuickPick
+                      activeTheme={currentTheme}
+                      activeThemeLabel={currentThemeLabel}
+                      busy={Boolean(switchingTheme || restoring)}
+                      onPick={(theme) => void handleThemeSwitch(activePlan, theme)}
+                      onRefresh={activePlan.render_refresh_available ? () => void handleThemeSwitch(activePlan, currentTheme, true) : undefined}
+                      onUndo={(activePlan.undo_stack ?? []).length ? () => void handleRestore(activePlan) : undefined}
+                      options={themeOptions}
+                      pendingTheme={switchingTheme}
+                      previewId={`preview-${activePlan.id}`}
+                      restoring={Boolean(restoring)}
+                    />
+                    {!activePlanSelected && (
+                      <div className="image-locked-panel">
+                        <button disabled={Boolean(selecting || switchingTheme || restoring)} onClick={() => handleSelection(activePlan)} type="button">
+                          {selecting === activePlan.id ? "保存中…" : "选定这篇旧任务方案"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {activePlanSelected && activeEditorTab !== "themes" ? <HostImageEntry key={`${taskId}:${activeEditorTab}`} taskId={taskId} assetType={activeEditorTab === "cover" ? "cover" : "body"} /> : null}
+                  {activeEditorTab === "themes" ? null : !activePlanSelected ? (
                     <div className="image-locked-panel">
                       <span>EDITORIAL DESK LOCKED</span>
                       <h3>先选定方案，再处理{activeEditorTab === "cover" ? "封面" : "配图"}</h3>
@@ -1125,7 +1127,7 @@ export default function TaskReviewPage() {
                 </div>
               </aside>
 
-              <section className="preview-workspace" id={`preview-${activePlan.id}`}>
+              <section className="preview-workspace" id={`preview-${activePlan.id}`} inert={Boolean(switchingTheme || restoring)}>
                 <ArticlePreviewViewport
                   editingEnabled={Boolean(activePlanSelected && contentEditor)}
                   editingMessage={contentSaveMessage}

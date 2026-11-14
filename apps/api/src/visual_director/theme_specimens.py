@@ -105,6 +105,38 @@ class _Nodes(HTMLParser):
         self.nodes.append((tag, attrs, self.document[start:end]))
 
 
+def _specimen_plan(parsed, visual_system: str, theme_config: dict[str, Any] | None = None) -> dict[str, Any]:
+    plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], visual_system, recent_summaries=[])
+    if theme_config is not None:
+        plan["configuration"] = {**plan["configuration"], **theme_config}
+    plan["image_slots"] = []
+    return plan
+
+
+def _specimen_hero(document: str) -> str:
+    # Authored heroes are arbitrary declarative sections, not necessarily <header>.
+    match = re.search(r'<body[^>]*>(.*?)<main\b', document, re.DOTALL)
+    if match is None:
+        raise ValueError("主题样张缺少文章开场")
+    return match.group(1)
+
+
+def build_theme_card_specimens() -> dict[str, str]:
+    """Small, task-independent samples from the same renderer as the theme gallery."""
+    from .component_catalog import registered_visual_system_order
+
+    parsed = parse_markdown(ARTICLE.split("\n\n", 1)[0])
+    cards = {}
+    for theme_id in registered_visual_system_order():
+        try:
+            plan = _specimen_plan(parsed, theme_id)
+            cards[theme_id] = _specimen_hero(render_preview(parsed, {**plan, "slots": []}, brand_profile=BRAND))
+        except (ValueError, KeyError, TypeError, OSError, RuntimeError):
+            # A thumbnail failure must not hide the other themes or block selection.
+            continue
+    return cards
+
+
 def build_production_specimens(
     visual_system: str, *, theme_config: dict[str, Any] | None = None,
 ) -> tuple[list[dict[str, Any]], str]:
@@ -112,11 +144,8 @@ def build_production_specimens(
     lead_id, _ = _opening_highlight(parsed)
     if lead_id is None:
         raise ValueError("样本册原稿没有可由正式渲染器识别的导读，不能用普通正文代替")
-    plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], visual_system, recent_summaries=[])
-    if theme_config is not None:
-        plan["configuration"] = {**plan["configuration"], **theme_config}
+    plan = _specimen_plan(parsed, visual_system, theme_config)
     configuration = plan["configuration"]
-    plan["image_slots"] = []
     # The library exposes unconsumed Markdown primitives, unlike semantic cards.
     plain_plan = {**plan, "slots": []}
     document = render_preview(parsed, plain_plan, brand_profile=BRAND)
@@ -150,8 +179,7 @@ def build_production_specimens(
         return next(markup for _, attrs, markup in nodes if attrs.get("data-content-role") == role
                     or (role == "thematic-break" and attrs.get("data-theme-layout") == "divider"))
 
-    # Authored heroes are arbitrary declarative sections, not necessarily <header>.
-    hero = re.search(r'<body[^>]*>(.*?)<main\b', document, re.DOTALL).group(1)
+    hero = _specimen_hero(document)
 
     samples = [
         ("hero", "文章标题与开场", "文章标题；仅用于预览，微信正文交付不重复插入文章标题", hero),

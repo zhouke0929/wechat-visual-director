@@ -1,0 +1,165 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.pickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: #fffefa;
+}
+
+.currentTheme, .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.currentTheme strong {
+  color: var(--ink);
+  font-family: "Noto Serif SC", "Songti SC", serif;
+  font-size: 17px;
+}
+
+.currentTheme > span {
+  color: var(--teal);
+  font-size: 11px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.actions button,
+.filters button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.actions button { border-color: var(--line); padding-inline: 9px; }
+.actions button[aria-disabled="true"], .actions button:disabled { cursor: wait; opacity: .55; }
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+  padding: 2px 14px;
+  border-block: 1px solid var(--line);
+  background: #f0eee5;
+}
+.filters button { padding-inline: 9px; }
+.filters button[aria-pressed="true"] { color: var(--teal); border-bottom: 2px solid var(--teal); background: #fffefa; }
+.filters button:hover, .actions button:not(:disabled):hover { background: #e8f2ed; }
+.filters small { margin-left: 3px; font-size: 10px; }
+.catalog {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: #98a29d #e7e6df;
+  scrollbar-width: thin;
+  padding: 0 16px 12px;
+}
+.group { margin-block: 12px 16px; }
+.group h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 13px;
+}
+.group h3 small { color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  padding: 5px 5px 0;
+  border: 1px solid var(--line);
+  background: #eeece3;
+  color: var(--ink);
+  text-align: start;
+}
+
+.card:hover,
+.card:focus-within { border-color: var(--teal); }
+.card:has(button:focus-visible) { outline: 2px solid var(--teal); outline-offset: 2px; }
+.card[data-active="true"] { border-color: var(--teal); background: #e8f2ed; box-shadow: inset 0 -2px var(--teal); }
+
+.sample {
+  position: relative;
+  display: grid;
+  height: 108px;
+  overflow: hidden;
+  place-items: center;
+  background: #fff;
+}
+
+.sample iframe {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 200%;
+  height: 200%;
+  border: 0;
+  transform: scale(.5);
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.sampleMessage,
+.notice {
+  color: var(--muted);
+  font-size: 11px;
+}
+.notice { margin: 8px 16px 0; }
+.notice button { border: 0; background: transparent; color: var(--teal); cursor: pointer; text-decoration: underline; }
+
+.caption {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 5px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.caption::after { content: ""; position: absolute; inset: 0; }
+.caption[aria-disabled="true"] { cursor: wait; }
+.caption strong { font-size: 12px; }
+.caption small, .caption > span { color: var(--teal); flex: none; font-size: 10px; }
+.caption .partial { margin-left: 4px; color: var(--muted); }
+.previewJump { display: none; }
+.footer { padding: 6px 16px 8px; border-top: 1px solid var(--line); background: #fffefa; }
+.footer a, .previewJump { color: var(--teal); font-size: 12px; text-underline-offset: 3px; }
+
+@media (max-width: 600px) {
+  .pickerHeader, .catalog, .footer { padding-inline: 11px; }
+  .filters { padding-inline: 7px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .filters button { flex: none; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1100px) {
+  .catalog { max-height: clamp(176px, 33dvh, 300px); }
+  .previewJump { display: inline-flex; min-height: 44px; align-items: center; }
+}

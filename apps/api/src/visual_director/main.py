@@ -91,6 +91,7 @@ from .image_intent import (
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
 from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
+from .theme_specimens import build_theme_card_specimens
 from .theme_packs import (
     THEME_PACK_SCHEMA_VERSION,
     THEME_PACK_MAX_BYTES,
@@ -1608,6 +1609,10 @@ def create_app(
             "schema_version": THEME_GALLERY_SCHEMA_VERSION,
             "themes": build_theme_gallery(theme_id=theme_id, summary=summary),
         }
+
+    @app.get("/api/v1/theme-card-specimens")
+    def theme_card_specimens() -> dict[str, Any]:
+        return {"specimens": build_theme_card_specimens()}
 
     @app.get("/api/v1/theme-packs")
     def list_theme_packs() -> dict[str, Any]:

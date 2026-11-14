@@ -296,7 +296,7 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const groupByElement = new Map<HTMLElement, EditableGroup>();
   const timers = new Map<string, number>();
   const pending = new Map<string, { group: EditableGroup; value: EditableContentValue }>();
-  const saveFailures = new Map<string, string>();
+  const saveFailures = new Map<string, { group: EditableGroup; value: EditableContentValue; message: string }>();
   let sequence = Promise.resolve();
   let savedIndicator = 0;
   let disposed = false;
@@ -319,7 +319,7 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
       })
       .catch((reason: Error) => {
         const message = reason.message || "自动保存失败";
-        saveFailures.set(group.key, message);
+        saveFailures.set(group.key, { group, value, message });
         report("error", message);
       });
   };
@@ -345,9 +345,14 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   };
 
   inlineEditorFlushers.set(document, async () => {
+    // Let a newer in-flight value settle before retrying an older failed value.
+    await sequence;
+    for (const [key, edit] of saveFailures) {
+      if (!pending.has(key)) pending.set(key, edit);
+    }
     await flushPending();
-    const failure = saveFailures.values().next().value;
-    if (failure) throw new Error(`正文未保存，尚未复制：${failure}`);
+    const failure = saveFailures.values().next().value?.message;
+    if (failure) throw new Error(failure);
   });
 
   groups.forEach((group) => {
@@ -374,8 +379,12 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
     window.setTimeout(async () => {
       if ((document.activeElement as Element | null)?.closest?.("[data-workbench-inline-editor]")) return;
       await flushPending();
-      callbacks.onEditingChange?.(false);
-      report("idle");
+      const failure = saveFailures.values().next().value?.message;
+      if (failure) report("error", failure);
+      else {
+        callbacks.onEditingChange?.(false);
+        report("idle");
+      }
     }, 0);
   };
   const onInput = (event: Event) => {

@@ -158,6 +158,12 @@ export async function getThemeGallerySummary(): Promise<import("./types").ThemeG
   return payload.themes;
 }
 
+export async function getThemeCardSpecimens(signal: AbortSignal): Promise<Record<string, string>> {
+  const response = await fetch(`${API_BASE}/theme-card-specimens`, { cache: "no-store", signal });
+  const { specimens } = await parseResponse<{ specimens: Record<string, string> }>(response);
+  return specimens;
+}
+
 export async function getThemePacks(): Promise<ThemePackManifest[]> {
   const response = await fetch(`${API_BASE}/theme-packs`, { cache: "no-store" });
   const payload = await parseResponse<{

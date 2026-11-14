@@ -96,6 +96,7 @@ def main():
             checks.append("title search finds off-page task; no-match and reset; desktop/mobile layout")
             page.set_viewport_size({"width": 1440, "height": 1000})
             page.goto(base + f"/tasks/{task['id']}", wait_until="networkidle")
+            page.get_by_role("tab", name="配图审核").click()
             page.locator(".editor-controls").screenshot(path=str(out / "host-image-toolbar.png"))
             page.get_by_role("button", name="让 Agent 配图", exact=True).click()
             dialog = page.get_by_role("dialog", name="让 Agent 生成正文配图", exact=True)
@@ -152,28 +153,32 @@ def main():
             expect(dialog).to_have_count(0)
             page.screenshot(path=str(out / "workbench-desktop.png"))
             checks.append("compact body/cover entries; task-bound prompt; clipboard failure manual selection; native dialog focus/Escape/backdrop; 320/405px layouts; no model calls")
-            before = page.locator("select").first.input_value()
-            picker = page.get_by_role("combobox", name="选择整篇文章主题")
-            assert picker.locator("option").count() == 30
-            gallery_groups = picker.locator("optgroup")
-            assert gallery_groups.evaluate_all("(groups) => groups.map(group => group.label)") == [
+            page.get_by_role("tab", name="主题选择").click()
+            picker = page.get_by_role("tabpanel", name="主题选择")
+            current = picker.locator("[data-current-theme]")
+            before = current.get_attribute("data-current-theme")
+            catalog = picker.get_by_role("region", name="主题小卡")
+            assert catalog.locator("button[data-theme]").count() == 26
+            assert catalog.locator('button[data-theme="ticket_and_stub"]').count() == 0
+            assert catalog.locator("section").evaluate_all("(groups) => groups.map(group => group.getAttribute('aria-label'))") == [
                 "清新自然", "生活手帐", "手作绘本", "东方意境", "杂志与海报", "光影叙事", "数字与导视",
             ]
-            assert picker.locator('optgroup[label="数字与导视"] option[value="city_wayfinding"]').count() == 1
-            assert picker.locator('optgroup[label="数字与导视"] option[value="future_tech"]').count() == 1
-            assert page.get_by_role("link", name="对比主题样张").get_attribute("href") == "/theme-gallery"
-            picker.select_option("city_wayfinding")
+            group = catalog.get_by_role("region", name="数字与导视")
+            assert group.locator('button[data-theme="retro_window"]').count() == 1
+            assert group.locator('button[data-theme="future_tech"]').count() == 1
+            assert picker.get_by_role("link", name="主题样本册").get_attribute("href") == "/theme-gallery"
+            group.locator('button[data-theme="retro_window"]').click()
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_be_enabled()
-            expect(picker).to_have_value("city_wayfinding")
-            page.locator(".active-plan-summary").screenshot(path=str(out / "official-theme-picker.png"))
+            expect(current).to_have_attribute("data-current-theme", "retro_window")
+            picker.screenshot(path=str(out / "official-theme-picker.png"))
             page.get_by_role("button", name="回到上一版", exact=True).click()
-            expect(picker).to_have_value(before)
-            page.get_by_role("button", name="换一个主题", exact=True).click()
+            expect(current).to_have_attribute("data-current-theme", before)
+            group.locator('button[data-theme="future_tech"]').click()
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_be_enabled()
             page.get_by_role("button", name="回到上一版", exact=True).click()
-            expect(page.locator("select").first).to_have_value(before)
+            expect(current).to_have_attribute("data-current-theme", before)
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_have_count(0)
-            checks.append("30 official options grouped by visual family; city theme switches and undo restores selection without regeneration")
+            checks.append("26 official options grouped by visual family; window theme switches and undo restores selection without regeneration")
             page.goto(base + "/settings", wait_until="networkidle")
             expect(page.get_by_text("本地设置", exact=True).first).to_be_visible()
             assert not forbidden, forbidden
