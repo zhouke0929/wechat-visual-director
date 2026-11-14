@@ -1,0 +1,12 @@
+:root {
+  --ink: #30223b;
+  --paper: #fff8f4;
+  --accent: #b83450;
+  --coral: #f26078;
+  --line: #30223b24;
+  --muted: #756b7c;
+  --surface: #fffdfb;
+  --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif;
+  --sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+  --site-gutter: max(clamp(20px, 4vw, 72px), calc((100% - 1320px) / 2));
+}

@@ -13,7 +13,7 @@
   <p>
   <a href="#快速开始"><b>交给 Agent 安装</b></a>
   · <a href="https://zhouke0929.github.io/wechat-visual-director/#cases"><b>查看成稿示例</b></a>
-  · <a href="https://zhouke0929.github.io/wechat-visual-director/#themes"><b>浏览内置主题</b></a>
+  · <a href="https://zhouke0929.github.io/wechat-visual-director/#themes"><b>在线切换主题</b></a>
   · <a href="#给参考创作自己的整套主题"><b>自定义排版样式</b></a>
   · <a href="https://github.com/zhouke0929/wechat-visual-director/releases"><b>版本记录</b></a>
   </p>
@@ -31,7 +31,7 @@ https://github.com/user-attachments/assets/ed6c0f8a-3f1a-4396-892d-10387bf63380
 
 教程、商业分析和品牌观点，同一套排版能力，不同的阅读气质。点击下方示例即可阅读完整推文，无需安装。
 
-[![三篇公众号成稿：青春校园、温暖人文与波普海报的真实排版及 AI 配图](docs/assets/readme/product-showcase-articles.png)](https://zhouke0929.github.io/wechat-visual-director/)
+[![三篇公众号成稿：青春校园、温暖人文与波普海报的真实排版及 AI 配图](docs/assets/readme/product-showcase-articles.png)](https://zhouke0929.github.io/wechat-visual-director/#cases)
 
 <table>
   <tr>
@@ -106,13 +106,13 @@ Agent 先回答这些问题，再选择适合的呈现方式：让对比有边�
 
 ### 26 套内置主题，同一篇文章有不同表达
 
-想写一篇轻松的生活手记，或排一篇棱角分明的科技稿？样本册按风格分为清新自然、生活手帐、手作绘本、东方意境、杂志与海报、光影叙事、数字与导视 7 组。可以先看[像素现场](https://zhouke0929.github.io/wechat-visual-director/?theme=pixel_live#themes)的像素线条、[折扇与局部特写](https://zhouke0929.github.io/wechat-visual-director/?theme=folded_fan_detail#themes)的东方留白，或[黑白墨迹](https://zhouke0929.github.io/wechat-visual-director/?theme=ink_traces#themes)的水墨细节，再切换同一篇文章，比较标题、图文和重点组件。
+官网无需安装就能试排版：点选任意一套内置主题，同一篇文章会在手机预览中换版，往下滚动就能读到结尾。可以从[像素现场](https://zhouke0929.github.io/wechat-visual-director/?theme=pixel_live#themes)、[折扇与局部特写](https://zhouke0929.github.io/wechat-visual-director/?theme=folded_fan_detail#themes)或[黑白墨迹](https://zhouke0929.github.io/wechat-visual-director/?theme=ink_traces#themes)开始，对比标题、图文和重点段落。
 
-可以在工作台整篇切换，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
+本地工作台的主题样本册支持按风格浏览。在工作台给自己的稿子换主题，正文与已有图片会保留。**切换主题本身不会重新调用图片模型**；如果希望图片也适配新风格，再主动生成新候选。
 
-[![在线样本册：按风格浏览 26 套内置主题，右侧手机显示像素现场的真实排版](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
+[![在线排版体验：切换 26 套主题，在手机预览内滚动阅读整篇](docs/assets/readme/product-showcase-themes.png)](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
-[打开在线主题样本册，比较同一篇文章的不同表达 →](https://zhouke0929.github.io/wechat-visual-director/#themes)
+[在官网切换主题，看看同一篇文章的不同排版 →](https://zhouke0929.github.io/wechat-visual-director/#themes)
 
 ### 给参考，创作自己的整套主题
 
@@ -239,6 +239,6 @@ Windows 与 macOS 的 CI 执行核心测试和工作台构建；Release 流程�
 
 ---
 
-**想先看看效果？** [打开在线样本册](https://zhouke0929.github.io/wechat-visual-director/#themes)。
+**想先看看效果？** [在线切换主题](https://zhouke0929.github.io/wechat-visual-director/#themes)。
 
 **想用自己的文章试一遍？** [复制安装提示词](#快速开始)，把第一篇文章交给 Agent。

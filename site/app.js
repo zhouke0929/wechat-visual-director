@@ -1,18 +1,7 @@
-const index = document.querySelector("#themeIndex");
-const groupIndex = document.querySelector("#themeGroups");
-const preview = document.querySelector("#themePreview");
-const label = document.querySelector("#themeLabel");
-const english = document.querySelector("#themeEnglish");
-const description = document.querySelector("#themeDescription");
-const swatches = document.querySelector("#themeSwatches");
-const stage = document.querySelector("#themeStage");
-const announcement = document.querySelector("#themeAnnouncement");
 const copyToast = document.querySelector("#copyToast");
 const dialog = document.querySelector("#installDialog");
 const promptField = document.querySelector("#installPromptText");
-const specimenSelect = document.querySelector("#specimenSelect");
-let currentTheme;
-let selectedThemeId = new URLSearchParams(window.location.search).get("theme") || "pixel_live";
+const promptHelpLink = document.querySelector("#promptHelpLink");
 let toastTimer;
 let dialogTrigger = null;
 
@@ -21,149 +10,71 @@ https://github.com/zhouke0929/wechat-visual-director/blob/main/INSTALL_FOR_AGENT
 promptField.value = installPrompt;
 const themePrompt = `请用 wechat-visual-director，根据我提供的组件参考图或风格描述【填写风格】，创作一整套新的主题。只有描述时先寻找可查看的成品组件参考，把方向具体化。联想关联元素，延展完整视觉语言，不要只给现有主题换色。正文保持可编辑，先在样本册和一篇示例文章中让我查看效果，不要创建公众号草稿。`;
 
-function renderSpecimen() {
-  if (!currentTheme) return;
-  const selected = [...(currentTheme.foundation_specimens ?? currentTheme.rhythm_primitives), ...currentTheme.components].find((item) => (item.role ?? item.component_type) === specimenSelect.value);
-  preview.innerHTML = selected
-    ? `<div style="padding:24px;background:#fff">${selected.html}</div>`
-    : (currentTheme.article_preview_html ?? currentTheme.full_preview_html);
-  preview.scrollTop = 0;
-  preview.setAttribute("aria-label", currentTheme.label + (selected ? ` · ${selected.label}` : "主题文章预览"));
-}
-specimenSelect.addEventListener("change", renderSpecimen);
+const defaultTheme = "pixel_live";
+const $ = (selector) => document.querySelector(selector);
 
-function renderTheme(theme, announce = true) {
-  selectedThemeId = theme.id;
-  currentTheme = theme;
-  label.textContent = theme.label;
-  english.textContent = theme.english;
-  description.textContent = theme.description;
-  stage.style.setProperty("--theme-accent", theme.palette[0]);
-  swatches.replaceChildren(...theme.palette.map((color) => {
-    const dot = document.createElement("i");
-    dot.style.backgroundColor = color;
-    return dot;
+function renderLiveTheme(theme) {
+  $("#themeStage").style.setProperty("--wash", theme.palette[0]);
+  const viewport = $("#themeLive");
+  viewport.innerHTML = theme.article_preview_html;
+  viewport.dataset.theme = theme.id;
+  viewport.setAttribute("aria-label", `${theme.label} · 文章预览`);
+  viewport.scrollTop = 0;
+  $("#themeLiveLabel").textContent = theme.label;
+  $("#themeChoices").querySelectorAll("button").forEach(button => {
+    button.setAttribute("aria-pressed", String(button.dataset.theme === theme.id));
+  });
+  $("#themeLiveStatus").textContent = `已切换为${theme.label}`;
+}
+
+function renderGallery(catalog, selected) {
+  $("#themeTotal").textContent = `${catalog.length} 套内置主题`;
+  const choices = $("#themeChoices");
+  choices.replaceChildren(...catalog.map(theme => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.theme = theme.id;
+    button.setAttribute("aria-controls", "themeLive");
+    const swatch = document.createElement("span");
+    swatch.className = "theme-choice-swatch";
+    swatch.setAttribute("aria-hidden", "true");
+    swatch.style.setProperty("--swatch", theme.palette[0]);
+    button.append(swatch, theme.label);
+    button.addEventListener("click", () => {
+      if (button.getAttribute("aria-pressed") !== "true") renderLiveTheme(theme);
+    });
+    return button;
   }));
-  // HTML comes from the repository's generated, public theme catalog.
-  const previousSpecimen = specimenSelect.value;
-  const articleOption = new Option("整篇文章 · 正式渲染", "article");
-  const groups = [["基础样式", theme.foundation_specimens ?? theme.rhythm_primitives], ["语义组件", theme.components]].map(([name, items]) => {
-    const group = document.createElement("optgroup");
-    group.label = name;
-    group.append(...items.map((item) => new Option(item.label, item.role ?? item.component_type)));
-    return group;
-  });
-  specimenSelect.replaceChildren(articleOption, ...groups);
-  specimenSelect.value = [...specimenSelect.options].some((option) => option.value === previousSpecimen) ? previousSpecimen : "article";
-  renderSpecimen();
-  document.querySelectorAll(".theme-button").forEach((button) => {
-    const active = button.dataset.themeId === theme.id;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-pressed", String(active));
-  });
-  if (announce) announcement.textContent = "已切换为" + theme.label;
-}
-
-function createThemeButton(theme, themeIndex) {
-  const button = document.createElement("button");
-  button.className = "theme-button";
-  button.type = "button";
-  button.dataset.themeId = theme.id;
-  button.setAttribute("aria-pressed", "false");
-  button.setAttribute("aria-label", "切换至" + theme.label);
-  const number = document.createElement("span");
-  number.className = "theme-num";
-  number.textContent = String(themeIndex + 1).padStart(2, "0");
-  number.setAttribute("aria-hidden", "true");
-  const title = document.createElement("strong");
-  title.textContent = theme.label;
-  const palette = document.createElement("span");
-  palette.className = "mini-swatches";
-  palette.setAttribute("aria-hidden", "true");
-  theme.palette.forEach((color) => {
-    const item = document.createElement("i");
-    item.style.backgroundColor = color;
-    palette.append(item);
-  });
-  button.append(number, title, palette);
-  button.addEventListener("click", () => renderTheme(theme));
-  return button;
-}
-
-function renderGroup(group, themeId) {
-  groupIndex.querySelectorAll("button").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.group === group.label));
-  });
-  index.replaceChildren(...group.entries.map(({ theme, position }) => createThemeButton(theme, position)));
-  index.setAttribute("aria-label", group.label + " · 选择文章主题");
-  const next = group.entries.find(({ theme }) => theme.id === themeId) ?? group.entries[0];
-  renderTheme(next.theme, Boolean(currentTheme));
+  renderLiveTheme(selected);
+  $("#themePicker").hidden = false;
 }
 
 async function loadThemes() {
-  index.setAttribute("aria-busy", "true");
+  const gallery = $("#themeLive");
+  gallery.setAttribute("aria-busy", "true");
   try {
     const response = await fetch("./data/themes.json", { cache: "no-cache" });
     if (!response.ok) throw new Error("theme_fetch_failed");
     const payload = await response.json();
-    const themes = payload.themes;
-    if (!Array.isArray(themes) || !themes.length) throw new Error("theme_catalog_empty");
-    const groupsByLabel = new Map();
-    themes.forEach((theme, position) => {
-      const label = theme.theme_group || "未分组";
-      if (!groupsByLabel.has(label)) {
-        groupsByLabel.set(label, { label, order: theme.theme_group_order ?? Infinity, entries: [] });
-      }
-      groupsByLabel.get(label).entries.push({ theme, position });
-    });
-    const groups = [...groupsByLabel.values()].sort((a, b) => a.order - b.order);
-    groupIndex.replaceChildren(...groups.map((group) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.dataset.group = group.label;
-      button.setAttribute("aria-controls", index.id);
-      button.append(group.label);
-      const count = document.createElement("span");
-      count.textContent = group.entries.length;
-      button.append(count);
-      button.addEventListener("click", () => renderGroup(group, selectedThemeId));
-      return button;
-    }));
-    groupIndex.hidden = false;
-    const selectedGroup = groups.find(({ entries }) => entries.some(({ theme }) => theme.id === selectedThemeId));
-    renderGroup(selectedGroup ?? groups[0], selectedThemeId);
+    if (!Array.isArray(payload.themes) || !payload.themes.length) throw new Error("theme_catalog_empty");
+    const catalog = [...payload.themes].sort((a, b) => Number(b.id === defaultTheme) - Number(a.id === defaultTheme));
+    const requested = new URLSearchParams(window.location.search).get("theme");
+    renderGallery(catalog, catalog.find(theme => theme.id === requested) ?? catalog[0]);
   } catch {
-    groupIndex.hidden = true;
     const notice = document.createElement("p");
     notice.className = "theme-loading";
-    notice.textContent = "主题暂时未加载。你仍可阅读上方完整成稿，或";
+    notice.textContent = "文章预览暂时未加载。";
     const retry = document.createElement("button");
     retry.className = "theme-retry";
     retry.type = "button";
     retry.textContent = "重新加载";
     retry.addEventListener("click", loadThemes);
     notice.append(retry);
-    index.replaceChildren(notice);
+    gallery.replaceChildren(notice);
   } finally {
-    index.setAttribute("aria-busy", "false");
+    gallery.setAttribute("aria-busy", "false");
   }
 }
-
-index.addEventListener("keydown", (event) => {
-  if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
-  const buttons = [...index.querySelectorAll(".theme-button")];
-  const current = buttons.indexOf(event.target);
-  if (current === -1) return;
-  event.preventDefault();
-  let target = current;
-  if (event.key === "ArrowRight") target = (current + 1) % buttons.length;
-  if (event.key === "ArrowLeft") target = (current - 1 + buttons.length) % buttons.length;
-  if (event.key === "Home") target = 0;
-  if (event.key === "End") target = buttons.length - 1;
-  buttons[target].focus({ preventScroll: true });
-  buttons[target].scrollIntoView({ block: "nearest", inline: "nearest" });
-  buttons[target].click();
-});
 
 async function copyText(text) {
   try {
@@ -205,7 +116,8 @@ document.querySelectorAll("[data-copy-install], [data-copy-theme]").forEach((but
     const previousWidth = button.style.width;
     button.style.width = button.getBoundingClientRect().width + "px";
     button.disabled = true;
-    const text = button.hasAttribute("data-copy-theme") ? themePrompt : installPrompt;
+    const isTheme = button.hasAttribute("data-copy-theme");
+    const text = isTheme ? themePrompt : installPrompt;
     try {
       await copyText(text);
       button.textContent = "已复制 ✓";
@@ -215,7 +127,8 @@ document.querySelectorAll("[data-copy-install], [data-copy-theme]").forEach((but
       button.style.width = previousWidth;
       dialogTrigger = button;
       promptField.value = text;
-      promptField.setAttribute("aria-label", button.hasAttribute("data-copy-theme") ? "完整主题创作指令" : "完整安装指令");
+      promptField.setAttribute("aria-label", isTheme ? "完整主题创作指令" : "完整安装指令");
+      promptHelpLink.hidden = isTheme;
       if (!dialog.open) dialog.showModal();
       promptField.focus({ preventScroll: true });
       promptField.select();

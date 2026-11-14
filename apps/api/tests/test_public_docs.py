@@ -212,14 +212,21 @@ def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
     text = (ROOT / "site/index.html").read_text(encoding="utf-8")
     assert len(re.findall(r"<section\b", text)) == 5
     assert '<aside class="product-notes" id="faq" aria-labelledby="notes-title">' in text
-    assert '<summary' not in text
+    faq = text.split('id="faq"', 1)[1].split('</aside>', 1)[0]
+    assert '<summary' not in faq
+    assert 'id="themeChoices"' in text and 'id="themeLive"' in text
+    assert 'id="themeReadFull"' not in text
     header = text.split('<header class="site-nav">', 1)[1].split('</header>', 1)[0]
     assert '看成稿' not in header and '换主题' not in header
     assert text.count('class="edition edition-') == 3
-    assert text.count("data-copy-install") == 3
+    assert len(re.findall(r"<button\b[^>]*\bdata-copy-install\b", text)) == 3
     for attribute, link in re.findall(r'(src|href)="([^"]+)"', text):
         if link.startswith("./"):
-            assert (ROOT / "site" / link.split("?", 1)[0]).exists(), (attribute, link)
+            target, _, fragment = link.partition("#")
+            path = ROOT / "site" / target.split("?", 1)[0]
+            assert path.exists(), (attribute, link)
+            if fragment and path.suffix == ".html":
+                assert f'id="{fragment}"' in path.read_text(encoding="utf-8"), link
         elif link.startswith("#"):
             assert f'id="{link[1:]}"' in text, link
 
@@ -229,7 +236,7 @@ def test_custom_theme_creation_is_discoverable_without_reading_developer_docs(tm
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert 'href="#custom-themes"' in page
     assert 'id="custom-themes"' in page and "data-copy-theme" in page
-    assert 'id="specimenSelect"' in page
+    assert 'aria-label="主题文章预览"' in page
     assert "组件参考图" in readme and "`.vdtheme`" in readme
     assert "主题" in readme.split('<p align="center">', 1)[0]
     from visual_director.onboarding import read_workbench_onboarding

@@ -90,7 +90,7 @@ def main() -> None:
     if args.artifacts:
         args.artifacts.mkdir(parents=True, exist_ok=True)
     url = args.url or LOCAL_URL
-    results = {"viewports": [], "themes": 0, "phone_checks": 0, "articles": 0, "copy": False, "manual_copy": False, "retry": False}
+    results = {"viewports": [], "themes": 0, "stable_switches": 0, "phone_checks": 0, "articles": 0, "copy": False, "manual_copy": False, "retry": False}
 
     def local_asset(route):
         path = urlparse(route.request.url).path.lstrip("/") or "index.html"
@@ -119,9 +119,21 @@ def main() -> None:
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(url, wait_until="networkidle")
-        page.locator(".theme-button").first.wait_for()
+        live = page.locator("#themeLive")
+        choices = page.locator("#themeChoices button")
+        choices.first.wait_for()
+        assert page.locator("#themeStage").get_by_text("真实主题 · 静态样例", exact=True).count() == 0
+        assert page.locator("#themeStage").get_by_text("屏幕内滚动阅读 ↓", exact=True).count() == 0
+        assert page.get_by_role("button", name="查看完整样稿").count() == 0
+        catalog = page.request.get(urljoin(url, "data/themes.json")).json()["themes"] if args.url else json.loads(
+            (SITE / "data/themes.json").read_text(encoding="utf-8")
+        )["themes"]
+        assert {button.get_attribute("data-theme") for button in choices.all()} == {theme["id"] for theme in catalog}
         assert page.locator("main#main > section").count() == 5
         assert page.locator(".edition").count() == 3
+        assert page.locator(".edition[target]").count() == 0
+        for frame in page.locator(".edition-preview iframe").all():
+            assert frame.content_frame.locator(".article-bar").is_hidden()
         assert page.locator("#faq .notes-content").is_visible()
         assert page.locator("#faq summary").count() == 0
         assert page.locator(".site-nav").get_by_role("link", name="看成稿", exact=True).count() == 0
@@ -129,7 +141,7 @@ def main() -> None:
         assert page.evaluate("[...document.querySelectorAll('[id]')].map(e=>e.id).length === new Set([...document.querySelectorAll('[id]')].map(e=>e.id)).size")
 
         def check_phone():
-            geometry = page.locator("#themePreview").evaluate("""el => {
+            geometry = live.evaluate("""el => {
                 const footer = document.querySelector('.phone-actions');
                 el.scrollTop = el.scrollHeight;
                 const article = el.querySelector('main');
@@ -144,75 +156,97 @@ def main() -> None:
             }""")
             assert geometry["fits"] and geometry["height"] > 300, geometry
             assert geometry["separated"] and geometry["endVisible"] and geometry["reachedEnd"], geometry
-            page.locator("#themePreview").evaluate("el => el.scrollTop = 0")
             results["phone_checks"] += 1
 
         for width, height in ((360, 800), (390, 844), (768, 1024), (1024, 900), (1440, 1000), (1920, 1080)):
             page.set_viewport_size({"width": width, "height": height})
             page.evaluate("window.scrollTo(0, 0)")
             assert page.evaluate("document.documentElement.scrollWidth <= innerWidth"), f"Overflow at {width}px"
+            edges = page.evaluate("""() => [...document.querySelectorAll('.site-nav, main#main > section, .site-footer')].map(el => {
+                const box = el.getBoundingClientRect(), style = getComputedStyle(el);
+                return [box.left + parseFloat(style.paddingLeft), box.right - parseFloat(style.paddingRight)];
+            })""")
+            assert all(abs(a - b) <= 1 for edge in edges for a, b in zip(edge, edges[0])), (width, edges)
+            assert page.locator("#film-title").is_visible()
             page_height = page.evaluate("document.documentElement.scrollHeight")
             # Separate product film and complete article cards. On phones, the
             # three cards stack vertically so they remain readable and tappable.
             assert page_height < (7000 if width <= 560 else 5600 if width < 1000 else 4900), (width, page_height)
             assert page.locator("#faq .notes-content").is_visible()
-            check_phone()
+            assert choices.count() == len(catalog)
+            if width >= 861:
+                phone = page.locator(".preview-shell").bounding_box()
+                grid = page.locator("#themeChoices").bounding_box()
+                last = choices.last.bounding_box()
+                assert abs((phone["y"] + phone["height"]) - (grid["y"] + grid["height"])) <= 1, (width, phone, grid)
+                assert abs((last["x"] + last["width"]) - (grid["x"] + grid["width"])) <= 1, (width, last, grid)
+            assert live.locator("[data-gallery-production-article] > main").count() == 1
             results["viewports"].append({"width": width, "height": page_height})
             if args.artifacts and width in (390, 1440):
                 page.screenshot(path=str(args.artifacts / f"gallery-{width}.png"), full_page=True)
                 page.screenshot(path=str(args.artifacts / f"hero-{width}.png"))
                 page.locator("#start").screenshot(path=str(args.artifacts / f"installation-{width}.png"))
 
+        def stage_geometry():
+            return page.evaluate("""() => [
+                '#themeStage', '.preview-shell', '#themeLive', '.phone-actions', '#custom-themes',
+            ].map(selector => {
+                const rect = document.querySelector(selector).getBoundingClientRect();
+                return [rect.top + window.scrollY, rect.height];
+            })""")
+
+        for width, height in ((360, 800), (768, 1024), (1024, 900), (1440, 1000), (1920, 1080)):
+            page.set_viewport_size({"width": width, "height": height})
+            choices.first.scroll_into_view_if_needed()
+            choices.last.click()
+            page.evaluate("document.fonts.ready")
+            media = live.locator('img[alt*="植物插画"]').first.get_attribute("src")
+            expected_geometry = stage_geometry()
+            for choice in choices.all():
+                assert choice.bounding_box()["height"] >= 44
+                choice.click()
+                assert choice.get_attribute("aria-pressed") == "true"
+                assert live.get_attribute("data-theme") == choice.get_attribute("data-theme")
+                assert live.locator("[data-gallery-production-article] > main").count() == 1
+                assert page.locator("#themeLiveLabel").inner_text() == choice.inner_text()
+                assert "给好内容留一点呼吸的空间" in live.locator("[data-editor-title]").inner_text().replace("​", "")
+                assert live.locator('img[alt*="植物插画"]').first.get_attribute("src") == media
+                assert live.locator("img").evaluate_all(
+                    "imgs => Promise.all(imgs.map(img => img.decode())).then(() => true)"
+                )
+                actual_geometry = stage_geometry()
+                assert all(abs(a - b) <= 1 for pair_a, pair_b in zip(actual_geometry, expected_geometry)
+                           for a, b in zip(pair_a, pair_b)), (width, choice.inner_text(), expected_geometry, actual_geometry)
+                assert live.evaluate("el => el.scrollTop === 0"), (width, choice.inner_text())
+                check_phone()
+                results["stable_switches"] += 1
+                assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+                if width == 1440:
+                    results["themes"] += 1
+            if args.artifacts and width == 360:
+                choices.first.click()
+                page.locator("#themes").screenshot(path=str(args.artifacts / "themes-360.png"))
+
         page.set_viewport_size({"width": 1440, "height": 1000})
         if args.refresh_promotional_assets:
             page.evaluate("window.scrollTo(0,0)")
             page.locator(".hero").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-hero.png"))
             capture_readme_editions(context, page, url)
-        catalog = page.request.get(urljoin(url, "data/themes.json")).json()["themes"] if args.url else json.loads(
-            (SITE / "data/themes.json").read_text(encoding="utf-8")
-        )["themes"]
-        expected_groups = {}
-        for theme in sorted(catalog, key=lambda theme: theme["theme_group_order"]):
-            expected_groups.setdefault(theme["theme_group"], []).append(theme["id"])
-        group_buttons = page.locator("#themeGroups button")
-        assert [button.get_attribute("data-group") for button in group_buttons.all()] == list(expected_groups)
-        for width, height in ((1440, 1000), (360, 800)):
-            page.set_viewport_size({"width": width, "height": height})
-            for group_button in group_buttons.all():
-                group_button.click()
-                assert group_button.get_attribute("aria-pressed") == "true"
-                members = page.locator(".theme-button")
-                assert [button.get_attribute("data-theme-id") for button in members.all()] == expected_groups[group_button.get_attribute("data-group")]
-                for button in members.all():
-                    button.click()
-                    assert button.get_attribute("aria-pressed") == "true"
-                    assert page.locator(".theme-button.active").count() == 1
-                    assert page.locator("#themePreview [data-gallery-production-article] > main").count() == 1
-                    assert page.locator("#themePreview").evaluate("el => el.scrollTop === 0")
-                    assert button.locator("strong").inner_text() == page.locator("#themeLabel").inner_text()
-                    check_phone()
-                    if width == 1440:
-                        assert page.locator("#themePreview img").evaluate_all(
-                            "imgs => Promise.all(imgs.map(img => img.decode().then(() => true, () => false))).then(results => results.every(Boolean))"
-                        ), button.get_attribute("data-theme-id")
-                        results["themes"] += 1
-        page.set_viewport_size({"width": 1440, "height": 1000})
-        page.locator(".theme-button").last.press("Home")
-        assert page.locator(".theme-button").first.get_attribute("aria-pressed") == "true"
-        page.locator(".theme-button").first.press("ArrowRight")
-        assert page.locator(".theme-button").nth(1).get_attribute("aria-pressed") == "true"
-        page.locator("#specimenSelect").select_option("ordered_list")
-        page.locator(".theme-button").first.click()
-        assert page.locator("#specimenSelect").input_value() == "ordered_list"
-        group_buttons.first.click()
-        assert page.locator("#specimenSelect").input_value() == "ordered_list"
-        assert "有序列表" in page.locator("#themePreview").get_attribute("aria-label")
+        choices.first.press("Enter")
+        assert choices.first.get_attribute("aria-pressed") == "true"
+        assert live.get_attribute("data-theme") == FEATURED_THEME
+        live.focus()
+        live.press("PageDown")
+        page.wait_for_function("document.querySelector('#themeLive').scrollTop > 0")
+        if args.artifacts:
+            page.locator(".preview-shell").screenshot(path=str(args.artifacts / "phone-scrolled.png"))
         deep_link = urljoin(url, "?" + urlencode({"theme": "ink_traces"}) + "#themes")
         page.goto(deep_link, wait_until="networkidle")
-        page.locator('[data-theme-id="ink_traces"][aria-pressed="true"]').wait_for()
+        page.locator('#themeLive[data-theme="ink_traces"]').wait_for()
+        assert page.locator('#themeChoices [aria-pressed="true"]').get_attribute("data-theme") == "ink_traces"
         page.goto(url, wait_until="networkidle")
-        page.locator(f'[data-theme-id="{FEATURED_THEME}"][aria-pressed="true"]').wait_for()
-        # Leave room for the sticky navigation above a full-height phone shot.
+        page.locator(f'#themeChoices [data-theme="{FEATURED_THEME}"][aria-pressed="true"]').wait_for()
+        # Leave room for the sticky navigation above the complete section shot.
         theme_height = page.locator("#themes").bounding_box()["height"]
         page.set_viewport_size({"width": 1440, "height": max(1000, int(theme_height) + 120)})
         page.locator("#themes").evaluate("el => window.scrollTo(0, el.getBoundingClientRect().top + scrollY - 90)")
@@ -246,6 +280,9 @@ def main() -> None:
             assert "405PX WECHAT PREVIEW" in article_page.locator(".article-bar").inner_text()
             for width in (360, 390, 405, 430, 768, 1440):
                 article_page.set_viewport_size({"width": width, "height": 950})
+                assert article_page.get_by_role("link", name="返回成稿展示").is_visible()
+                assert article_page.locator(".article-brand img").evaluate("img => img.complete && img.naturalWidth > 0")
+                assert article_page.locator(".article-bar").evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(".site-nav").evaluate("el => getComputedStyle(el).backgroundColor")
                 geometry = article_page.locator(".article-stage").bounding_box()
                 assert abs(geometry["width"] - min(405, width)) <= 1, (href, width, geometry)
                 assert article_page.evaluate("document.documentElement.scrollWidth <= innerWidth"), (href, width)
@@ -256,6 +293,10 @@ def main() -> None:
             article_page.evaluate("window.scrollTo(0,document.documentElement.scrollHeight)")
             assert article_page.locator(".wechat-document main > p").last.evaluate("el => el.getBoundingClientRect().bottom <= innerHeight + 1")
             results["articles"] += 1
+        article_page.set_viewport_size({"width": 390, "height": 844})
+        article_page.get_by_role("link", name="返回成稿展示").click()
+        article_page.wait_for_url("**/index.html#cases")
+        assert article_page.locator(".edition").count() == 3
         assert not errors, errors
         context.close()
 
@@ -266,9 +307,14 @@ def main() -> None:
         failure_page.locator("#heroCopyInstallPrompt").click()
         failure_page.locator("#installDialog[open]").wait_for()
         assert "main/INSTALL_FOR_AGENT.md" in failure_page.locator("#installPromptText").input_value()
+        assert failure_page.locator("#promptHelpLink").is_visible()
         assert failure_page.evaluate("document.documentElement.scrollWidth <= innerWidth")
         failure_page.keyboard.press("Escape")
         assert failure_page.locator("#installDialog").evaluate("el=>!el.open")
+        failure_page.locator("[data-copy-theme]").click()
+        failure_page.locator("#installDialog[open]").wait_for()
+        assert "一整套新的主题" in failure_page.locator("#installPromptText").input_value()
+        assert failure_page.locator("#promptHelpLink").is_hidden()
         results["manual_copy"] = True
         fallback.close()
 
@@ -286,7 +332,7 @@ def main() -> None:
             retry_page = retry_context.new_page()
             retry_page.goto(url, wait_until="networkidle")
             retry_page.locator(".theme-retry").click()
-            retry_page.locator(".theme-button").first.wait_for()
+            retry_page.locator("#themeChoices button").first.wait_for()
             results["retry"] = True
             retry_context.close()
 

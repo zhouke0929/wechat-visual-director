@@ -3,6 +3,7 @@
 This directory is the public, backend-free GitHub Pages surface for WeChat Visual Director.
 
 - `index.html`, `styles.css`, `app.js`: product landing page and interactive theme browser;
+- `brand.css`: shared colors, typography and page gutters for the homepage and article pages;
 - `data/themes.json`: generated from the production theme catalog by `python scripts/export_theme_gallery.py`;
 - `articles/`: curated static 405px article previews with local image assets;
 - `assets/generated/`: compressed showcase images approved for public display.
@@ -45,9 +46,12 @@ disclosure. The header contains the brand, GitHub and installation action only;
 the hero retains its theme-gallery link.
 Do not turn search optimization into another wall of feature cards.
 
-The article cards open complete static articles. The atelier uses the official
-catalog's seven browsing groups and real rendered samples, not hand-drawn
-approximations. Use `?theme=<id>#themes` to link to a specific theme.
+The article cards open complete static articles in the same tab. Each article
+has a branded return link on all screen sizes; the homepage iframes use the
+`#excerpt` fragment to hide that chrome without changing the rendered article.
+The atelier lists every official theme beside a phone that shows the entire
+production-rendered sample. Only the phone screen scrolls; the outer frame
+stays in place. Use `?theme=<id>#themes` to preselect a theme.
 Preserve the established
 `#cases`, `#themes`, `#image-system`, `#workflow` and `#faq` link targets.
 The three complete articles share `articles/article.css`: a 405px viewport with
@@ -58,18 +62,14 @@ with a visual scale. The excerpt ends after the complete first paragraph;
 the remaining article is clipped before the curated image row. Cards appear
 side by side on desktop and stack on phones. Keep the source width and
 article labels in sync with `ArticlePreviewViewport`; regression tests check it.
-The atelier exposes a production-rendered article plus 14 foundation specimens
-and 12 semantic components. Keep ordinary quotes and lists visible, rather than
-presenting every quoted passage as an evidence card. Its specimen picker must
-preserve the selected role when switching themes. `#custom-themes` describes the
+The workbench theme album includes 14 foundation specimens and 12 semantic
+components. The public phone shows a sample article, with no separate reader
+dialog or component picker. `#custom-themes` describes the
 workflow with explicitly labeled illustrative elements, not an unverified claim
 about a one-shot generation result; its copy button sends nothing automatically.
-The theme preview uses a lightweight phone shell matching the workbench's visual
-language: status bar, camera island, article navigation, account actions and home
-indicator. Only the article scrolls. Keep the bottom chrome in separate grid rows,
-check the final article block is reachable, and prevent horizontal overflow for
-every theme. Phone icons are decorative, not working WeChat controls; the sample
-label makes clear that this is a static public demonstration, not a live session.
+The phone uses the original showcase's metal-rimmed shell and shrinks to fit
+on narrow screens. Check that the final article block is reachable and that
+selecting a new theme resets the screen scroll without moving the frame.
 Installation copy feedback uses a fixed-position toast and a fixed-size button;
 if both clipboard paths fail, show a selectable prompt in an accessible dialog.
 The manual dialog must show the prompt associated with the clicked button,
@@ -84,9 +84,9 @@ python scripts/test_theme_gallery_browser.py
 
 By default it routes public assets from this checkout inside the test browser,
 so no server is required. Pass `--url http://127.0.0.1:<port>/` to test a running
-preview or the deployed site. It checks the exported groups, all themes at two
-widths, six viewport widths overall, keyboard selection, direct theme links,
-specimen selection persistence, phone scroll boundaries and narrow-screen fit, copy layout stability,
+preview or the deployed site. It checks all themes at five widths, six viewport
+widths overall, keyboard selection, direct theme links, phone scroll boundaries
+and narrow-screen fit, copy layout stability,
 manual-copy fallback, catalog retry and no-JS
 article links. Use `--refresh-theme-image` after a theme-gallery change to
 refresh only the README gallery screenshot. `--refresh-promotional-assets` refreshes the hero,

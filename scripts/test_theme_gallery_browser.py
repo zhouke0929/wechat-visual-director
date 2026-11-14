@@ -88,22 +88,26 @@ def main():
                 page.screenshot(path=str(output / f"site-{width}-hero.png"))
                 page.locator("#faq").scroll_into_view_if_needed()
                 page.screenshot(path=str(output / f"site-{width}-faq.png"))
-                assert page.locator(".theme-button").count() == 30
-                assert page.locator("#specimenSelect option").count() == 27
-                for button in page.locator(".theme-button").all():
+                choices = page.locator("#themeChoices button")
+                choices.first.wait_for()
+                assert choices.count() == 26
+                assert page.get_by_role("button", name="浅浮雕按钮", exact=True).count() == 0
+                assert page.get_by_role("button", name="票面与副联", exact=True).count() == 0
+                for button in choices.all():
                     button.click()
-                    page.locator("#specimenSelect").select_option("lead")
-                    assert page.locator('#themePreview :is([data-content-role="lead"], [data-theme-layout="lead"])').count() == 1
-                    page.locator("#specimenSelect").select_option("quote")
-                    assert page.locator('#themePreview [data-editor-block-type="quote"]').count() == 1
-                    page.locator("#specimenSelect").select_option("image_caption")
-                    page.wait_for_function("[...document.querySelectorAll('#themePreview img')].every(i => i.complete && i.naturalWidth > 0)")
+                    live = page.locator("#themeLive")
+                    assert live.get_attribute("data-theme") == button.get_attribute("data-theme")
+                    assert live.locator("[data-gallery-production-article] > main").count() == 1
+                    assert live.locator('[data-editor-block-type="quote"]').count() >= 1
+                    assert live.locator("img").evaluate_all(
+                        "imgs => Promise.all(imgs.map(img => img.decode())).then(() => true)"
+                    )
                 page.locator("#custom-themes").scroll_into_view_if_needed()
                 page.screenshot(path=str(output / f"site-{width}.png"))
                 page.locator("[data-copy-theme]").click()
                 assert "一整套新的主题" in page.evaluate("navigator.clipboard.readText()")
                 assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "site horizontal overflow"
-                checks.append(f"site {width}: 30 themes, 26 specimens, loaded images, theme prompt")
+                checks.append(f"site {width}: 26 themes, complete articles, loaded images, theme prompt")
 
                 gallery = f"http://127.0.0.1:{args.web_port}/theme-gallery"
                 page.goto(gallery, wait_until="networkidle")
