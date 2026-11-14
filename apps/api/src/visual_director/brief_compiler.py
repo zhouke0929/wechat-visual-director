@@ -711,13 +711,11 @@ def _visual_system_counts(recent_summaries: list[dict[str, Any]]) -> Counter[str
 ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     "data_policy": (
         "structured_grid",
-        "city_wayfinding",
         "business_review",
         "retro_window",
         "vintage_press",
         "editorial_contrast",
         "future_tech",
-        "soft_emboss",
         "oriental_archive",
         "light_reading",
         "natural_atlas",
@@ -728,7 +726,6 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
     ),
     "tutorial_steps": (
         "structured_grid",
-        "city_wayfinding",
         "pop_poster",
         "paper_fold",
         "color_paper_corners",
@@ -737,8 +734,6 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
         "retro_window",
         "pixel_live",
         "light_reading",
-        "ticket_and_stub",
-        "soft_emboss",
         "business_review",
         "future_tech",
         "oriental_archive",
@@ -776,11 +771,9 @@ ARTICLE_TYPE_THEME_AFFINITY: dict[str, tuple[str, ...]] = {
         "toy_storybook",
         "candidate_light_blue_watercolor",
         "youth_campus",
-        "round_table_bistro",
         "folded_fan_detail",
         "color_paper_corners",
         "indigo_cloth",
-        "ticket_and_stub",
         "pop_poster",
         "oriental_archive",
         "light_reading",
@@ -827,11 +820,9 @@ def recommend_visual_system(
     features = article_features or {}
     fit_adjustment: Counter[str] = Counter()
     if features.get("table_count", 0):
-        fit_adjustment.update({"structured_grid": -3, "future_tech": -1, "business_review": -2,
-                               "city_wayfinding": -2, "retro_window": -1})
+        fit_adjustment.update({"structured_grid": -3, "future_tech": -1, "business_review": -2, "retro_window": -1})
     if features.get("list_count", 0) >= 2:
-        fit_adjustment.update({"structured_grid": -2, "youth_campus": -1, "pop_poster": -1,
-                               "city_wayfinding": -2, "paper_fold": -1})
+        fit_adjustment.update({"structured_grid": -2, "youth_campus": -1, "pop_poster": -1, "paper_fold": -1})
     if features.get("quote_count", 0) >= 2:
         fit_adjustment.update({"editorial_contrast": -2, "warm_humanist": -1, "vintage_press": -2})
     if features.get("source_count", 0) >= 2:

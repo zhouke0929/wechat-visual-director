@@ -220,10 +220,149 @@ def _has_list_index(node: dict[str, Any]) -> bool:
     return node.get("bind") == "index" or any(_has_list_index(child) for child in node.get("children", []))
 
 
+# The common theme contract exposes one list layout. Official themes can
+# preserve separate bullet artwork and ordered sequence markers.
+_WEEKEND_ORDERED_LIST_LAYOUT = {
+    "type": "repeat",
+    "bind": "items",
+    "style": {"padding": [5, 0, 5, 0]},
+    "children": [{
+        "type": "marker_row",
+        "marker_width": 12,
+        "gap": 6,
+        "children": [
+            {
+                "type": "field", "bind": "index",
+                "style": {
+                    "size": "label", "font": "mono", "weight": 750, "line_height": 1.5,
+                    "color": "accent", "background": "secondary_pale", "align": "center",
+                    "width": 30, "margin": [4, 0, 0, 0], "padding": [2, 2, 2, 2],
+                    "radius": [2, 8, 4, 2],
+                    "border_bottom": {"width": 1, "color": "secondary", "style": "solid"},
+                },
+            },
+            {"type": "field", "bind": "item", "style": {"line_height": 1.9}},
+        ],
+    }],
+}
+
+
+_SCREENING_ORDERED_LIST_LAYOUT = {
+    "type": "repeat", "bind": "items",
+    "style": {"padding": [4, 0, 4, 0]},
+    "children": [{
+        "type": "marker_row", "marker_width": 10, "gap": 3,
+        "children": [
+            {
+                "type": "field", "bind": "index",
+                "style": {
+                    "width": 30, "size": "label", "font": "mono", "weight": 800,
+                    "line_height": 1.4, "align": "center", "color": "primary", "background": "secondary_pale",
+                    "padding": [2, 2, 2, 2], "margin": [4, 0, 0, 0],
+                    "radius": [2, 2, 6, 2],
+                    "border_left": {"width": 2, "color": "primary", "style": "dotted"},
+                    "border_bottom": {"width": 1, "color": "secondary", "style": "solid"},
+                },
+            },
+            {"type": "field", "bind": "item", "style": {"line_height": 1.85}},
+        ],
+    }],
+}
+_WINDOW_ORDERED_LIST_LAYOUT = {
+    "type": "repeat", "bind": "items",
+    "style": {"padding": [2, 3, 2, 2], "border_top": {"width": 1, "color": "primary", "style": "solid"}},
+    "children": [{
+        "type": "marker_row", "marker_width": 10, "gap": 7,
+        "children": [
+            {
+                "type": "field", "bind": "index",
+                "style": {
+                    "width": 29, "size": "label", "font": "mono", "weight": 780, "align": "center",
+                    "line_height": 1.45, "color": "primary", "background": "pale",
+                    "padding": [2, 1, 2, 1], "margin": [3, 0, 0, 0],
+                    "border_right": {"width": 1, "color": "primary", "style": "solid"},
+                    "border_bottom": {"width": 1, "color": "primary", "style": "solid"},
+                },
+            },
+            {"type": "field", "bind": "item", "style": {"line_height": 1.85, "padding": [0, 0, 5, 0]}},
+        ],
+        "style": {"padding": [4, 0, 1, 0], "border_bottom": {"width": 1, "color": "secondary", "style": "dotted"}},
+    }],
+}
+def _paper_ordered_list(
+    marker_style: dict[str, Any], *, marker_width: int = 10, gap: int = 7,
+) -> dict[str, Any]:
+    return {
+        "type": "repeat", "bind": "items",
+        "children": [{
+            "type": "marker_row", "marker_width": marker_width, "gap": gap,
+            "style": {"padding": [2, 0, 2, 0]},
+            "children": [
+                {"type": "field", "bind": "index", "style": {
+                    "size": "label", "weight": 780, "align": "center",
+                    "line_height": 1.45, "padding": [2, 0, 1, 0], "margin": [3, 0, 0, 0],
+                    **marker_style,
+                }},
+                {"type": "field", "bind": "item", "style": {"line_height": 1.82}},
+            ],
+        }],
+    }
+
+
+_OFFICIAL_ORDERED_LIST_LAYOUTS = {
+    "weekend_fieldnotes": _WEEKEND_ORDERED_LIST_LAYOUT,
+    "after_screening": _SCREENING_ORDERED_LIST_LAYOUT,
+    "retro_window": _WINDOW_ORDERED_LIST_LAYOUT,
+    "color_paper_corners": _paper_ordered_list({
+        "font": "mono", "color": "primary", "background": "surface",
+        "radius": [0, 0, 9, 0], "border_bottom": {"width": 2, "color": "secondary", "style": "solid"},
+    }),
+    "paper_fold": _paper_ordered_list({
+        "font": "serif", "color": "accent", "background": "pale", "radius": [0, 5, 0, 0],
+        "border_bottom": {"width": 1, "color": "secondary", "style": "solid"},
+    }),
+    "candidate_light_blue_watercolor": _paper_ordered_list({
+        "font": "serif", "color": "primary", "background": "surface", "radius": [0, 0, 12, 4],
+        "border_bottom": {"width": 2, "color": "secondary_pale", "style": "solid"},
+    }),
+    "toy_storybook": _paper_ordered_list({
+        "font": "mono", "color": "primary", "background": "secondary_pale", "radius": [3, 8, 5, 7],
+        "border_bottom": {"width": 1, "color": "secondary", "style": "solid"},
+    }),
+    "indigo_cloth": _paper_ordered_list({
+        "font": "mono", "color": "primary", "background": "pale", "radius": [0, 3, 0, 3],
+        "border_bottom": {"width": 1, "color": "sky", "style": "dashed"},
+    }),
+    "night_walk_illustration": _paper_ordered_list({
+        "font": "mono", "color": "primary", "background": "secondary_pale", "radius": [8, 8, 1, 1],
+        "border_bottom": {"width": 2, "color": "sky", "style": "solid"},
+    }, marker_width=8, gap=5),
+    "folded_fan_detail": {
+        "type": "repeat", "bind": "items",
+        "children": [{
+            "type": "marker_row", "marker_width": 10, "gap": 7,
+            "style": {"padding": [2, 0, 3, 0]},
+            "children": [
+                {"type": "field", "bind": "index", "style": {
+                    "size": "label", "font": "serif", "color": "sky", "weight": 780, "align": "center",
+                    "padding": [2, 0, 1, 0], "margin": [3, 0, 0, 0], "background": "sky_pale",
+                    "radius": [9, 2, 9, 2], "border_bottom": {"width": 1, "color": "sky", "style": "solid"},
+                }},
+                {"type": "field", "bind": "item", "style": {"line_height": 1.85}},
+            ],
+        }],
+    },
+}
+
+
 def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
+    ordered_layout = _OFFICIAL_ORDERED_LIST_LAYOUTS.get(config.get("theme_id")) if ordered else None
+    if ordered_layout is not None:
+        design = {**design, "layouts": {**design.get("layouts", {}), "list": ordered_layout}}
+        config = {**config, "generated_design_system": design}
     layout = design.get("layouts", {}).get("list")
     if ordered and layout and not _has_list_index(layout):
         # An authored bullet list must not erase the sequence of an ordered
@@ -237,7 +376,7 @@ def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any
             f'{_inline(item)}</p></section>'
             for index, item in enumerate(items, 1)
         )
-        return f'<section style="margin:{design["rhythm"]["component_gap"]}px 0;{text_style(config)}">{rows}</section>'
+        return f'<section data-theme-list-fallback="numbering" style="margin:{design["rhythm"]["component_gap"]}px 0;{text_style(config)}">{rows}</section>'
     custom = render_layout("list", {"items": items, "ordered": ordered}, config)
     if custom is not None:
         return custom

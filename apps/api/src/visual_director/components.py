@@ -89,6 +89,8 @@ def _render_concept_group(
     entries: list[tuple[str, str]],
     variant: str,
     colors: dict[str, str],
+    *,
+    quiet_signal: bool = False,
 ) -> str:
     primary = colors["primary"]
     secondary = colors["secondary"]
@@ -195,9 +197,10 @@ def _render_concept_group(
                 f'<p style="margin:0 0 6px;color:{ink};font-size:17px;font-weight:800;line-height:1.52;">{title}</p>'
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;">{definition}</p></section></section>'
             )
+        caption = "" if quiet_signal else f'<p style="margin:0 0 14px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">概念切片 · {len(entries)} 项</p>'
         return (
             f'<section style="margin:32px 0;padding:18px 15px 7px;border-radius:4px 40px 4px 22px;background:linear-gradient(135deg,{sky_pale},{secondary_pale});box-shadow:6px 6px 0 {pale};">'
-            f'<p style="margin:0 0 14px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">概念切片 · {len(entries)} 项</p>'
+            f'{caption}'
             f'{"".join(rows)}</section>'
         )
 
@@ -238,7 +241,9 @@ def render_component(
     generated = render_generated_component(slot, parsed, config or {})
     if generated is not None:
         return generated
-    extended = render_extended_component(slot, parsed, colors)
+    quiet_signal = (config or {}).get("theme_kit") == "future_science_editorial_v1"
+    quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
+    extended = render_extended_component(slot, parsed, colors, quiet_folio=quiet_folio)
     if extended is not None:
         return extended
 
@@ -246,6 +251,14 @@ def render_component(
         title = _inline(_one(parsed, bindings, "title"))
         if variant == "plain_question":
             return f'<p style="margin:28px 0 20px;color:{primary};font-size:20px;font-weight:750;line-height:1.6;text-align:center;">{title}</p>'
+        if variant == "warm_letter_prompt" and (config or {}).get("theme_kit") == "warm_storybook_v1":
+            return (
+                f'<section data-theme-grammar="warm-margin-question" style="margin:30px 0 26px;padding:3px 0 4px 13px;border-bottom:1px solid #E7D4BD;">'
+                f'<section style="padding:12px 13px 13px 26px;border-left:1px solid #D7B995;border-radius:1px 14px 1px 1px;background-color:{surface};">'
+                f'<span data-theme-static="true" aria-hidden="true" style="box-sizing:border-box;display:inline-block;width:28px;margin:0 8px 0 -36px;border-radius:2px 2px 8px 2px;background-color:{accent_pale};border-bottom:2px solid {accent};color:{primary};font:700 18px/25px Georgia,serif;text-align:center;vertical-align:top;transform:rotate(-5deg);">?</span>'
+                f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:19px;line-height:1.65;font-weight:750;vertical-align:top;overflow-wrap:anywhere;">{title}</p>'
+                f'</section></section>'
+            )
         if variant == "warm_letter_prompt":
             return (
                 f'<section style="margin:30px 0 26px;padding:18px 16px;border-left:4px solid {accent};border-bottom:1px solid #E7D4BD;background-color:#FFF8ED;">'
@@ -279,10 +292,15 @@ def render_component(
                 f'</section></section>'
             )
         if variant == "holo_query":
+            cue = (
+                f'<span style="display:inline-block;width:9%;color:{primary};font:800 22px/1.4 Georgia,serif;vertical-align:top;">?</span>'
+                if quiet_signal else
+                f'<p style="margin:0 0 10px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.1em;">关键问题</p>'
+            )
+            title_layout = "display:inline-block;max-width:91%;vertical-align:top;" if quiet_signal else "display:block;"
             return (
                 f'<section style="margin:33px 0 31px;padding:19px 19px 18px;border-radius:4px 40px 4px 22px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:6px 6px 0 {sky_pale};">'
-                f'<p style="margin:0 0 10px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.1em;">关键问题</p>'
-                f'<strong style="display:block;color:{ink};font-size:19px;line-height:1.67;">{title}</strong>'
+                f'{cue}<strong style="{title_layout}color:{ink};font-size:19px;line-height:1.67;">{title}</strong>'
                 f'<p style="margin:12px 0 -23px;text-align:right;"><span style="display:inline-block;width:44px;height:9px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-6deg);"></span></p>'
                 f'</section>'
             )
@@ -375,9 +393,10 @@ def render_component(
                     f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0;padding:12px 15px;border-radius:{4 if index % 2 else 22}px {22 if index % 2 else 4}px 22px 22px;background-color:{item_background};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{_inline(item)}</p>'
                     f'</section>'
                 )
+            caption = "" if quiet_signal else f'<p style="margin:0 0 17px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.12em;">关键要点 <span style="color:{accent};">●</span></p>'
             return (
                 f'<section style="margin:31px 0;padding:5px 0 1px;">'
-                f'<p style="margin:0 0 17px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.12em;">关键要点 <span style="color:{accent};">●</span></p>'
+                f'{caption}'
                 f'{"".join(rows)}</section>'
             )
         if variant == "coordinate_index":
@@ -471,6 +490,21 @@ def render_component(
                 f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
             )
         if variant == "pulse_quote":
+            if quiet_signal:
+                return (
+                    f'<section data-theme-grammar="signal-extract" style="margin:29px 0;white-space:normal;">'
+                    '<section data-theme-decoration="capture-trace" style="height:14px;margin-left:17px;line-height:14px;font-size:0;white-space:nowrap;">'
+                    f'<span style="display:inline-block;width:12px;height:2px;border-radius:2px;background-color:{primary};vertical-align:bottom;"></span>'
+                    f'<span style="display:inline-block;box-sizing:border-box;width:13px;height:8px;border:2px solid {primary};border-bottom:0;border-radius:8px 8px 0 0;vertical-align:bottom;"></span>'
+                    f'<span style="display:inline-block;width:7px;height:2px;border-radius:2px;background-color:{primary};vertical-align:bottom;"></span>'
+                    f'<span style="display:inline-block;box-sizing:border-box;width:19px;height:13px;border:2px solid {secondary};border-bottom:0;border-radius:12px 12px 0 0;vertical-align:bottom;"></span>'
+                    f'<span style="display:inline-block;width:15px;height:2px;border-radius:2px;background-color:{secondary};vertical-align:bottom;"></span>'
+                    f'<span style="display:inline-block;width:6px;height:6px;margin-left:4px;border-radius:50%;background-color:{accent};vertical-align:bottom;"></span></section>'
+                    f'<section style="padding:12px 16px 12px 15px;border-left:2px solid {primary};border-bottom:1px solid {sky};border-radius:17px 3px 23px 23px;background-color:{surface};">'
+                    f'<p style="margin:0;color:{ink};font-size:17px;font-weight:700;line-height:1.75;overflow-wrap:anywhere;">{evidence}</p></section>'
+                    f'<section data-theme-decoration="capture-tail" style="height:5px;margin:-2px 17px 0 0;text-align:right;line-height:5px;font-size:0;">'
+                    f'<span style="display:inline-block;width:25px;height:4px;border-radius:8px 2px 8px 2px;background-color:{secondary};vertical-align:top;"></span></section></section>'
+                )
             return (
                 f'<section style="margin:34px 0;padding:3px 0 12px;white-space:normal;">'
                 f'<span style="display:inline-block;width:17%;color:{secondary};font-family:Georgia,serif;font-size:64px;font-weight:800;line-height:.72;vertical-align:top;">“</span>'
@@ -597,6 +631,47 @@ def render_component(
         items = _many(parsed, bindings, "items")
         if variant == "plain_steps":
             return _plain_list(items, primary)
+        if variant == "warm_route_nodes" and (config or {}).get("theme_kit") == "warm_storybook_v1":
+            rows = []
+            for index, item in enumerate(items, 1):
+                last = index == len(items)
+                tab_color = secondary_pale if last else accent_pale
+                tab_edge = secondary if last else accent
+                seam = "0" if last else "1px dotted #D7B995"
+                rows.append(
+                    f'<section style="box-sizing:border-box;padding:8px 9px 8px 8px;border-bottom:{seam};white-space:normal;">'
+                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:31px;margin:1px 8px 0 -39px;padding:3px 0 2px;border-left:2px solid {tab_edge};border-radius:1px 8px 8px 1px;background-color:{tab_color};color:{primary};font:700 12px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:550;line-height:1.76;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section data-theme-grammar="warm-stitched-notebook" style="margin:28px 0;padding:0 3px 3px 26px;border-bottom:1px solid #D7B995;">'
+                f'<section data-theme-decoration="warm-route-tape" aria-hidden="true" style="box-sizing:border-box;height:8px;margin:0 8px -3px 0;text-align:right;font-size:1px;line-height:1px;">'
+                f'<span style="display:inline-block;width:39px;height:7px;background-color:{secondary};opacity:.7;vertical-align:top;transform:rotate(-4deg);">&#160;</span></section>'
+                f'<section data-theme-route-steps="true" style="padding:4px 0 2px 7px;border-top:1px solid #D7B995;border-left:1px dashed #D7B995;border-radius:0 13px 0 0;background-color:{surface};">{"".join(rows)}</section></section>'
+            )
+        if variant == "airy_route" and (config or {}).get("theme_kit") == "airy_organic_v1":
+            rows = []
+            for index, item in enumerate(items, 1):
+                last = index == len(items)
+                # Let the stem grow with wrapped text; keep the leaf shapes in the gutter.
+                leaf_end = last and index > 1
+                rail_color = "transparent" if last else sky
+                node_border = secondary if leaf_end else sky
+                node_shape = "20px 4px 20px 5px" if leaf_end else "50%"
+                node_background = secondary_pale if leaf_end else surface
+                rows.append(
+                    f'<section style="padding:0 0 {0 if last else 13}px 26px;border-left:1px solid {rail_color};white-space:normal;">'
+                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:32px;height:30px;margin:0 10px 0 -42px;border:1px solid {node_border};border-radius:{node_shape};background-color:{node_background};color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:700;line-height:28px;text-align:center;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;padding:2px 0 0;color:{ink};font-size:15px;font-weight:500;line-height:1.75;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p>'
+                    '</section>'
+                )
+            sprout = (
+                f'<section data-theme-decoration="airy-route-sprout" aria-hidden="true" style="box-sizing:border-box;height:17px;border-left:1px solid {sky};">'
+                f'<span style="box-sizing:border-box;display:inline-block;width:17px;height:9px;margin:0 0 0 -1px;border-radius:14px 2px 14px 3px;background-color:{primary};font-size:1px;line-height:1px;vertical-align:top;transform:rotate(-19deg);">&#160;</span>'
+                f'<span style="display:inline-block;width:4px;height:4px;margin:1px 0 0 6px;border-radius:50%;background-color:{accent};font-size:1px;line-height:1px;vertical-align:top;">&#160;</span>'
+                '</section>'
+            )
+            return f'<section data-theme-grammar="airy-connected-route" style="margin:27px 0;padding:2px 0 2px 16px;">{sprout}<section data-theme-route-steps="true">{"".join(rows)}</section></section>'
         if variant == "airy_route":
             rows = []
             for index, item in enumerate(items, 1):
@@ -666,10 +741,10 @@ def render_component(
                     f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;vertical-align:middle;">{index:02d}</span>'
                     f'<p style="box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{_inline(item)}</p></section>'
                 )
+            caption = "" if quiet_signal else f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径' f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
             return (
                 f'<section style="margin:31px 0;padding:8px 0 3px;">'
-                f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径'
-                f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
+                f'{caption}'
                 f'{"".join(rows)}</section>'
             )
         if variant == "signal_route":
@@ -685,6 +760,21 @@ def render_component(
             return (
                 f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
                 f'<p style="height:6px;margin:0;background-color:{primary};"><span style="display:block;width:28%;height:6px;background-color:{secondary};"></span></p>'
+                f'{"".join(rows)}</section>'
+            )
+        if variant == "folded_stair" and (config or {}).get("theme_kit") == "independent_magazine_v1":
+            rows = []
+            for index, item in enumerate(items, 1):
+                inset = round(24 * (len(items) - index) / max(1, len(items) - 1))
+                tab_color = (accent, secondary, primary)[(index - 1) % 3]
+                tab_ink = ink if (index - 1) % 3 == 1 else "#FFFFFF"
+                rows.append(
+                    f'<section style="margin:0 0 7px {inset}px;padding:9px 10px 9px 49px;border-top:1px solid {primary};border-bottom:1px solid #DFDDD3;background-color:{surface};white-space:normal;">'
+                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:37px;margin:0 12px 0 -49px;padding:2px 0 4px;background-color:{tab_color};border-radius:0 0 10px 0;color:{tab_ink};font:750 16px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:650;line-height:1.73;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
+                )
+            return (
+                f'<section data-theme-grammar="editorial-step-folio" style="margin:28px 0;padding:4px 0 1px;border-bottom:3px solid {ink};">'
                 f'{"".join(rows)}</section>'
             )
         if variant == "folded_stair":
@@ -731,7 +821,7 @@ def render_component(
     if component_type == "concept_explainer":
         entries = _concept_entries(parsed, bindings)
         if len(entries) > 1:
-            return _render_concept_group(entries, variant, colors)
+            return _render_concept_group(entries, variant, colors, quiet_signal=quiet_signal)
         title, definition = entries[0]
         if variant == "plain_definition":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{pale};"><strong style="color:{primary};">{title}</strong><p style="margin:8px 0 0;line-height:1.8;">{definition}</p></section>'
@@ -781,9 +871,10 @@ def render_component(
                 f'<p style="box-sizing:border-box;display:inline-block;width:61%;margin:0;padding:15px 0 18px 17px;border-left:6px solid {accent};color:{ink};font-size:15px;line-height:1.84;vertical-align:top;">{definition}</p></section>'
             )
         if variant == "hologram_term":
+            caption = "" if quiet_signal else f'<p style="margin:0 0 11px;"><span style="display:inline-block;padding:4px 10px;border-radius:12px 3px 12px 3px;background-color:{primary};color:#FFFFFF;font-size:10px;font-weight:800;">概念</span></p>'
             return (
                 f'<section style="margin:33px 0;padding:19px 18px 18px;border-radius:4px 44px 4px 22px;background:linear-gradient(135deg,{surface},{secondary_pale});box-shadow:6px 6px 0 {sky_pale};">'
-                f'<p style="margin:0 0 11px;"><span style="display:inline-block;padding:4px 10px;border-radius:12px 3px 12px 3px;background-color:{primary};color:#FFFFFF;font-size:10px;font-weight:800;">概念</span></p>'
+                f'{caption}'
                 f'<p style="margin:0 0 9px;color:{ink};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
                 f'<p style="margin:0;padding-top:11px;border-top:1px solid {secondary};color:{ink};font-size:15px;line-height:1.85;">{definition}</p>'
                 f'<p style="margin:9px 0 -23px;text-align:right;"><span style="display:inline-block;width:38px;height:8px;border-radius:14px 3px 14px 3px;background-color:{accent};transform:rotate(-6deg);"></span></p></section>'
@@ -839,9 +930,14 @@ def render_component(
                 f'<p style="margin:0;padding-top:11px;border-top:2px dashed {sky};color:{ink};font-size:15px;line-height:1.85;">{body}</p></section></section>'
             )
         if variant == "prototype_file":
+            tab = (
+                f'<section style="margin:-18px 0 13px;"><span style="display:block;width:37px;height:6px;border-radius:0 0 9px 0;background-color:{accent};"></span></section>'
+                if quiet_signal else
+                f'<p style="margin:-24px 0 14px;"><span style="display:inline-block;padding:5px 11px;border-radius:13px 3px 13px 3px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;transform:rotate(-2deg);">案例观察</span></p>'
+            )
             return (
                 f'<section style="margin:33px 0 31px;padding:18px 18px 19px;border-radius:4px 36px 4px 24px;background:linear-gradient(140deg,{pale},{secondary_pale});box-shadow:7px 7px 0 {sky_pale};">'
-                f'<p style="margin:-24px 0 14px;"><span style="display:inline-block;padding:5px 11px;border-radius:13px 3px 13px 3px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;transform:rotate(-2deg);">案例观察</span></p>'
+                f'{tab}'
                 f'<p style="margin:0 0 10px;color:{ink};font-size:18px;font-weight:800;line-height:1.55;">{title}</p>'
                 f'<p style="margin:0;padding-top:11px;border-top:1px solid {sky};color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
             )
@@ -916,10 +1012,12 @@ def render_component(
                 f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:16px 0 18px 17px;color:{ink};font-size:15px;font-weight:750;line-height:1.82;vertical-align:top;">{body}</p></section>'
             )
         if variant == "anomaly_alert":
+            caption = "" if quiet_signal else f'<p style="margin:0 0 6px;color:{accent};font-size:10px;font-weight:800;">需要注意</p>'
+            marker_width = 10 if quiet_signal else 18
             return (
                 f'<section style="margin:33px 0;padding:16px 17px;border-left:6px solid {accent};border-radius:3px 24px 24px 3px;background-color:{accent_pale};white-space:normal;">'
-                f'<span style="display:inline-block;width:18%;color:{accent};font-family:Georgia,serif;font-size:28px;font-weight:800;line-height:1;vertical-align:top;">!</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:82%;vertical-align:top;"><p style="margin:0 0 6px;color:{accent};font-size:10px;font-weight:800;">需要注意</p>'
+                f'<span style="display:inline-block;width:{marker_width}%;color:{accent};font-family:Georgia,serif;font-size:28px;font-weight:800;line-height:1;vertical-align:top;">!</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:{100 - marker_width}%;vertical-align:top;">{caption}'
                 f'<p style="margin:0;color:{ink};font-size:15px;line-height:1.82;">{body}</p></section></section>'
             )
         if variant == "risk_register":
@@ -1022,14 +1120,19 @@ def render_component(
             for index, item in enumerate(items, 1):
                 item_color = (primary, secondary, accent, sky)[(index - 1) % 4]
                 item_background = (pale, secondary_pale, accent_pale, sky_pale)[(index - 1) % 4]
+                marker = (
+                    f'<span style="display:inline-block;box-sizing:border-box;width:13px;height:13px;margin-top:4px;border:2px solid {item_color};border-radius:2px;"></span>'
+                    if quiet_signal else f'{index:02d}'
+                )
                 rows.append(
                     f'<section style="margin:0 0 11px;white-space:normal;">'
-                    f'<span style="display:inline-block;width:17%;padding:11px 0;color:{item_color};font-family:Georgia,serif;font-size:16px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                    f'<span style="display:inline-block;width:{10 if quiet_signal else 17}%;padding:11px 0;color:{item_color};font-family:Georgia,serif;font-size:16px;font-weight:800;vertical-align:top;">{marker}</span>'
                     f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0;padding:11px 14px;border-radius:4px 18px 18px 18px;background-color:{item_background};color:{ink};font-size:14px;line-height:1.72;vertical-align:top;">{_inline(item)}</p></section>'
                 )
+            caption = "" if quiet_signal else f'<p style="margin:0 0 16px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.1em;">行动清单 <span style="color:{secondary};">→</span></p>'
             return (
                 f'<section style="margin:31px 0;padding:5px 0 1px;">'
-                f'<p style="margin:0 0 16px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.1em;">行动清单 <span style="color:{secondary};">→</span></p>'
+                f'{caption}'
                 f'{"".join(rows)}</section>'
             )
         if variant == "audit_matrix":
@@ -1093,9 +1196,10 @@ def render_component(
                 f'<section style="padding:13px 14px 15px;white-space:normal;"><span style="display:inline-block;width:35px;color:{primary};font-family:Georgia,serif;font-size:18px;font-weight:750;vertical-align:top;">A</span><p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;color:{ink};font-size:14px;line-height:1.82;vertical-align:top;">{answer}</p></section></section>'
             )
         if variant == "console_dialogue":
+            caption = "" if quiet_signal else f'<p style="margin:0 0 13px;color:{accent};font-size:10px;font-weight:800;">问答</p>'
             return (
                 f'<section style="margin:32px 0;padding:18px 17px;border-radius:4px 34px 4px 24px;background:linear-gradient(135deg,{pale},{secondary_pale});">'
-                f'<p style="margin:0 0 13px;color:{accent};font-size:10px;font-weight:800;">问答</p>'
+                f'{caption}'
                 f'<p style="margin:0 0 13px;padding:0 0 11px;border-bottom:1px solid {sky};color:{ink};font-size:15px;font-weight:750;line-height:1.72;"><span style="margin-right:9px;color:{accent};font-family:Georgia,serif;font-size:20px;">Q</span>{question}</p>'
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.82;"><span style="margin-right:9px;color:{primary};font-family:Georgia,serif;font-size:17px;font-weight:800;">A</span>{answer}</p></section>'
             )
@@ -1182,7 +1286,7 @@ def render_component(
             return (
                 f'<section style="margin:33px 0;padding:6px 0 12px;white-space:normal;">'
                 f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:16px 14px;border-radius:4px 28px 4px 20px;background-color:{pale};vertical-align:top;"><span style="display:block;margin-bottom:9px;color:{primary};font-size:10px;font-weight:800;">A</span><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{left}</p></section>'
-                f'<span style="display:inline-block;width:6%;padding-top:55px;color:{secondary};font-size:18px;font-weight:800;text-align:center;vertical-align:top;">×</span>'
+                f'<span style="display:inline-block;width:6%;padding-top:55px;color:{secondary};font-size:18px;font-weight:800;text-align:center;vertical-align:top;">{"·" if quiet_signal else "×"}</span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:22px;padding:16px 14px;border-radius:28px 4px 20px 4px;background-color:{accent_pale};vertical-align:top;"><span style="display:block;margin-bottom:9px;color:{accent};font-size:10px;font-weight:800;">B</span><p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{right}</p></section></section>'
             )
         if variant == "comparison_register":
@@ -1264,9 +1368,10 @@ def render_component(
                     f'<section style="padding:9px 0;white-space:normal;"><span style="display:inline-block;width:14%;color:{accent if index % 2 else primary};font-family:Georgia,serif;font-size:15px;font-weight:800;vertical-align:top;">{index:02d}</span>'
                     f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{_inline(item)}</p></section>'
                 )
+            caption = "" if quiet_signal else f'<p style="margin:0 0 10px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.08em;">要点回收</p>'
             return (
                 f'<section style="margin:34px 0;padding:19px 18px 14px;border-radius:4px 42px 4px 26px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:7px 7px 0 {sky_pale};">'
-                f'<p style="margin:0 0 10px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.08em;">要点回收</p>'
+                f'{caption}'
                 f'{"".join(core_rows)}'
                 f'<p style="margin:8px 0 -20px;text-align:right;"><span style="display:inline-block;width:52px;height:9px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);"></span><span style="display:inline-block;width:8px;height:8px;margin-left:8px;border-radius:50%;background-color:{accent};"></span></p></section>'
             )

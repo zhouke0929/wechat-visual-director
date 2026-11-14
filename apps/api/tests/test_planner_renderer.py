@@ -1,4 +1,5 @@
 import copy
+import re
 from pathlib import Path
 
 import pytest
@@ -19,12 +20,13 @@ from visual_director.brief_compiler import (
     visual_system_variant,
 )
 from visual_director.components import render_component
+from visual_director.delivery import build_clipboard_payload
 from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans, structural_difference_count
 from visual_director.plan_schema import validate_plan_for_article
-from visual_director.renderer import render_preview
+from visual_director.renderer import preserve_wechat_decorative_nodes, render_preview
 from visual_director.theme_gallery import build_theme_gallery
-from visual_director.theme_packs import REVIEWED_BUNDLED_THEME_IDS
+from visual_director.theme_packs import bundled_theme_acceptance
 from visual_director.theme_assets import referenced_theme_assets, theme_asset_metadata
 
 
@@ -917,7 +919,7 @@ def test_case_detail_lists_keep_case_semantics_across_all_themes() -> None:
             "cinematic_story",
         }:
             assert 'data-list-role="case_points"' in document, theme_id
-            assert "案例差异" in document, theme_id
+            assert ("案例差异" in document) == (theme_id != "oriental_archive"), theme_id
 
     cinematic_plan = copy.deepcopy(plan)
     cinematic_plan["visual_system"] = "cinematic_story"
@@ -949,12 +951,124 @@ def test_new_themes_use_distinct_composition_grammars_not_recolors() -> None:
     assert "COURSE TICKETS" in campus["full_preview_html"]
     assert "NOTICEBOARD" in campus["full_preview_html"]
     assert "FUTURE EDITION" in future["full_preview_html"]
-    assert "要点回收" in future["full_preview_html"]
-    assert "关键要点" in future["full_preview_html"]
-    assert "证据摘录" in future["full_preview_html"]
+    assert "要点回收" not in future["full_preview_html"]
+    assert "关键要点" not in future["full_preview_html"]
+    assert "证据摘录" not in future["full_preview_html"]
+    assert 'data-theme-grammar="signal-extract"' in future["full_preview_html"]
+    assert 'data-theme-grammar="signal-junction"' in future["full_preview_html"]
     assert "FIELD INDEX" not in future["full_preview_html"]
     assert "MISSION LOG" not in future["full_preview_html"]
     assert "border-top:11px solid" not in future["full_preview_html"]
+
+
+@pytest.mark.parametrize(
+    ("theme_id", "heading_grammar", "quote_grammar", "extract_grammar", "auto_marker", "pair_labels"),
+    [
+        ("future_tech", "signal-junction", "signal-quotation", "signal-extract", "02", ("变化前", "变化后")),
+        ("oriental_archive", "folio-heading", "folio-quotation", "margin-annotation", "卷 02", ("前", "后")),
+    ],
+)
+def test_technology_and_folio_themes_use_structural_cues_instead_of_fixed_copy(
+    theme_id, heading_grammar, quote_grammar, extract_grammar, auto_marker, pair_labels,
+) -> None:
+    article = parse_markdown(
+        "# 测试文章\n\n本文从两个章节的阅读关系入手，讲清楚标题层级、正文重点和原文引语各自如何发挥作用。\n\n"
+        "## 一、已写章节序号\n\n> 来自原稿的普通引语。\n\n"
+        "## 未编号的章节\n\n测试段落，只说明原作者想说的内容。\n"
+    )
+    plan = generate_plans(article, "data_policy", 5)[0]
+    plan["visual_system"] = theme_id
+    plan["configuration"] = visual_system_configuration(theme_id)
+    plan["slots"] = []
+    rendered = render_preview(article, plan)
+    assert rendered.count(f'data-theme-grammar="{heading_grammar}"') == 2
+    assert "一、已写章节序号" in rendered
+    assert "专题" not in rendered
+    assert ">卷 01<" not in rendered
+    assert f">{auto_marker}<" in rendered
+    assert f'data-theme-grammar="{quote_grammar}"' in rendered
+    assert "来自原稿的普通引语。" in rendered
+    assert "证据摘录" not in rendered
+    assert 'data-lead-kind="本文导读"' in rendered
+    assert ">本文导读<" not in rendered
+
+    theme = build_theme_gallery(theme_id=theme_id)[0]
+    components = {item["component_type"]: item["html"] for item in theme["components"]}
+    assert f'data-theme-grammar="{extract_grammar}"' in components["evidence_callout"]
+    fixed_captions = ("证据摘录", "案例观察", "案例切片", "进程路径", "关键问题", "开篇提问", "要点回收", "观点索引", "风险提示")
+    visible_copy = " ".join(re.sub(r"<[^>]*>", "", part) for part in components.values())
+    assert not any(caption in visible_copy for caption in fixed_captions)
+    assert all(f">{label}<" in components["before_after_timeline"] for label in pair_labels)
+    assert ">01<" not in components["action_checklist"]
+
+
+def test_future_evidence_capture_keeps_editable_text_in_clipboard() -> None:
+    parsed = parse_markdown("# 试样\n\n先核对 **原始结果**，再说明变化的边界。")
+    evidence = next(block for block in parsed.blocks if block.type == "paragraph")
+    config = visual_system_configuration("future_tech")
+    markup = render_component(
+        {
+            "component_type": "evidence_callout",
+            "variant": visual_system_variant("evidence_callout", "future_tech"),
+            "content_bindings": {"evidence": evidence.id},
+        },
+        parsed, config["palette"], config,
+    )
+    payload = build_clipboard_payload(
+        {
+            "frozen_html": preserve_wechat_decorative_nodes(f"<main>{markup}</main>"),
+            "metadata": {"title": parsed.title},
+        },
+        [],
+        lambda _: "",
+    )
+    assert 'data-theme-decoration="capture-trace"' in payload["html"]
+    assert "<strong>原始结果</strong>" in payload["html"]
+    assert payload["text"] == "先核对 原始结果，再说明变化的边界。"
+    assert payload["image_count"] == 0
+
+
+def test_folio_caution_keeps_original_copy_separate_from_the_seal() -> None:
+    parsed = parse_markdown("# 试样\n\n请保留 **原始记录**，只在核实之后再改动。")
+    note = next(block for block in parsed.blocks if block.type == "paragraph")
+    variant = visual_system_variant("warning_note", "oriental_archive")
+    slot = {"component_type": "warning_note", "variant": variant, "content_bindings": {"body": note.id}}
+    config = visual_system_configuration("oriental_archive")
+    markup = render_component(slot, parsed, config["palette"], config)
+    assert 'data-theme-static="true" data-theme-decoration="caution-seal"' in markup
+    assert ">留意</span>" in markup and "风险提示" not in markup
+    assert 'caution-paper-fold' in markup
+    assert ">请保留 <strong>原始记录</strong>，只在核实之后再改动。</p>" in markup
+    assert "caution-seal" not in render_component(slot, parsed, config["palette"], {"theme_id": "other"})
+
+
+def test_folio_list_tints_distinguish_grouped_notes_from_a_sequence_and_plain_lists() -> None:
+    parsed = parse_markdown("# 试样\n\n- 先检查 **原稿**\n- 再核对来源")
+    block = next(block for block in parsed.blocks if block.type == "unordered_list")
+    items = [f"{block.id}:item:{i}" for i in range(2)]
+    config = visual_system_configuration("oriental_archive")
+    colors = config["palette"]
+
+    for role, tint, whole_group in (
+        ("action_checklist", colors["surface"], True),
+        ("section_summary", colors["pale"], True),
+        ("logic_path", colors["secondary_pale"], False),
+        ("numbered_insight", None, False),
+    ):
+        slot = {
+            "component_type": role,
+            "variant": visual_system_variant(role, "oriental_archive"),
+            "content_bindings": {"items": items},
+        }
+        markup = render_component(slot, parsed, colors, config)
+        wrapper = re.search(r'<section [^>]*data-list-role="[^"]+"[^>]*>', markup).group()
+        assert ("background-color:" in wrapper) == whole_group
+        if tint:
+            assert f"background-color:{tint};" in (wrapper if whole_group else markup)
+        assert markup.index("先检查 <strong>原稿</strong>") < markup.index("再核对来源")
+        assert not any(label in markup for label in ("行动清单", "阶段小结", "逻辑路径"))
+        if role == "logic_path":
+            assert re.findall(r'<span data-theme-static="true"[^>]*>(\d+)</span>', markup) == ["01", "02"]
 
 
 def test_renderer_does_not_inject_decorative_semantic_slogans() -> None:
@@ -1013,9 +1127,87 @@ def test_wechat_verification_is_scoped_to_legacy_variants_and_tested_bundled_pac
             == "wechat_verified"
             for component_type in CORE_THEME_COMPONENTS
         )
-        status = ("wechat_verified" if visual_system in (*LEGACY_VISUAL_SYSTEM_ORDER, *REVIEWED_BUNDLED_THEME_IDS)
+        status = ("wechat_verified" if visual_system in LEGACY_VISUAL_SYSTEM_ORDER or bundled_theme_acceptance(visual_system)
                   else "wechat_candidate")
-        assert {component["status"] for component in theme["components"]} == {status}
+        for component in theme["components"]:
+            revised = (visual_system, component["component_type"]) in {
+                ("light_reading", "logic_path"),
+                ("warm_humanist", "question_hook"),
+                ("warm_humanist", "logic_path"),
+                ("editorial_contrast", "logic_path"),
+                *(("future_tech", role) for role in CORE_THEME_COMPONENTS if role != "before_after_timeline"),
+                *(("oriental_archive", role) for role in CORE_THEME_COMPONENTS),
+            }
+            assert component["status"] == ("wechat_candidate" if revised else status)
+
+
+def test_light_reading_logic_path_keeps_steps_and_scope() -> None:
+    parsed = parse_markdown("# 路线\n\n1. 先读 **原文** & 核对事实\n2. 再检查版式")
+    steps = next(block for block in parsed.blocks if block.type == "ordered_list")
+    slot = {
+        "component_type": "logic_path",
+        "variant": visual_system_variant("logic_path", "light_reading"),
+        "content_bindings": {"items": [f"{steps.id}:item:0", f"{steps.id}:item:1"]},
+    }
+    config = visual_system_configuration("light_reading")
+    markup = render_component(slot, parsed, config["palette"], config)
+    assert 'data-theme-grammar="airy-connected-route"' in markup
+    assert markup.count("先读 <strong>原文</strong> &amp; 核对事实") == 1
+    assert markup.index("核对事实") < markup.index("再检查版式")
+    assert markup.count("border-left:1px solid " + config["palette"]["sky"]) == 2
+    assert markup.count('data-theme-decoration="airy-route-sprout"') == 1
+    assert markup.count("border-radius:20px 4px 20px 5px") == 1
+    assert markup.count("background-color:" + config["palette"]["secondary_pale"]) == 1
+    assert 'data-theme-grammar="airy-connected-route"' not in render_component(
+        slot, parsed, config["palette"], {**config, "theme_kit": "user_pack:demo"},
+    )
+
+
+def test_editorial_contrast_logic_path_keeps_the_staircase_in_the_gutter() -> None:
+    parsed = parse_markdown("# 步骤\n\n1. 读 **原稿**\n2. 检查用词\n3. 再次核对")
+    steps = next(block for block in parsed.blocks if block.type == "ordered_list")
+    slot = {
+        "component_type": "logic_path",
+        "variant": visual_system_variant("logic_path", "editorial_contrast"),
+        "content_bindings": {"items": [f"{steps.id}:item:{index}" for index in range(3)]},
+    }
+    config = visual_system_configuration("editorial_contrast")
+    markup = render_component(slot, parsed, config["palette"], config)
+    assert 'data-theme-grammar="editorial-step-folio"' in markup
+    assert all(f"margin:0 0 7px {inset}px" in markup for inset in (24, 12, 0))
+    assert markup.count("读 <strong>原稿</strong>") == 1
+    assert markup.index("原稿") < markup.index("检查用词") < markup.index("再次核对")
+    assert "editorial-step-folio" not in render_component(
+        slot, parsed, config["palette"], {**config, "theme_kit": "user_pack:demo"},
+    )
+
+
+def test_warm_humanist_revised_components_keep_content_and_scope() -> None:
+    from visual_director.renderer import _render_fixed_footer
+
+    config = visual_system_configuration("warm_humanist")
+    other = {**config, "theme_kit": "user_pack:demo"}
+    parsed = parse_markdown("# 手记\n\n## 要先读 **原文** 吗？\n\n1. 先观察\n2. 再记录")
+    heading = next(block for block in parsed.blocks if block.type == "heading" and block.level == 2)
+    steps = next(block for block in parsed.blocks if block.type == "ordered_list")
+    for role, grammar, binding, expected in (
+        ("question_hook", "warm-margin-question", {"title": heading.id}, "要先读 <strong>原文</strong> 吗？"),
+        ("logic_path", "warm-stitched-notebook", {"items": [f"{steps.id}:item:0", f"{steps.id}:item:1"]}, "再记录"),
+    ):
+        slot = {"component_type": role, "variant": visual_system_variant(role, "warm_humanist"), "content_bindings": binding}
+        markup = render_component(slot, parsed, config["palette"], config)
+        assert grammar in markup and markup.count(expected) == 1
+        assert grammar not in render_component(slot, parsed, other["palette"], other)
+        if role == "logic_path":
+            assert markup.index("先观察") < markup.index("再记录")
+
+    footer = {"enabled": True, "text": "末尾 & 致谢", "asset_path": "asset.png", "alt_text": "品牌图"}
+    markup = _render_fixed_footer(footer, config)
+    assert 'data-theme-grammar="warm-letter-signoff"' in markup
+    assert "末尾 &amp; 致谢" in markup
+    assert 'src="/api/v1/brand-assets/current/content" alt="品牌图"' in markup
+    assert "warm-letter-signoff" not in _render_fixed_footer(footer, other)
+    assert _render_fixed_footer({**footer, "enabled": False}, config) == ""
 
 
 def test_youth_campus_question_hook_uses_wechat_stable_rule() -> None:

@@ -12,11 +12,6 @@
       "manifest_lf_sha256": "202313853deb0bfcabf60637ce58a58f8e8fe6e25ed278de1871f1c8ec9dcc21",
       "fixture_sha256": "29b4d2ec845b06854e541697b14501ce900a2ffbffae3f842da243a6971940cb"
     },
-    "city_wayfinding": {
-      "version": "1.0.3",
-      "manifest_lf_sha256": "3fb39d34a5036cf7aa38dbf730796c4d1b21eec6faafeab77039ff1dac0b58a6",
-      "fixture_sha256": "d0ee923f3a1591140875f98485c95fc5a702a15f10dd0aad9fcdbeb97a3deb4f"
-    },
     "folded_fan_detail": {
       "version": "1.3.1",
       "manifest_lf_sha256": "9f37f651f808d6645dc8eeec5e60af27f1bb69c5f2d6f6642ca31a1f36859320",
@@ -56,16 +51,6 @@
       "version": "1.2.4",
       "manifest_lf_sha256": "eaf589d69a0f11004581ef67a0dfd6451da22efab93cbd0cd48b48d7ba1cfe1e",
       "fixture_sha256": "55a192b836a38711851b8f57fef9f54242594cbf8238e7f6f22e85469c72cb77"
-    },
-    "soft_emboss": {
-      "version": "1.2.4",
-      "manifest_lf_sha256": "c1d07be087d62f4cd444838f3f87a16e99c0becd44477976976ddbf197fb8f17",
-      "fixture_sha256": "4c33553075c7216cd31fbfd4f85f3899d05adbcd26803b9cf4fc3afe926dc5a2"
-    },
-    "ticket_and_stub": {
-      "version": "1.2.1",
-      "manifest_lf_sha256": "3bbd07b990110c32a079fb3fa6f81b66e424ae6aabfbc74014ce8d444cca0708",
-      "fixture_sha256": "a3aad91ce1e2b3bea36083bc40f1cf18c86ae5bce5742f7ad2977d4263949356"
     }
   }
 }

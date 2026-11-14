@@ -6,6 +6,7 @@ from pathlib import Path
 import base64
 import io
 
+import pytest
 from bs4 import BeautifulSoup
 from PIL import Image
 
@@ -54,6 +55,133 @@ def test_foundation_quotes_and_lists_are_exact_production_nodes():
         for role in ("quote", "ordered_list", "unordered_list", "table", "source", "reference_list"):
             sample = next(item for item in samples if item["role"] == role)
             assert sample["html"] in production
+
+
+def test_weekend_fieldnotes_renders_both_list_kinds_as_theme_layouts():
+    samples, _ = build_production_specimens("weekend_fieldnotes")
+    by_role = {item["role"]: item["html"] for item in samples}
+    ordered = BeautifulSoup(by_role["ordered_list"], "html.parser").select_one('[data-theme-layout="list"]')
+    unordered = BeautifulSoup(by_role["unordered_list"], "html.parser").select_one('[data-theme-layout="list"]')
+    assert ordered and unordered
+
+    badges = ordered.select("[data-theme-marker] [data-theme-list-index]")
+    assert [badge.get_text() for badge in badges] == ["01", "02", "03"]
+    assert all("background-color:#FFF8E7" in badge["style"] for badge in badges)
+    assert not unordered.select("[data-theme-list-index]")
+    assert len(unordered.select('[data-theme-marker] img[src^="data:image/png"]')) == 3
+
+    parsed = parse_markdown(ARTICLE)
+    for role, layout in (("ordered_list", ordered), ("unordered_list", unordered)):
+        original = next(block.content for block in parsed.blocks if block.type == role)
+        rendered = layout.select('[data-theme-marker-body] [data-theme-field="item"]')
+        assert [item.get_text() for item in rendered] == original
+
+
+@pytest.mark.parametrize("theme_id", ["retro_window", "folded_fan_detail", "color_paper_corners", "paper_fold",
+                                     "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth",
+                                     "night_walk_illustration"])
+def test_themed_list_drawings_and_copyable_ordered_numbers(theme_id):
+    samples, _ = build_production_specimens(theme_id)
+    by_role = {item["role"]: BeautifulSoup(item["html"], "html.parser") for item in samples}
+    ordered, unordered = by_role["ordered_list"], by_role["unordered_list"]
+    assert [node.get_text() for node in ordered.select("[data-theme-marker] [data-theme-list-index]")] == ["01", "02", "03"]
+    assert not ordered.select("[data-theme-list-fallback]")
+    assert not unordered.select("[data-theme-list-index]")
+    assert len(unordered.select('[data-theme-marker] img[src^="data:image/png"]')) == 3
+    parsed = parse_markdown(ARTICLE)
+    for role in ("ordered_list", "unordered_list"):
+        original = next(block.content for block in parsed.blocks if block.type == role)
+        assert [item.get_text() for item in by_role[role].select('[data-theme-marker-body] [data-theme-field="item"]')] == original
+
+
+def test_after_screening_keeps_timeline_and_warning_fields_and_themes_both_lists():
+    theme = build_theme_gallery(theme_id="after_screening")[0]
+    foundations = {part["role"]: BeautifulSoup(part["html"], "html.parser")
+                   for part in theme["foundation_specimens"]}
+    assert foundations["subheading"].select_one('[data-theme-marker] img')
+    assert len(foundations["unordered_list"].select('[data-theme-marker] img')) == 3
+    ordered = foundations["ordered_list"]
+    assert ordered.select_one('[data-theme-layout="list"]')
+    assert [badge.get_text() for badge in ordered.select('[data-theme-marker] [data-theme-list-index]')] == ["01", "02", "03"]
+    assert not ordered.select("[data-theme-list-fallback]")
+    cards = {part["component_type"]: BeautifulSoup(part["html"], "html.parser") for part in theme["components"]}
+    timeline = cards["before_after_timeline"].select_one('[data-theme-layout="before_after_timeline"]')
+    (film_strip,) = timeline.find_all(recursive=False)
+    first_frame, splice, second_frame = film_strip.find_all(recursive=False)
+    for frame, label, binding in ((first_frame, "之前", "left"), (second_frame, "之后", "right")):
+        assert frame.select_one('[data-theme-static]').get_text() == label
+        assert frame.select_one(f'[data-theme-field="{binding}"]').get_text()
+    assert splice["aria-hidden"] == "true"
+    assert len(splice.select('img[data-theme-decoration][src^="data:image/png"]')) == 1
+    warning = cards["warning_note"]
+    assert [label.get_text() for label in warning.select('[data-theme-static]')] == ["留意"]
+    assert len(warning.select('[data-theme-field="body"]')) == 1
+
+
+def test_light_gallery_gallery_uses_authored_lists_and_keeps_photo_separate_from_mount():
+    theme, = build_theme_gallery(theme_id="light_gallery")
+    specimens = {sample["role"]: BeautifulSoup(sample["html"], "html.parser")
+                 for sample in theme["foundation_specimens"]}
+    ordered = specimens["ordered_list"].select_one('[data-theme-layout="list"]')
+    unordered = specimens["unordered_list"].select_one('[data-theme-layout="list"]')
+    assert [node.get_text() for node in ordered.select("[data-theme-list-index]")] == ["01", "02", "03"]
+    assert not unordered.select("[data-theme-list-index]")
+    assert [node.get_text() for node in unordered.select("[data-theme-marker]")] == ["•", "•", "•"]
+    assert not ordered.select("[data-theme-list-fallback]")
+    mounted = specimens["image_caption"].select_one('[data-theme-layout="image_caption"]')
+    assert len(mounted.select("img[data-theme-media]")) == 1
+    assert len(mounted.select("img[data-theme-decoration][alt='']")) >= 2
+    assert mounted.select_one('[data-theme-field="caption"]').get_text()
+    assert theme.get("wechat_acceptance") is None
+    assert {part["status"] for part in theme["components"]} == {"wechat_candidate"}
+
+
+def test_light_gallery_collection_layouts_keep_every_editable_item_in_source_order():
+    from visual_director.theme_layouts import render_layout
+    from visual_director.theme_packs import theme_pack
+
+    pack = theme_pack("light_gallery")
+    config = {"palette": pack["palette"], "generated_design_system": pack["design_system"]}
+    items = [f"第 {i} 条：保留 **原文重点**，也保留大于号 >" for i in range(1, 13)]
+    for role in ("list", "numbered_insight", "logic_path", "action_checklist", "section_summary"):
+        markup = render_layout(role, {"items": items, "ordered": True}, config)
+        layout = BeautifulSoup(markup, "html.parser").select_one(f'[data-theme-layout="{role}"]')
+        fields = layout.select('[data-theme-field="item"]')
+        assert [node.get_text() for node in fields] == [item.replace("**", "") for item in items]
+        assert all(node.strong.get_text() == "原文重点" for node in fields)
+        if role == "list":
+            assert [node.get_text() for node in layout.select("[data-theme-list-index]")] == [
+                f"{i:02d}" for i in range(1, 13)]
+
+
+def test_pixel_live_places_evidence_label_first_and_keeps_timeline_fields_in_order():
+    theme, = build_theme_gallery(theme_id="pixel_live")
+    samples = {item["component_type"]: BeautifulSoup(item["html"], "html.parser")
+               for item in theme["components"]}
+    evidence = samples["evidence_callout"].select("[data-theme-static], [data-theme-field]")
+    assert len(evidence) == 2
+    assert evidence[0].get_text() == "依据"
+    assert evidence[1]["data-theme-field"] == "body"
+    timeline = samples["before_after_timeline"].select("[data-theme-static], [data-theme-field]")
+    assert len(timeline) == 4
+    assert [part.get("data-theme-field") or part.get_text() for part in timeline] == ["之前", "left", "之后", "right"]
+
+
+def test_gallery_uses_distinct_copy_for_timeline_and_coexisting_options():
+    from visual_director.theme_pair_samples import COMPARISON, TIMELINE
+
+    theme, = build_theme_gallery(theme_id="pixel_live")
+    specimens = {item["component_type"]: BeautifulSoup(item["html"], "html.parser")
+                 for item in theme["components"]}
+    timeline = specimens["before_after_timeline"]
+    comparison = specimens["comparison_card"]
+    for component, expected in ((timeline, TIMELINE), (comparison, COMPARISON)):
+        fields = component.select('[data-theme-field="left"], [data-theme-field="right"]')
+        assert [field.get_text() for field in fields] == list(expected)
+    tabs = comparison.select("[data-theme-static]")
+    assert [tab.get_text() for tab in tabs] == ["A", "B"]
+    assert tabs[0]["style"] == tabs[1]["style"]
+    assert len(comparison.select('section[style*="vertical-align:top;width:50%"]')) == 2
 
 
 def test_gallery_does_not_read_user_brand_configuration(monkeypatch):

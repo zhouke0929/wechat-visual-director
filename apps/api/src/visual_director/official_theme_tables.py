@@ -1,6 +1,8 @@
-"""Native table styles for the six reviewed official-theme candidates."""
+"""Theme-specific native table styles, including compatibility for saved plans."""
 from collections.abc import Callable
 from dataclasses import dataclass
+
+from .theme_drawings import render_drawing
 
 
 @dataclass(frozen=True)
@@ -157,13 +159,137 @@ def _bistro(c: _Cell, p: _Palette) -> tuple[str, str]:
     )
 
 
+def _window(c: _Cell, p: _Palette) -> tuple[str, str]:
+    # A continuous selected header and grid like a classic desktop file list.
+    # All columns have the same visual weight; striping follows the rows.
+    edge = f'border-right:1px solid {p["secondary" if c.next_column else "primary"]};'
+    if c.first:
+        edge += f'border-left:1px solid {p["primary"]};'
+    if c.header:
+        return (
+            f'padding:6px 8px;vertical-align:top;background-color:{p["secondary_pale"]};'
+            f'border-top:2px solid {p["primary"]};border-bottom:1px solid {p["primary"]};{edge}'
+            f'color:{p["ink"]};font-size:13px;font-weight:750;line-height:1.5;', c.text,
+        )
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{p["pale" if c.row_index % 2 else "surface"]};'
+        f'border-bottom:1px solid {p["primary" if c.last else "secondary"]};{edge}'
+        f'color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
+def _folded_fan(c: _Cell, p: _Palette) -> tuple[str, str]:
+    # The upper paper edge is attached to the cells, not a spacer above the grid.
+    edge = f'border-right:1px solid {p["secondary"]};' if c.next_column else ""
+    if c.header:
+        return (
+            f'padding:6px 8px;vertical-align:top;background-color:{p["sky_pale"]};'
+            f'border-top:3px solid {p["sky"]};border-bottom:1px solid {p["primary"]};{edge}'
+            f'color:{p["primary"]};font-size:13px;font-weight:750;line-height:1.5;', c.text,
+        )
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{p["sky_pale" if c.row_index % 2 else "surface"]};'
+        f'border-bottom:1px {"solid" if c.last else "dotted"} {p["primary" if c.last else "secondary"]};{edge}'
+        f'color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
+def _indigo_cloth(c: _Cell, p: _Palette) -> tuple[str, str]:
+    # The bound edge and stitched row rules are part of the cells.
+    seam = f'border-right:1px solid {p["sky_pale"]};' if c.next_column else ""
+    if c.header:
+        return (
+            f'padding:7px 8px;vertical-align:top;background-color:{p["pale"]};'
+            f'border-top:3px solid {p["primary"]};border-bottom:1px solid {p["sky"]};{seam}'
+            f'color:{p["primary"]};font-size:13px;font-weight:750;line-height:1.5;', c.text,
+        )
+    bottom = f'3px double {p["sky"]}' if c.last else f'1px dashed {p["secondary"]}'
+    fill = p["pale" if c.row_index % 2 else "surface"]
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{fill};border-bottom:{bottom};{seam}'
+        f'color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
+def _night_walk(c: _Cell, p: _Palette) -> tuple[str, str]:
+    # A single night sign with a warm lower edge; all header cells stay peers.
+    if c.header:
+        seam = f'border-right:1px solid {p["secondary"]};' if c.next_column else ""
+        return (
+            f'padding:7px 8px;vertical-align:top;background-color:{p["primary"]};'
+            f'border-bottom:2px solid {p["sky"]};{seam}'
+            f'color:{p["surface"]};font-size:13px;font-weight:750;line-height:1.5;', c.text,
+        )
+    seam = f'border-right:1px solid {p["sky_pale"]};' if c.next_column else ""
+    fill = p["sky_pale" if c.row_index % 2 else "surface"]
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{fill};'
+        f'border-bottom:1px solid {p["primary" if c.last else "sky_pale"]};{seam}'
+        f'color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
+_INK_TABLE_RIDGE = {
+    "width": 92, "height": 13,
+    "parts": [
+        {"kind": "polyline", "points": [[12, 11], [20, 10], [28, 6], [32, 7], [38, 3],
+                                       [41, 4], [45, 6], [50, 6], [58, 10], [64, 11]],
+         "stroke": "secondary", "stroke_width": .85},
+        {"kind": "polyline", "points": [[45, 11], [51, 10], [61, 5], [66, 6], [72, 2],
+                                       [76, 4], [83, 8], [89, 10], [91, 11]],
+         "stroke": "sky", "stroke_width": 1.05},
+        {"kind": "polyline", "points": [[2, 11], [24, 11], [34, 10], [38, 11]],
+         "stroke": "secondary", "stroke_width": .55},
+    ],
+}
+
+
+def _ink_table(c: _Cell, p: _Palette) -> tuple[str, str]:
+    # Open paper edges and quiet rules: let text and the landscape do the work.
+    edge = f'border-right:1px solid {p["secondary_pale"]};' if c.next_column else ""
+    if c.header:
+        return (
+            f'padding:7px 8px;vertical-align:top;background-color:{p["sky_pale"]};{edge}'
+            f'border-top:1px solid {p["sky"]};border-bottom:1px solid {p["primary"]};'
+            f'color:{p["primary"]};font-family:Georgia,\'Noto Serif SC\',serif;'
+            'font-size:14px;font-weight:700;line-height:1.5;', c.text,
+        )
+    bottom = f'1px solid {p["primary"]}' if c.last else f'1px dotted {p["secondary"]}'
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{p["sky_pale" if c.row_index % 2 else "surface"]};{edge}'
+        f'border-bottom:{bottom};color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
+def _ticket_table(c: _Cell, p: _Palette) -> tuple[str, str]:
+    seam = f'border-right:1px solid {p["secondary_pale"]};' if c.next_column else ""
+    if c.header:
+        return (
+            f'padding:7px 8px;vertical-align:top;background-color:{p["pale"]};{seam}'
+            f'border-top:3px double {p["primary"]};border-bottom:1px dashed {p["secondary"]};'
+            f'color:{p["primary"]};font-size:14px;font-weight:700;line-height:1.5;', c.text,
+        )
+    bottom = f'1px solid {p["primary"]}' if c.last else f'1px dashed {p["secondary"]}'
+    fill = p["sky_pale" if c.row_index % 2 else "surface"]
+    return (
+        f'padding:7px 8px;vertical-align:top;background-color:{fill};{seam}'
+        f'border-bottom:{bottom};color:{p["ink"]};font-size:14px;line-height:1.6;', c.text,
+    )
+
+
 _STYLES: dict[str, tuple[str, _CellStyle]] = {
     "weekend_fieldnotes": ("weekend-fieldnotes-notebook-table", _weekend),
     "after_screening": ("after-screening-scene-ledger-table", _cinema),
     "light_gallery": ("light-gallery-index-table", _light),
     "pixel_live": ("pixel-live-stepped-table", _pixel),
     "collage_fieldguide": ("collage-fieldguide-label-table", _collage),
-    "round_table_bistro": ("round-table-bistro-table", _bistro),
+    "retro_window": ("retro-window-directory-table", _window),
+    "folded_fan_detail": ("folded-fan-paper-table", _folded_fan),
+    "indigo_cloth": ("indigo-cloth-stitched-table", _indigo_cloth),
+    "night_walk_illustration": ("night-walk-sign-table", _night_walk),
+    "ink_traces": ("ink-traces-landscape-table", _ink_table),
+    "ticket_and_stub": ("ticket-and-stub-perforated-table", _ticket_table),  # Already-saved plans only.
+    "round_table_bistro": ("round-table-bistro-table", _bistro),  # Already-saved plans only.
 }
 
 
@@ -187,8 +313,12 @@ def render_official_theme_table(
 
     borders = "separate;border-spacing:0" if cell_style is _pixel else "collapse"
     body_rows = ''.join(render_row(row, last=i + 1 == len(body), row_index=i) for i, row in enumerate(body))
+    # A low ridge meets the top edge directly. Never insert a decorative table
+    # row or put artwork inside a data cell where it would change column widths.
+    edge = (f'<section aria-hidden="true" style="text-align:right;font-size:0;line-height:0;">'
+            f'{render_drawing(_INK_TABLE_RIDGE, palette)}</section>') if cell_style is _ink_table else ""
     return (
         f'<section data-theme-grammar="{grammar}" style="margin:{gap}px 0;overflow-wrap:anywhere;">'
-        f'<table style="width:100%;max-width:100%;border-collapse:{borders};table-layout:fixed;">'
+        f'{edge}<table style="width:100%;max-width:100%;border-collapse:{borders};table-layout:fixed;">'
         f'<thead>{render_row(header, head=True)}</thead><tbody>{body_rows}</tbody></table></section>'
     )

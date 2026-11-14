@@ -4,7 +4,7 @@
   "name": "黑白墨迹",
   "english": "INK TRACES",
   "description": "用干笔收住图文接缝，以浅墨圆章和远山停顿分节，让白纸上的文字保持清楚舒展。",
-  "version": "1.2.4",
+  "version": "1.2.7",
   "author": "WeChat Visual Director",
   "base_theme": "light_reading",
   "ideal_for": [
@@ -2761,162 +2761,91 @@
           {
             "type": "repeat",
             "bind": "items",
+            "style": {
+              "padding": [4, 0, 7, 0]
+            },
             "children": [
               {
                 "type": "marker_row",
-                "marker_width": 7,
-                "gap": 2,
+                "marker_width": 10,
+                "gap": 10,
                 "children": [
                   {
-                    "type": "drawing",
-                    "width": 21,
-                    "height": 27,
-                    "parts": [
-                      {
-                        "kind": "polyline",
-                        "points": [
-                          [
-                            0,
-                            3
-                          ],
-                          [
-                            3,
-                            9
-                          ],
-                          [
-                            10,
-                            11
-                          ],
-                          [
-                            11,
-                            17
-                          ],
-                          [
-                            9,
-                            22
-                          ],
-                          [
-                            13,
-                            25
-                          ]
-                        ],
-                        "stroke": "sky",
-                        "stroke_width": 0.9
-                      },
-                      {
-                        "kind": "polygon",
-                        "points": [
-                          [
-                            5,
-                            12
-                          ],
-                          [
-                            8,
-                            7
-                          ],
-                          [
-                            14,
-                            6
-                          ],
-                          [
-                            19,
-                            10
-                          ],
-                          [
-                            19,
-                            14
-                          ],
-                          [
-                            14,
-                            18
-                          ],
-                          [
-                            9,
-                            17
-                          ]
-                        ],
-                        "stroke": "secondary_pale",
-                        "fill": "secondary_pale",
-                        "stroke_width": 0.5
-                      },
-                      {
-                        "kind": "ellipse",
-                        "x": 11,
-                        "y": 10,
-                        "w": 4,
-                        "h": 4,
-                        "stroke": "accent",
-                        "fill": "accent",
-                        "stroke_width": 0.75
-                      },
-                      {
-                        "kind": "polyline",
-                        "points": [
-                          [
-                            13,
-                            19
-                          ],
-                          [
-                            19,
-                            19
-                          ]
-                        ],
-                        "stroke": "secondary",
-                        "stroke_width": 0.7
+                    "type": "field",
+                    "bind": "index",
+                    "style": {
+                      "size": "caption",
+                      "font": "serif",
+                      "color": "ink",
+                      "weight": 820,
+                      "align": "center",
+                      "line_height": 1.5,
+                      "margin": [2, 0, 0, 0],
+                      "padding": [1, 0, 1, 0],
+                      "border_bottom": {
+                        "width": 1,
+                        "color": "secondary",
+                        "style": "solid"
                       }
-                    ]
+                    }
                   },
                   {
-                    "type": "marker_row",
-                    "marker_width": 9,
-                    "gap": 5,
-                    "children": [
-                      {
-                        "type": "field",
-                        "bind": "index",
-                        "style": {
-                          "size": "caption",
-                          "weight": 820,
-                          "align": "center",
-                          "line_height": 1.5,
-                          "font": "serif",
-                          "color": "ink",
-                          "padding": [
-                            1,
-                            0,
-                            1,
-                            0
-                          ]
-                        }
-                      },
-                      {
-                        "type": "field",
-                        "bind": "item",
-                        "style": {
-                          "color": "ink",
-                          "line_height": 1.8
-                        }
-                      }
-                    ]
+                    "type": "field",
+                    "bind": "item",
+                    "style": {
+                      "color": "ink",
+                      "line_height": 1.8
+                    }
                   }
                 ]
               }
-            ],
-            "style": {
-              "padding": [
-                4,
-                0,
-                5,
-                0
-              ]
-            }
+            ]
+          },
+          {
+            "type": "drawing",
+            "width": 56,
+            "height": 12,
+            "parts": [
+              {
+                "kind": "polyline",
+                "points": [
+                  [0, 8],
+                  [7, 8],
+                  [12, 6],
+                  [16, 7],
+                  [23, 2.5],
+                  [26, 3.1],
+                  [31, 6.6],
+                  [35, 6],
+                  [40, 8.7],
+                  [47, 9.2],
+                  [54, 10]
+                ],
+                "stroke": "sky",
+                "stroke_width": 1.05
+              },
+              {
+                "kind": "polyline",
+                "points": [
+                  [18, 9.5],
+                  [24, 8.5],
+                  [31, 9],
+                  [36, 7.7],
+                  [43, 8.8],
+                  [50, 10],
+                  [55, 10.2]
+                ],
+                "stroke": "secondary",
+                "stroke_width": 0.75
+              }
+            ]
           }
         ],
         "style": {
           "border_left": {
             "width": 1,
-            "color": "secondary",
-            "style": "dotted"
+            "color": "secondary_pale",
+            "style": "solid"
           }
         }
       },

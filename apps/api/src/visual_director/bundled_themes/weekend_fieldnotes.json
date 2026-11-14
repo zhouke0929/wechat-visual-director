@@ -4,7 +4,7 @@
   "name": "周末散步手帐",
   "english": "WEEKEND FIELDNOTES",
   "description": "白底上的草绿路签、莓粉纸贴与奶油纸边，轻快地收起一次街区散步。",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "author": "Local Creator",
   "base_theme": "light_reading",
   "ideal_for": [
@@ -58,7 +58,25 @@
       "subheading": {"type":"stack","children":[{"type":"field","bind":"title","style":{"size":"subheading","weight":750,"color":"primary","padding":[3,0,4,0]}},{"type":"drawing","width":50,"height":8,"parts":[{"kind":"polyline","points":[[1,4],[16,2],[31,5],[49,2]],"stroke":"secondary","stroke_width":2}]}],"style":{"margin":[8,0,5,0]}},
       "lead": {"type":"stack","children":[{"type":"drawing","width":160,"height":10,"parts":[{"kind":"polygon","points":[[0,1],[22,4],[43,1],[69,4],[95,1],[120,5],[141,2],[160,4],[160,10],[0,10]],"fill":"secondary_pale","stroke":"secondary_pale","stroke_width":0.8}],"sizing":"full_width"},{"type":"field","bind":"body","style":{"padding":[12,16,12,16],"background":"secondary_pale","line_height":1.95}},{"type":"drawing","width":160,"height":10,"parts":[{"kind":"polygon","points":[[0,9],[22,6],[43,9],[69,6],[95,9],[120,5],[141,8],[160,6],[160,0],[0,0]],"fill":"secondary_pale","stroke":"secondary_pale","stroke_width":0.8}],"sizing":"full_width"}]},
       "quote": {"type":"stack","children":[{"type":"drawing","width":35,"height":22,"parts":[{"kind":"polygon","points":[[3,3],[14,3],[14,11],[8,19],[3,19],[7,11],[3,11]],"fill":"secondary","stroke":"secondary","stroke_width":0.8},{"kind":"polygon","points":[[21,3],[32,3],[32,11],[26,19],[21,19],[25,11],[21,11]],"fill":"secondary","stroke":"secondary","stroke_width":0.8}]},{"type":"field","bind":"body","style":{"font":"serif","size":"subheading","color":"primary","weight":650,"line_height":1.85,"padding":[8,8,6,8]}},{"type":"stack","children":[{"type":"drawing","width":45,"height":26,"parts":[{"kind":"polyline","points":[[4,24],[20,15],[36,3]],"stroke":"primary","stroke_width":1.4},{"kind":"polygon","points":[[13,18],[7,7],[18,11]],"fill":"pale","stroke":"primary","stroke_width":0.8},{"kind":"polygon","points":[[23,13],[22,2],[31,5]],"fill":"pale","stroke":"primary","stroke_width":0.8},{"kind":"polygon","points":[[28,10],[42,9],[35,16]],"fill":"pale","stroke":"primary","stroke_width":0.8}]}],"style":{"align":"right"}}],"style":{"padding":[5,7,0,7]}},
-      "list": {"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":7,"gap":7,"children":[{"type":"drawing","width":16,"height":18,"parts":[{"kind":"ellipse","x":5,"y":6,"w":6,"h":6,"stroke":"primary","stroke_width":1.2,"fill":"pale"}]},{"type":"field","bind":"item","style":{"line_height":1.9}}]}],"style":{"padding":[6,0,6,0]}},
+      "list": {
+        "type": "repeat",
+        "bind": "items",
+        "children": [{
+          "type": "marker_row", "marker_width": 8, "gap": 6,
+          "children": [
+            {
+              "type": "drawing", "width": 20, "height": 23,
+              "parts": [
+                {"kind":"polygon","points":[[3,16],[6,10],[13,8],[12,13],[8,16]],"fill":"primary","stroke":"primary","stroke_width":0.7},
+                {"kind":"polyline","points":[[6,14],[11,10]],"stroke":"pale","stroke_width":0.8},
+                {"kind":"ellipse","x":14,"y":15,"w":3.5,"h":3.5,"stroke":"secondary","stroke_width":0.6,"fill":"secondary"}
+              ]
+            },
+            {"type":"field","bind":"item","style":{"line_height":1.9}}
+          ]
+        }],
+        "style": {"padding":[5,0,5,0]}
+      },
       "question_hook": {"type":"stack","children":[{"type":"drawing","width":38,"height":12,"parts":[{"kind":"polygon","points":[[1,3],[36,1],[34,5],[37,9],[2,11],[4,7]],"fill":"secondary","stroke":"secondary","stroke_width":0.8}]},{"type":"field","bind":"title","style":{"size":"heading","color":"primary","weight":750,"padding":[9,10,10,10],"border_bottom":{"width":2,"color":"secondary","style":"solid"}}}],"style":{"margin":[0,0,3,0]}},
       "numbered_insight": {"type":"repeat","bind":"items","children":[{"type":"marker_row","marker_width":12,"gap":7,"children":[{"type":"field","bind":"index","style":{"font":"mono","size":"subheading","color":"accent","background":"accent_pale","align":"center","padding":[4,0,4,0]}},{"type":"field","bind":"item","style":{"line_height":1.9}}]}],"style":{"padding":[12,4,12,4],"border_bottom":{"width":1,"color":"secondary","style":"dashed"}}},
       "evidence_callout": {"type":"stack","children":[{"type":"drawing","width":58,"height":29,"parts":[{"kind":"polygon","points":[[1,12],[50,12],[42,19],[1,19]],"fill":"sky_pale","stroke":"sky_pale","stroke_width":0.6},{"kind":"polyline","points":[[1,29],[1,12],[53,12]],"stroke":"sky","stroke_width":1.05},{"kind":"polyline","points":[[29,8],[28,5],[25,3],[22,3],[19,5],[18,8],[20,20],[22,23],[25,24],[28,22],[29,19],[27,9],[26,7],[24,7],[23,9],[25,18]],"stroke":"surface","stroke_width":3.2},{"kind":"polyline","points":[[29,8],[28,5],[25,3],[22,3],[19,5],[18,8],[20,20],[22,23],[25,24],[28,22],[29,19],[27,9],[26,7],[24,7],[23,9],[25,18]],"stroke":"sky","stroke_width":1.5}]},{"type":"field","bind":"body","style":{"font":"serif","padding":[0,9,5,15],"border_left":{"width":2,"color":"sky","style":"solid"}}}]},

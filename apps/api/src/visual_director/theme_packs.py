@@ -27,12 +27,12 @@ ORIGINAL_BUNDLED_THEME_IDS = (
     "light_gallery",
     "pixel_live",
     "collage_fieldguide",
-    "round_table_bistro",
 )
+RETIRED_OFFICIAL_THEME_IDS = frozenset({"round_table_bistro", "city_wayfinding", "soft_emboss", "ticket_and_stub"})
 REVIEWED_BUNDLED_THEME_IDS = (
-    "retro_window", "city_wayfinding", "folded_fan_detail", "color_paper_corners",
+    "retro_window", "folded_fan_detail", "color_paper_corners",
     "paper_fold", "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth",
-    "night_walk_illustration", "ink_traces", "soft_emboss", "ticket_and_stub",
+    "night_walk_illustration", "ink_traces",
 )
 BUNDLED_THEME_IDS = ORIGINAL_BUNDLED_THEME_IDS + REVIEWED_BUNDLED_THEME_IDS
 
@@ -139,7 +139,7 @@ def configure_theme_packs(
         for manifest_path in sorted(_pack_dir.glob(f"*/{THEME_PACK_FILE_NAME}")):
             if manifest_path.parent.name.startswith("."):
                 continue  # Never register transaction staging or backup folders.
-            if manifest_path.parent.name in BUNDLED_THEME_IDS:
+            if manifest_path.parent.name in BUNDLED_THEME_IDS or manifest_path.parent.name in RETIRED_OFFICIAL_THEME_IDS:
                 continue  # Keep a pre-promotion local copy on disk without shadowing the official one.
             try:
                 manifest = validate_theme_pack_manifest(
@@ -318,7 +318,8 @@ def validate_theme_pack_manifest(payload: Any, *, reserved_ids: Iterable[str] | 
                                  core_components: Iterable[str] | None = None) -> dict[str, Any]:
     # Offline tools validate against the official catalog without initializing
     # or mutating the user's installed-theme registry.
-    reserved = (_reserved_ids | frozenset(BUNDLED_THEME_IDS)) if reserved_ids is None else frozenset(reserved_ids)
+    reserved = (_reserved_ids | frozenset(BUNDLED_THEME_IDS) | RETIRED_OFFICIAL_THEME_IDS
+                if reserved_ids is None else frozenset(reserved_ids))
     components = _core_components if core_components is None else tuple(core_components)
     if not isinstance(payload, dict):
         raise ThemePackError("主题扩展包清单必须是 JSON 对象")

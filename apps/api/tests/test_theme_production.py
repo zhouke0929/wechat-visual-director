@@ -43,6 +43,21 @@ def test_ordered_list_requires_real_numbers_not_only_a_layout_hit(monkeypatch):
     assert {case["role"] for case in report["foundation_checks"] if case["status"] == "blocking"} == {"ordered_list"}
 
 
+def test_numbering_fallback_is_visible_without_blocking_compatible_themes():
+    value = manifest()
+    number_cases = lambda: [case for case in check_theme_production(value)["foundation_checks"]
+                            if case["role"] == "ordered_list"]
+    fallback = number_cases()
+    assert {case["length"] for case in fallback} == {"short", "long"}
+    assert all(case["status"] == "pass" and case["layout_source"] == "numbering_fallback"
+               and case["design_review"] == "review_required" for case in fallback)
+
+    marker = value["design_system"]["layouts"]["list"]["children"][0]["children"][0]
+    marker.pop("text")
+    marker.update(type="field", bind="index")
+    assert all(case["status"] == "pass" and case["layout_source"] == "authored" for case in number_cases())
+
+
 @pytest.mark.parametrize(("motifs", "density", "has_ornament"), [
     (["none"], 0.6, False),
     (["paper_cut"], 0, False),

@@ -309,6 +309,28 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
         )
 
     if level == 2 and config["heading_variant"] == "signal_section":
+        if config.get("theme_kit") == "future_science_editorial_v1":
+            numbered = not _has_explicit_heading_number(content)
+            signal = palette.get("secondary", accent)
+            pulse = palette.get("accent", accent)
+            rail = palette.get("sky_pale", "#EEF1FA")
+            wash = palette.get("secondary_pale", "#EAF9F6")
+            ink = palette.get("ink", "#24304F")
+            marker = (
+                f'<span style="display:inline-block;padding:0 4px;border-radius:12px 12px 12px 5px;background-color:{wash};border-bottom:1px solid {signal};color:{ink};font:800 13px/20px Georgia,serif;vertical-align:middle;">{section_index:02d}</span>'
+                if numbered else
+                f'<span style="display:inline-block;width:15px;height:7px;border-radius:12px 4px 12px 4px;background-color:{signal};transform:rotate(-12deg);vertical-align:middle;"></span>'
+                f'<span style="display:inline-block;width:5px;height:5px;margin-left:3px;border-radius:50%;background-color:{pulse};vertical-align:middle;"></span>'
+            )
+            return (
+                f'<section data-heading-level="2" data-auto-numbered="{str(numbered).lower()}" data-theme-grammar="signal-junction" '
+                f'style="margin:39px 0 20px;white-space:normal;">'
+                f'<span style="display:inline-block;width:9%;padding-top:4px;color:{ink};vertical-align:top;">{marker}</span>'
+                f'<section style="box-sizing:border-box;display:inline-block;width:91%;padding-left:6px;vertical-align:top;">'
+                f'<strong style="display:block;color:{ink};font-size:21px;line-height:1.5;overflow-wrap:anywhere;">{_inline(content)}</strong>'
+                f'<section style="height:3px;margin-top:9px;border-radius:6px;background-color:{rail};"><span style="display:block;width:34px;height:3px;border-radius:6px;background-color:{pulse};"></span></section>'
+                '</section></section>'
+            )
         section_label = "专题" if _has_explicit_heading_number(content) else f"{section_index:02d}"
         return (
             f'<section data-heading-level="2" data-auto-numbered="{str(not _has_explicit_heading_number(content)).lower()}" '
@@ -872,6 +894,24 @@ def _render_fixed_footer(footer: dict[str, Any], config: dict[str, Any]) -> str:
         if footer.get("asset_path")
         else ""
     )
+    if frame_variant == "warm_storybook" and config.get("theme_kit") == "warm_storybook_v1":
+        paper = palette.get("secondary_pale", "#FBF2D8")
+        rust = palette.get("primary", accent)
+        line = '<span style="display:inline-block;width:22%;margin-top:9px;border-top:1px solid #D7B995;vertical-align:top;">&#160;</span>'
+        seal = (
+            f'<span style="box-sizing:border-box;display:inline-block;width:26px;height:19px;margin:0 10px;border:1px solid {rust};'
+            f'border-radius:3px 1px 3px 1px;background-color:{paper};text-align:center;vertical-align:top;">'
+            f'<span style="box-sizing:border-box;display:inline-block;width:11px;height:11px;margin-top:0;border-left:1px solid {rust};border-bottom:1px solid {rust};vertical-align:top;transform:rotate(-45deg);">&#160;</span></span>'
+        )
+        text = (
+            f'<p style="margin:0 0 {12 if image else 0}px;padding:0 7px;color:{rust};font-family:Georgia,\'Noto Serif SC\',serif;font-size:16px;font-weight:650;line-height:1.85;overflow-wrap:anywhere;">{footer_text}</p>'
+            if footer_text else ""
+        )
+        return (
+            f'<footer data-content-role="brand-cta" data-image-frame="{frame_variant}" data-theme-grammar="warm-letter-signoff" style="margin:36px 0 0;padding:0 4px;text-align:center;">'
+            f'<section data-theme-decoration="warm-letter-seal" aria-hidden="true" style="margin:0 0 10px;text-align:center;line-height:19px;font-size:1px;">{line}{seal}{line}</section>'
+            f'{text}{image}</footer>'
+        )
     if frame_variant == "airy_organic":
         style = (
             f"margin:40px 0 0;padding:21px 18px 17px;border-top:1px solid {palette.get('sky', accent)};"
@@ -1019,10 +1059,16 @@ def render_preview(
                         f'<p style="margin:0;color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:680;line-height:1.82;">{_body_inline(str(block.content), config)}</p></section></section>'
                     )
                 elif future:
+                    lead_label = opening_highlight_label or "本文导读"
+                    lead_cue = (
+                        f'<section style="margin:0 0 10px;"><span style="display:block;width:24px;border-bottom:2px solid {palette.get("accent", accent)};"></span></section>'
+                        if config.get("theme_kit") == "future_science_editorial_v1" and lead_label == "本文导读" else
+                        f'<p style="margin:0 0 10px;color:{palette.get("accent", accent)};font-size:10px;font-weight:800;letter-spacing:.1em;">{html.escape(lead_label)}</p>'
+                    )
                     body.append(
-                        f'<section data-content-role="lead" data-lead-kind="{html.escape(opening_highlight_label or "本文导读")}" '
+                        f'<section data-content-role="lead" data-lead-kind="{html.escape(lead_label)}" '
                         f'style="margin:28px 0 34px;padding:18px 19px 17px;border-radius:4px 38px 4px 22px;background:linear-gradient(135deg,{palette.get("secondary_pale", "#EAF9F6")},{palette.get("pale", "#F3F5FC")});box-shadow:6px 6px 0 {palette.get("sky_pale", "#EEF1FA")};">'
-                        f'<p style="margin:0 0 10px;color:{palette.get("accent", accent)};font-size:10px;font-weight:800;letter-spacing:.1em;">{html.escape(opening_highlight_label or "本文导读")}</p>'
+                        f'{lead_cue}'
                         f'<p style="margin:0;color:{palette.get("ink", "#24304F")};font-size:17px;font-weight:680;line-height:1.82;">{_body_inline(str(block.content), config)}</p>'
                         f'<p style="margin:10px 0 -22px;text-align:right;"><span style="display:inline-block;width:45px;height:8px;border-radius:14px 3px 14px 3px;background-color:{palette.get("secondary", accent)};transform:rotate(-5deg);"></span></p></section>'
                     )
@@ -1083,6 +1129,13 @@ def render_preview(
                     f'<span style="box-sizing:border-box;display:inline-block;width:77%;padding:9px 0 11px 16px;border-left:6px solid {accent};color:#202B33;font-family:Georgia,\'Noto Serif SC\',serif;font-size:19px;font-weight:800;line-height:1.78;vertical-align:top;">{_body_inline(str(block.content), config)}</span>'
                     f'</blockquote>'
                 )
+            elif config.get("quote_variant") == "campus_quote" and config.get("theme_kit") == "campus_bulletin_v2":
+                body.append(
+                    f'<blockquote data-theme-grammar="campus-radio-quote" style="margin:27px 0;padding:0 6px 13px 0;border-bottom:2px dashed {palette.get("sky", accent)};">'
+                    f'<section style="margin:0 0 -4px 10px;font-size:9px;line-height:1.3;">'
+                    f'<span data-theme-static="true" style="display:inline-block;margin:0;padding:4px 8px;background-color:{palette.get("accent", accent)};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.12em;line-height:1.3;transform:rotate(-3deg);">CAMPUS RADIO</span>'
+                    f'</section><p style="margin:0 0 0 6px;padding:11px 14px 9px;background-color:{palette.get("secondary_pale", "#FFF6D9")};box-shadow:6px 6px 0 {palette.get("sky_pale", "#EEF4FF")};color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:700;line-height:1.85;overflow-wrap:anywhere;">{_body_inline(str(block.content), config)}</p></blockquote>'
+                )
             elif config.get("quote_variant") == "campus_quote":
                 body.append(
                     f'<blockquote style="margin:32px 0;padding:7px 0 17px;border-bottom:2px dashed {palette.get("sky", accent)};white-space:normal;">'
@@ -1097,6 +1150,12 @@ def render_preview(
                     f'<span style="display:inline-block;width:34px;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:42px;font-weight:800;line-height:.8;vertical-align:top;">“</span>'
                     f'<span style="box-sizing:border-box;display:inline-block;width:87%;color:{palette.get("ink", "#20304A")};font-size:17px;font-weight:700;line-height:1.85;vertical-align:top;">{_body_inline(str(block.content), config)}</span>'
                     f'</section></blockquote>'
+                )
+            elif config.get("quote_variant") == "signal_quote" and config.get("theme_kit") == "future_science_editorial_v1":
+                body.append(
+                    f'<blockquote data-theme-grammar="signal-quotation" style="margin:29px 0;padding:8px 0 11px;border-bottom:2px solid {palette.get("accent_pale", "#FFF1EC")};">'
+                    f'<span style="display:inline-block;width:10%;color:{palette.get("primary", accent)};font:bold 39px/1 Georgia,serif;vertical-align:top;">“</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:90%;margin:0;padding-left:4px;color:{palette.get("ink", "#24304F")};font-size:17px;font-weight:700;line-height:1.78;vertical-align:top;">{_body_inline(str(block.content), config)}</p></blockquote>'
                 )
             elif config.get("quote_variant") == "signal_quote":
                 body.append(

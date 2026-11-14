@@ -4,6 +4,7 @@ import html
 import re
 from typing import Any
 
+from .heading_numbers import has_explicit_heading_number
 from .parser import ParsedArticle
 
 
@@ -445,7 +446,19 @@ def _decorate_payload(
     return f'<section data-theme-decoration="film-festival-sticker">{_sticker_overlay(asset, width, opacity=".88")}{light_markup}</section>'
 
 
-def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str]) -> str:
+def _folio_list_marker(component_type: str, index: int, ordered: bool, accent: str) -> str:
+    if component_type == "action_checklist":
+        return f'<span style="display:inline-block;width:9px;height:9px;border:1px solid {accent};transform:rotate(45deg);"></span>'
+    if ordered or component_type in {"numbered_insight", "logic_path"}:
+        return f"{index:02d}"
+    if component_type == "case_points" and index <= 26:
+        return chr(64 + index)
+    return f'<span style="display:inline-block;width:6px;height:6px;background-color:{accent};transform:rotate(45deg);"></span>'
+
+
+def _distinct_payload_html(
+    grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+) -> str:
     """Render five materially different reading grammars without theme recolors."""
     kind = payload["kind"]
     label = COMPONENT_LABELS.get(component_type, component_type)
@@ -462,6 +475,7 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
                 component_type,
                 {"kind": "title_body", "title": entry["title"], "body": entry["body"]},
                 p,
+                quiet_folio=quiet_folio,
             )
             for entry in payload["entries"]
         )
@@ -478,6 +492,29 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
         items = [_inline(item) for item in payload["items"]]
         list_heading = _list_heading(grammar, component_type, label)
         if grammar == "oriental":
+            if quiet_folio:
+                wrapper_style = {
+                    "action_checklist": f"padding:13px 13px 3px;background-color:{p['surface']};border:1px solid #E6DAC4;",
+                    "section_summary": f"padding:14px 15px 3px;background-color:{p['pale']};border-top:3px double {p['secondary']};",
+                }.get(component_type, "padding:5px 0 1px 9px;")
+                is_route = component_type == "logic_path"
+                row_margin = "0" if is_route else "0 0 12px"
+                text_padding = "2px 0 11px 12px" if is_route else "0 0 9px 12px"
+                marker_style = (
+                    f"display:inline-block;min-width:22px;padding:0 3px;background-color:{p['secondary_pale']};"
+                    f"border-bottom:1px solid {p['secondary']};text-align:center;"
+                )
+
+                def marker(index: int) -> str:
+                    content = _folio_list_marker(component_type, index, payload.get("ordered", False), p["accent"])
+                    return f'<span data-theme-static="true" style="{marker_style}">{content}</span>' if is_route else content
+
+                rows = "".join(
+                    f'<section style="margin:{row_margin};white-space:normal;"><span style="display:inline-block;width:11%;padding-top:4px;color:{p["accent"]};font:700 12px/1.6 Georgia,serif;vertical-align:top;">{marker(index)}</span>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:89%;margin:0;padding:{text_padding};border-left:1px solid {p["secondary"]};border-bottom:1px solid #E6DAC4;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;">{item}</p></section>'
+                    for index, item in enumerate(items, 1)
+                )
+                return f'<section data-theme-grammar="bound-folio" data-list-role="{component_type}" style="margin:27px 0;{wrapper_style}">{rows}</section>'
             rows = "".join(
                 f'<section style="margin:0 0 16px;white-space:normal;"><span style="display:inline-block;width:17%;padding-top:2px;color:{p["accent"]};font-family:Georgia,serif;font-size:12px;letter-spacing:.12em;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:83%;margin:0;padding:0 0 13px 16px;border-left:1px solid {p["secondary"]};border-bottom:1px solid #E5DCCB;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;">{item}</p></section>'
                 for index, item in enumerate(items, 1)
@@ -510,7 +547,8 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
     if kind == "pair":
         left, right = _inline(payload["left"]), _inline(payload["right"])
         if grammar == "oriental":
-            return f'<section data-theme-grammar="folding-page" style="margin:32px 0;padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">其一</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">其二</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
+            first, second = ("前", "后") if quiet_folio and component_type == "before_after_timeline" else ("其一", "其二")
+            return f'<section data-theme-grammar="folding-page" style="margin:32px 0;padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">{first}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">{second}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
         if grammar == "press":
             return f'<section data-theme-grammar="two-column-clipping" style="margin:32px 0;padding:14px;background-color:{p["pale"]};border:1px dashed #A99A81;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:13px;background-color:{p["surface"]};border:1px solid #C9BAA0;transform:rotate(-1deg);vertical-align:top;"><b style="color:{p["accent"]};font:900 20px Georgia;">A</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:22px 0 0 4%;padding:13px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;transform:rotate(1deg);vertical-align:top;"><b style="color:{p["primary"]};font:900 20px Georgia;">B</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{right}</p></section></section>'
         if grammar == "atlas":
@@ -523,6 +561,18 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
         title, body = _inline(payload["title"]), _inline(payload["body"])
         body_html = f'<p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>' if body else ""
         if grammar == "oriental":
+            if quiet_folio and component_type == "faq_card":
+                return (
+                    f'<section data-theme-grammar="folio-dialogue" style="margin:28px 0;padding:6px 0 10px 15px;border-left:1px solid {p["secondary"]};">'
+                    f'<p style="margin:0 0 9px;padding:0 0 9px;border-bottom:1px solid #E6DAC4;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:17px;font-weight:700;line-height:1.65;"><span style="margin-right:8px;color:{p["accent"]};font-size:11px;">问</span>{title}</p>'
+                    f'<p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.82;"><span style="margin-right:8px;color:{p["primary"]};font-size:11px;">答</span>{body}</p></section>'
+                )
+            if quiet_folio:
+                return (
+                    f'<section data-theme-grammar="title-slip" style="margin:27px 0;padding:4px 0 12px 21px;border-left:1px solid {p["secondary"]};">'
+                    f'<strong style="display:block;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:19px;line-height:1.55;">{title}</strong>{body_html}'
+                    f'<section style="margin-top:12px;"><span style="display:block;width:32px;border-bottom:2px solid {p["accent"]};"></span></section></section>'
+                )
             return f'<section data-theme-grammar="title-slip" style="margin:31px 0;padding:4px 0 17px 26px;border-left:1px solid {p["secondary"]};"><p style="margin:0 0 17px -26px;"><span style="display:inline-block;padding:4px 12px;background-color:{p["accent_pale"]};color:{p["accent"]};font-size:9px;letter-spacing:.22em;">{label}</span></p><strong style="display:block;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:19px;line-height:1.55;">{title}</strong>{body_html}<p style="width:42%;height:1px;margin:16px 0 0;background-color:{p["secondary"]};"></p></section>'
         if grammar == "press":
             return f'<section data-theme-grammar="news-clipping" style="margin:31px 5px;padding:16px 15px;background-color:{p["surface"]};border:1px solid #C9BAA0;box-shadow:5px 5px 0 {p["secondary_pale"]};transform:rotate(-.35deg);"><p style="margin:-25px 0 13px;text-align:right;"><span style="display:inline-block;padding:4px 10px;background-color:{p["accent"]};color:#FFFFFF;font-size:8px;letter-spacing:.16em;">{label}</span></p><strong style="display:block;padding-bottom:9px;border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:20px;line-height:1.48;">{title}</strong>{body_html}</section>'
@@ -534,6 +584,20 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
 
     body = _inline(payload["body"])
     if grammar == "oriental":
+        if quiet_folio:
+            if component_type == "warning_note":
+                return (
+                    '<section data-theme-grammar="folio-caution" style="margin:34px 5px 27px 0;">'
+                    f'<section style="padding:0 14px 10px;border-top:1px solid {p["secondary"]};background-color:{p["surface"]};">'
+                    f'<section style="margin:-11px 0 6px 1px;"><span data-theme-static="true" data-theme-decoration="caution-seal" style="display:inline-block;padding:1px 7px;border:3px double {p["accent"]};background-color:{p["surface"]};color:{p["primary"]};font:700 10px/14px Georgia,Noto Serif SC,serif;letter-spacing:.14em;transform:rotate(-5deg);vertical-align:top;">留意</span></section>'
+                    f'<p style="margin:0;color:{p["ink"]};font:500 16px/1.86 Georgia,Noto Serif SC,serif;overflow-wrap:anywhere;">{body}</p></section>'
+                    f'<section data-theme-decoration="caution-paper-fold" style="height:8px;margin-left:14px;border-top:1px solid {p["secondary"]};background-color:{p["secondary_pale"]};text-align:right;font-size:0;line-height:8px;">'
+                    f'<span style="display:inline-block;width:0;height:0;border-top:8px solid {p["secondary"]};border-right:8px solid #FFFFFF;vertical-align:top;"></span></section></section>'
+                )
+            return (
+                f'<section data-theme-grammar="margin-annotation" style="margin:28px 0 28px 8%;padding:8px 0 9px 14px;border-left:3px double {p["accent"]};color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:16px;line-height:1.85;">'
+                f'<span style="display:inline-block;width:6px;height:6px;margin:0 8px 2px 0;background-color:{p["accent"]};transform:rotate(45deg);"></span>{body}</section>'
+            )
         return f'<blockquote data-theme-grammar="margin-annotation" style="margin:32px 0 32px 16%;padding:5px 0 12px 18px;border-left:1px solid {p["accent"]};color:{p["ink"]};font-family:Georgia,"Noto Serif SC",serif;font-size:17px;line-height:1.9;"><span style="display:block;margin:0 0 9px -19px;color:{p["accent"]};font-size:8px;letter-spacing:.22em;">◈ {label}</span>{body}</blockquote>'
     if grammar == "press":
         return f'<blockquote data-theme-grammar="pull-quote-clipping" style="margin:33px 4px;padding:16px 15px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;box-shadow:4px 4px 0 {p["accent_pale"]};color:{p["ink"]};font-family:Georgia,"Noto Serif SC",serif;font-size:18px;font-weight:750;line-height:1.82;transform:rotate(.4deg);"><span style="display:block;margin-bottom:10px;padding-bottom:6px;border-bottom:3px double {p["ink"]};color:{p["accent"]};font-size:8px;letter-spacing:.2em;">PULL QUOTE / {label}</span>{body}</blockquote>'
@@ -544,14 +608,16 @@ def _distinct_payload_html(grammar: str, component_type: str, payload: dict[str,
     return f'<blockquote data-theme-grammar="subtitle-cue" style="margin:36px 6% 34px;padding:4px 0 12px;color:{p["primary"]};font-size:17px;font-weight:700;line-height:1.88;text-align:center;"><span style="display:block;margin-bottom:12px;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.22em;text-align:left;">SUBTITLE / {label}</span><span style="display:block;color:{p["secondary"]};font:900 34px/1 Georgia;text-align:left;">“</span>{body}<span style="display:block;width:44%;height:2px;margin:15px auto 0;background-color:{p["accent"]};"></span></blockquote>'
 
 
-def _payload_html(grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str]) -> str:
+def _payload_html(
+    grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+) -> str:
     kind = payload["kind"]
     label = COMPONENT_LABELS.get(component_type, component_type)
     if grammar in REDESIGNED_GRAMMARS:
         return _decorate_payload(
             grammar,
             component_type,
-            _distinct_payload_html(grammar, component_type, payload, p),
+            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio),
             p,
         )
     if kind == "concept_group":
@@ -656,6 +722,8 @@ def render_extended_component(
     slot: dict[str, Any],
     parsed: ParsedArticle,
     palette: dict[str, str],
+    *,
+    quiet_folio: bool = False,
 ) -> str | None:
     theme_id = extended_variant_theme(str(slot.get("variant", "")))
     if theme_id is None:
@@ -667,6 +735,7 @@ def render_extended_component(
         component_type,
         _payload(slot, parsed),
         _palette(palette),
+        quiet_folio=quiet_folio,
     )
     if grammar == "pop":
         asset = "pop-arrow.png" if component_type in {"numbered_insight", "action_checklist", "logic_path"} else "pop-star.png"
@@ -706,9 +775,13 @@ def render_extended_lead(content: str, label: str, config: dict[str, Any]) -> st
     text, label = _inline(content), html.escape(label)
     common = f'data-content-role="lead" data-lead-kind="{label}" data-theme-grammar="{grammar}-lead"'
     if grammar == "oriental":
+        caption = (
+            f'<section style="margin:0 0 11px;"><span style="display:block;width:24px;border-bottom:2px solid {p["accent"]};"></span></section>'
+            if config.get("theme_id") == "oriental_archive" and label == "本文导读" else
+            f'<p style="margin:0 0 12px;color:{p["primary"]};font:700 10px/1.5 Georgia,serif;letter-spacing:.18em;"><span style="display:inline-block;padding:3px 8px;border:1px solid {p["accent"]};">{label}</span></p>'
+        )
         return (f'<section {common} style="margin:26px 0 30px;padding:15px 0 18px 18px;border-left:4px double {p["secondary"]};border-bottom:1px solid {p["secondary"]};">'
-                f'<p style="margin:0 0 12px;color:{p["primary"]};font:700 10px/1.5 Georgia,serif;letter-spacing:.18em;">'
-                f'<span style="display:inline-block;padding:3px 8px;border:1px solid {p["accent"]};">{label}</span></p>'
+                f'{caption}'
                 f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:600;line-height:1.9;">{text}</p></section>')
     if grammar == "press":
         return (f'<section {common} style="margin:27px 0 31px;padding:12px 0 16px;border-top:4px solid {p["ink"]};border-bottom:3px double {p["ink"]};">'
@@ -750,13 +823,20 @@ def extended_inline_emphasis_style(config: dict[str, Any]) -> str | None:
     return styles[grammar]
 
 
-def _distinct_heading(content: str, level: int, section_index: int, grammar: str, p: dict[str, str]) -> str | None:
+def _distinct_heading(
+    content: str, level: int, section_index: int, grammar: str, p: dict[str, str], *, quiet_folio: bool = False,
+) -> str | None:
     if grammar not in REDESIGNED_GRAMMARS:
         return None
     text = _inline(content)
     if level == 2:
         if grammar == "oriental":
-            return f'<section data-heading-level="2" data-theme-grammar="folio-heading" style="margin:48px 0 24px;white-space:normal;"><span style="display:inline-block;width:18%;padding:5px 0;color:{p["accent"]};font:700 9px Georgia;letter-spacing:.22em;vertical-align:top;">卷 {section_index:02d}</span><section style="box-sizing:border-box;display:inline-block;width:82%;padding:0 0 15px 19px;border-left:1px solid {p["secondary"]};border-bottom:1px solid #DDD1BA;vertical-align:top;"><strong style="display:block;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:22px;font-weight:650;line-height:1.55;">{text}</strong><span style="display:block;width:28px;height:5px;margin:12px 0 0 auto;background-color:{p["accent"]};"></span></section></section>'
+            explicit = quiet_folio and has_explicit_heading_number(content)
+            mark = (
+                f'<span style="display:inline-block;width:10px;height:10px;margin-top:4px;border:3px double {p["accent"]};"></span>'
+                if explicit else f"卷 {section_index:02d}"
+            )
+            return f'<section data-heading-level="2" data-theme-grammar="folio-heading" style="margin:48px 0 24px;white-space:normal;"><span style="display:inline-block;width:18%;padding:5px 0;color:{p["accent"]};font:700 9px Georgia;letter-spacing:.22em;vertical-align:top;">{mark}</span><section style="box-sizing:border-box;display:inline-block;width:82%;padding:0 0 15px 19px;border-left:1px solid {p["secondary"]};border-bottom:1px solid #DDD1BA;vertical-align:top;"><strong style="display:block;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:22px;font-weight:650;line-height:1.55;">{text}</strong><span style="display:block;width:28px;height:5px;margin:12px 0 0 auto;background-color:{p["accent"]};"></span></section></section>'
         if grammar == "press":
             return f'<section data-heading-level="2" data-theme-grammar="edition-heading" style="margin:47px 0 24px;padding:7px 0 12px;border-top:4px double {p["ink"]};border-bottom:1px solid {p["ink"]};"><p style="margin:0 0 9px;color:{p["accent"]};font:800 8px Georgia;letter-spacing:.23em;text-align:center;">SECTION {section_index:02d} · SPECIAL EDITION</p><strong style="display:block;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:23px;font-weight:900;line-height:1.42;text-align:center;">{text}</strong></section>'
         if grammar == "atlas":
@@ -783,7 +863,7 @@ def render_extended_heading(content: str, level: int, section_index: int, config
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    distinct = _distinct_heading(content, level, section_index, grammar, p)
+    distinct = _distinct_heading(content, level, section_index, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
     if distinct is not None:
         if grammar == "cinema":
             distinct = distinct.replace(
@@ -840,9 +920,10 @@ def render_extended_heading(content: str, level: int, section_index: int, config
     return f'<p data-heading-level="4" style="margin:22px 0 9px;color:{p["primary"]};font-size:16px;font-weight:800;line-height:1.55;">{text}</p>'
 
 
-def _distinct_break(grammar: str, p: dict[str, str]) -> str | None:
+def _distinct_break(grammar: str, p: dict[str, str], *, quiet_folio: bool = False) -> str | None:
     if grammar == "oriental":
-        return f'<section data-content-role="thematic-break" data-theme-grammar="folio-turn" style="margin:40px 2px;text-align:right;white-space:nowrap;"><span style="display:inline-block;width:56%;border-top:1px solid #D9C9AC;vertical-align:middle;"></span><span style="display:inline-block;margin:0 10px;color:{p["accent"]};font:700 9px Georgia;letter-spacing:.22em;vertical-align:middle;">卷 · 页</span><span style="display:inline-block;width:12px;height:12px;border:1px solid {p["accent"]};background-color:{p["accent_pale"]};transform:rotate(45deg);vertical-align:middle;"></span></section>'
+        caption = "" if quiet_folio else f'<span style="display:inline-block;margin:0 10px;color:{p["accent"]};font:700 9px Georgia;letter-spacing:.22em;vertical-align:middle;">卷 · 页</span>'
+        return f'<section data-content-role="thematic-break" data-theme-grammar="folio-turn" style="margin:40px 2px;text-align:right;white-space:nowrap;"><span style="display:inline-block;width:56%;border-top:1px solid #D9C9AC;vertical-align:middle;"></span>{caption}<span style="display:inline-block;width:12px;height:12px;margin-left:{12 if quiet_folio else 0}px;border:1px solid {p["accent"]};background-color:{p["accent_pale"]};transform:rotate(45deg);vertical-align:middle;"></span></section>'
     if grammar == "press":
         return f'<section data-content-role="thematic-break" data-theme-grammar="edition-rule" style="margin:39px 0 37px;border-top:3px double {p["ink"]};border-bottom:1px solid {p["ink"]};text-align:center;"><span style="display:inline-block;margin:-12px auto -9px;padding:2px 12px;background-color:{p["surface"]};color:{p["accent"]};font:800 8px Georgia;letter-spacing:.24em;vertical-align:middle;">CONTINUED ON NEXT COLUMN</span></section>'
     if grammar == "atlas":
@@ -861,7 +942,7 @@ def render_extended_break(config: dict[str, Any]) -> str | None:
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    distinct = _distinct_break(grammar, p)
+    distinct = _distinct_break(grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
     if distinct is not None:
         return distinct
     if grammar == "oriental":
@@ -886,12 +967,12 @@ def render_extended_list(
     theme_id = _theme_id(config, "list")
     if theme_id is None:
         return None
-    payload = {"kind": "list", "items": items}
+    payload = {"kind": "list", "items": items, "ordered": ordered}
     component_type = "numbered_insight" if ordered else semantic_role
-    return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], component_type, payload, _palette(config["palette"]))
+    return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], component_type, payload, _palette(config["palette"]), quiet_folio=config.get("theme_id") == "oriental_archive")
 
 
-def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str]) -> str | None:
+def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str], *, quiet_folio: bool = False) -> str | None:
     if grammar not in REDESIGNED_GRAMMARS or not rows:
         return None
     header, *body = rows
@@ -901,7 +982,8 @@ def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str]) -> s
         for row in body:
             cells = ''.join(f'<td style="padding:11px 7px;border-bottom:1px solid #DDD1BA;color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
             trs.append(f'<tr>{cells}</tr>')
-        return f'<section data-theme-grammar="archive-ledger" style="margin:27px 0;padding:8px 16px 13px;border-left:5px solid {p["accent"]};background-color:{p["surface"]};"><p style="margin:0 0 7px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.22em;">ARCHIVE LEDGER</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
+        caption = "" if quiet_folio else f'<p style="margin:0 0 7px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.22em;">ARCHIVE LEDGER</p>'
+        return f'<section data-theme-grammar="archive-ledger" style="margin:27px 0;padding:8px 16px 13px;border-left:5px solid {p["accent"]};background-color:{p["surface"]};">{caption}<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "press":
         ths = ''.join(f'<th style="padding:8px 6px;border-right:1px solid {p["ink"]};border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
         trs = []
@@ -938,7 +1020,7 @@ def render_extended_table(rows: list[list[str]], config: dict[str, Any]) -> str 
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    distinct = _distinct_table(rows, grammar, p)
+    distinct = _distinct_table(rows, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
     if distinct is not None:
         return distinct
     header, *body = rows
@@ -960,6 +1042,12 @@ def render_extended_quote(content: str, config: dict[str, Any]) -> str | None:
     theme_id = _theme_id(config, "quote")
     if theme_id is None:
         return None
+    if theme_id == "oriental_archive" and config.get("theme_id") == "oriental_archive":
+        p = _palette(config["palette"])
+        return (
+            f'<blockquote data-theme-grammar="folio-quotation" style="margin:29px 0;padding:9px 8px 9px 16px;border-left:1px solid {p["secondary"]};color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:17px;line-height:1.85;">'
+            f'<span style="margin-right:6px;color:{p["accent"]};font:700 28px/1 Georgia,serif;vertical-align:middle;">“</span>{_inline(content)}</blockquote>'
+        )
     return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], "evidence_callout", {"kind": "single", "body": content}, _palette(config["palette"]))
 
 
@@ -1004,10 +1092,11 @@ def extended_image_placeholder_style(config: dict[str, Any]) -> str | None:
     return f"scroll-margin-top:18px;margin:30px 0;padding:14px 17px;border-left:5px solid {p['primary']};border-bottom:1px solid {p['secondary']};background-color:{p['surface']};"
 
 
-def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str]) -> str | None:
+def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str], *, quiet_folio: bool = False) -> str | None:
     escaped_kicker = html.escape(kicker)
     if grammar == "oriental":
-        return f'<header data-content-role="article-metadata-preview" data-theme-grammar="bound-folio-cover" style="margin:30px 0 32px;padding:0;border-top:1px solid #D9C9AC;border-bottom:1px solid #D9C9AC;white-space:normal;"><section style="display:inline-block;width:17%;padding:26px 0 22px;color:{p["accent"]};font:700 10px Georgia;letter-spacing:.18em;vertical-align:top;writing-mode:vertical-rl;">卷首 · {escaped_kicker}</section><section style="box-sizing:border-box;display:inline-block;width:83%;padding:25px 18px 25px 22px;border-left:1px solid {p["secondary"]};vertical-align:top;"><p style="margin:0 0 16px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.24em;">ORIENTAL FOLIO / 典藏页</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;font-weight:650;line-height:1.45;">{title_html}</h1><span style="display:block;width:22px;height:22px;margin:17px 0 0 auto;border:2px solid {p["accent"]};background-color:{p["accent_pale"]};"></span></section></header>'
+        caption = "" if quiet_folio else f'<p style="margin:0 0 16px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.24em;">ORIENTAL FOLIO / 典藏页</p>'
+        return f'<header data-content-role="article-metadata-preview" data-theme-grammar="bound-folio-cover" style="margin:30px 0 32px;padding:0;border-top:1px solid #D9C9AC;border-bottom:1px solid #D9C9AC;white-space:normal;"><section style="display:inline-block;width:17%;padding:26px 0 22px;color:{p["accent"]};font:700 10px Georgia;letter-spacing:.18em;vertical-align:top;writing-mode:vertical-rl;">卷首 · {escaped_kicker}</section><section style="box-sizing:border-box;display:inline-block;width:83%;padding:25px 18px 25px 22px;border-left:1px solid {p["secondary"]};vertical-align:top;">{caption}<h1 style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;font-weight:650;line-height:1.45;">{title_html}</h1><span style="display:block;width:22px;height:22px;margin:17px 0 0 auto;border:2px solid {p["accent"]};background-color:{p["accent_pale"]};"></span></section></header>'
     if grammar == "press":
         return f'<header data-content-role="article-metadata-preview" data-theme-grammar="front-page" style="margin:28px 0 33px;padding:9px 0 16px;border-top:5px double {p["ink"]};border-bottom:5px double {p["ink"]};"><section style="padding:7px 0;border-bottom:1px solid {p["ink"]};white-space:normal;"><span style="display:inline-block;width:30%;color:{p["accent"]};font:900 9px Georgia;letter-spacing:.18em;vertical-align:middle;">VOL. 01 / EXTRA</span><strong style="display:inline-block;width:40%;color:{p["ink"]};font:900 19px Georgia;text-align:center;vertical-align:middle;">THE DAILY BRIEF</strong><span style="display:inline-block;width:30%;color:#6E675B;font:700 8px Georgia;text-align:right;vertical-align:middle;">{escaped_kicker}</span></section><h1 style="margin:15px 0 12px;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:32px;font-weight:900;line-height:1.3;text-align:center;">{title_html}</h1><p style="margin:0;padding-top:9px;border-top:1px solid {p["ink"]};color:{p["accent"]};font:800 8px Georgia;letter-spacing:.14em;text-align:right;">SPECIAL REPORT</p></header>'
     if grammar == "atlas":
@@ -1032,7 +1121,7 @@ def render_extended_hero(title: str, plan_name: str, component_version: str, kic
     # plan_name and component_version remain part of the structured plan for
     # diagnostics, but must never leak into reader-facing article HTML.
     _ = (plan_name, component_version)
-    distinct = _distinct_hero(title_html, kicker, grammar, p)
+    distinct = _distinct_hero(title_html, kicker, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
     if distinct is not None:
         hero_assets = {
             "oriental": ("oriental-branch.png", "47%"),
@@ -1082,7 +1171,7 @@ def extended_rhythm_primitives(theme_id: str, palette: dict[str, str]) -> list[d
         f'<span style="display:block;width:43%;height:11px;margin-left:35%;background-color:{p["accent"]};"></span></section>'
         f'<p style="margin:10px 0 0;color:#6D756F;font-size:11px;line-height:1.55;text-align:center;">图示 · 图片承接场景，正文负责解释</p></section>'
     )
-    cta = _payload_html(grammar, "section_summary", {"kind": "title_body", "title": "把判断带回下一次真实行动", "body": "保存文章，并在行动中继续验证。"}, p)
+    cta = _payload_html(grammar, "section_summary", {"kind": "title_body", "title": "把判断带回下一次真实行动", "body": "保存文章，并在行动中继续验证。"}, p, quiet_folio=theme_id == "oriental_archive")
     return [
         {"role": "section_heading", "label": "章节标题", "html": heading},
         {"role": "subheading", "label": "主题小标题", "html": subheading},

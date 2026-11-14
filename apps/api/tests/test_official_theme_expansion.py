@@ -8,14 +8,20 @@ import pytest
 from bs4 import BeautifulSoup
 from PIL import Image
 
-from visual_director.brief_compiler import ARTICLE_TYPE_THEME_AFFINITY, recommend_visual_system, visual_system_configuration
+from visual_director.brief_compiler import (
+    ARTICLE_TYPE_THEME_AFFINITY, EditorialBriefCompileError, apply_visual_system,
+    recommend_visual_system, visual_system_configuration,
+)
 from visual_director.component_catalog import (
     AUTO_RECOMMENDABLE_VISUAL_SYSTEMS, CORE_THEME_COMPONENTS,
     OFFICIAL_THEME_GROUPS, VISUAL_SYSTEM_ORDER, theme_group_metadata,
 )
 from visual_director.generated_theme import render_generated_table
 from visual_director.image_provider import SURFACE_LABELS, build_cover_prompt, build_theme_fallback_cover
-from visual_director.theme_packs import BUNDLED_THEME_IDS, REVIEWED_BUNDLED_THEME_IDS, theme_pack
+from visual_director.parser import parse_markdown
+from visual_director.planner import generate_plans
+from visual_director.renderer import render_preview
+from visual_director.theme_packs import BUNDLED_THEME_IDS, REVIEWED_BUNDLED_THEME_IDS, bundled_theme_acceptance, theme_pack
 from visual_director.theme_gallery import build_theme_gallery
 from visual_director.visual_dna import (
     IMAGE_STYLE_MANIFESTS, IMAGE_STYLE_VARIANTS, OFFICIAL_PACK_SURFACES,
@@ -29,7 +35,7 @@ def gallery():
 
 
 def test_reviewed_official_files_preserve_accepted_artwork_and_have_real_sample_book(gallery):
-    assert len(VISUAL_SYSTEM_ORDER) == 30 and len(BUNDLED_THEME_IDS) == 18
+    assert len(VISUAL_SYSTEM_ORDER) == 26 and len(BUNDLED_THEME_IDS) == 14
     assert "diagonal_type" not in gallery and "02-diagonal-type" not in gallery
     pkg = files("visual_director")
     evidence = json.loads(pkg.joinpath("bundled_theme_acceptance.json").read_text(encoding="utf-8"))
@@ -37,16 +43,24 @@ def test_reviewed_official_files_preserve_accepted_artwork_and_have_real_sample_
     for theme_id in REVIEWED_BUNDLED_THEME_IDS:
         record = evidence["themes"][theme_id]
         raw = pkg.joinpath("bundled_themes", f"{theme_id}.json").read_bytes()
-        assert hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest() == record["manifest_lf_sha256"]
         entry = gallery[theme_id]
-        assert entry["source"] == "official" and entry["pack_version"] == record["version"]
-        assert entry["wechat_acceptance"]["paths"] == ["clipboard", "api_draft"]
+        checksum = hashlib.sha256(raw.replace(b"\r\n", b"\n")).hexdigest()
+        assert entry["source"] == "official"
         assert entry["delivery_report"]["wechat_saved_roundtrip"] == "not_verified"  # local preflight has no live authority
         assert entry["delivery_report"]["rehearsal"]["production"]["status"] == "pass"
         assert entry["layout_coverage"]["covered_count"] == 21
         assert len(entry["foundation_specimens"]) == 14 and len(entry["components"]) == len(CORE_THEME_COMPONENTS)
-        assert {c["status"] for c in entry["components"]} == {"wechat_verified"}
-    assert gallery["city_wayfinding"]["pack_version"] == "1.0.3"
+        if theme_id in {"retro_window", "folded_fan_detail", "color_paper_corners", "paper_fold",
+                        "candidate_light_blue_watercolor", "toy_storybook", "indigo_cloth", "night_walk_illustration",
+                        "ink_traces"}:
+            assert checksum != record["manifest_lf_sha256"] and entry["pack_version"] != record["version"]
+            assert bundled_theme_acceptance(theme_id) is None and "wechat_acceptance" not in entry
+            assert all(c["status"] != "wechat_verified" for c in entry["components"])
+        else:
+            assert checksum == record["manifest_lf_sha256"] and entry["pack_version"] == record["version"]
+            assert entry["wechat_acceptance"]["paths"] == ["clipboard", "api_draft"]
+            assert {c["status"] for c in entry["components"]} == {"wechat_verified"}
+    assert gallery["folded_fan_detail"]["pack_version"] == "1.3.3"
 
 
 def test_gallery_summary_skips_official_artwork_and_detail_renders_only_requested_theme(monkeypatch):
@@ -60,11 +74,33 @@ def test_gallery_summary_skips_official_artwork_and_detail_renders_only_requeste
 
     monkeypatch.setattr(theme_gallery, "_gallery_item", record)
     items = theme_gallery.build_theme_gallery(summary=True)
-    assert len(items) == 30 and not rendered
+    assert len(items) == 26 and not rendered
     assert all(i["foundation_count"] == 14 and "article_preview_html" not in i for i in items)
-    detail, = theme_gallery.build_theme_gallery(theme_id="city_wayfinding")
-    assert detail["article_preview_html"] and rendered == ["city_wayfinding"]
+    detail, = theme_gallery.build_theme_gallery(theme_id="color_paper_corners")
+    assert detail["article_preview_html"] and rendered == ["color_paper_corners"]
     assert theme_gallery.build_theme_gallery(theme_id="does_not_exist") == []
+
+
+@pytest.mark.parametrize(("retired", "table_grammar"), [
+    ("round_table_bistro", "round-table-bistro-table"),
+    ("city_wayfinding", None),
+    ("soft_emboss", None),
+    ("ticket_and_stub", "ticket-and-stub-perforated-table"),
+])
+def test_retired_theme_is_unselectable_but_saved_render_configuration_remains_usable(retired, table_grammar):
+    assert retired not in VISUAL_SYSTEM_ORDER and retired not in AUTO_RECOMMENDABLE_VISUAL_SYSTEMS
+    assert all(retired not in order for order in ARTICLE_TYPE_THEME_AFFINITY.values())
+    assert theme_pack(retired) is None and build_theme_gallery(theme_id=retired) == []
+    parsed = parse_markdown("# 旧稿\n\n原稿正文。\n\n| 项目 | 状态 |\n| --- | --- |\n| 草稿 | 保留 |")
+    plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], "light_reading")
+    with pytest.raises(EditorialBriefCompileError):
+        apply_visual_system(plan, retired)
+    plan["visual_system"] = retired
+    plan["configuration"]["theme_id"] = retired
+    plan["configuration"]["generated_design_system"] = theme_pack("retro_window")["design_system"]
+    soup = BeautifulSoup(render_preview(parsed, plan, brand_profile={}), "html.parser")
+    old_table = soup.select_one(f'[data-theme-grammar="{table_grammar}"] table' if table_grammar else "table")
+    assert "原稿正文。" in soup.get_text() and old_table.td.get_text() == "草稿"
 
 
 def test_official_style_groups_cover_all_themes_once_independent_of_introduction_batch(gallery):
@@ -75,7 +111,7 @@ def test_official_style_groups_cover_all_themes_once_independent_of_introduction
             assert gallery[theme_id]["theme_group"] == label
             assert gallery[theme_id]["theme_group_order"] == order
     assert theme_group_metadata("cinematic_story") == theme_group_metadata("after_screening")
-    assert theme_group_metadata("structured_grid") == theme_group_metadata("city_wayfinding")
+    assert theme_group_metadata("structured_grid") == theme_group_metadata("retro_window")
     assert theme_group_metadata("local_theme")["theme_group"] == "我的主题"
 
 
@@ -125,5 +161,8 @@ def test_promoted_themes_keep_tested_native_tables(theme_id):
     config = visual_system_configuration(theme_id)
     markup = render_generated_table([["A", "B", "C"], ["1", "2", "3"]], config)
     root = BeautifulSoup(markup, "html.parser").select_one("[data-theme-grammar]")
-    assert [n.name for n in root.find_all(recursive=False)] == ["table"]
-    assert len(root.select("th")) == 3 and len(root.select("td")) == 3
+    table, = root.find_all("table", recursive=False)
+    assert [n.name for n in table.find_all(recursive=False)] == ["thead", "tbody"]
+    assert len(table.select("tr")) == 2
+    assert len(table.select("th")) == 3 and len(table.select("td")) == 3
+    assert not table.select("img")

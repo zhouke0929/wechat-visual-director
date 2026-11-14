@@ -8,7 +8,8 @@ from visual_director.delivery import build_clipboard_payload
 from visual_director.generated_theme import render_generated_table
 from visual_director.brief_compiler import visual_system_configuration
 from visual_director.component_catalog import CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
-from visual_director.publication import check_frozen_html
+from visual_director.publication import check_frozen_html, replace_asset_urls
+from visual_director.theme_delivery import compiled_decoration_assets
 from visual_director.theme_packs import ORIGINAL_BUNDLED_THEME_IDS, theme_pack
 from visual_director.theme_review import build_foundation_preview
 from visual_director.theme_specimens import build_production_specimens
@@ -20,7 +21,11 @@ TABLES = [
     ("light_gallery", "light-gallery-index-table", "border-right:1px solid"),
     ("pixel_live", "pixel-live-stepped-table", "border-left:4px solid"),
     ("collage_fieldguide", "collage-fieldguide-label-table", "border-top:2px solid"),
-    ("round_table_bistro", "round-table-bistro-table", "border-bottom:3px solid"),
+    ("retro_window", "retro-window-directory-table", "border-top:2px solid"),
+    ("folded_fan_detail", "folded-fan-paper-table", "border-top:3px solid"),
+    ("indigo_cloth", "indigo-cloth-stitched-table", "border-top:3px solid"),
+    ("night_walk_illustration", "night-walk-sign-table", "border-bottom:2px solid"),
+    ("ink_traces", "ink-traces-landscape-table", "border-top:1px solid"),
 ]
 ROWS = [["<name>", "A **label**", "Explanation"], ["01", "Line one\nLine two", "<img src=x>"]]
 
@@ -38,20 +43,32 @@ def configuration(manifest, theme_id):
 @pytest.mark.parametrize(("theme_id", "grammar", "signature"), TABLES)
 def test_official_table_uses_theme_signature_and_native_editable_cells(manifest, theme_id, grammar, signature):
     html = render_generated_table(ROWS, configuration(manifest, theme_id))
-    frozen = f"<main>{html}</main>"
+    artwork = compiled_decoration_assets(html)
+    assets = [{**item, "id": item["asset_token"]} for item in artwork]
+    frozen = replace_asset_urls(f"<main>{html}</main>", {a["source_url"]: a["asset_token"] for a in assets})
     assert check_frozen_html(frozen).status == "pass"
-    clipboard = build_clipboard_payload({"frozen_html": frozen, "metadata": {"title": "Table"}}, [], lambda _: "")
-    assert clipboard["image_count"] == 0
+    clipboard = build_clipboard_payload(
+        {"frozen_html": frozen, "metadata": {"title": "Table"}}, assets, lambda _: "",
+        read_asset=lambda asset_id: (next(a["content"] for a in assets if a["id"] == asset_id), "image/png"),
+    )
+    has_ridge = theme_id == "ink_traces"
+    assert len(artwork) == clipboard["image_count"] == int(has_ridge)
     for markup in (html, clipboard["html"]):
         root = BeautifulSoup(markup, "html.parser").select_one(f'[data-theme-grammar="{grammar}"]')
-        assert [node.name for node in root.find_all(recursive=False)] == ["table"]
+        assert [node.name for node in root.find_all(recursive=False)] == (["section", "table"] if has_ridge else ["table"])
         assert "width:100%" in root.table["style"] and "table-layout:fixed" in root.table["style"]
         assert all(th["scope"] == "col" for th in root.select("thead th"))
         assert signature in root.th["style"]
         assert [td.get_text(separator="\n") for td in root.select("tbody td")] == ROWS[1]
         assert [th.get_text() for th in root.select("thead th")] == ["<name>", "A label", "Explanation"]
         assert root.select_one("th strong").get_text() == "label"
-        assert not root.select("img, [aria-hidden]")
+        assert not root.table.select("img, [aria-hidden]")
+        if has_ridge:
+            ridge = root.select_one(':scope > section[aria-hidden="true"] img')
+            assert ridge["alt"] == "" and ridge["src"].startswith("data:image/png;base64,")
+            assert len(root.select("tr")) == len(ROWS)
+        else:
+            assert not root.select("img, [aria-hidden]")
 
 
 @pytest.mark.parametrize(("theme_id", "grammar", "_signature"), TABLES)
@@ -71,7 +88,7 @@ def test_bundled_themes_do_not_shadow_or_delete_local_files(tmp_path, monkeypatc
 
     for key in ("_pack_dir", "_reserved_ids", "_core_components", "_installed", "_load_errors"):
         monkeypatch.setattr(theme_packs, key, getattr(theme_packs, key))
-    assert {theme_id for theme_id, _, _ in TABLES} == set(ORIGINAL_BUNDLED_THEME_IDS)
+    assert set(ORIGINAL_BUNDLED_THEME_IDS) < {theme_id for theme_id, _, _ in TABLES}
     original = theme_pack("weekend_fieldnotes")
     local = {**original, "name": "旧本机试验版"}
     folder = tmp_path / local["id"]
@@ -146,6 +163,20 @@ def test_parallel_columns_use_equal_header_and_body_emphasis_with_row_stripes(ma
         assert all(len(styles(row, "font-weight")) == 1 for row in rows)
         assert styles(rows[0], "background-color") == styles(rows[2], "background-color")
         assert styles(rows[0], "background-color") != styles(rows[1], "background-color")
+
+
+@pytest.mark.parametrize("theme_id", ["indigo_cloth", "night_walk_illustration", "ink_traces"])
+def test_two_column_table_does_not_imply_a_row_header(theme_id):
+    config = visual_system_configuration(theme_id)
+    raw = render_generated_table([["周六", "周日"], ["出发", "回程"], ["步行", "骑行"]], config)
+    table = BeautifulSoup(raw, "html.parser").table
+    assert len(table.select("tr")) == 3
+    headers = table.select("th")
+    assert len({th["style"].split("background-color:", 1)[1].split(";", 1)[0] for th in headers}) == 1
+    rows = [row.select("td") for row in table.select("tbody tr")]
+    for row in rows:
+        assert len({td["style"].split("background-color:", 1)[1].split(";", 1)[0] for td in row}) == 1
+        assert all("font-weight:" not in cell["style"] for cell in row)
 
 
 def test_pixel_compacts_only_wide_tables_and_strengthens_column_rules(manifest):

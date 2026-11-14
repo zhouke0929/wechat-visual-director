@@ -29,13 +29,13 @@ VISUAL_SYSTEM_ORDER = LEGACY_VISUAL_SYSTEM_ORDER + BUNDLED_THEME_IDS
 # Browsing taxonomy only. Neither registration order nor recommendation uses it.
 OFFICIAL_THEME_GROUPS = {
     "清新自然": ("light_reading", "natural_atlas", "light_gallery", "candidate_light_blue_watercolor"),
-    "生活手帐": ("warm_humanist", "weekend_fieldnotes", "round_table_bistro", "ticket_and_stub"),
+    "生活手帐": ("warm_humanist", "weekend_fieldnotes"),
     "手作绘本": ("youth_campus", "collage_fieldguide", "color_paper_corners",
                "paper_fold", "toy_storybook", "indigo_cloth"),
     "东方意境": ("oriental_archive", "folded_fan_detail", "ink_traces"),
     "杂志与海报": ("editorial_contrast", "vintage_press", "business_review", "pop_poster"),
     "光影叙事": ("cinematic_story", "after_screening", "night_walk_illustration"),
-    "数字与导视": ("structured_grid", "future_tech", "retro_window", "city_wayfinding", "pixel_live", "soft_emboss"),
+    "数字与导视": ("structured_grid", "future_tech", "retro_window", "pixel_live"),
 }
 _OFFICIAL_THEME_GROUP_BY_ID = {
     theme_id: (label, order)

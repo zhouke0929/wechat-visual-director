@@ -14,14 +14,16 @@ from .component_catalog import (
 from .components import render_component
 from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
+from .renderer import _render_heading
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
+from .theme_pair_samples import COMPARISON, TIMELINE
 from .theme_packs import BUNDLED_THEME_IDS, bundled_theme_acceptance, check_theme_pack_delivery, theme_pack, theme_pack_load_errors
 from .theme_specimens import build_production_specimens
 
 
 THEME_GALLERY_SCHEMA_VERSION = "theme_gallery.v0.5"
 
-THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
+THEME_FIXTURE = f"""# 把复杂选择变成一条清晰的行动路线
 
 真正有效的排版，不是把每一段都装进卡片，而是帮助读者迅速看见重点、证据和下一步。
 
@@ -51,11 +53,15 @@ THEME_FIXTURE = """# 把复杂选择变成一条清晰的行动路线
 
 一份普通课程作业保留了问题、过程和结果后，就能从文件夹里的交付物变成可以解释能力的项目案例。
 
-过去常见的做法是每一段都叠加醒目的装饰。
+{TIMELINE[0]}
 
-更合适的做法是让正文承担叙事，让组件只服务于重点。
+{TIMELINE[1]}
 
 组件不得增加正文中不存在的事实、判断或行动建议。
+
+{COMPARISON[0]}
+
+{COMPARISON[1]}
 """
 
 
@@ -118,8 +124,8 @@ def _fixture_bindings(parsed: ParsedArticle) -> dict[str, dict[str, str | list[s
         "warning_note": {"body": paragraphs[7].id},
         "faq_card": {"question": question_title.id, "answer": paragraphs[1].id},
         "comparison_card": {
-            "left": paragraphs[5].id,
-            "right": paragraphs[6].id,
+            "left": paragraphs[8].id,
+            "right": paragraphs[9].id,
         },
         "section_summary": {"items": item_refs},
     }
@@ -151,6 +157,17 @@ def _component_specimen(
             else COMPONENT_CATALOG[component_type]["system_variants"][variant_source]["label"]
         ),
         "status": (
+            "wechat_candidate" if (visual_system, component_type) in {
+                ("light_reading", "logic_path"),
+                ("warm_humanist", "question_hook"),
+                ("warm_humanist", "logic_path"),
+                ("editorial_contrast", "logic_path"),
+                *(("future_tech", role) for role in (
+                    "question_hook", "numbered_insight", "evidence_callout", "logic_path", "concept_explainer",
+                    "case_card", "warning_note", "action_checklist", "faq_card", "comparison_card", "section_summary",
+                )),
+                *(("oriental_archive", role) for role in CORE_THEME_COMPONENTS),
+            } else
             ("wechat_verified" if bundled_theme_acceptance(visual_system) else "wechat_candidate")
             if manifest and manifest.get("design_system") else
             COMPONENT_CATALOG[component_type].get("variant_statuses", {}).get(variant, COMPONENT_CATALOG[component_type]["status"])
@@ -528,11 +545,11 @@ def _rhythm_primitives(
         return [
             {
                 "role": "section_heading",
-                "label": "杂志大号章节",
-                "html": (
-                    f'<section style="margin:44px 0 22px;padding:0 0 10px;white-space:normal;"><span style="display:inline-block;width:19%;color:{palette["sky_pale"]};font-family:Georgia,serif;font-size:46px;font-weight:800;line-height:.92;vertical-align:top;">01</span>'
-                    f'<section style="box-sizing:border-box;display:inline-block;width:81%;padding:2px 0 10px 16px;border-left:5px solid {secondary};vertical-align:top;"><strong style="display:block;color:{ink};font-size:21px;line-height:1.52;">从趋势信号中识别真正变化</strong>'
-                    f'<p style="height:3px;margin:11px 0 0;background:linear-gradient(90deg,{accent} 0%,{accent} 28%,{palette["sky_pale"]} 28%);"></p></section></section>'
+                "label": "信号节点章节",
+                "html": _render_heading(
+                    ContentBlock("sample_heading", "heading", "从趋势信号中识别真正变化", 2),
+                    {**visual_system_configuration("future_tech"), "palette": palette},
+                    1,
                 ),
             },
             {
@@ -557,7 +574,7 @@ def _rhythm_primitives(
                 "html": (
                     f'<section style="margin:30px 0;padding:12px;border-radius:4px 36px 4px 24px;background:linear-gradient(135deg,{pale},{palette["secondary_pale"]});box-shadow:6px 6px 0 {palette["sky_pale"]};">'
                     f'<section style="height:150px;border-radius:3px 28px 3px 20px;background:linear-gradient(140deg,{palette["sky_pale"]},{palette["secondary_pale"]});"><span style="display:block;width:72%;height:8px;margin:24px 0 16px;border-radius:10px;background-color:{secondary};"></span><span style="display:block;width:47%;height:8px;margin-left:24%;border-radius:10px;background-color:{accent};"></span></section>'
-                    f'<p style="margin:9px 2px 2px;color:#69738F;font-size:9px;font-weight:800;letter-spacing:.1em;text-align:right;">VISUAL / FUTURE EDITION</p></section>'
+                    '</section>'
                 ),
             },
             {
@@ -573,7 +590,7 @@ def _rhythm_primitives(
                 "label": "极光要点收束",
                 "html": (
                     f'<section style="margin:36px 0 0;padding:19px 18px;border-radius:4px 42px 4px 26px;background:linear-gradient(135deg,{palette["secondary_pale"]},{pale});box-shadow:7px 7px 0 {palette["sky_pale"]};">'
-                    f'<p style="margin:0 0 9px;color:{primary};font-size:10px;font-weight:800;">要点回收</p><p style="margin:0;color:{ink};font-size:16px;font-weight:750;line-height:1.75;">保留有效信号，进入下一次真实验证</p></section>'
+                    f'<p style="margin:0;color:{ink};font-size:16px;font-weight:750;line-height:1.75;">保留有效信号，进入下一次真实验证</p></section>'
                 ),
             },
         ]

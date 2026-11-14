@@ -116,15 +116,17 @@ def main():
                 brand = page.get_by_role("link", name="视觉主编首页")
                 gallery_brand = brand.bounding_box()
                 cards = page.get_by_role("region", name="官方视觉主题").get_by_role("article")
-                assert cards.count() == 30
+                assert cards.count() == 26
+                assert cards.filter(has_text="浅浮雕按钮").count() == 0
+                assert cards.filter(has_text="票面与副联").count() == 0
                 # The optional diagnostic fixture adds a visible warning before the grid.
                 diagnostic = page.get_by_role("status", name="暂不可用的主题")
                 diagnostic_height = diagnostic.bounding_box()["height"] + 24 if diagnostic.count() else 0
                 assert cards.first.bounding_box()["y"] - diagnostic_height < 380, "theme cards should start near the top"
                 first_two = [cards.nth(i).bounding_box() for i in (0, 1)]
                 assert first_two[0]["y"] == first_two[1]["y"], "compact multi-column catalog"
-                group_counts = {"清新自然": 4, "生活手帐": 4, "手作绘本": 6, "东方意境": 3,
-                                "杂志与海报": 4, "光影叙事": 3, "数字与导视": 6}
+                group_counts = {"清新自然": 4, "生活手帐": 2, "手作绘本": 6, "东方意境": 3,
+                                "杂志与海报": 4, "光影叙事": 3, "数字与导视": 4}
                 group_filters = page.get_by_role("group", name="按主题分组筛选")
                 assert group_filters.get_by_role("button").all_text_contents() == ["全部", *group_counts]
                 filtered_links = []
@@ -132,9 +134,9 @@ def main():
                     group_filters.get_by_role("button", name=group, exact=True).click()
                     assert cards.count() == count
                     filtered_links.extend(cards.get_by_role("link").evaluate_all("(links) => links.map(link => link.href)"))
-                assert len(set(filtered_links)) == len(filtered_links) == 30
+                assert len(set(filtered_links)) == len(filtered_links) == 26
                 page.get_by_role("button", name="全部", exact=True).click()
-                assert cards.count() == 30
+                assert cards.count() == 26
                 page.get_by_role("button", name="我的主题", exact=False).click()
                 assert page.get_by_role("button", name="导入第一套主题").is_visible()
                 page.get_by_role("button", name="官方主题", exact=False).click()
@@ -165,14 +167,18 @@ def main():
                 assert page.locator('[data-gallery-production-article]').count() == 1
                 assert preview.bounding_box()["y"] >= 0, "switching modes from lower down should show the start"
                 assert page.locator('[data-gallery-production-article] [data-editor-block-type="quote"]').count() == 1
-                page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/city_wayfinding", wait_until="networkidle")
-                page.get_by_role("heading", name="城市导视", exact=True).wait_for()
+                page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/color_paper_corners", wait_until="networkidle")
+                page.get_by_role("heading", name="彩纸角标", exact=True).wait_for()
                 assert page.locator('[data-gallery-production-article] [data-theme-layout="heading"]').count() > 0
                 page.locator("#theme-delivery summary").click()
-                assert page.get_by_text("该版验收稿已通过复制粘贴和 API 保存实测。", exact=False).is_visible()
+                assert page.get_by_text("微信保存后的实际效果尚待核对。", exact=False).is_visible()
+                page.goto(f"{gallery}/ink_traces", wait_until="networkidle")
+                ink_article = page.locator('[data-gallery-production-article]')
+                assert ink_article.locator('[data-theme-grammar="ink-traces-landscape-table"] table').count() == 1
                 page.get_by_role("button", name="02　主题部件库").click()
                 assert page.locator('[id^="foundation-"]').count() == 14
                 assert page.locator('[id^="component-"]').count() == 12
+                assert page.locator('#foundation-table [data-theme-grammar="ink-traces-landscape-table"] img').count() == 1
                 component_cards = page.locator('[id^="component-"]')
                 assert component_cards.locator('[class*="specimenInfo"] > p').count() == 0, "omit variant names"
                 assert component_cards.locator('[class*="specimenInfo"] > span').count() == 12, "keep only component index labels"
@@ -195,7 +201,7 @@ def main():
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery", wait_until="networkidle")
                     diagnostic = page.get_by_role("status", name="暂不可用的主题")
                     assert diagnostic.is_visible() and "公开故障试样" in diagnostic.inner_text()
-                    assert page.locator('a[href^="/theme-gallery/"]').count() >= 30
+                    assert page.locator('a[href^="/theme-gallery/"]').count() >= 26
                     assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
                     diagnostic.screenshot(path=str(output / f"unavailable-notice-{width}.png"))
                     page.goto(f"http://127.0.0.1:{args.web_port}/theme-gallery/broken_fixture", wait_until="networkidle")

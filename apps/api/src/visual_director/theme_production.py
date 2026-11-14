@@ -11,6 +11,7 @@ from .planner import generate_plans
 from .publication import _materialized_image_markup
 from .renderer import _opening_highlight, render_preview
 from .theme_layouts import ROLE_FIELDS
+from .theme_pair_samples import review_pair
 
 
 class _LayoutProbe(HTMLParser):
@@ -50,10 +51,11 @@ class _LayoutProbe(HTMLParser):
         return any(key is None or any(node.get(key) == value for node in ancestors)
                    for ancestors in self.roles.get(role, []))
 
-    def contains(self, block_id, *, tag=None, content_role=None):
+    def contains(self, block_id, *, tag=None, content_role=None, attribute=None):
         return any(
             (tag is None or name == tag)
             and (content_role is None or ancestors[-1].get("data-content-role") == content_role)
+            and (attribute is None or ancestors[-1].get(attribute[0]) == attribute[1])
             and any(node.get("data-editor-block-ids") == block_id for node in ancestors)
             for name, ancestors in self.nodes
         )
@@ -61,6 +63,8 @@ class _LayoutProbe(HTMLParser):
 
 def _fixture(long: bool):
     phrase = "观察具体条件，再说明自己的判断，不补写不存在的事实。" * (5 if long else 1)
+    before, after = review_pair("before_after_timeline", long=long)
+    left, right = review_pair("comparison_card", long=long)
     return parse_markdown(f"""# 正式主题链路检查
 
 本文从阅读顺序、正文层级与图文关系出发，说明怎样保持完整而清楚的表达。{phrase}
@@ -87,11 +91,15 @@ def _fixture(long: bool):
 
 笔记保留了问题、过程与结果。{phrase}
 
-原来的方式只保留结论。{phrase}
+{before}
 
-新的方式也保留判断依据。{phrase}
+{after}
 
 注意：这只是程序测试的公开合成内容。{phrase}
+
+{left}
+
+{right}
 
 ---
 
@@ -138,7 +146,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
             "evidence_callout": {"evidence": quote.id},
             "warning_note": {"body": paragraphs[6].id},
             "before_after_timeline": {"before": paragraphs[4].id, "after": paragraphs[5].id},
-            "comparison_card": {"left": paragraphs[4].id, "right": paragraphs[5].id},
+            "comparison_card": {"left": paragraphs[7].id, "right": paragraphs[8].id},
             **{role: {"items": refs(lists[1] if role == "logic_path" else lists[0])}
                for role in ("numbered_insight", "logic_path", "action_checklist", "section_summary")},
         }
@@ -155,8 +163,18 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
                 "source": plain.contains(next(b.id for b in parsed.blocks if b.type == "source"), content_role="source"),
                 "reference_list": plain.contains(next(b.id for b in parsed.blocks if b.type == "reference_list"), content_role="reference-list"),
             }.items():
-                foundations.append({"role": role, "length": length, "status": "pass" if hit else "blocking",
-                                    **({} if hit else {"message": "正式正文未保留该基础样式或编号语义"})})
+                case = {"role": role, "length": length, "status": "pass" if hit else "blocking"}
+                if not hit:
+                    case["message"] = "正式正文未保留该基础样式或编号语义"
+                if role == "ordered_list":
+                    if plain.owns("list", "data-editor-block-ids", lists[1].id):
+                        case["layout_source"] = "authored"
+                    elif plain.contains(lists[1].id, attribute=("data-theme-list-fallback", "numbering")):
+                        case["layout_source"] = "numbering_fallback"
+                        case["design_review"] = "review_required"
+                    else:
+                        case["layout_source"] = "shared"
+                foundations.append(case)
             picture = _LayoutProbe(_materialized_image_markup(
                 element_id="probe-image", anchor_class="source-image-anchor", content_url="asset://probe-image",
                 width=600, height=400, alt="公开图文检查", frame_variant="neutral",

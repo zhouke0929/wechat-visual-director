@@ -17,6 +17,7 @@ from PIL import Image
 from .component_catalog import RENDERER_VERSION, VISUAL_SYSTEM_ORDER, CORE_THEME_COMPONENTS
 from .generated_theme import render_generated_heading
 from .theme_layouts import ROLE_FIELDS, render_layout
+from .theme_pair_samples import review_pair
 from .theme_packs import THEME_PACK_MAX_BYTES, validate_theme_pack_bytes
 from .preview_profiles import BODY_PADDING_X, PREVIEW_CONFIG, REVIEW_PROFILES, preview_css, scale_preview_fonts
 
@@ -118,7 +119,11 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
             specimens = []
             roles = [role for role in ROLE_FIELDS if role in layouts and not (role == "divider" and length == "long")]
             for role in roles:
-                markup = render_layout(role, payload, config)
+                role_payload = payload
+                if role in {"before_after_timeline", "comparison_card"}:
+                    left, right = review_pair(role, long=length == "long")
+                    role_payload = {**payload, "left": left, "right": right}
+                markup = render_layout(role, role_payload, config)
                 # Only this known fixture asset is inlined. Theme-supplied media
                 # remains prohibited by render_layout; no remote fetching.
                 markup = markup.replace('/api/v1/theme-review-image', photo)

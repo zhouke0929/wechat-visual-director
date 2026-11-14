@@ -3,7 +3,7 @@
   "id": "retro_window",
   "name": "旧式窗口",
   "english": "RETRO WINDOW",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "author": "Visual Director Theme Lab",
   "base_theme": "light_reading",
   "description": "用细标题栏、叠放图窗和菜单索引组织材料，适合观察记录、复盘和操作指南。",
@@ -82,8 +82,9 @@
           {
             "type": "row",
             "widths": [
-              26,
-              74
+              20,
+              60,
+              20
             ],
             "children": [
               {
@@ -138,12 +139,18 @@
                   "size": "label",
                   "color": "primary",
                   "weight": 700,
-                  "align": "right"
+                  "align": "center"
                 }
-              }
+              },
+              {"type":"drawing","width":38,"height":12,"parts":[
+                {"kind":"polyline","points":[[2,8],[8,8]],"stroke":"primary","stroke_width":1.1},
+                {"kind":"polyline","points":[[14,3],[21,3],[21,9],[14,9],[14,3]],"stroke":"primary","stroke_width":1},
+                {"kind":"polyline","points":[[27,3],[33,9]],"stroke":"primary","stroke_width":1},
+                {"kind":"polyline","points":[[33,3],[27,9]],"stroke":"primary","stroke_width":1}
+              ],"style":{"align":"right","margin":[3,0,0,0]}}
             ],
             "style": {
-              "background": "pale",
+              "background": "secondary_pale",
               "padding": [
                 4,
                 11,
@@ -167,10 +174,10 @@
               "weight": 800,
               "line_height": 1.4,
               "padding": [
-                19,
-                24,
-                22,
-                24
+                15,
+                16,
+                17,
+                16
               ]
             }
           }
@@ -181,7 +188,7 @@
             "color": "primary",
             "style": "solid"
           },
-          "background": "accent_pale",
+          "background": "surface",
           "margin": [
             0,
             0,
@@ -192,19 +199,19 @@
       },
       "heading": {
         "type": "marker_row",
-        "marker_width": 13,
-        "gap": 9,
+        "marker_width": 8,
+        "gap": 5,
         "children": [
           {
             "type": "field",
             "bind": "index",
             "style": {
               "font": "mono",
-              "size": "body",
+              "size": "label",
               "line_height": 1.6,
               "weight": 750,
               "color": "primary",
-              "background": "pale",
+              "background": "secondary_pale",
               "align": "center",
               "margin": [
                 2,
@@ -219,48 +226,35 @@
             "bind": "title",
             "style": {
               "size": "heading",
-              "line_height": 1.45
+              "line_height": 1.45,
+              "color": "ink"
             }
           }
         ],
         "style": {
-          "border_top": {
-            "width": 1,
-            "color": "primary",
-            "style": "solid"
-          },
-          "padding": [
-            10,
-            0,
-            0,
-            0
-          ]
+          "background": "pale",
+          "border_top": {"width": 2, "color": "primary", "style": "solid"},
+          "border_bottom": {"width": 1, "color": "secondary", "style": "solid"},
+          "padding": [4, 5, 5, 7]
         }
       },
       "subheading": {
-        "type": "field",
-        "bind": "title",
-        "style": {
-          "size": "subheading",
-          "color": "primary",
-          "weight": 750,
-          "border_left": {
-            "width": 3,
-            "color": "primary",
-            "style": "solid"
-          },
-          "padding": [
-            1,
-            0,
-            1,
-            10
-          ]
-        }
+        "type": "marker_row",
+        "marker_width": 7,
+        "gap": 6,
+        "children": [
+          {"type":"drawing","width":19,"height":17,"parts":[
+            {"kind":"polygon","points":[[2,3],[6,3],[8,5],[16,5],[16,13],[2,13]],"fill":"secondary_pale","stroke":"primary","stroke_width":1},
+            {"kind":"polyline","points":[[3,7],[15,7]],"stroke":"primary","stroke_width":0.75}
+          ],"style":{"margin":[5,0,0,0]}},
+          {"type":"field","bind":"title","style":{"size":"subheading","line_height":1.48,"color":"primary","weight":750,
+            "padding":[0,0,3,0],"border_bottom":{"width":1,"color":"secondary","style":"dotted"}}}
+        ]
       },
       "quote": {
         "type": "marker_row",
         "marker_width": 9,
-        "gap": 7,
+        "gap": 8,
         "children": [
           {
             "type": "text",
@@ -272,7 +266,10 @@
               "font": "serif",
               "line_height": 1.4,
               "align": "center",
-              "background": "surface"
+              "background": "secondary_pale",
+              "padding": [2, 0, 0, 0],
+              "border_right": {"width":1,"color":"primary","style":"solid"},
+              "border_bottom": {"width":1,"color":"primary","style":"solid"}
             }
           },
           {
@@ -280,43 +277,32 @@
             "bind": "body",
             "style": {
               "font": "serif",
-              "weight": 700,
-              "line_height": 1.8
+              "weight": 560,
+              "line_height": 1.85,
+              "color":"ink",
+              "padding":[0,7,0,1]
             }
           }
         ],
         "style": {
-          "padding": [
-            7,
-            0,
-            9,
-            0
-          ],
-          "border_bottom": {
-            "width": 1,
-            "color": "secondary",
-            "style": "solid"
-          }
+          "padding": [8, 3, 8, 9],
+          "background":"pale",
+          "border_right":{"width":1,"color":"secondary","style":"solid"},
+          "border_bottom":{"width":1,"color":"primary","style":"solid"}
         }
       },
       "lead": {
-        "type": "field",
-        "bind": "body",
-        "style": {
-          "size": "body",
-          "line_height": 1.9,
-          "padding": [
-            0,
-            0,
-            0,
-            13
-          ],
-          "border_left": {
-            "width": 2,
-            "color": "secondary",
-            "style": "solid"
-          }
-        }
+        "type":"stack",
+        "children":[
+          {"type":"drawing","width":50,"height":16,"parts":[
+            {"kind":"polygon","points":[[1,8],[27,8],[27,14],[1,14]],"fill":"pale","stroke":"secondary","stroke_width":0.85},
+            {"kind":"polygon","points":[[6,4],[35,4],[35,14],[6,14]],"fill":"secondary_pale","stroke":"primary","stroke_width":1},
+            {"kind":"polyline","points":[[10,8],[29,8]],"stroke":"primary","stroke_width":0.9},
+            {"kind":"polyline","points":[[10,11],[22,11]],"stroke":"primary","stroke_width":0.7}
+          ],"style":{"margin":[0,0,0,8]}},
+          {"type":"field","bind":"body","style":{"size":"body","line_height":1.87,"padding":[7,8,7,12],
+            "border_top":{"width":1,"color":"primary","style":"solid"},"border_left":{"width":2,"color":"secondary_pale","style":"solid"}}}
+        ]
       },
       "list": {
         "type": "repeat",
@@ -324,36 +310,23 @@
         "children": [
           {
             "type": "marker_row",
-            "marker_width": 6,
-            "gap": 7,
+            "marker_width": 7,
+            "gap": 8,
             "children": [
               {
-                "type": "field",
-                "bind": "index",
-                "style": {
-                  "size": "caption",
-                  "font": "mono",
-                  "weight": 700,
-                  "color": "primary",
-                  "line_height": 1.9,
-                  "margin": [
-                    2,
-                    0,
-                    0,
-                    0
-                  ],
-                  "align": "right"
-                }
+                "type":"drawing","width":17,"height":15,"parts":[
+                  {"kind":"polygon","points":[[3,2],[11,7],[3,12]],"fill":"secondary_pale","stroke":"primary","stroke_width":1}
+                ],"style":{"margin":[7,0,0,1]}
               },
               {
                 "type": "field",
                 "bind": "item",
-                "style": {}
+                "style": {"line_height":1.85}
               }
             ],
             "style": {
               "padding": [
-                2,
+                3,
                 0,
                 2,
                 0
@@ -361,7 +334,7 @@
             }
           }
         ],
-        "style": {}
+        "style": {"padding":[1,0,1,5],"border_left":{"width":1,"color":"secondary","style":"dotted"}}
       },
       "question_hook": {
         "type": "stack",
@@ -1365,83 +1338,17 @@
         "type": "stack",
         "children": [
           {
-            "type": "stack",
-            "children": [
-              {
-                "type": "marker_row",
-                "marker_width": 10,
-                "gap": 5,
-                "children": [
-                  {
-                    "type": "drawing",
-                    "width": 21,
-                    "height": 8,
-                    "parts": [
-                      {
-                        "kind": "ellipse",
-                        "x": 1,
-                        "y": 2,
-                        "w": 4,
-                        "h": 4,
-                        "stroke": "accent",
-                        "fill": "accent",
-                        "stroke_width": 0.75
-                      },
-                      {
-                        "kind": "ellipse",
-                        "x": 8,
-                        "y": 2,
-                        "w": 4,
-                        "h": 4,
-                        "stroke": "sky",
-                        "fill": "sky",
-                        "stroke_width": 0.75
-                      },
-                      {
-                        "kind": "ellipse",
-                        "x": 15,
-                        "y": 2,
-                        "w": 4,
-                        "h": 4,
-                        "stroke": "secondary",
-                        "fill": "secondary",
-                        "stroke_width": 0.75
-                      }
-                    ],
-                    "style": {
-                      "margin": [
-                        2,
-                        0,
-                        0,
-                        4
-                      ]
-                    }
-                  },
-                  {
-                    "type": "text",
-                    "text": "证据摘录",
-                    "style": {
-                      "size": "label",
-                      "color": "primary",
-                      "weight": 720
-                    }
-                  }
-                ]
-              }
+            "type": "drawing",
+            "width": 50,
+            "height": 17,
+            "parts": [
+              {"kind":"polygon","points":[[1,1],[35,1],[35,13],[1,13]],"fill":"pale","stroke":"secondary","stroke_width":1},
+              {"kind":"polygon","points":[[12,4],[48,4],[48,16],[12,16]],"fill":"secondary_pale","stroke":"primary","stroke_width":1},
+              {"kind":"polyline","points":[[18,8],[41,8]],"stroke":"primary","stroke_width":0.85},
+              {"kind":"polyline","points":[[18,12],[34,12]],"stroke":"primary","stroke_width":0.85}
             ],
             "style": {
-              "background": "pale",
-              "padding": [
-                4,
-                5,
-                4,
-                6
-              ],
-              "border_bottom": {
-                "width": 1,
-                "color": "secondary",
-                "style": "solid"
-              }
+              "margin": [0, 0, 0, 0]
             }
           },
           {
@@ -1451,12 +1358,10 @@
               "color": "ink",
               "line_height": 1.85,
               "font": "serif",
-              "padding": [
-                8,
-                9,
-                2,
-                10
-              ]
+              "weight": 650,
+              "padding": [5, 9, 6, 10],
+              "border_left": {"width": 1, "color": "primary", "style": "solid"},
+              "border_bottom": {"width": 1, "color": "secondary", "style": "solid"}
             }
           }
         ],
@@ -2116,25 +2021,18 @@
             "type": "stack",
             "children": [
               {
-                "type": "field",
-                "bind": "title",
-                "style": {
-                  "size": "subheading",
-                  "weight": 780,
-                  "color": "primary",
-                  "border_bottom": {
-                    "width": 1,
-                    "color": "secondary",
-                    "style": "dotted"
-                  },
-                  "fit": "content",
-                  "padding": [
-                    2,
-                    5,
-                    1,
-                    0
-                  ]
-                }
+                "type": "marker_row",
+                "marker_width": 8,
+                "gap": 4,
+                "children": [
+                  {"type":"drawing","width":19,"height":15,"parts":[
+                    {"kind":"polygon","points":[[2,2],[12,2],[12,11],[2,11]],"fill":"secondary_pale","stroke":"primary","stroke_width":0.9},
+                    {"kind":"polyline","points":[[5,5],[9,5],[9,8],[5,8]],"stroke":"primary","stroke_width":0.75},
+                    {"kind":"polyline","points":[[12,11],[16,13]],"stroke":"primary","stroke_width":1.25}
+                  ],"style":{"margin":[4,0,0,0]}},
+                  {"type":"field","bind":"title","style":{"size":"subheading","weight":760,"color":"primary","line_height":1.45}}
+                ],
+                "style": {"fit":"content","padding":[3,8,3,6],"background":"pale","border_top":{"width":2,"color":"secondary_pale","style":"solid"}}
               },
               {
                 "type": "field",
@@ -2143,11 +2041,12 @@
                   "color": "ink",
                   "line_height": 1.85,
                   "padding": [
-                    3,
-                    0,
-                    0,
-                    0
-                  ]
+                    5,
+                    4,
+                    4,
+                    8
+                  ],
+                  "border_top": {"width":1,"color":"secondary","style":"solid"}
                 }
               }
             ],
@@ -2915,55 +2814,19 @@
         "type": "stack",
         "children": [
           {
-            "type": "stack",
-            "children": [
-              {
-                "type": "field",
-                "bind": "body",
-                "style": {
-                  "padding": [
-                    12,
-                    0,
-                    10,
-                    0
-                  ],
-                  "weight": 550
-                }
-              },
-              {
-                "type": "media"
-              }
+            "type":"marker_row","marker_width":10,"gap":7,
+            "children":[
+              {"type":"drawing","width":21,"height":17,"parts":[
+                {"kind":"polygon","points":[[2,2],[17,2],[17,13],[2,13]],"fill":"secondary_pale","stroke":"primary","stroke_width":0.9},
+                {"kind":"polyline","points":[[6,7],[8,9],[13,5]],"stroke":"primary","stroke_width":1.2},
+                {"kind":"polyline","points":[[7,15],[15,15]],"stroke":"primary","stroke_width":0.8}
+              ],"style":{"margin":[5,0,0,1]}},
+              {"type":"field","bind":"body","style":{"line_height":1.78,"color":"ink","weight":550}}
             ],
-            "style": {
-              "border_top": {
-                "width": 1,
-                "color": "primary",
-                "style": "solid"
-              },
-              "padding": [
-                0,
-                0,
-                6,
-                0
-              ]
-            }
+            "style":{"background":"pale","padding":[5,6,5,6],"border_top":{"width":1,"color":"primary","style":"solid"},
+              "border_bottom":{"width":1,"color":"secondary","style":"solid"}}
           },
-          {
-            "type": "rule",
-            "style": {
-              "border_top": {
-                "width": 1,
-                "color": "secondary",
-                "style": "solid"
-              },
-              "margin": [
-                0,
-                18,
-                0,
-                0
-              ]
-            }
-          }
+          {"type":"media"}
         ],
         "style": {}
       }

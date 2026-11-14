@@ -168,9 +168,7 @@ OFFICIAL_PACK_SURFACES = {
     "light_gallery": ("airy_open_page", "clean_editorial_stock"),
     "pixel_live": ("offset_poster", "quiet_technology_surface"),
     "collage_fieldguide": ("layered_sticker_wall", "field_notebook"),
-    "round_table_bistro": ("warm_tactile_paper", "clean_editorial_stock"),
     "retro_window": ("quiet_technology_surface", "annotated_report_paper"),
-    "city_wayfinding": ("signal_map_page", "precision_grid_surface"),
     "folded_fan_detail": ("rice_paper_folio", "bound_archive_page"),
     "color_paper_corners": ("layered_sticker_wall", "soft_margin_paper"),
     "paper_fold": ("soft_margin_paper", "warm_tactile_paper"),
@@ -179,8 +177,6 @@ OFFICIAL_PACK_SURFACES = {
     "indigo_cloth": ("woven_indigo", "field_notebook"),
     "night_walk_illustration": ("light_storyboard_page", "offset_poster"),
     "ink_traces": ("rice_paper_folio", "airy_open_page"),
-    "soft_emboss": ("matte_relief", "quiet_technology_surface"),
-    "ticket_and_stub": ("film_festival_program", "aged_newsprint"),
 }
 
 
