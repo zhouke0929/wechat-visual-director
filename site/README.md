@@ -156,7 +156,9 @@ site owner's access; local tests cannot prove rankings, indexing or citations.
 
 The site must not contain task databases, local settings, API keys, AppSecrets, access tokens, runtime logs, or unpublished company material. It intentionally cannot create tasks, generate images, or publish to WeChat.
 
-Before committing a theme change, run:
+Windows is the canonical renderer for the public snapshot. The consistency
+check compares layout and decoded decoration pixels, not PNG compression.
+Before committing a theme change, run on Windows:
 
 ```bash
 python scripts/export_theme_gallery.py

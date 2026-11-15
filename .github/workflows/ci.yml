@@ -24,6 +24,10 @@ jobs:
         run: python -m pip install -e "apps/api[dev]"
       - name: Verify static theme showcase is current
         id: gallery
+        # The published snapshot is canonical Windows output. macOS still
+        # verifies all themes in the API tests, but Pillow can round a small
+        # number of stroke-edge pixels differently there.
+        if: runner.os == 'Windows'
         run: python scripts/export_theme_gallery.py --check --diagnostic-output gallery-ci-diagnostic.json
       - name: Upload gallery mismatch for inspection
         if: failure() && steps.gallery.outcome == 'failure'
