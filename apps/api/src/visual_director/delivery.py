@@ -8,11 +8,12 @@ import json
 import re
 import zipfile
 from pathlib import Path
-from html.parser import HTMLParser
 from typing import Any, Callable
 
 import yaml
 from PIL import Image
+from .delivery_markup import DeliveryMarkup, preserve_wechat_decorative_nodes
+from .publication import render_frozen_asset_urls
 from .theme_delivery import legacy_drawing_present
 
 
@@ -49,20 +50,9 @@ class ClipboardPreparationError(ValueError):
         self.code = code
 
 
-class _ImageSources(HTMLParser):
-    def __init__(self, document: str):
-        super().__init__()
-        self.sources: list[str] = []
-        self.feed(document)
-
-    def handle_starttag(self, tag, attrs):
-        if tag == "img":
-            self.sources.append(dict(attrs).get("src") or "")
-
-
 def _embedded_clipboard_sources(body, assets, read_asset):
     """Read only referenced frozen assets. No URL fetching or image recompression."""
-    sources = _ImageSources(body).sources
+    sources = DeliveryMarkup(body).image_sources
     if len(sources) > CLIPBOARD_MAX_IMAGES:
         raise ClipboardPreparationError("clipboard_too_large", "图片数量超过复制上限（100 处）；请减少图片，或选择下方的备用交付方式。")
     by_source = {f'asset://{asset["asset_token"]}': asset for asset in assets}
@@ -232,9 +222,10 @@ def build_delivery_files(
     if cover_relative is None:
         raise ValueError("冻结版本缺少封面资产")
 
-    portable_html = _responsive_delivery_document(revision["frozen_html"])
-    for token, relative in token_to_relative.items():
-        portable_html = portable_html.replace(f'src="asset://{token}"', f'src="{relative}"')
+    portable_html = render_frozen_asset_urls(
+        preserve_wechat_decorative_nodes(_responsive_delivery_document(revision["frozen_html"])),
+        token_to_relative,
+    )
     body_html = extract_delivery_body(portable_html)
     files["article.md"] = (_frontmatter(revision["metadata"], cover_relative) + body_html + "\n").encode("utf-8")
     files["article.html"] = portable_html.encode("utf-8")
@@ -274,27 +265,32 @@ def build_clipboard_payload(
     hosted_asset_urls: dict[str, str] | None = None,
     read_asset: Callable[[str], tuple[Path | bytes, str]] | None = None,
 ) -> dict[str, Any]:
-    document = _clipboard_static_label_geometry(_responsive_delivery_document(revision["frozen_html"]))
+    document = preserve_wechat_decorative_nodes(
+        _clipboard_static_label_geometry(_responsive_delivery_document(revision["frozen_html"]))
+    )
     original_body = extract_delivery_body(document)
     if read_asset is not None and hosted_asset_urls is not None:
         raise ValueError("Choose embedded or hosted clipboard images, not both")
     embedded_urls = _embedded_clipboard_sources(original_body, assets, read_asset) if read_asset is not None else None
+    body_sources = set(DeliveryMarkup(original_body).image_sources)
     cover_url: str | None = None
+    token_to_url = {}
     for asset in assets:
-        used_in_body = f'src="asset://{asset["asset_token"]}"' in original_body
+        used_in_body = f'asset://{asset["asset_token"]}' in body_sources
         if hosted_asset_urls is not None and used_in_body and asset["id"] not in hosted_asset_urls:
             raise ValueError("正文图片尚未全部准备完成，未生成带图剪贴板内容")
         target = (embedded_urls or hosted_asset_urls or {}).get(asset["id"]) or absolute_asset_url(asset["id"])
-        document = document.replace(f'src="asset://{asset["asset_token"]}"', f'src="{target}"')
+        token_to_url[asset["asset_token"]] = target
         if asset["asset_role"] == "cover":
             cover_url = target
-    body_html = extract_delivery_body(document)
+    body_html = render_frozen_asset_urls(original_body, token_to_url)
+    images = DeliveryMarkup(body_html).image_sources
     if embedded_urls is not None:
-        if any(not source.startswith("data:image/") for source in _ImageSources(body_html).sources):
+        if any(not source.startswith("data:image/") for source in images):
             raise ClipboardPreparationError("clipboard_image_unresolved", "部分正文图片未能内嵌，未复制；请返回工作台检查图片。")
         if len(body_html.encode("utf-8")) > CLIPBOARD_HTML_MAX_BYTES:
             raise ClipboardPreparationError("clipboard_too_large", "图文超过本地复制保护上限（24 MiB），未复制；请下载交付包。")
-    image_count = len(re.findall(r"<img\b", body_html, flags=re.IGNORECASE))
+    image_count = len(images)
     image_transport = "no_images" if not image_count else "embedded_data" if embedded_urls is not None else "wechat_hosted" if hosted_asset_urls is not None else "local_urls"
     return {
         "schema_version": "clipboard_payload.v0.1",

@@ -889,6 +889,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 }
 .image-empty-contact span { color: var(--coral); font: 800 8px/1.2 Arial; letter-spacing: .16em; }
 .image-empty-contact p { max-width: 280px; margin: 6px 0 0; color: #69736f; font-size: 10px; }
+.image-generation-hint { margin: 0 0 12px; color: var(--muted); font-size: 12px; line-height: 1.6; }
 .image-slot-actions { margin-top: 12px; display: grid; grid-template-columns: 1.25fr 1fr .85fr; gap: 7px; }
 .image-slot-actions button,
 .image-upload-button {
@@ -906,6 +907,7 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 }
 .image-generate-button { border-color: var(--coral) !important; background: #f8ebe4 !important; color: #963f20 !important; }
 .image-generate-button:hover:not(:disabled) { background: var(--coral) !important; color: #fff !important; }
+.image-generate-button:disabled { cursor: not-allowed; opacity: .55; }
 .image-upload-button { position: relative; overflow: hidden; cursor: pointer; }
 .image-upload-button:hover:not(.disabled) { border-color: var(--teal); color: var(--teal); }
 .image-upload-button input { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; }

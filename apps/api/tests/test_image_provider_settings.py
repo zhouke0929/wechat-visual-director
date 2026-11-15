@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from visual_director.main import create_app
@@ -18,6 +19,10 @@ IMAGE_ENV_KEYS = (
     "IMAGE_API_RESOLUTION",
     "IMAGE_API_PROTOCOL",
     "IMAGE_API_SIZE",
+    "IMAGE_API_TIMEOUT_SECONDS",
+    "IMAGE_API_RETRY_DELAY_SECONDS",
+    "AGNES_IMAGE_TIMEOUT_SECONDS",
+    "AGNES_IMAGE_RETRY_DELAY_SECONDS",
     "GEMINI_API_KEY",
     "GEMINI_IMAGE_ENDPOINT",
     "GEMINI_IMAGE_MODEL",
@@ -62,6 +67,28 @@ def test_update_env_file_is_atomic_and_preserves_unrelated_lines(tmp_path: Path)
     assert not list(tmp_path.glob(".*.tmp"))
 
 
+@pytest.mark.parametrize("old_config, broken", [
+    ('VISUAL_DIRECTOR_IMAGE_PROVIDER=" "\n', False),
+    ('VISUAL_DIRECTOR_IMAGE_PROVIDER=unknown_legacy\n', True),
+    ('VISUAL_DIRECTOR_IMAGE_PROVIDER=images_api\nIMAGE_API_TIMEOUT_SECONDS=not-a-number\n', True),
+])
+def test_legacy_config_does_not_prevent_workbench_start(monkeypatch, tmp_path, old_config, broken):
+    _, env_file = _isolated_settings_app(monkeypatch, tmp_path)
+    env_file.parent.mkdir(exist_ok=True)
+    env_file.write_text(old_config, encoding="utf-8")
+    with TestClient(create_app(str(tmp_path / "legacy-settings.db"))) as client:
+        assert client.get("/health").status_code == 200
+        settings = client.get("/api/v1/settings/image-provider").json()["settings"]
+        assert settings["mode"] == "manual"
+        assert not settings["real_generation_available"]
+        assert ("image_settings_invalid" in settings["warnings"]) is broken
+        assert env_file.read_text(encoding="utf-8") == old_config
+        repaired = client.put("/api/v1/settings/image-provider", headers={"X-Settings-Intent": "local-operator"},
+                              json={"mode": "images_api", "api_key": "fake-local-test-only"})
+        assert repaired.status_code == 200, repaired.text
+        assert "image_settings_invalid" not in repaired.json()["settings"]["warnings"]
+
+
 def test_image_settings_write_only_key_and_hot_reload(monkeypatch, tmp_path: Path) -> None:
     app, env_file = _isolated_settings_app(monkeypatch, tmp_path)
     secret = "images-test-secret-never-return"
@@ -69,7 +96,7 @@ def test_image_settings_write_only_key_and_hot_reload(monkeypatch, tmp_path: Pat
     with TestClient(app) as client:
         initial = client.get("/api/v1/settings/image-provider")
         assert initial.status_code == 200
-        assert initial.json()["settings"]["mode"] == "mock"
+        assert initial.json()["settings"]["mode"] == "manual"
         assert initial.json()["settings"]["api_key_configured"] is False
 
         denied = client.put(

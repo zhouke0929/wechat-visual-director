@@ -486,6 +486,7 @@ export type ImageSlotList = {
   task_id: string;
   plan_id: string;
   provider_mode: ImageProviderMode;
+  real_generation_available: boolean;
   visual_system?: string;
   items: ImageSlotReview[];
 };
@@ -529,6 +530,7 @@ export type CoverWorkspace = {
   task_id: string;
   plan_id: string;
   provider_mode: ImageProviderMode;
+  real_generation_available: boolean;
   cover_brief: {
     title: string;
     article_type: string;

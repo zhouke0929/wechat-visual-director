@@ -54,6 +54,7 @@ const targetCards: Array<{
 ];
 
 function statusCopy(settings: ImageProviderSettings): string {
+  if (settings.warnings.includes("image_settings_invalid")) return "旧版生图配置无效，请重新保存图片模型连接";
   if (settings.mode === "manual") return "图片 API 未启用";
   if (settings.mode === "mock") return "当前使用本地演示";
   if (settings.real_generation_available) return "真实图片服务已就绪";

@@ -38,7 +38,6 @@ ORDERED_RE = re.compile(r"^\s*\d+[.)、]\s+(.+)$")
 DECORATIVE_BULLET_RE = re.compile(
     r"^\s*(?:🟥|🟦|🟧|🟩|🟨|💡|✅|❌|🔹|🔸|⚠️?)\s*(.+)$"
 )
-IMAGE_RE = re.compile(r"!\[[^\]]*]\([^)]*\)")
 IMAGE_LINE_RE = re.compile(r'^!\[([^\]]*)]\(([^)]+)\)\s*$')
 HORIZONTAL_RULE_RE = re.compile(r"^(?:-{3,}|\*{3,}|_{3,})$")
 SOURCE_PREFIX_RE = re.compile(
@@ -250,7 +249,7 @@ def parse_markdown(markdown: str, title_override: str | None = None) -> ParsedAr
 
     _flush_paragraph(blocks, paragraph)
     section_count = sum(1 for block in blocks if block.type == "heading" and (block.level or 0) >= 2)
-    image_count = len(IMAGE_RE.findall(body))
+    image_count = sum(block.type == "image_reference" for block in blocks)
     source_hash = hashlib.sha256(markdown.encode("utf-8")).hexdigest()
     return ParsedArticle(
         title=title,

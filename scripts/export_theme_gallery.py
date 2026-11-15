@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
+import io
 import json
+import re
 import shutil
 import sys
+from functools import lru_cache
 from pathlib import Path
 
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 API_SRC = ROOT / "apps" / "api" / "src"
@@ -18,6 +24,63 @@ from visual_director.theme_gallery import (  # noqa: E402
     THEME_GALLERY_SCHEMA_VERSION,
     build_theme_gallery,
 )
+
+DECORATION = re.compile(
+    r'(<img data-theme-decoration=")([a-f0-9]{64})'
+    r'(" data-decoration-compiler="[^"]+" src="data:image/png;base64,)([A-Za-z0-9+/=]+)(")'
+)
+
+
+@lru_cache(maxsize=512)
+def decoration_pixel_digest(encoded: str, file_digest: str) -> str:
+    data = base64.b64decode(encoded, validate=True)
+    if hashlib.sha256(data).hexdigest() != file_digest:
+        raise ValueError("Static theme decoration checksum mismatch")
+    with Image.open(io.BytesIO(data)) as image:
+        if (image.format, image.mode) != ("PNG", "RGBA") or not (
+            1 <= image.width <= 640 and 1 <= image.height <= 640
+        ):
+            raise ValueError("Static theme decoration must be a bounded RGBA PNG")
+        image.verify()
+    with Image.open(io.BytesIO(data)) as image:
+        pixels = image.tobytes()
+        # The PNG encoder may change its filters or compression per platform.
+        size = f"{image.width}x{image.height}:".encode("ascii")
+        return hashlib.sha256(size + pixels).hexdigest()
+
+
+def comparable_gallery(value, path: tuple[str | int, ...] = ()):
+    """Compare layout and pixels exactly, ignoring only derived PNG storage sizes."""
+    if isinstance(value, dict):
+        return {key: comparable_gallery(item, (*path, key)) for key, item in value.items()}
+    if isinstance(value, list):
+        return [comparable_gallery(item, (*path, index)) for index, item in enumerate(value)]
+    if isinstance(value, str):
+        def canonical_decoration(match: re.Match[str]) -> str:
+            pixel_digest = decoration_pixel_digest(match[4], match[2])
+            return f"{match[1]}{pixel_digest}{match[3]}{pixel_digest}{match[5]}"
+
+        return DECORATION.sub(canonical_decoration, value)
+    if (
+        len(path) == 7
+        and path[0] == "themes"
+        and path[2:5] == ("delivery_report", "rehearsal", "roles")
+        and isinstance(path[5], int)
+        and path[-1] == "decoration_bytes"
+        and type(value) is int
+        and value >= 0
+    ):
+        return None
+    return value
+
+
+def gallery_contents_match(current: str, expected: str) -> bool:
+    try:
+        left = comparable_gallery(json.loads(current))
+        right = comparable_gallery(json.loads(expected))
+    except (ValueError, OSError, SyntaxError):
+        return False
+    return left == right
 
 
 def render_payload() -> str:
@@ -66,7 +129,7 @@ def main() -> int:
     expected = render_payload()
     if args.check:
         current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
-        if current != expected or not sticker_assets_are_current():
+        if not gallery_contents_match(current, expected) or not sticker_assets_are_current():
             print("site/data/themes.json is stale; run scripts/export_theme_gallery.py")
             return 1
         print("static theme gallery is in sync")

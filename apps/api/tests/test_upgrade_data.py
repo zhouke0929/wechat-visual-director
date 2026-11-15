@@ -33,6 +33,27 @@ def test_upgrade_preserves_ids_and_assets_not_just_counts(tmp_path: Path) -> Non
     assert error.value.details["missing_task_count"] == 1
 
 
+@pytest.mark.parametrize("edit", ["article", "image_selection"])
+def test_upgrade_verifies_content_and_adoption_while_allowing_new_columns(tmp_path, edit):
+    install = tmp_path / "installed"
+    make_dataset(install / "data", ["old-task"])
+    db = install / "data/visual-director.db"
+    with sqlite3.connect(db) as connection:
+        connection.execute("ALTER TABLE tasks ADD COLUMN markdown TEXT DEFAULT '原来正文'")
+        connection.execute("CREATE TABLE image_slot_states (id TEXT PRIMARY KEY, selected_candidate_id TEXT)")
+        connection.execute("INSERT INTO image_slot_states VALUES ('slot', 'adopted')")
+    before = backup_upgrade_data(capture_upgrade_data(install))
+    with sqlite3.connect(db) as connection:
+        connection.execute("ALTER TABLE tasks ADD COLUMN content_edits_json TEXT DEFAULT '{}' ")
+    assert verify_upgrade_data(before, install)["preserved"]
+    with sqlite3.connect(db) as connection:
+        connection.execute("UPDATE tasks SET markdown = '错误正文'" if edit == "article" else
+                           "UPDATE image_slot_states SET selected_candidate_id = NULL")
+    with pytest.raises(DataRecoveryError) as error:
+        verify_upgrade_data(before, install)
+    assert error.value.details["changed_record_count"] == 1
+
+
 @pytest.mark.parametrize("asset", ["image-assets/image.png", "publication-assets/article.html"])
 def test_missing_or_changed_assets_block_success(tmp_path: Path, asset: str) -> None:
     install = tmp_path / "installed"

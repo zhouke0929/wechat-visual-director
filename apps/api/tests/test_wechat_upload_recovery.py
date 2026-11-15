@@ -2,7 +2,9 @@
 import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
+from http.client import IncompleteRead
 from io import BytesIO
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -121,7 +123,8 @@ def test_animated_webp_is_not_silently_flattened():
     assert error.value.errcode==40113
 
 
-def test_draft_timeout_after_explicit_rejection_remains_unknown(tmp_path):
+@pytest.mark.parametrize("transport_error", [TimeoutError('test-timeout'), IncompleteRead(b'{', 42)])
+def test_draft_transport_failure_after_explicit_rejection_remains_unknown(tmp_path, transport_error):
     assets,paths=_assets(tmp_path)
     creates=[]
     def request(req,**kwargs):
@@ -131,11 +134,118 @@ def test_draft_timeout_after_explicit_rejection_remains_unknown(tmp_path):
             creates.append(1)
             if len(creates)==1:
                 return _Response({'errcode':40001,'errmsg':'test-rejection'})
-            raise TimeoutError('test-timeout')
+            raise transport_error
         return _Response({'media_id':'test-image','url':'https://mmbiz.qpic.cn/test'})
     result=publisher(tmp_path,request).publish(_revision(),assets,lambda id:paths[id])
     assert result.status=='unknown' and not result.error['retryable']
     assert len(creates)==2
+
+
+@pytest.mark.parametrize("reply", [
+    b"<html>upstream error</html>", b"{}", b"[]", b'{"errcode":0}', b"",
+])
+def test_unconfirmed_http_draft_response_cannot_enable_retry(tmp_path, reply):
+    assets, paths = _assets(tmp_path)
+    drafts = []
+    def request(req, **kwargs):
+        if '/token?' in req.full_url:
+            return _Response({'access_token': 'test-token', 'expires_in': 7200})
+        if '/draft/add?' in req.full_url:
+            drafts.append(req)
+            raise HTTPError(req.full_url, 502, 'upstream error', None, BytesIO(reply))
+        return _Response({'media_id': 'test-image', 'url': 'https://mmbiz.qpic.cn/test'})
+    result = publisher(tmp_path, request).publish(_revision(), assets, lambda id: paths[id])
+    assert result.status == "unknown"
+    assert result.error["retryable"] is False
+    assert len(drafts) == 1
+
+
+@pytest.mark.parametrize("reply", [[], {"media_id": 123}, {"media_id": {"invalid": True}}])
+def test_malformed_success_body_is_not_successful_draft(tmp_path, reply):
+    assets, paths = _assets(tmp_path)
+    def request(req, **kwargs):
+        if '/token?' in req.full_url:
+            return _Response({'access_token': 'test-token', 'expires_in': 7200})
+        if '/draft/add?' in req.full_url:
+            return _Response(reply)
+        return _Response({'media_id': 'test-image', 'url': 'https://mmbiz.qpic.cn/test'})
+    result = publisher(tmp_path, request).publish(_revision(), assets, lambda id: paths[id])
+    assert result.status == "unknown"
+    assert result.media_id is None
+
+
+def test_wechat_saves_asset_protocol_as_prose_and_uploads_actual_image(tmp_path):
+    assets, paths = _assets(tmp_path)
+    articles = []
+    revision = _revision()
+    revision["frozen_html"] = revision["frozen_html"].replace(
+        '<img src="asset://body-one" />',
+        """<p>示例：src="asset://body-one"。</p><img src='asset://body-one' />""",
+    )
+
+    def request(req, **kwargs):
+        if "/token?" in req.full_url:
+            return _Response({"access_token": "test-token", "expires_in": 7200})
+        if "/draft/add?" in req.full_url:
+            articles.extend(json.loads(req.data)["articles"])
+            return _Response({"media_id": "test-draft"})
+        return _Response({"media_id": "test-image", "url": "https://mmbiz.qpic.cn/example"})
+
+    service = publisher(tmp_path, request)
+    result = service.publish(revision, assets, paths.__getitem__)
+    assert result.status == "succeeded"
+    assert len(articles) == 1
+    assert '示例：src="asset://body-one"。' in articles[0]["content"]
+    assert '<img src="https://mmbiz.qpic.cn/example" />' in articles[0]["content"]
+
+
+@pytest.mark.parametrize("src", ["asset://missing", "asset://cover", "/api/v1/unresolved.png", ""])
+def test_real_unresolved_image_blocks_both_wechat_paths_before_network(tmp_path, src):
+    assets, paths = _assets(tmp_path)
+    revision = _revision()
+    revision["frozen_html"] = revision["frozen_html"].replace('src="asset://body-one"', f'src="{src}"')
+    service = publisher(tmp_path, lambda *a, **kw: pytest.fail("No network request expected"))
+    result = service.publish(revision, assets, paths.__getitem__)
+    assert result.status == "failed" and result.error["code"] == "body_asset_upload_failed"
+    assert service.prepare_clipboard_images(revision, assets, paths.__getitem__)["error"]["code"] == "body_asset_upload_failed"
+
+
+@pytest.mark.parametrize("retry", [False, True])
+def test_truncated_draft_response_enters_reconciliation_not_running(tmp_path, retry):
+    calls = []
+
+    def request(req, **kwargs):
+        if '/token?' in req.full_url:
+            return _Response({'access_token': 'test-token', 'expires_in': 7200})
+        if '/draft/add?' not in req.full_url:
+            return _Response({'media_id': 'test-image', 'url': 'https://mmbiz.qpic.cn/test'})
+        calls.append(req)
+        if retry and len(calls) == 1:
+            return _Response({'errcode': 45009})
+        class TruncatedResponse(_Response):
+            def read(self, *args):
+                raise IncompleteRead(b'{', 42)
+        return TruncatedResponse({})
+
+    with TestClient(create_app(str(tmp_path / 'audit.db'), wechat_publisher=publisher(tmp_path, request))) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task)
+        revision = frozen['revision']
+        response = client.post(f'/api/v1/publication-revisions/{revision["id"]}/wechat-draft',
+                               headers={'Idempotency-Key': 'truncated-create'},
+                               json={'expected_task_version': frozen['task']['version'], 'draft_slot': revision['suggested_draft_slot']})
+        assert response.status_code == 200, response.text
+        if retry:
+            failed = response.json()
+            assert failed['operation']['status'] == 'failed'
+            response = client.post(f'/api/v1/draft-operations/{failed["operation"]["id"]}/wechat-retry',
+                                   headers={'Idempotency-Key': 'truncated-retry'},
+                                   json={'expected_task_version': failed['task']['version'], 'expected_operation_version': failed['operation']['version']})
+        assert response.status_code == 200, response.text
+        operation = response.json()['operation']
+        assert operation['status'] == 'unknown'
+        assert not operation['last_error']['retryable']
+        assert len(calls) == (2 if retry else 1)
 
 
 def test_connection_probe_invalidates_publisher_cache(tmp_path, monkeypatch):

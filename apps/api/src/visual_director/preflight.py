@@ -17,6 +17,11 @@ PREFLIGHT_RULESET_VERSION = "preflight_rules.v0.2-semantic-structure"
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 IMAGE_LINE_RE = re.compile(r"^!\[([^\]]*)]\(([^)]+)\)\s*$")
+INLINE_IMAGE_RE = re.compile(r"(?<![\\`])!\[([^\]]*)]\(([^)]+)\)")
+LINKED_IMAGE_RE = re.compile(r"(?<![\\`])!\[([^\]]*)]\[([^\]]*)]")
+LINK_DEFINITION_RE = re.compile(r"^\s{0,3}\[([^\]]+)]:\s+<?([^\s>]+)>?(?:\s+.+)?$")
+FENCE_RE = re.compile(r"^\s{0,3}(`{3,}|~{3,})")
+NON_PARAGRAPH_RE = re.compile(r"^\s*(?:[#>|]|[-*+]\s|\d+[.)、]\s)|^ {4}|^\t")
 SECRET_ASSIGNMENT_RE = re.compile(
     r"(?im)\b(?:WECHAT_APP_SECRET|APP_SECRET|APPSECRET|API_KEY|ACCESS_TOKEN|SECRET_KEY)\b"
     r"\s*[:=]\s*['\"]?([A-Za-z0-9_./+\-=]{12,})"
@@ -73,7 +78,58 @@ def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def normalize_markdown(markdown: str) -> tuple[str, tuple[AutoRepair, ...]]:
+def _promote_paragraph_images(markdown: str) -> tuple[str, int]:
+    # Keep persisted block IDs stable by applying this only to new imports.
+    prefix = ""
+    if markdown.startswith("---\n"):
+        closing = markdown.find("\n---\n", 4)
+        if closing < 0:
+            return markdown, 0
+        prefix, markdown = markdown[:closing + 5], markdown[closing + 5:]
+    lines = markdown.split("\n")
+    fence = ""
+    prose: set[int] = set()
+    definitions: dict[str, tuple[int, str]] = {}
+    for index, line in enumerate(lines):
+        marker = FENCE_RE.match(line)
+        if marker:
+            token = marker[1]
+            if not fence:
+                fence = token
+            elif token[0] == fence[0] and len(token) >= len(fence) and not line[marker.end():].strip():
+                fence = ""
+        elif not fence and not NON_PARAGRAPH_RE.match(line):
+            definition = LINK_DEFINITION_RE.fullmatch(line)
+            if definition:
+                definitions.setdefault(" ".join(definition[1].split()).casefold(), (index, definition[2]))
+            elif not line.lstrip().startswith("<!--"):
+                prose.add(index)
+    promoted = 0
+    used: set[int] = set()
+    for index in sorted(prose):
+        line = lines[index]
+        if IMAGE_LINE_RE.fullmatch(line.strip()) or "`" in line:
+            continue
+        def resolve(match: re.Match[str]) -> str:
+            definition = definitions.get(" ".join((match[2] or match[1]).split()).casefold())
+            if definition is None:
+                return match[0]
+            used.add(definition[0])
+            return f"![{match[1]}]({definition[1]})"
+        line = LINKED_IMAGE_RE.sub(resolve, line)
+        lines[index], count = INLINE_IMAGE_RE.subn(lambda match: "\n\n" + match[0] + "\n\n", line)
+        promoted += count
+    for index in used:
+        # A definition might also be used by an ordinary reference link.
+        definition = LINK_DEFINITION_RE.fullmatch(lines[index])
+        label = re.escape(definition[1]) if definition else ""
+        if label and not any(re.search(rf"(?<!\!)\[[^\]]+\]\[{label}\]|(?<!\!)\[{label}\](?![(:])", line, re.I)
+                             for number, line in enumerate(lines) if number != index):
+            lines[index] = ""
+    return prefix + "\n".join(lines), promoted
+
+
+def normalize_markdown(markdown: str, *, promote_images: bool = True) -> tuple[str, tuple[AutoRepair, ...]]:
     """Apply only deterministic, semantics-preserving normalizations."""
 
     repairs: list[AutoRepair] = []
@@ -98,6 +154,10 @@ def normalize_markdown(markdown: str) -> tuple[str, tuple[AutoRepair, ...]]:
             trimmed_count += 1
         cleaned_lines.append(cleaned)
     normalized = "\n".join(cleaned_lines)
+    if promote_images:
+        normalized, promoted = _promote_paragraph_images(normalized)
+        if promoted:
+            repairs.append(AutoRepair("paragraph_images_promoted", f"已将 {promoted} 张正文图片保留为可补传的独立图块"))
     if trimmed_count:
         repairs.append(
             AutoRepair(
@@ -348,8 +408,9 @@ def run_preflight(
     *,
     title_override: str | None = None,
     requested_article_type: str | None = None,
+    promote_images: bool = True,
 ) -> PreflightResult:
-    normalized, repairs = normalize_markdown(markdown)
+    normalized, repairs = normalize_markdown(markdown, promote_images=promote_images)
     findings: list[PreflightFinding] = []
     parsed: ParsedArticle | None = None
 

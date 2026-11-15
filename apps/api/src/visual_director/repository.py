@@ -815,6 +815,36 @@ class Repository:
             for item in unresolved
         )
 
+    def ensure_preflight_report(self, task_id: str, report_builder: Any) -> dict[str, Any]:
+        """Backfill only a missing report; keep existing review decisions intact."""
+        with self.lock:
+            task = self.get_task(task_id)
+            summary = task["input_summary"]
+            if summary.get("preflight_report"):
+                return task
+            report = report_builder(task)
+            assets = {item["asset_key"]: item for item in self.list_preflight_asset_replacements(task_id)}
+            for finding in report["findings"]:
+                if finding["resolution_policy"] != "REPLACE_ASSET":
+                    continue
+                block_id = finding.get("block_id")
+                asset = assets.get(f"body:{block_id}" if block_id else "cover")
+                if asset:
+                    finding.update(
+                        resolved_at=task["updated_at"],
+                        resolved_by="legacy_asset_recovery",
+                        resolution_action="REPLACE_ASSET",
+                        resolution_evidence={"asset_id": asset["id"], **{
+                            key: asset[key] for key in ("asset_role", "content_url", "content_type", "output_sha256", "width", "height")
+                        }},
+                    )
+            self._refresh_preflight_permissions(report)
+            summary["preflight_report"] = report
+            self.connection.execute("UPDATE tasks SET input_summary_json = ? WHERE id = ?",
+                                    (json.dumps(summary, ensure_ascii=False), task_id))
+            self.connection.commit()
+            return task
+
     def replace_preflight_asset(
         self,
         *,

@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -215,7 +216,7 @@ def test_content_editor_autosaves_blocks_refreshes_preview_and_freezes_clean_htm
         assert 'data-editor-title="true"' in preview.text
         assert f'data-editor-block-ids="{paragraph["block_id"]}"' in preview.text
 
-        edited_copy = "这是运营在内容校对画布中修改并自动保存的新段落。"
+        edited_copy = "正文示例：按钮的 onclick = 默认值；only = enabled；这里的 asset:// 是示例文字。"
         saved = client.patch(
             f'/api/v1/article-tasks/{task["id"]}/content-editor',
             headers={"X-Operator-Id": "operator"},
@@ -275,6 +276,259 @@ def test_content_editor_autosaves_blocks_refreshes_preview_and_freezes_clean_htm
         assert "data-editor-title" not in frozen_html
         assert "data-editor-block-ids" not in frozen_html
         assert frozen["revision"]["plan_id"] == plan["id"]
+
+
+def test_legacy_optional_empty_field_is_cleaned_at_freeze_without_changing_preview(tmp_path: Path) -> None:
+    with TestClient(create_app(str(tmp_path / "legacy-empty-field.db"))) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        repo = client.app.state.repository
+        artifact_id = plan["preview_artifact_id"]
+        old = repo.get_artifact_record(artifact_id)["html"]
+        empty = '<p data-theme-field="caption" style="max-width:100%;border:0;"></p>'
+        ornament = '<span style="width:16px;height:3px;background-color:#aaa;"></span>'
+        legacy = old.replace("</main>", empty + ornament + "</main>")
+        repo.connection.execute("UPDATE artifacts SET html = ? WHERE id = ?", (legacy, artifact_id))
+        repo.connection.commit()
+        assert client.get(f'/api/v1/article-tasks/{task["id"]}/publication-readiness').json()["ready"]
+        revision = _freeze_publication(client, task)["revision"]
+        frozen = repo.get_publication_revision(revision["id"])["frozen_html"]
+        assert empty not in frozen
+        assert 'width:16px;height:3px;background-color:#aaa;">&#160;</span>' in frozen
+        assert repo.get_artifact_record(artifact_id)["html"] == legacy
+
+
+def test_official_themes_deliver_actual_images_without_blocking_prose(tmp_path: Path) -> None:
+    markdown = (
+        "# 周末观察笔记\n\n说明文字：only = enabled，asset:// 只是协议名。\n\n"
+        "## 三个观察步骤\n\n1. 找到一个具体画面\n2. 写下看到的细节\n3. 记录真实发生的事\n\n"
+        "## 原稿照片\n\n![](./without-caption.png)\n\n![街边窗户的反光](./with-caption.png)\n\n"
+        "> 停留片刻再下判断。\n\n| 项目 | 记录方式 |\n| --- | --- |\n| 光线 | 文字记录 |\n"
+    )
+    with TestClient(create_app(str(tmp_path / "html-delivery-matrix.db"), image_provider=ManualImageProvider())) as client:
+        created = client.post("/api/v1/article-tasks", data={"article_type": "tutorial_steps"},
+                              files={"markdown_file": ("matrix.md", markdown.encode(), "text/markdown")})
+        assert created.status_code == 201, created.text
+        payload = created.json()
+        task = payload["task"]
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        image = {"image_file": ("sample.png", _png_bytes(), "image/png")}
+        for item in payload["input_summary"]["preflight_report"]["findings"]:
+            assert item["code"] in {"missing_cover", "source_image_requires_import"}
+            data = {"expected_task_version": task["version"]}
+            if item["block_id"]:
+                data["block_id"] = item["block_id"]
+            response = client.post(f'{task_url}/preflight/findings/{item["code"]}/replace-asset', data=data, files=image)
+            assert response.status_code == 200, response.text
+            task = response.json()["task"]
+        generated = client.post(f"{task_url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]})
+        assert generated.status_code == 202, generated.text
+        plan = client.get(f"{task_url}/plans").json()["plans"][0]
+        plan_url = f'{task_url}/plans/{plan["id"]}'
+        slots = client.get(f"{plan_url}/image-slots").json()["items"]
+        assert slots
+        for index, slot in enumerate(slots):
+            slot_url = f'{plan_url}/image-slots/{slot["image_slot_id"]}'
+            data = {"expected_image_revision": slot["state"]["image_revision"]}
+            response = client.post(f"{slot_url}/skip", json=data) if index else client.post(f"{slot_url}/replace", data=data, files=image)
+            assert response.status_code == 200, response.text
+
+        for theme in VISUAL_SYSTEM_ORDER:
+            if theme != plan["visual_system"]:
+                response = client.patch(f"{plan_url}/theme", json={"visual_system": theme, "expected_plan_revision": plan["revision"]})
+                assert response.status_code == 200, (theme, response.text)
+                plan = response.json()["plan"]
+            readiness = client.get(f"{task_url}/publication-readiness").json()
+            assert readiness["ready"], (theme, readiness["blockers"])
+            copied = client.get(f"{task_url}/clipboard", headers={"X-Local-Intent": "local-operator"},
+                                params={"plan_id": plan["id"], "plan_revision": plan["revision"], "content_revision": 0})
+            assert copied.status_code == 200, (theme, copied.text[:800])
+            assert copied.json()["image_count"] >= 3, theme
+            assert "asset:// 只是协议名" in copied.json()["html"], theme
+
+
+@pytest.mark.parametrize("operation", ["undo", "restore"])
+def test_restoring_theme_rebinds_infographic_to_current_article(tmp_path: Path, operation: str) -> None:
+    app = create_app(str(tmp_path / "edited-theme-history.db"))
+    with TestClient(app) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        plan_url = f'{task_url}/plans/{plan["id"]}'
+        new_theme = next(theme for theme in VISUAL_SYSTEM_ORDER if theme != plan["visual_system"])
+        switched = client.patch(f"{plan_url}/theme", json={
+            "visual_system": new_theme, "expected_plan_revision": plan["revision"],
+        })
+        assert switched.status_code == 200, switched.text
+        editor = client.get(f"{task_url}/content-editor").json()
+        ordered = next(item for item in editor["blocks"] if item["type"] == "ordered_list")
+        updated = "重新核对最新的目标院校"
+        saved = client.patch(f"{task_url}/content-editor", json={
+            "expected_revision": editor["revision"], "target": "block",
+            "block_id": ordered["block_id"], "content": [updated, *ordered["content"][1:]],
+        })
+        assert saved.status_code == 200, saved.text
+        suffix = "undo" if operation == "undo" else f'revisions/{plan["revision"]}/restore'
+        result = client.post(f"{plan_url}/{suffix}", json={"expected_plan_revision": switched.json()["revision"]})
+        assert result.status_code == 200, result.text
+        restored = client.get(f"{task_url}/plans").json()["plans"][0]
+        assert restored["visual_system"] == plan["visual_system"]
+        assert updated in client.get(result.json()["preview_url"]).text
+        assert any(updated in slot["visual_intent"]["fact_anchors"] for slot in restored["image_slots"])
+
+
+@pytest.mark.parametrize("switch_after_edit", [False, True])
+def test_host_image_context_after_content_edit_accepts_fresh_bound_facts(tmp_path: Path, switch_after_edit: bool) -> None:
+    app = create_app(str(tmp_path / "edited-host-image.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        plan_url = f'{task_url}/plans/{plan["id"]}'
+        editor = client.get(f"{task_url}/content-editor").json()
+        ordered = next(item for item in editor["blocks"] if item["type"] == "ordered_list")
+        slot_id = next(slot["image_slot_id"] for slot in plan["image_slots"]
+                       if slot["purpose"] == "structured_infographic" and ordered["block_id"] in slot["source_block_ids"])
+
+        def request_for_slot():
+            requests = client.get(f"{plan_url}/host-image-context").json()["requests"]
+            return next(request for request in requests if request["image_slot_id"] == slot_id)
+
+        def import_candidate(request):
+            return client.post(
+                f"{plan_url}/image-slots/{slot_id}/host-import",
+                data={key: str(request[key]) for key in ("request_id", "expected_plan_revision", "expected_image_revision")},
+                files={"image_file": ("host.png", _png_bytes(), "image/png")},
+            )
+
+        before = request_for_slot()
+        updated = "先复核目标院校"
+        saved = client.patch(f"{task_url}/content-editor", json={
+            "expected_revision": editor["revision"], "target": "block",
+            "block_id": ordered["block_id"], "content": [updated, *ordered["content"][1:]],
+        })
+        assert saved.status_code == 200, saved.text
+        after = request_for_slot()
+        assert updated in after["locked_copy"]
+        assert after["request_id"] != before["request_id"]
+        if switch_after_edit:
+            theme = next(theme for theme in VISUAL_SYSTEM_ORDER if theme != plan["visual_system"])
+            switched = client.patch(f"{plan_url}/theme", json={
+                "visual_system": theme, "expected_plan_revision": plan["revision"],
+            })
+            assert switched.status_code == 200, switched.text
+        assert import_candidate(before).status_code == 409
+        imported = import_candidate(after)
+        assert imported.status_code == 200, imported.text
+
+
+def test_edited_infographic_facts_block_delivery_but_unrelated_text_does_not(tmp_path: Path) -> None:
+    with TestClient(create_app(str(tmp_path / "infographic-delivery.db"), image_provider=ManualImageProvider())) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        plan_url = f'{task_url}/plans/{plan["id"]}'
+        requests = client.get(f"{plan_url}/host-image-context").json()["requests"]
+        request = next(item for item in requests if item["locked_copy"])
+        slot_url = f'{plan_url}/image-slots/{request["image_slot_id"]}'
+        imported = client.post(f"{slot_url}/host-import",
+                               data={key: str(request[key]) for key in ("request_id", "expected_plan_revision", "expected_image_revision")},
+                               files={"image_file": ("host.png", _png_bytes(), "image/png")})
+        assert imported.status_code == 200, imported.text
+        state = imported.json()["image_slot"]
+        selected = state["candidates"][0]["id"]
+        adopted = client.post(f"{slot_url}/candidates/{selected}/accept",
+                              json={"expected_image_revision": state["image_revision"], "text_verified": True})
+        assert adopted.status_code == 200, adopted.text
+
+        def edit_block(block_type, transform):
+            editor = client.get(f"{task_url}/content-editor").json()
+            block = next(item for item in editor["blocks"] if item["type"] == block_type)
+            response = client.patch(f"{task_url}/content-editor", json={
+                "expected_revision": editor["revision"], "target": "block", "block_id": block["block_id"],
+                "content": transform(block["content"]),
+            })
+            assert response.status_code == 200, response.text
+
+        edit_block("paragraph", lambda old: old + "补了一句过渡。")
+        assert client.get(f"{task_url}/publication-readiness").json()["ready"]
+        edit_block("ordered_list", lambda items: ["重新设置目标条件", *items[1:]])
+        readiness = client.get(f"{task_url}/publication-readiness").json()
+        assert not readiness["ready"]
+        assert "image_slot_content_changed" in {item["code"] for item in readiness["blockers"]}
+        slots = client.get(f"{plan_url}/image-slots").json()["items"]
+        state = next(item["state"] for item in slots if item["image_slot_id"] == request["image_slot_id"])
+        assert state["selected_candidate_id"] == selected
+        skipped = client.post(f"{slot_url}/skip", json={"expected_image_revision": state["image_revision"]})
+        assert skipped.status_code == 200
+        assert client.get(f"{task_url}/publication-readiness").json()["ready"]
+
+
+def test_legacy_missing_preflight_rebuild_keeps_adopted_cover(tmp_path: Path) -> None:
+    with TestClient(create_app(str(tmp_path / "missing-preflight.db"))) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        repo = client.app.state.repository
+        t = repo.get_task(task["id"])
+        summary = t["input_summary"]
+        summary.pop("preflight_report")
+        repo.connection.execute("UPDATE tasks SET input_summary_json = ? WHERE id = ?", (json.dumps(summary), task["id"]))
+        repo.connection.commit()
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        assert client.get(f"{task_url}/publication-readiness").json()["ready"]
+        report = client.get(task_url).json()["input_summary"]["preflight_report"]
+        cover = next(item for item in report["findings"] if item["code"] == "missing_cover")
+        assert cover["resolution_evidence"]["asset_id"] == repo.list_preflight_asset_replacements(task["id"])[0]["id"]
+        fallback = client.post(f'{task_url}/plans/{plan["id"]}/cover-candidates/fallback', json={"expected_task_version": t["version"]})
+        assert fallback.status_code == 200, fallback.text
+
+
+def test_imported_candidate_does_not_reopen_skipped_slot_in_delivery(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "skipped-image-delivery.db"), image_provider=ManualImageProvider())
+    with TestClient(app) as client:
+        task, plan = _prepare_publication_ready_task(client)
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        url = f'{task_url}/plans/{plan["id"]}'
+        request = client.get(f"{url}/host-image-context").json()["requests"][0]
+        imported = client.post(
+            f'{url}/image-slots/{request["image_slot_id"]}/host-import',
+            data={key: str(request[key]) for key in ("request_id", "expected_plan_revision", "expected_image_revision")},
+            files={"image_file": ("host.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200, imported.text
+        state = imported.json()["image_slot"]
+        assert state["decision"] == "skipped"
+        assert state["candidates"][0]["provider"] == "host_agent"
+        readiness = client.get(f"{task_url}/publication-readiness").json()
+        assert readiness["ready"], readiness["blockers"]
+        frozen = _freeze_publication(client, task)
+        assert frozen["revision"]["compatibility_report"]["status"] == "pass"
+
+
+def test_missing_frozen_asset_finishes_create_and_retry_without_leaving_a_lock(tmp_path: Path) -> None:
+    class Publisher(_SuccessfulWechatPublisher):
+        def publish(self, revision, assets, read_asset):
+            read_asset(assets[0]["id"])
+            pytest.fail("Missing asset must prevent draft creation")
+    app = create_app(str(tmp_path / "missing-frozen-asset.db"), wechat_publisher=Publisher())
+    with TestClient(app) as client:
+        task, _ = _prepare_publication_ready_task(client)
+        frozen = _freeze_publication(client, task)
+        revision = frozen["revision"]
+        asset = app.state.repository.list_publication_assets(revision["id"])[0]
+        app.state.repository.get_publication_asset(asset["id"])[0].unlink()
+        result = client.post(
+            f'/api/v1/publication-revisions/{revision["id"]}/wechat-draft',
+            headers={"Idempotency-Key": "missing-asset-create"},
+            json={"expected_task_version": frozen["task"]["version"], "draft_slot": revision["suggested_draft_slot"]},
+        )
+        assert result.status_code == 200, result.text
+        first = result.json()
+        assert first["operation"]["status"] == "failed"
+        assert first["operation"]["last_error"]["code"] == "delivery_bundle_invalid"
+        repeated = client.post(
+            f'/api/v1/draft-operations/{first["operation"]["id"]}/wechat-retry',
+            headers={"Idempotency-Key": "missing-asset-retry"},
+            json={"expected_task_version": first["task"]["version"], "expected_operation_version": first["operation"]["version"]},
+        )
+        assert repeated.status_code == 200, repeated.text
+        assert repeated.json()["operation"]["status"] == "failed"
+        assert app.state.repository.has_blocking_draft_operation(task["id"]) is None
 
 
 def test_publication_readiness_reports_missing_cover_once_with_specific_action(tmp_path: Path) -> None:
@@ -1451,6 +1705,60 @@ def test_confirmed_theme_history_avoids_immediately_previous_theme(tmp_path: Pat
         ]
         assert logic_slots
         assert all(slot["history_evidence"]["selected_variant"] == slot["variant"] for slot in logic_slots)
+
+
+@pytest.mark.parametrize("stored_mode", [None, "mock", "images_api"])
+def test_workbench_without_image_api_does_not_generate_placeholder_after_host_import(
+    tmp_path: Path, monkeypatch, stored_mode: str | None,
+) -> None:
+    for key in ("VISUAL_DIRECTOR_IMAGE_PROVIDER", "IMAGE_API_KEY", "AGNES_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
+    env_file = tmp_path / "image.env"
+    if stored_mode:
+        env_file.write_text(f"VISUAL_DIRECTOR_IMAGE_PROVIDER={stored_mode}\n", encoding="utf-8")
+    monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(env_file))
+    app = create_app(str(tmp_path / "no-image-api.db"))
+    with TestClient(app) as client:
+        settings = client.get("/api/v1/settings/image-provider").json()["settings"]
+        assert settings["mode"] == ("images_api" if stored_mode == "images_api" else "manual")
+        assert settings["real_generation_available"] is False
+        source = "# 公众号文章\n\n## 行动路径\n\n1. 确定目标\n2. 倒推能力\n3. 开始行动\n"
+        task = client.post(
+            "/api/v1/article-tasks",
+            files={"markdown_file": ("article.md", source.encode(), "text/markdown")},
+        ).json()["task"]
+        task_url = f'/api/v1/article-tasks/{task["id"]}'
+        client.post(f"{task_url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]})
+        plan = client.get(f"{task_url}/plans").json()["plans"][0]
+        url = f'{task_url}/plans/{plan["id"]}'
+        request = client.get(f"{url}/host-image-context").json()["requests"][0]
+        slot = f'{url}/image-slots/{request["image_slot_id"]}'
+        imported = client.post(
+            f"{slot}/host-import",
+            data={key: str(request[key]) for key in ("request_id", "expected_plan_revision", "expected_image_revision")},
+            files={"image_file": ("host.png", _png_bytes(), "image/png")},
+        )
+        assert imported.status_code == 200, imported.text
+        image_state = imported.json()["image_slot"]
+        assert [candidate["provider"] for candidate in image_state["candidates"]] == ["host_agent"]
+        blocked = client.post(f"{slot}/generate", json={
+            "mode": "regenerate", "expected_image_revision": image_state["image_revision"],
+        })
+        assert blocked.status_code == 422
+        assert blocked.json()["error"]["code"] == "image_api_not_configured"
+        workspace = client.get(f"{url}/image-slots").json()
+        assert workspace["real_generation_available"] is False
+        after = next(item["state"] for item in workspace["items"] if item["image_slot_id"] == request["image_slot_id"])
+        assert after["image_revision"] == image_state["image_revision"]
+        assert after["selected_candidate_id"] == image_state["selected_candidate_id"]
+        assert [item["id"] for item in after["candidates"]] == [image_state["candidates"][0]["id"]]
+        before = client.get(f"{url}/cover-candidates").json()
+        assert before["real_generation_available"] is False
+        version = client.get(task_url).json()["task"]["version"]
+        response = client.post(f"{url}/cover-candidates/generate", json={"expected_task_version": version})
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "image_api_not_configured"
+        assert client.get(f"{url}/cover-candidates").json()["candidates"] == before["candidates"]
 
 
 def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_path: Path) -> None:

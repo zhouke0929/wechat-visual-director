@@ -797,7 +797,8 @@ def test_images_api_provider_rejects_local_or_credentialed_endpoints() -> None:
 
 
 def test_provider_factory_defaults_to_mock_and_supports_images_api_gemini_and_legacy_agnes() -> None:
-    assert create_image_provider_from_env({}).provider == "mock"
+    assert create_image_provider_from_env({}).provider == "manual"
+    assert create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "mock"}).provider == "mock"
     manual = create_image_provider_from_env({"VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual"})
     assert manual.provider == "manual"
     assert manual.configured is False

@@ -679,6 +679,13 @@ export default function TaskReviewPage() {
     setError("");
     setNotice("");
     try {
+      await flushInlineEditsRef.current?.();
+    } catch {
+      setError("正文还未保存，请先重试保存正文，再交付最终版本。");
+      setPublicationBusy("");
+      return;
+    }
+    try {
       await savePublicationDraft(taskId, metadata);
       const frozen = await freezePublication(detail.task, metadata, contentEditorRef.current?.revision);
       if (wechatPublisher?.ready) {

@@ -105,10 +105,26 @@ jobs:
           pattern: wechat-visual-director-*
           path: artifacts/release
           merge-multiple: true
-      - name: Publish verified cross-platform prerelease
-        uses: softprops/action-gh-release@v2
+      - name: Verify tag, release notes and package filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '\r\n' < VERSION)"
+          test "v$version" = "$GITHUB_REF_NAME"
+          test -s "docs/releases/$GITHUB_REF_NAME.md"
+          for package in "windows-x64-v$version.zip" "macos-arm64-v$version.tar.gz" "macos-x64-v$version.tar.gz"; do
+            asset="artifacts/release/wechat-visual-director-$package"
+            test -s "$asset"
+            test -s "$asset.sha256"
+            (cd artifacts/release && sha256sum -c "wechat-visual-director-$package.sha256")
+          done
+      - name: Publish verified cross-platform release
+        uses: softprops/action-gh-release@v3
         with:
-          prerelease: true
+          name: ${{ github.ref_name == 'v1.0.0' && 'v1.0.0 · 首个稳定版' || github.ref_name }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
           body_path: docs/releases/${{ github.ref_name }}.md
           files: |
             artifacts/release/*.zip

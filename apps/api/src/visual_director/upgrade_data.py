@@ -1,6 +1,7 @@
 """Data continuity checks and backups; never automatically choose a migration."""
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sqlite3
@@ -19,17 +20,52 @@ def _same_path(first: str | Path, second: str | Path) -> bool:
     return os.path.normcase(str(Path(first).resolve())) == os.path.normcase(str(Path(second).resolve()))
 
 
-def dataset_snapshot(root: Path) -> dict[str, Any]:
+CONTINUITY_COLUMNS = {
+    "tasks": ("id", "title", "markdown", "normalized_markdown", "content_edits_json", "selected_plan_id", "active_publication_revision_id"),
+    "image_slot_states": ("id", "task_id", "plan_id", "image_slot_id", "selected_candidate_id", "decision"),
+    "preflight_asset_replacements": ("id", "task_id", "asset_role", "block_id", "output_sha256"),
+    "publication_revisions": ("id", "task_id", "frozen_html_hash", "metadata_hash", "asset_manifest_hash", "lifecycle_status"),
+}
+
+
+def _continuity_records(connection: sqlite3.Connection, baseline_columns=None) -> dict[str, Any]:
+    result = {}
+    for table, allowed in CONTINUITY_COLUMNS.items():
+        present = {row[1] for row in connection.execute(f"PRAGMA table_info({table})")}
+        reference = tuple(baseline_columns.get(table, ())) if baseline_columns is not None else allowed
+        columns = [column for column in allowed if column in present and column in reference]
+        if "id" not in columns:
+            continue
+        rows = connection.execute(f"SELECT {', '.join(columns)} FROM {table}")
+        result[table] = {"columns": columns, "rows": {
+            row[0]: hashlib.sha256(json.dumps(row, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
+            for row in rows
+        }}
+    return result
+
+
+def _changed_records(before: dict[str, Any], current: dict[str, Any]) -> int:
+    return sum(
+        actual.get("columns") != expected["columns"] or actual.get("rows", {}).get(row_id) != digest
+        for name, expected in before.items()
+        for actual in (current.get(name, {}),)
+        for row_id, digest in expected["rows"].items()
+    )
+
+
+def dataset_snapshot(root: Path, *, baseline_columns=None) -> dict[str, Any]:
     inventory = inspect_dataset(root)
     if inventory.exists and not inventory.healthy:
         raise DataRecoveryError("upgrade_dataset_unhealthy", "升级前后数据未通过完整性检查",
                                 details={"dataset": inventory.as_dict()})
     task_ids: list[str] = []
+    records: dict[str, Any] = {}
     if inventory.exists:
         try:
             with closing(sqlite3.connect(inventory.database.as_uri() + "?mode=ro", uri=True)) as connection:
                 if connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tasks'").fetchone():
                     task_ids = sorted(row[0] for row in connection.execute("SELECT id FROM tasks"))
+                records = _continuity_records(connection, baseline_columns)
         except sqlite3.Error as exc:
             raise DataRecoveryError("upgrade_dataset_incompatible", "无法读取现有任务清单，停止升级") from exc
     assets = {
@@ -38,7 +74,7 @@ def dataset_snapshot(root: Path) -> dict[str, Any]:
         for path in sorted((inventory.root / name).rglob("*"))
         if path.is_file()
     }
-    return {**inventory.as_dict(), "task_ids": task_ids, "assets": assets}
+    return {**inventory.as_dict(), "task_ids": task_ids, "assets": assets, "records": records}
 
 
 def probe_running_data(api_base: str) -> dict[str, Any] | None:
@@ -127,13 +163,15 @@ def verify_upgrade_data(baseline: dict[str, Any], install_root: Path) -> dict[st
             os.path.abspath(Path(metadata["install_root"]) / "data")
         ):
             target = install_root / "data"
-    current = dataset_snapshot(target)
+    before_records = before.get("records", {})
+    current = dataset_snapshot(target, baseline_columns={name: value["columns"] for name, value in before_records.items()})
     missing_tasks = sorted(set(before["task_ids"]) - set(current["task_ids"]))
     changed_assets = [name for name, digest in before["assets"].items() if current["assets"].get(name) != digest]
-    if missing_tasks or changed_assets or (before["exists"] and not current["exists"]):
+    changed_record_count = _changed_records(before_records, current["records"])
+    if missing_tasks or changed_assets or changed_record_count or (before["exists"] and not current["exists"]):
         raise DataRecoveryError("upgrade_data_continuity_failed", "升级后的任务或配套资产不完整；不能报告工作台已就绪",
                                 details={"missing_task_count": len(missing_tasks),
-                                         "changed_asset_count": len(changed_assets), "data_root": current["root"]})
+                                         "changed_asset_count": len(changed_assets), "changed_record_count": changed_record_count, "data_root": current["root"]})
     return {"checked": True, "preserved": True, "data_root": current["root"],
             "before_task_count": before["task_count"], "after_task_count": current["task_count"],
             "image_asset_count": current["image_asset_count"],
@@ -158,10 +196,14 @@ def backup_upgrade_data(baseline: dict[str, Any]) -> dict[str, Any]:
         raise DataRecoveryError("upgrade_backup_path_unsafe", "升级备份目录不能重定向到安装目录之外")
     backup = parent / f"data-before-upgrade-{uuid.uuid4().hex}"
     try:
-        _copy_dataset(source, backup)
+        if before["exists"]:
+            _copy_dataset(source, backup)
+        else:
+            from shutil import copytree
+            copytree(source, backup)
         copied = dataset_snapshot(backup)
     except (OSError, sqlite3.Error) as exc:
         raise DataRecoveryError("upgrade_backup_failed", "升级前备份未完成，保留现有安装并停止升级") from exc
-    if copied["task_ids"] != before["task_ids"] or copied["assets"] != before["assets"]:
+    if copied["task_ids"] != before["task_ids"] or copied["assets"] != before["assets"] or _changed_records(before.get("records", {}), copied["records"]):
         raise DataRecoveryError("upgrade_backup_verification_failed", "备份期间数据发生变化，请暂停编辑后重试升级")
     return {**baseline, "backup_root": str(backup)}

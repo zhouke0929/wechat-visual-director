@@ -5,13 +5,10 @@ from pathlib import Path
 
 from PIL import Image
 
+from .delivery_markup import DeliveryMarkup
 
 THEME_ASSET_URL_PREFIX = "/api/v1/theme-assets/"
 THEME_ASSET_NAME_RE = re.compile(r"^[a-z0-9-]+\.png$")
-THEME_ASSET_SOURCE_RE = re.compile(
-    r'<img\b[^>]*\bsrc="(/api/v1/theme-assets/([a-z0-9-]+\.png))"',
-    flags=re.IGNORECASE,
-)
 
 
 def theme_asset_root(project_root: Path) -> Path:
@@ -38,9 +35,11 @@ def theme_asset_metadata(project_root: Path, name: str) -> tuple[Path, int, int,
 def referenced_theme_assets(document: str) -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = []
     seen: set[str] = set()
-    for source_url, name in THEME_ASSET_SOURCE_RE.findall(document):
-        if name in seen:
+    for source_url in DeliveryMarkup(document).image_sources:
+        if not source_url.startswith(THEME_ASSET_URL_PREFIX) or source_url in seen:
             continue
-        seen.add(name)
-        found.append((source_url, name))
+        name = source_url.removeprefix(THEME_ASSET_URL_PREFIX)
+        if THEME_ASSET_NAME_RE.fullmatch(name):
+            seen.add(source_url)
+            found.append((source_url, name))
     return found

@@ -66,7 +66,7 @@ function targetKey(target: ReviewTarget): string {
 
 function reviewStatus(slot: ImageSlotReview): "accepted" | "skipped" | "pending" {
   if (slot.state.selected_candidate_id) return "accepted";
-  if (slot.state.status === "skipped") return "skipped";
+  if (slot.state.decision === "skipped") return "skipped";
   return "pending";
 }
 
@@ -181,8 +181,12 @@ export function ImageReviewPanel({
     setActiveTargetKey(targetKey(reviewQueue[nextIndex]));
   }
 
+  const canGenerate = review.real_generation_available;
   return (
     <section className="image-editor" aria-label={`${plan.plan_name} 配图确认`}>
+      {!canGenerate && review.items.length > 0 ? (
+        <p className="image-generation-hint">未连接图片模型。可以回到 Agent 对话继续生图，也可以上传图片。</p>
+      ) : null}
       {review.items.length ? (
         <div className="image-slot-list">
           {review.items.map((slot, slotIndex) => {
@@ -249,7 +253,7 @@ export function ImageReviewPanel({
                     </div>
                     <div>
                       <button
-                        disabled={slotBusy}
+                        disabled={slotBusy || !canGenerate}
                         onClick={() => void onGenerate(slot)}
                         type="button"
                       >按新主题抽一张</button>
@@ -336,23 +340,20 @@ export function ImageReviewPanel({
                   </div>
                 ) : (
                   <div className="image-empty-contact">
-                    <span>READY TO GENERATE</span>
-                    <p>位置和用途已规划好，请为这一处单独生成、上传图片，或选择跳过。</p>
+                    <span>{canGenerate ? "READY TO GENERATE" : "IMAGE SLOT"}</span>
+                    <p>{canGenerate ? "位置和用途已规划好，请为这一处单独生成、上传图片，或选择跳过。" : "位置和用途已规划好。可上传图片或选择跳过。"}</p>
                   </div>
                 )}
 
                 <div className="image-slot-actions">
                   <button
                     className="image-generate-button"
-                    disabled={
-                      review.provider_mode === "manual" ||
-                      slotBusy
-                    }
+                    disabled={!canGenerate || slotBusy}
                     onClick={() => void onGenerate(slot)}
                     type="button"
                   >
-                    {review.provider_mode === "manual"
-                      ? "人工模式：请上传图片"
+                    {!canGenerate
+                      ? "工作台生图未配置"
                       : busy.includes(`${slot.image_slot_id}:generate`)
                         ? "图片生成中…"
                         : modelCandidates.length

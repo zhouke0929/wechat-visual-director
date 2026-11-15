@@ -36,6 +36,7 @@ class DatasetInventory:
     database_sha256: str | None
     image_asset_count: int
     publication_asset_count: int
+    theme_pack_file_count: int
     error: str | None = None
 
     def as_dict(self) -> dict[str, Any]:
@@ -50,6 +51,7 @@ class DatasetInventory:
             "database_sha256": self.database_sha256,
             "image_asset_count": self.image_asset_count,
             "publication_asset_count": self.publication_asset_count,
+            "theme_pack_file_count": self.theme_pack_file_count,
             "error": self.error,
         }
 
@@ -81,6 +83,7 @@ def inspect_dataset(root: Path) -> DatasetInventory:
             database_sha256=None,
             image_asset_count=_file_count(root / "image-assets"),
             publication_asset_count=_file_count(root / "publication-assets"),
+            theme_pack_file_count=_file_count(root / "theme-packs"),
         )
 
     task_count = 0
@@ -88,7 +91,7 @@ def inspect_dataset(root: Path) -> DatasetInventory:
     healthy = False
     error: str | None = None
     try:
-        uri = f"file:{database.as_posix()}?mode=ro"
+        uri = database.as_uri() + "?mode=ro"
         connection = sqlite3.connect(uri, uri=True)
         try:
             healthy = connection.execute("PRAGMA quick_check").fetchone()[0] == "ok"
@@ -115,6 +118,7 @@ def inspect_dataset(root: Path) -> DatasetInventory:
         database_sha256=_sha256(database),
         image_asset_count=_file_count(root / "image-assets"),
         publication_asset_count=_file_count(root / "publication-assets"),
+        theme_pack_file_count=_file_count(root / "theme-packs"),
         error=error,
     )
 
@@ -183,7 +187,7 @@ def scan_datasets(
 
 def _copy_dataset(source: Path, destination: Path) -> None:
     destination.mkdir(parents=True, exist_ok=True)
-    source_connection = sqlite3.connect(f"file:{(source / DATASET_DATABASE).as_posix()}?mode=ro", uri=True)
+    source_connection = sqlite3.connect((source / DATASET_DATABASE).as_uri() + "?mode=ro", uri=True)
     destination_connection = sqlite3.connect(destination / DATASET_DATABASE)
     try:
         source_connection.backup(destination_connection)
@@ -219,13 +223,15 @@ def recover_dataset(
         )
     if source.root == target.root:
         raise DataRecoveryError("same_data_root", "来源与目标数据目录相同")
-    if target.task_count > 0 and not activate:
+    target_has_assets = bool(target.image_asset_count or target.publication_asset_count or target.theme_pack_file_count)
+    target_has_content = target.task_count > 0 or target_has_assets
+    if target_has_content and not activate:
         raise DataRecoveryError(
-            "target_has_tasks",
-            "目标数据中已有任务，拒绝静默覆盖；请先确认备份内容，再显式激活来源数据",
+            "target_has_tasks" if target.task_count > 0 else "target_has_assets",
+            "目标数据中已有任务或素材（含自定义主题），不能直接覆盖；请显式确认后再恢复",
             details={"source": source.as_dict(), "target": target.as_dict(), "requires": ["--activate", "--yes"]},
         )
-    if target.task_count > 0 and not confirmed:
+    if target_has_content and not confirmed:
         raise DataRecoveryError(
             "confirmation_required",
             "激活历史数据前必须显式确认",
@@ -236,7 +242,7 @@ def recover_dataset(
     backup_dir = backup_root.expanduser().resolve() / f"data-before-recovery-{stamp}"
     stage_dir = backup_root.expanduser().resolve() / f".stage-recovery-{stamp}"
     backup_dir.parent.mkdir(parents=True, exist_ok=True)
-    if target.exists or target.image_asset_count or target.publication_asset_count:
+    if target.exists or target_has_assets:
         _copy_dataset(target.root, backup_dir) if target.exists else shutil.copytree(target.root, backup_dir)
 
     if stage_dir.exists():
@@ -274,5 +280,5 @@ def recover_dataset(
         "previous_target": target.as_dict(),
         "recovered": recovered.as_dict(),
         "backup_root": str(backup_dir) if backup_dir.exists() else None,
-        "mode": "activate" if target.task_count > 0 else "migrate",
+        "mode": "activate" if target_has_content else "migrate",
     }

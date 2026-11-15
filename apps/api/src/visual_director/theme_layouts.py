@@ -313,6 +313,11 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
             value = node["text"] if kind == "text" else context[node["bind"]]
             if kind == "field" and node["bind"] == "index" and not value:
                 return ""
+            if kind == "field" and role == "image_caption" and node["bind"] == "caption":
+                # A caption is optional at runtime; the layout still has to
+                # declare how to render it when an original caption exists.
+                if value is None or not str(value).strip():
+                    return ""
             attr = 'data-theme-static="true"' if kind == "text" or node.get("bind") == "index" else f'data-theme-field="{node["bind"]}"'
             if role == "list" and node.get("bind") == "index":
                 if payload.get("ordered") is False:

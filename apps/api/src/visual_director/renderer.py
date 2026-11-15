@@ -9,6 +9,7 @@ from typing import Any
 
 from .brand import load_brand_profile
 from .components import render_component
+from .delivery_markup import DeliveryMarkup, preserve_wechat_decorative_nodes
 from .heading_numbers import has_explicit_heading_number
 from .generated_theme import (
     generated_image_frame_variant,
@@ -37,24 +38,6 @@ from .theme_extensions import (
     render_extended_quote,
     render_extended_table,
 )
-
-
-EMPTY_DECORATIVE_NODE_RE = re.compile(
-    r'(<(?P<tag>span|p)\b(?=[^>]*\bstyle="[^"]*(?:background(?:-color)?|border(?:-[a-z-]+)?|width|height)\s*:)[^>]*>)\s*(</(?P=tag)>)',
-    flags=re.IGNORECASE,
-)
-
-
-def preserve_wechat_decorative_nodes(document: str) -> str:
-    """Keep CSS-only ornaments from being removed as empty tags by WeChat."""
-
-    def replace(match: re.Match[str]) -> str:
-        opening = match.group(1)
-        if "font-size:" not in opening.lower():
-            opening = opening.replace('style="', 'style="font-size:0;line-height:0;', 1)
-        return f"{opening}&#160;{match.group(3)}"
-
-    return EMPTY_DECORATIVE_NODE_RE.sub(replace, document)
 
 
 CONCLUSION_CUE_RE = re.compile(r"结论(?:是|：|:)|核心判断|答案是|最重要的是|建议是|这意味着")
@@ -1304,8 +1287,7 @@ def render_preview(
         f'{hero}<main style="box-sizing:border-box;width:100%;max-width:100%;margin:0 auto;padding:0 0 34px;">'
         f'{"".join(body)}{cta}</main></body></html>'
     )
-    document = preserve_wechat_decorative_nodes(document)
-    lowered = document.lower()
-    if "<script" in lowered or re.search(r"\son[a-z]+\s*=", lowered):
+    markup = DeliveryMarkup(document)
+    if markup.has_script or markup.has_event_handler:
         raise ValueError("渲染产物包含禁止脚本或事件属性")
-    return document
+    return markup.normalize_empty_elements()

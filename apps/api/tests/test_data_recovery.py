@@ -44,6 +44,18 @@ def test_recover_into_empty_target(tmp_path: Path) -> None:
     assert (target / "image-assets" / "image.png").is_file()
 
 
+def test_recovery_reads_chinese_path_with_hash_as_literal(tmp_path: Path) -> None:
+    source = tmp_path / "旧稿#2026"
+    target = tmp_path / "归档#本地"
+    make_dataset(source, ["task-a"])
+    assert inspect_dataset(source).task_count == 1
+    result = recover_dataset(source_root=source, target_root=target, backup_root=tmp_path / "backups")
+    assert result["recovered"]["task_count"] == 1
+    assert (target / "image-assets" / "image.png").read_bytes() == b"image"
+    assert not (tmp_path / "旧稿").exists()
+    assert not (tmp_path / "归档").exists()
+
+
 def test_nonempty_target_requires_explicit_activation_and_keeps_backup(tmp_path: Path) -> None:
     source = tmp_path / "source"
     target = tmp_path / "target"
@@ -68,3 +80,32 @@ def test_nonempty_target_requires_explicit_activation_and_keeps_backup(tmp_path:
         assert connection.execute("SELECT id FROM tasks").fetchone()[0] == "new-task"
     finally:
         connection.close()
+
+
+@pytest.mark.parametrize("with_database", [False, True])
+def test_theme_only_target_requires_confirmation_and_keeps_theme_backup(tmp_path: Path, with_database: bool) -> None:
+    source = tmp_path / "source"
+    target = tmp_path / "target"
+    backup_root = tmp_path / "backups"
+    make_dataset(source, ["old-task"])
+    if with_database:
+        target.mkdir()
+        connection = sqlite3.connect(target / "visual-director.db")
+        connection.close()
+    theme_file = target / "theme-packs" / "local-theme" / "manifest.json"
+    theme_file.parent.mkdir(parents=True)
+    theme_file.write_text("{}", encoding="utf-8")
+    assert inspect_dataset(target).theme_pack_file_count == 1
+
+    args = dict(source_root=source, target_root=target, backup_root=backup_root)
+    with pytest.raises(DataRecoveryError) as error:
+        recover_dataset(**args)
+    assert error.value.code == "target_has_assets"
+    with pytest.raises(DataRecoveryError) as error:
+        recover_dataset(**args, activate=True)
+    assert error.value.code == "confirmation_required"
+    assert theme_file.is_file()
+
+    result = recover_dataset(**args, activate=True, confirmed=True)
+    assert result["mode"] == "activate"
+    assert (Path(result["backup_root"]) / theme_file.relative_to(target)).read_text(encoding="utf-8") == "{}"

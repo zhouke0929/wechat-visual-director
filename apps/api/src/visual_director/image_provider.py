@@ -1615,7 +1615,7 @@ AgnesImageProvider = ImagesApiProvider
 
 def create_image_provider_from_env(environ: dict[str, str] | None = None) -> ImageProvider:
     values = environ if environ is not None else os.environ
-    mode = values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER", "mock").strip().lower()
+    mode = (values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER") or "").strip().lower() or "manual"
     if mode == "manual":
         return ManualImageProvider()
     if mode == "mock":

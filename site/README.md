@@ -140,7 +140,7 @@ substitute for control of the account-level root. Do not block the product pages
 
 Default install prompts link to `main/INSTALL_FOR_AGENT.md`, and manual commands
 use current `main/scripts/install-release.*` entry points. Installers resolve
-`main/VERSION` and require matching published assets. Never pin an Alpha version
+`main/VERSION` and require matching published assets. Never pin a historical version
 in current entry points or assume `/releases/latest` includes prereleases.
 Historical release notes can retain their own version-specific commands.
 

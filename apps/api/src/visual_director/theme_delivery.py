@@ -179,6 +179,7 @@ def rehearse_theme_delivery(manifest: dict[str, Any]) -> dict[str, Any]:
     not browser typography, reference fidelity, or a real WeChat round trip.
     """
     from .theme_layouts import render_layout
+    from .delivery_markup import preserve_wechat_decorative_nodes
     from .publication import check_frozen_html, replace_asset_urls
     from .theme_production import check_theme_production
 
@@ -199,7 +200,7 @@ def rehearse_theme_delivery(manifest: dict[str, Any]) -> dict[str, Any]:
             markup = render_layout(role, payload, config)
             assets = compiled_decoration_assets(markup)
             frozen = replace_asset_urls(markup, {a["source_url"]: a["asset_token"] for a in assets})
-            report = check_frozen_html(frozen)
+            report = check_frozen_html(preserve_wechat_decorative_nodes(frozen))
             results.append({"role": role, "status": report.status, "checks": report.checks,
                             "decoration_assets": len(assets), "decoration_bytes": sum(len(a["content"]) for a in assets)})
         except (ValueError, OSError, KeyError) as exc:

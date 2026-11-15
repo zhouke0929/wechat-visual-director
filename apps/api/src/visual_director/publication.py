@@ -7,16 +7,12 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
+from .delivery_markup import DeliveryMarkup
 from .theme_delivery import legacy_drawing_present
 
 
 PUBLICATION_SCHEMA_VERSION = "publication_revision.v0.8"
-COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.local.v0.3"
-
-EMPTY_DECORATIVE_NODE_RE = re.compile(
-    r'<(?P<tag>span|p)\b(?=[^>]*\bstyle="[^"]*(?:background(?:-color)?|border(?:-[a-z-]+)?|width|height)\s*:)[^>]*>\s*</(?P=tag)>',
-    flags=re.IGNORECASE,
-)
+COMPATIBILITY_RULESET_VERSION = "wechat_compatibility.local.v0.4"
 
 
 def canonical_json(value: Any) -> str:
@@ -59,23 +55,25 @@ class CompatibilityReport:
         }
 
 
-def check_frozen_html(document: str) -> CompatibilityReport:
-    lowered = document.lower()
+def check_frozen_html(document: str, *, asset_tokens: set[str] | None = None) -> CompatibilityReport:
+    markup = DeliveryMarkup(document)
+    uncontrolled_image = any(
+        not source.startswith("asset://") or not source.removeprefix("asset://")
+        or (asset_tokens is not None and source.removeprefix("asset://") not in asset_tokens)
+        for source in markup.image_sources
+    )
     checks = {
         "document_present": "pass" if document.strip() else "blocking",
-        "no_scripts": "pass" if "<script" not in lowered else "blocking",
-        "no_event_handlers": "pass" if not re.search(r"\son[a-z]+\s*=", lowered) else "blocking",
-        "no_waiting_source_images": "pass" if "source image · waiting" not in lowered else "blocking",
-        "no_waiting_planned_images": "pass" if "image plan ·" not in lowered else "blocking",
+        "no_scripts": "blocking" if markup.has_script else "pass",
+        "no_event_handlers": "blocking" if markup.has_event_handler else "pass",
+        "no_waiting_source_images": "blocking" if markup.waiting_source else "pass",
+        "no_waiting_planned_images": "blocking" if markup.waiting_planned else "pass",
         "no_empty_decorative_nodes": (
-            "pass" if not EMPTY_DECORATIVE_NODE_RE.search(document) else "blocking"
+            "blocking" if markup.has_empty_decoration else "pass"
         ),
-        "controlled_image_sources": "pass",
+        "controlled_image_sources": "blocking" if uncontrolled_image else "pass",
         "no_legacy_positioned_drawings": "blocking" if legacy_drawing_present(document) else "pass",
     }
-    image_sources = re.findall(r'<img\b[^>]*\bsrc="([^"]+)"', document, flags=re.IGNORECASE)
-    if any(not source.startswith("asset://") for source in image_sources):
-        checks["controlled_image_sources"] = "blocking"
     messages = [key for key, value in checks.items() if value == "blocking"]
     return CompatibilityReport(
         status="pass" if not messages else "blocking",
@@ -85,11 +83,22 @@ def check_frozen_html(document: str) -> CompatibilityReport:
     )
 
 
+def describe_html_compatibility_blockers(codes: list[str]) -> str:
+    labels = {
+        "document_present": "没有可交付的正文",
+        "no_scripts": "正文含不支持的脚本标签",
+        "no_event_handlers": "正文含不支持的交互属性",
+        "no_waiting_source_images": "仍有原稿图片未导入",
+        "no_waiting_planned_images": "仍有配图占位未处理",
+        "no_empty_decorative_nodes": "主题含空装饰，请检查或更换当前主题",
+        "controlled_image_sources": "正文含未进入本地资产库的图片，请检查原图或配图",
+    }
+    details = "；".join(labels[code] for code in codes if code in labels)
+    return f"交付检查未通过：{details}" if details else "最终 HTML 未通过兼容性检查"
+
+
 def replace_asset_urls(document: str, url_to_token: dict[str, str]) -> str:
-    result = document
-    for source_url, token in sorted(url_to_token.items(), key=lambda item: len(item[0]), reverse=True):
-        result = result.replace(f'src="{source_url}"', f'src="asset://{token}"')
-    return result
+    return DeliveryMarkup(document).rewrite_image_sources({source: f"asset://{token}" for source, token in url_to_token.items()})
 
 
 def strip_workbench_editor_attributes(document: str) -> str:
@@ -103,10 +112,7 @@ def strip_workbench_editor_attributes(document: str) -> str:
 
 
 def render_frozen_asset_urls(document: str, token_to_url: dict[str, str]) -> str:
-    result = document
-    for token, target_url in token_to_url.items():
-        result = result.replace(f'src="asset://{token}"', f'src="{target_url}"')
-    return result
+    return DeliveryMarkup(document).rewrite_image_sources({f"asset://{token}": url for token, url in token_to_url.items()})
 
 
 def _placeholder_metadata(markup: str) -> tuple[str, str]:
@@ -215,7 +221,10 @@ def materialize_preview_document(
             rf'<section id="{re.escape(slot_id)}" class="image-slot-anchor".*?</section>',
             re.DOTALL,
         )
-        if state["status"] == "skipped":
+        # A generation attempt can change status without changing the
+        # user's decision, including on drafts created by older builds.
+        decision = state.get("decision") or state.get("status")
+        if decision == "skipped":
             document = pattern.sub("", document)
             continue
         selected = next(
@@ -224,7 +233,7 @@ def materialize_preview_document(
         )
         if selected and (
             slot_id in adopted_slots if adopted_slots is not None
-            else state["status"] in {"accepted", "replaced", "generated", "failed"}
+            else decision in {"accepted", "replaced"}
         ):
             image_width = int(selected["width"])
             image_height = int(selected["height"])

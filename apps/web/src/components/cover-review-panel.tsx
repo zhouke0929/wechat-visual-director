@@ -150,16 +150,16 @@ export function CoverReviewPanel({ busy, review, onGenerate, onFallback, onCrop,
       </div>
 
       <div className="cover-actions-grid">
-        <button disabled={review.provider_mode === "manual" || Boolean(busy)} onClick={onGenerate} type="button">
+        <button disabled={!review.real_generation_available || Boolean(busy)} onClick={onGenerate} type="button">
           <span>01</span>
           <strong>
-            {review.provider_mode === "manual"
-              ? "人工模式：请上传或复用封面"
+            {!review.real_generation_available
+              ? "工作台生图未配置"
               : busy === "generate" ? "生成中…" : "AI 总结全文生成封面"}
           </strong>
           <small>
-            {review.provider_mode === "manual"
-              ? "从正文候选或本机图片中选择"
+            {!review.real_generation_available
+              ? "可请 Agent 生图，或上传封面"
               : "根据全文与当前主题生成"}
           </small>
         </button>

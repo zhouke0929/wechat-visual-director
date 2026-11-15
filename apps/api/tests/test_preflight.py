@@ -1,6 +1,18 @@
 from visual_director.preflight import normalize_markdown, run_preflight
 
 
+def test_paragraph_and_reference_images_share_import_findings_and_block_order() -> None:
+    source = "# 样稿\n\n## 第一节\n\n前文 ![示意](./local.png) 后文。\n\n![原稿][IMG]\n\n[img]: ./second.png\n\n![独立](./third.png)\n"
+    result = run_preflight(source)
+    assert result.parsed.image_reference_count == 3
+    assert [(block.type, block.content.get("source") if block.type == "image_reference" else block.content)
+            for block in result.parsed.blocks][2:] == [
+        ("paragraph", "前文"), ("image_reference", "./local.png"), ("paragraph", "后文。"),
+        ("image_reference", "./second.png"), ("image_reference", "./third.png"),
+    ]
+    assert len([finding for finding in result.report.findings if finding.code == "source_image_requires_import"]) == 3
+
+
 def test_normalization_preserves_markdown_hard_breaks() -> None:
     normalized, repairs = normalize_markdown("\ufeff# 标题\r\n第一行  \r\n第二行\\\r\n第三行   \r\n")
 

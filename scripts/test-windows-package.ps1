@@ -74,7 +74,7 @@ try {
 
     # Source-only paths can pass unit tests but fail from bundled site-packages.
     $Gallery = Invoke-RestMethod -Uri ($ApiBase.TrimEnd("/") + "/theme-gallery")
-    if ($Gallery.schema_version -ne "theme_gallery.v0.5" -or @($Gallery.themes).Count -ne 30) {
+    if ($Gallery.schema_version -ne "theme_gallery.v0.5" -or @($Gallery.themes).Count -ne 26) {
         throw "The packaged theme gallery is incomplete."
     }
     foreach ($Theme in $Gallery.themes) {

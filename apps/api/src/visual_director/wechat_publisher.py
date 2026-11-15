@@ -10,6 +10,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass
+from http.client import HTTPException
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable
@@ -17,6 +18,8 @@ from typing import Any, Callable
 from PIL import Image, ImageOps
 
 from .delivery import _responsive_delivery_document, extract_delivery_body
+from .delivery_markup import DeliveryMarkup
+from .publication import render_frozen_asset_urls
 from .theme_delivery import legacy_drawing_present
 
 
@@ -124,7 +127,10 @@ class WechatDraftPublisher:
             return {"error": {"code": "theme_delivery_refresh_required", "message": "请先更新主题渲染并重新确认最终版本", "retryable": False}}
         # Only upload assets actually used by the copied body; exclude cover/unused files.
         body = extract_delivery_body(revision["frozen_html"])
-        selected = [a for a in assets if a["asset_role"] != "cover" and f'src="asset://{a["asset_token"]}"' in body]
+        sources = set(DeliveryMarkup(body).image_sources)
+        selected = [a for a in assets if a["asset_role"] != "cover" and f'asset://{a["asset_token"]}' in sources]
+        if sources - {f'asset://{a["asset_token"]}' for a in selected}:
+            return {"error": self._unresolved_body_image_error()}
         if not selected:
             return {"asset_urls": {}}
         if not self.status()["ready"]:
@@ -136,7 +142,7 @@ class WechatDraftPublisher:
                 path, content_type = read_asset(asset["id"])
                 uploaded, token = self._upload_cached_image(token, asset, path, content_type, clipboard=True)
                 urls[asset["id"]] = uploaded["url"]
-        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError, HTTPException) as error:
             result = self._classified_error(error, stage="upload_image")
             return {"error": result.error}
         return {"asset_urls": urls}
@@ -195,6 +201,22 @@ class WechatDraftPublisher:
         }
 
     def _open_json(self, request: urllib.request.Request, *, stage: str) -> dict[str, Any]:
+        def decode(raw: bytes) -> dict[str, Any]:
+            payload = json.loads(raw.decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("WeChat API response was not an object")
+            return payload
+
+        def error_code(payload: dict[str, Any]) -> int | None:
+            code = payload.get("errcode")
+            if code is None:
+                return None
+            if type(code) is int:
+                return code
+            if isinstance(code, str):
+                return int(code)
+            raise ValueError("WeChat API returned an invalid error code")
+
         try:
             response = self.requester(request, timeout=self.timeout_seconds)
             with response:
@@ -202,18 +224,22 @@ class WechatDraftPublisher:
         except urllib.error.HTTPError as error:
             try:
                 raw = error.read()
-            except OSError:
+            except (OSError, HTTPException):
                 raw = b""
-            if raw:
-                try:
-                    payload = json.loads(raw.decode("utf-8"))
-                except (UnicodeDecodeError, json.JSONDecodeError):
-                    payload = {}
-                raise WechatApiError(payload.get("errcode"), str(payload.get("errmsg") or "HTTP error"), stage=stage) from error
+            try:
+                payload = decode(raw)
+                code = error_code(payload)
+            except ValueError:
+                code = None
+            if code not in (None, 0):
+                raise WechatApiError(code, str(payload.get("errmsg") or "HTTP error"), stage=stage) from error
+            # An HTTP failure without an explicit rejection cannot establish
+            # whether the upstream processed draft/add.
             raise
-        payload = json.loads(raw.decode("utf-8"))
-        if payload.get("errcode") not in (None, 0):
-            raise WechatApiError(int(payload["errcode"]), str(payload.get("errmsg") or "WeChat API error"), stage=stage)
+        payload = decode(raw)
+        code = error_code(payload)
+        if code not in (None, 0):
+            raise WechatApiError(code, str(payload.get("errmsg") or "WeChat API error"), stage=stage)
         return payload
 
     def _access_token(self, *, force_refresh: bool = False) -> str:
@@ -361,7 +387,7 @@ class WechatDraftPublisher:
             error={
                 "code": "wechat_draft_result_unknown" if unknown else "wechat_network_error",
                 "message": (
-                    "创建草稿时连接中断，结果未知。请先到公众号后台草稿箱核对，避免重复创建。"
+                    "未收到可确认的草稿结果。请先到公众号后台草稿箱核对，避免重复创建。"
                     if unknown
                     else "连接微信公众号接口失败，请检查网络后重试。"
                 ),
@@ -369,6 +395,14 @@ class WechatDraftPublisher:
                 "details": {"stage": stage, "exception_type": type(error).__name__},
             },
         )
+
+    @staticmethod
+    def _unresolved_body_image_error() -> dict[str, Any]:
+        return {
+            "code": "body_asset_upload_failed",
+            "message": "正文中有图片未进入冻结资产或未完成上传，请检查图片后重新保存。",
+            "retryable": True,
+        }
 
     def publish(
         self,
@@ -392,16 +426,24 @@ class WechatDraftPublisher:
                     "retryable": True,
                 },
             )
+        article_body = extract_delivery_body(_responsive_delivery_document(revision["frozen_html"]))
+        markup = DeliveryMarkup(article_body)
+        body_sources = set(markup.image_sources)
+        if body_sources - {f'asset://{a["asset_token"]}' for a in assets if a["asset_role"] != "cover"}:
+            return WechatPublishResult(status="failed", media_id=None, error=self._unresolved_body_image_error())
+        article_body = markup.normalize_empty_elements()
         try:
             token = self._access_token()
-        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError, HTTPException) as error:
             return self._classified_error(error, stage="token")
 
-        document = _responsive_delivery_document(revision["frozen_html"])
         uploaded_by_hash: dict[str, dict[str, Any]] = {}
+        token_to_url = {}
         cover_media_id: str | None = None
         try:
             for asset in assets:
+                if asset["asset_role"] != "cover" and f'asset://{asset["asset_token"]}' not in body_sources:
+                    continue
                 path, content_type = read_asset(asset["id"])
                 digest = str(asset.get("output_sha256") or path)
                 uploaded = uploaded_by_hash.get(digest)
@@ -414,11 +456,8 @@ class WechatDraftPublisher:
                 if asset["asset_role"] == "cover":
                     cover_media_id = str(uploaded.get("media_id") or "") or None
                 elif image_url:
-                    document = document.replace(
-                        f'src="asset://{asset["asset_token"]}"',
-                        f'src="{image_url}"',
-                    )
-        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+                    token_to_url[asset["asset_token"]] = image_url
+        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError, HTTPException) as error:
             return self._classified_error(error, stage="upload_image")
         if not cover_media_id:
             return WechatPublishResult(
@@ -426,17 +465,15 @@ class WechatDraftPublisher:
                 media_id=None,
                 error={"code": "cover_upload_failed", "message": "封面上传后未返回 media_id。", "retryable": True},
             )
-        if "asset://" in document:
-            return WechatPublishResult(
-                status="failed",
-                media_id=None,
-                error={"code": "body_asset_upload_failed", "message": "正文中仍有图片未完成上传。", "retryable": True},
-            )
+        article_body = render_frozen_asset_urls(article_body, token_to_url)
+        uploaded_urls = set(token_to_url.values())
+        if any(source not in uploaded_urls for source in DeliveryMarkup(article_body).image_sources):
+            return WechatPublishResult(status="failed", media_id=None, error=self._unresolved_body_image_error())
 
         metadata = revision["metadata"]
         article: dict[str, Any] = {
             "title": metadata["title"],
-            "content": extract_delivery_body(document),
+            "content": article_body,
             "thumb_media_id": cover_media_id,
             "show_cover_pic": 1 if metadata.get("show_cover_pic") else 0,
         }
@@ -454,9 +491,10 @@ class WechatDraftPublisher:
                 if error.errcode not in TOKEN_REJECTION_CODES:
                     raise
                 payload = self._create_draft(self._refresh_rejected_token(token), article)
-        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        except (WechatApiError, urllib.error.URLError, TimeoutError, OSError, ValueError, HTTPException) as error:
             return self._classified_error(error, stage="create_draft")
-        media_id = str(payload.get("media_id") or "") or None
+        media_id = payload.get("media_id")
+        media_id = media_id.strip() if isinstance(media_id, str) else ""
         if not media_id:
             return WechatPublishResult(
                 status="unknown",

@@ -46,6 +46,17 @@ function Assert-ChildPath([string]$Parent, [string]$Child) {
     }
 }
 
+function Move-WvdInstallDirectory([string]$From, [string]$To) {
+    # Windows can briefly keep a copied or probed executable open.
+    for ($Attempt = 0; $Attempt -lt 6; $Attempt++) {
+        try { [IO.Directory]::Move($From, $To); return }
+        catch [IO.IOException], [UnauthorizedAccessException] {
+            if ($Attempt -eq 5 -or (Test-Path -LiteralPath $To)) { throw }
+            Start-Sleep -Milliseconds (150 * ($Attempt + 1))
+        }
+    }
+}
+
 function Remove-OldVersionDirectories(
     [string]$VersionsDirectory,
     [string[]]$KeepVersions,
@@ -282,7 +293,14 @@ Assert-ChildPath $InstallRoot $DataRoot
 Assert-ChildPath $InstallRoot $ConfigRoot
 Assert-ChildPath $InstallRoot $RuntimeRoot
 
-if (Test-Path -LiteralPath $VersionRoot) {
+if (-not (Test-Path -LiteralPath (Join-Path $SourceRoot 'apps\web\dist\index.html') -PathType Leaf)) {
+    Write-Failure 'prebuilt_workbench_missing' 'The release package does not contain the prebuilt workbench.'
+}
+$HasBundledRuntime = Test-Path -LiteralPath (Join-Path $SourceRoot 'runtime\python\python.exe') -PathType Leaf
+$UseStage = $HasBundledRuntime -or $SkipDependencies
+$CopyRoot = if ($UseStage) { Join-Path $VersionsRoot ('.staging-' + [guid]::NewGuid().ToString('N')) } else { $VersionRoot }
+Assert-ChildPath $VersionsRoot $CopyRoot
+if (-not $UseStage -and (Test-Path -LiteralPath $VersionRoot)) {
     try {
         Remove-Item -LiteralPath $VersionRoot -Recurse -Force
     } catch {
@@ -292,10 +310,11 @@ if (Test-Path -LiteralPath $VersionRoot) {
         }
     }
 }
-New-Item -ItemType Directory -Force -Path $VersionRoot, $DataRoot, $ConfigRoot, $RuntimeRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $CopyRoot, $DataRoot, $ConfigRoot, $RuntimeRoot | Out-Null
 
 try {
-    Copy-ApplicationSource -CurrentSource $SourceRoot -CurrentDestination $VersionRoot
+try {
+    Copy-ApplicationSource -CurrentSource $SourceRoot -CurrentDestination $CopyRoot
 } catch {
     Write-Failure "source_copy_failed" "Could not copy the application into the persistent version directory." @{
         source_root = $SourceRoot
@@ -335,7 +354,7 @@ if ($MigrateLegacyData -and -not (Test-Path -LiteralPath $ConfigFile) -and (Test
     $MigratedConfig = $true
 }
 if (-not (Test-Path -LiteralPath $ConfigFile)) {
-    $ExampleConfig = Join-Path $VersionRoot ".env.example"
+    $ExampleConfig = Join-Path $CopyRoot ".env.example"
     if (Test-Path -LiteralPath $ExampleConfig -PathType Leaf) {
         Copy-Item -LiteralPath $ExampleConfig -Destination $ConfigFile
     } else {
@@ -343,9 +362,9 @@ if (-not (Test-Path -LiteralPath $ConfigFile)) {
     }
 }
 
-$ApiDir = Join-Path $VersionRoot "apps\api"
-$WebDir = Join-Path $VersionRoot "apps\web"
-$BundledPython = Join-Path $VersionRoot "runtime\python\python.exe"
+$ApiDir = Join-Path $CopyRoot "apps\api"
+$WebDir = Join-Path $CopyRoot "apps\web"
+$BundledPython = Join-Path $CopyRoot "runtime\python\python.exe"
 $VenvDir = Join-Path $ApiDir ".venv"
 $VenvPython = Join-Path $VenvDir "Scripts\python.exe"
 $PythonVersion = $null
@@ -437,7 +456,7 @@ if (Test-Path -LiteralPath $ManifestPath -PathType Leaf) {
 $ProfileId = ''
 if ($UserDataHome) {
     $ProfilePython = if (Test-Path -LiteralPath $BundledPython -PathType Leaf) { $BundledPython } else { (Get-Command python -ErrorAction Stop).Source }
-    $ProfileRaw = & $ProfilePython (Join-Path $VersionRoot 'scripts\manage-user-profile.py') prepare --home $UserDataHome --install-root $InstallRoot
+    $ProfileRaw = & $ProfilePython (Join-Path $CopyRoot 'scripts\manage-user-profile.py') prepare --home $UserDataHome --install-root $InstallRoot
     $ProfileExit = $LASTEXITCODE
     try { $ProfileResult = (@($ProfileRaw) -join [Environment]::NewLine) | ConvertFrom-Json }
     catch { Write-Failure 'user_profile_invalid_output' 'The shared history helper returned invalid output.' }
@@ -446,6 +465,33 @@ if ($UserDataHome) {
     $RuntimeRoot = [string]$ProfileResult.profile.runtime_root
     $ConfigFile = [string]$ProfileResult.profile.config_file
     $ProfileId = [string]$ProfileResult.profile.profile_id
+}
+
+if ($UseStage) {
+    $ReplaceBackup = Join-Path $VersionsRoot ('.replace-' + [guid]::NewGuid().ToString('N'))
+    Assert-ChildPath $VersionsRoot $ReplaceBackup
+    $MovedExisting = $false
+    try {
+        if (Test-Path -LiteralPath $VersionRoot) {
+            Move-WvdInstallDirectory $VersionRoot $ReplaceBackup
+            $MovedExisting = $true
+        }
+        Move-WvdInstallDirectory $CopyRoot $VersionRoot
+    } catch {
+        if ($MovedExisting -and -not (Test-Path -LiteralPath $VersionRoot)) {
+            Move-WvdInstallDirectory $ReplaceBackup $VersionRoot
+        }
+        Write-Failure 'version_activation_failed' 'Could not activate the verified package.' @{ version_root = $VersionRoot; reason = $_.Exception.Message }
+    }
+    if ($HasBundledRuntime) {
+        $BundledPython = Join-Path $VersionRoot 'runtime\python\python.exe'
+        $ProfilePython = $BundledPython
+    }
+}
+} finally {
+    if ($UseStage -and (Test-Path -LiteralPath $CopyRoot)) {
+        Remove-Item -LiteralPath $CopyRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 Copy-Item -LiteralPath (Join-Path $VersionRoot "scripts\persistent-launcher.ps1") -Destination $StableLauncher -Force

@@ -52,6 +52,7 @@ from .image_provider import (
     build_provider_prompt,
     build_theme_fallback_cover,
     create_image_provider_from_env,
+    ManualImageProvider,
     image_prompt_profile,
     resolve_images_api_adapter,
 )
@@ -90,6 +91,7 @@ from .image_intent import (
 )
 from .plan_schema import validate_plan_for_article
 from .renderer import render_preview
+from .delivery_markup import preserve_wechat_decorative_nodes
 from .theme_gallery import THEME_GALLERY_SCHEMA_VERSION, build_theme_gallery
 from .theme_specimens import build_theme_card_specimens
 from .theme_packs import (
@@ -109,6 +111,7 @@ from .publication import (
     PUBLICATION_SCHEMA_VERSION,
     canonical_json,
     check_frozen_html,
+    describe_html_compatibility_blockers,
     hash_json,
     materialize_preview_document,
     render_frozen_asset_urls,
@@ -538,7 +541,42 @@ def create_app(
         project_root=root,
         database_path=db_path,
     )
-    app.state.image_provider = image_provider or create_image_provider_from_env(runtime_settings)
+    # Mock is for explicit test runtimes, not for old user profiles whose
+    # settings still select the former default placeholder mode.
+    allow_mock_generation = (
+        (image_provider is not None and image_provider.provider == "mock")
+        or os.environ.get("VISUAL_DIRECTOR_IMAGE_PROVIDER", "").strip().lower() == "mock"
+    )
+
+    def workbench_image_provider(settings: dict[str, str]) -> ImageProvider:
+        if not allow_mock_generation and settings.get("VISUAL_DIRECTOR_IMAGE_PROVIDER", "").strip().lower() == "mock":
+            settings = {**settings, "VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual"}
+        return create_image_provider_from_env(settings)
+
+    app.state.image_provider_config_invalid = False
+    try:
+        app.state.image_provider = image_provider or workbench_image_provider(runtime_settings)
+    except ValueError:
+        app.state.image_provider = ManualImageProvider()
+        app.state.image_provider_config_invalid = True
+
+    def real_image_generation_available() -> bool:
+        provider = app.state.image_provider
+        return provider.provider in {"images_api", "gemini"} and provider.configured
+
+    def image_generation_unavailable() -> JSONResponse | None:
+        if real_image_generation_available() or (
+            allow_mock_generation and app.state.image_provider.provider == "mock"
+        ):
+            return None
+        if app.state.image_provider_config_invalid:
+            return _error(422, "image_settings_invalid", "旧版生图配置无效。请在本地设置重新保存图片模型连接，或使用 Agent 生图、手动上传。")
+        return _error(
+            422,
+            "image_api_not_configured",
+            "工作台未连接图片模型，不能在这里生图。可回到 Agent 对话继续生成，或上传图片。",
+            retryable=False,
+        )
     app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env(runtime_settings)
     configured_env_path = os.environ.get("VISUAL_DIRECTOR_ENV_FILE")
     app.state.runtime_env_path = runtime_env_path or (
@@ -669,8 +707,15 @@ def create_app(
     async def conflict_handler(_: Request, exc: VersionConflictError) -> JSONResponse:
         return _error(409, "version_conflict", str(exc), retryable=True)
 
+    def ensure_preflight_report(task_id: str) -> dict[str, Any]:
+        return repository.ensure_preflight_report(task_id, lambda task: run_preflight(
+            task["normalized_markdown"] or task["markdown"],
+            title_override=task["title"], requested_article_type=task["article_type"],
+            promote_images=False,
+        ).report.to_dict())
+
     def publication_readiness(task_id: str, *, body_only: bool = False) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        task = repository.get_task(task_id)
+        task = ensure_preflight_report(task_id)
         blockers: list[dict[str, Any]] = []
         checks = {
             "plan_selected": "pending",
@@ -823,6 +868,7 @@ def create_app(
             if not body_only:
                 repository.ensure_image_slot_states(task_id, plan["id"], plan.get("image_slots", []))
             selected_states = repository.list_image_slot_states(task_id, plan["id"])
+            slots_by_id = {slot["image_slot_id"]: slot for slot in plan.get("image_slots", [])}
             for state in selected_states:
                 if not body_only and state["decision"] not in {"accepted", "replaced", "skipped"}:
                     block(
@@ -846,6 +892,21 @@ def create_app(
                             "review_image_slot",
                         )
                     else:
+                        slot = slots_by_id.get(state["image_slot_id"], {})
+                        machine_checks = selected.get("machine_checks") or {}
+                        locked_copy = machine_checks.get("locked_copy")
+                        if locked_copy and slot.get("purpose") == "structured_infographic":
+                            try:
+                                title, items = resolve_overlay_copy(parsed, slot["fact_bindings"])
+                                display_title, display_items = resolve_display_copy(slot["visual_intent"], title, items)
+                                expected_copy = [display_title, *display_items]
+                                expected_source = hash_json([title, *items])
+                            except InfographicOverlayError:
+                                expected_copy, expected_source = [], None
+                            source_hash = machine_checks.get("bound_source_sha256")
+                            if locked_copy != expected_copy or (source_hash and source_hash != expected_source):
+                                block("image_slot_content_changed", "信息图对应的正文已改动，请换图或跳过这张图",
+                                      "image_slot", state["image_slot_id"], "review_image_slot")
                         try:
                             selected_path_for_check, _ = repository.get_image_candidate_asset(selected["id"])
                             verify_asset_hash(
@@ -864,7 +925,7 @@ def create_app(
                             )
         checks["image_slots_decided"] = (
             "blocking"
-            if any(item["code"] in {"image_slot_pending", "selected_asset_missing", "selected_asset_hash_mismatch"} for item in blockers)
+            if any(item["code"] in {"image_slot_pending", "image_slot_content_changed", "selected_asset_missing", "selected_asset_hash_mismatch"} for item in blockers)
             else "pass"
         )
 
@@ -1031,8 +1092,12 @@ def create_app(
                 for item in asset_sources
                 if item.get("source_url")
             }
-            frozen_html = strip_workbench_editor_attributes(replace_asset_urls(document, url_to_token))
-            compatibility = check_frozen_html(frozen_html).to_dict()
+            frozen_html = preserve_wechat_decorative_nodes(
+                strip_workbench_editor_attributes(replace_asset_urls(document, url_to_token))
+            )
+            compatibility = check_frozen_html(
+                frozen_html, asset_tokens={item["asset_token"] for item in asset_sources},
+            ).to_dict()
             compatibility["preflight_status"] = (
                 "REVIEW_RESOLVED" if report.get("status") == "REVIEW" else str(report.get("status") or "PASS")
             )
@@ -1040,7 +1105,8 @@ def create_app(
                 stale_drawing = compatibility["checks"].get("no_legacy_positioned_drawings") == "blocking"
                 block(
                     "compatibility_failed",
-                    "主题预览仍含旧版定位线稿，请重新渲染当前主题并确认后再保存最终版本" if stale_drawing else "最终 HTML 未通过兼容性检查",
+                    "主题预览仍含旧版定位线稿，请重新渲染当前主题并确认后再保存最终版本"
+                    if stale_drawing else describe_html_compatibility_blockers(compatibility["messages"]),
                     "compatibility_report",
                     task_id,
                     "rerender_theme" if stale_drawing else "review_compatibility",
@@ -1100,11 +1166,15 @@ def create_app(
         raw_mode = str(
             os.environ.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
             or file_values.get("VISUAL_DIRECTOR_IMAGE_PROVIDER")
-            or "mock"
-        ).strip().lower()
+            or "manual"
+        ).strip().lower() or "manual"
         legacy_agnes = raw_mode == "agnes"
         legacy_gemini = raw_mode == "gemini"
         mode = "images_api" if legacy_agnes or legacy_gemini else raw_mode
+        if app.state.image_provider_config_invalid:
+            mode = "manual"
+        if mode == "mock" and not allow_mock_generation:
+            mode = "manual"
         active_key_name = "GEMINI_API_KEY" if legacy_gemini else "IMAGE_API_KEY"
         active_legacy_key_name = "AGNES_API_KEY" if legacy_agnes else ""
         process_has_primary_key = active_key_name in os.environ
@@ -1135,6 +1205,8 @@ def create_app(
         )
         active_provider = app.state.image_provider
         warnings: list[str] = []
+        if app.state.image_provider_config_invalid:
+            warnings.append("image_settings_invalid")
         if mode == "manual":
             warnings.append("manual_upload_only")
         elif mode == "mock":
@@ -1193,9 +1265,7 @@ def create_app(
             "mode": mode,
             "active_provider": "images_api" if legacy_gemini else active_provider.provider,
             "active_model": active_provider.model,
-            "real_generation_available": (
-                active_provider.provider in {"images_api", "gemini"} and active_provider.configured
-            ),
+            "real_generation_available": real_image_generation_available(),
             "api_key_configured": api_key_configured,
             "credential_source": credential_source,
             "managed_by_environment": bool(process_keys),
@@ -1285,6 +1355,8 @@ def create_app(
                     "IMAGE_API_SIZE": "",
                 }
             )
+            if app.state.image_provider_config_invalid:
+                updates.update(IMAGE_API_TIMEOUT_SECONDS="180", IMAGE_API_RETRY_DELAY_SECONDS="1")
             if payload.clear_api_key:
                 updates["IMAGE_API_KEY"] = ""
             elif api_key is not None:
@@ -1306,7 +1378,7 @@ def create_app(
             )
         prospective_settings = {**file_values, **updates, **os.environ}
         try:
-            provider = create_image_provider_from_env(prospective_settings)
+            provider = workbench_image_provider(prospective_settings)
             update_env_file(env_path, updates)
         except (OSError, ValueError) as error:
             return _error(
@@ -1315,6 +1387,7 @@ def create_app(
                 str(error),
             )
         app.state.image_provider = provider
+        app.state.image_provider_config_invalid = False
         app.state.runtime_settings = prospective_settings
         return {
             "saved": True,
@@ -1936,7 +2009,7 @@ def create_app(
 
     @app.get("/api/v1/article-tasks/{task_id}")
     def get_task(task_id: str) -> dict[str, Any]:
-        task = repository.get_task(task_id)
+        task = ensure_preflight_report(task_id)
         actions = {
             "created": ["start_plan_generation"],
             "analyzing": [],
@@ -2395,7 +2468,7 @@ def create_app(
                 repository.list_publication_assets(revision_id),
                 repository.get_publication_asset,
             )
-        except (OSError, ValueError) as error:
+        except (NotFoundError, OSError, ValueError) as error:
             result_status = "failed"
             result_media_id = None
             result_error = {
@@ -2464,7 +2537,7 @@ def create_app(
                 repository.list_publication_assets(revision["id"]),
                 repository.get_publication_asset,
             )
-        except (OSError, ValueError) as error:
+        except (NotFoundError, OSError, ValueError) as error:
             result_status = "failed"
             result_media_id = None
             result_error = {
@@ -2537,6 +2610,7 @@ def create_app(
         operator_id: str = Header("operator", alias="X-Operator-Id"),
     ) -> Any:
         repository.assert_task_editable(task_id)
+        ensure_preflight_report(task_id)
         if operator_id not in {"operator", "product_owner"}:
             return _error(422, "invalid_operator", "请选择有效的确认身份")
         try:
@@ -2566,6 +2640,7 @@ def create_app(
         operator_id: str = Header("operator", alias="X-Operator-Id"),
     ) -> Any:
         repository.assert_task_editable(task_id)
+        ensure_preflight_report(task_id)
         if operator_id not in {"operator", "product_owner"}:
             return _error(422, "invalid_operator", "请选择有效的确认身份")
         content = await image_file.read()
@@ -2621,7 +2696,7 @@ def create_app(
     @app.post("/api/v1/article-tasks/{task_id}/generate-plans", status_code=202)
     def start_plan_generation(task_id: str, payload: GeneratePlansRequest) -> dict[str, Any]:
         repository.assert_task_editable(task_id)
-        current = repository.get_task(task_id)
+        current = ensure_preflight_report(task_id)
         preflight_report = current["input_summary"].get("preflight_report", {})
         pending_planning_findings = [
             finding
@@ -3054,7 +3129,7 @@ def create_app(
         restored["undo_stack"] = undo_stack[:-1]
         task = repository.get_task(task_id)
         parsed = parsed_task_article(task)
-        restored = validate_plan_for_article(restored, parsed)
+        restored = validate_plan_for_article(rebind_plan_image_facts(restored, parsed), parsed)
         document = render_preview(parsed, restored, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
             task_id=task_id,
@@ -3093,7 +3168,7 @@ def create_app(
         restored["undo_stack"] = [*current.get("undo_stack", []), current["revision"]]
         task = repository.get_task(task_id)
         parsed = parsed_task_article(task)
-        restored = validate_plan_for_article(restored, parsed)
+        restored = validate_plan_for_article(rebind_plan_image_facts(restored, parsed), parsed)
         document = render_preview(parsed, restored, brand_profile=app.state.brand_profile)
         saved = repository.save_plan_revision(
             task_id=task_id,
@@ -3250,6 +3325,7 @@ def create_app(
                         "prompt": prompt,
                         "prompt_sha256": prompt_sha256,
                         "locked_copy": locked_copy,
+                        "bound_source_sha256": hash_json([infographic_title, *infographic_items]) if infographic_items is not None else None,
                         "expected_plan_revision": int(plan.get("revision") or 1),
                         "expected_image_revision": int(state["image_revision"]),
                         "current_decision": state.get("decision") or "pending",
@@ -3358,7 +3434,7 @@ def create_app(
         }
 
     def cover_workspace(task_id: str, plan_id: str) -> dict[str, Any]:
-        task = repository.get_task(task_id)
+        task = ensure_preflight_report(task_id)
         if task["selected_plan_id"] != plan_id:
             raise VersionConflictError("只有当前选中的方案可以规划封面")
         plan = repository.get_plan(task_id, plan_id)
@@ -3398,6 +3474,7 @@ def create_app(
             "task_id": task_id,
             "plan_id": plan_id,
             "provider_mode": app.state.image_provider.provider,
+            "real_generation_available": real_image_generation_available(),
             "cover_brief": brief,
             "selected_cover": selected_cover,
             "candidates": [
@@ -3425,6 +3502,9 @@ def create_app(
     def generate_cover_candidate(task_id: str, plan_id: str, payload: GenerateCoverRequest) -> Any:
         repository.assert_task_editable(task_id)
         workspace = cover_workspace(task_id, plan_id)
+        unavailable = image_generation_unavailable()
+        if unavailable is not None:
+            return unavailable
         task = repository.get_task(task_id)
         if task["version"] != payload.expected_task_version:
             raise VersionConflictError("任务已被更新，请刷新后重试")
@@ -3755,6 +3835,7 @@ def create_app(
             "task_id": task_id,
             "plan_id": plan_id,
             "provider_mode": app.state.image_provider.provider,
+            "real_generation_available": real_image_generation_available(),
             "visual_system": visual_system,
             "items": [
                 {**slot, "state": states[slot["image_slot_id"]]}
@@ -3791,10 +3872,9 @@ def create_app(
         current_plan = repository.get_plan(task_id, plan_id)
         current_plan_revision = int(current_plan.get("revision") or 1)
         try:
-            generation_plan = repository.get_plan_revision(
-                task_id,
-                plan_id,
-                expected_plan_revision,
+            generation_plan = (
+                current_plan if expected_plan_revision == current_plan_revision
+                else repository.get_plan_revision(task_id, plan_id, expected_plan_revision)
             )
         except NotFoundError:
             return _error(
@@ -3943,10 +4023,9 @@ def create_app(
         plan, image_slot = image_slot_for_plan(task_id, plan_id, image_slot_id)
         current_plan_revision = int(plan.get("revision") or 1)
         try:
-            generation_plan = repository.get_plan_revision(
-                task_id,
-                plan_id,
-                expected_plan_revision,
+            generation_plan = (
+                plan if expected_plan_revision == current_plan_revision
+                else repository.get_plan_revision(task_id, plan_id, expected_plan_revision)
             )
         except NotFoundError:
             return _error(
@@ -3958,6 +4037,13 @@ def create_app(
                     "expected_plan_revision": expected_plan_revision,
                     "current_plan_revision": current_plan_revision,
                 },
+            )
+        if expected_plan_revision != current_plan_revision:
+            # A historical layout revision predates any later text autosaves.
+            # Keep its visual direction, but recompute bound facts against current copy.
+            # If those facts changed since generation, the prompt-derived ID won't match.
+            generation_plan = rebind_plan_image_facts(
+                generation_plan, parsed_task_article(repository.get_task(task_id))
             )
         generation_slot = next(
             (
@@ -4114,6 +4200,7 @@ def create_app(
                 ),
                 "art_direction_snapshot": art_direction_snapshot,
                 "locked_copy": locked_copy,
+                "bound_source_sha256": host_request.get("bound_source_sha256"),
                 "text_consistency": text_consistency,
                 "host_generation": {
                     "schema_version": "host_image_generation_receipt.v0.1",
@@ -4152,6 +4239,9 @@ def create_app(
     ) -> Any:
         repository.assert_task_editable(task_id)
         plan, image_slot = image_slot_for_plan(task_id, plan_id, image_slot_id)
+        unavailable = image_generation_unavailable()
+        if unavailable is not None:
+            return unavailable
         visual_system = plan.get("visual_system") or plan.get("style_mode")
         task = repository.get_task(task_id)
         recent_summaries = repository.list_recent_component_summaries(
@@ -4218,6 +4308,7 @@ def create_app(
                         "generation_mode": "model_end_to_end_infographic",
                         "art_direction_snapshot": art_direction_snapshot,
                         "locked_copy": locked_copy,
+                        "bound_source_sha256": hash_json([infographic_title, *infographic_items]) if infographic_items is not None else None,
                         "text_consistency": text_consistency.as_dict(),
                     },
                 )

@@ -83,6 +83,44 @@ def _run_installer(*args: str) -> tuple[subprocess.CompletedProcess[str], dict]:
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
+@pytest.mark.parametrize("invalid_package", ["missing_web", "broken_python"])
+def test_same_version_reinstall_rejects_bad_package_without_removing_previous(tmp_path, monkeypatch, invalid_package):
+    source = tmp_path / "source"
+    scripts = source / "scripts"
+    scripts.mkdir(parents=True)
+    for name in ("install.ps1", "persistent-launcher.ps1", "persistent-launcher.cmd", "uninstall.ps1"):
+        shutil.copy2(REPOSITORY_ROOT / "scripts" / name, scripts / name)
+    (source / "VERSION").write_text("0.1.0-reinstall-test", encoding="utf-8")
+    workbench = source / "apps/web/dist"
+    workbench.mkdir(parents=True)
+    entry = workbench / "index.html"
+    entry.write_text("old good workbench", encoding="utf-8")
+    shutil.copytree(SKILL_SOURCE, source / "skills/wechat-visual-director")
+    monkeypatch.setattr(f"{__name__}.INSTALLER", scripts / "install.ps1")
+    install = tmp_path / "installed"
+    args = ["-InstallRoot", str(install), "-HostHome", str(tmp_path / "host"), "-SkipDependencies"]
+    proc, installed = _run_installer(*args)
+    assert proc.returncode == 0, proc.stderr
+    make_dataset(install / "data", ["keep-task"])
+    before = dataset_snapshot(install / "data")
+    manifest = (install / "install.json").read_bytes()
+    if invalid_package == "missing_web":
+        entry.unlink()
+    else:
+        entry.write_text("new bad workbench", encoding="utf-8")
+        executable = source / "runtime/python/python.exe"
+        executable.parent.mkdir(parents=True)
+        executable.write_bytes(b"not a PE executable")
+    proc, result = _run_installer(*args)
+    assert proc.returncode != 0
+    assert result["error"]["code"] == ("prebuilt_workbench_missing" if invalid_package == "missing_web" else "bundled_runtime_invalid")
+    assert (Path(installed["app_root"]) / "apps/web/dist/index.html").read_text(encoding="utf-8") == "old good workbench"
+    assert (install / "install.json").read_bytes() == manifest
+    assert dataset_snapshot(install / "data") == before
+    assert not list((install / "versions").glob(".staging-*"))
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows installer contract")
 @pytest.mark.parametrize("migrate_legacy", [False, True])
 def test_independent_source_install_requires_explicit_data_and_config_import(tmp_path, monkeypatch, migrate_legacy):
     source = tmp_path / "source"
