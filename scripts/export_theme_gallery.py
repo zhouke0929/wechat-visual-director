@@ -8,6 +8,7 @@ import json
 import re
 import shutil
 import sys
+from collections.abc import Iterator
 from functools import lru_cache
 from pathlib import Path
 
@@ -75,12 +76,35 @@ def comparable_gallery(value, path: tuple[str | int, ...] = ()):
 
 
 def gallery_contents_match(current: str, expected: str) -> bool:
+    return not next(gallery_differences(current, expected), None)
+
+
+def gallery_differences(current: str, expected: str) -> Iterator[str]:
     try:
         left = comparable_gallery(json.loads(current))
         right = comparable_gallery(json.loads(expected))
-    except (ValueError, OSError, SyntaxError):
-        return False
-    return left == right
+    except (ValueError, OSError, SyntaxError) as error:
+        yield f"Invalid gallery data: {error}"
+        return
+
+    def fields(old, new, field: str) -> Iterator[str]:
+        if old == new:
+            return
+        if isinstance(old, dict) and isinstance(new, dict):
+            for key in sorted(old.keys() | new.keys()):
+                child = f"{field}.{key}"
+                if key not in old or key not in new:
+                    yield child
+                else:
+                    yield from fields(old[key], new[key], child)
+        elif isinstance(old, list) and isinstance(new, list) and len(old) == len(new):
+            for index, (first, second) in enumerate(zip(old, new)):
+                label = second.get("id", index) if isinstance(second, dict) else index
+                yield from fields(first, second, f"{field}[{label}]")
+        else:
+            yield field
+
+    yield from fields(left, right, "gallery")
 
 
 def render_payload() -> str:
@@ -124,13 +148,20 @@ def main() -> int:
         action="store_true",
         help="Fail when the committed static gallery is out of sync.",
     )
+    parser.add_argument("--diagnostic-output", type=Path, help="Write generated JSON here only when --check fails.")
     args = parser.parse_args()
 
     expected = render_payload()
     if args.check:
         current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
-        if not gallery_contents_match(current, expected) or not sticker_assets_are_current():
-            print("site/data/themes.json is stale; run scripts/export_theme_gallery.py")
+        differences = list(gallery_differences(current, expected))
+        if not sticker_assets_are_current():
+            differences.append("site/assets/theme-stickers")
+        if differences:
+            print("Static gallery does not match the renderer:")
+            print("\n".join(differences[:20]))
+            if args.diagnostic_output:
+                args.diagnostic_output.write_text(expected, encoding="utf-8")
             return 1
         print("static theme gallery is in sync")
         return 0

@@ -22,10 +22,18 @@ jobs:
           node-version: "22"
       - name: Install API test dependencies
         run: python -m pip install -e "apps/api[dev]"
+      - name: Verify static theme showcase is current
+        id: gallery
+        run: python scripts/export_theme_gallery.py --check --diagnostic-output gallery-ci-diagnostic.json
+      - name: Upload gallery mismatch for inspection
+        if: failure() && steps.gallery.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-diagnostic-${{ matrix.os }}
+          path: gallery-ci-diagnostic.json
+          retention-days: 3
       - name: Run API tests
         run: python -m pytest apps/api/tests -q
-      - name: Verify static theme showcase is current
-        run: python scripts/export_theme_gallery.py --check
       - name: Build static workbench
         run: |
           corepack pnpm@11.7.0 --dir apps/web install --frozen-lockfile
