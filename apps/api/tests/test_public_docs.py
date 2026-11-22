@@ -165,8 +165,10 @@ def test_product_search_metadata_matches_visible_product_facts() -> None:
     assert "Technical Preview" in data["operatingSystem"]
     assert "softwareVersion" not in data  # Do not duplicate the release pointer.
     body = text.split("<body>", 1)[1]
+    for fact in ("工作台", "主题"):
+        assert fact in body and fact in head.meta["description"] and fact in data["description"]
+    assert "26 套内置主题" in body and "26 套内置主题" in head.meta["description"]
     for fact in ("600px", "405px", "12 类语义组件", "14 种基础样式"):
-        assert fact in body
         assert fact in " ".join(data["featureList"])
         assert fact in (ROOT / "site/llms.txt").read_text(encoding="utf-8")
     assert 'id="faq"' in body
@@ -210,15 +212,17 @@ def test_public_sitemap_points_to_real_canonical_pages() -> None:
 
 def test_showcase_is_a_compact_gallery_with_real_article_links() -> None:
     text = (ROOT / "site/index.html").read_text(encoding="utf-8")
-    assert len(re.findall(r"<section\b", text)) == 5
-    assert '<aside class="product-notes" id="faq" aria-labelledby="notes-title">' in text
-    faq = text.split('id="faq"', 1)[1].split('</aside>', 1)[0]
-    assert '<summary' not in faq
+    chapters = re.findall(r'<section class="sheet-chapter" id="([^"]+)"', text)
+    assert chapters == ["top", "layout-demo", "themes", "custom-themes"]
+    footer = text.split('id="faq"', 1)[1].split("</footer>", 1)[0]
+    assert "data-copy-theme" in footer and "data-copy-install" in footer
     assert 'id="themeChoices"' in text and 'id="themeLive"' in text
     assert 'id="themeReadFull"' not in text
     header = text.split('<header class="site-nav">', 1)[1].split('</header>', 1)[0]
     assert '看成稿' not in header and '换主题' not in header
-    assert text.count('class="edition edition-') == 3
+    articles = re.findall(r'<a class="edition"[^>]*href="([^"]+)"', text)
+    assert articles == ["./articles/campus.html", "./articles/coffee.html", "./articles/pop-collaboration.html"]
+    assert '<dialog class="edition-reader" id="editionReader"' in text
     assert len(re.findall(r"<button\b[^>]*\bdata-copy-install\b", text)) == 3
     for attribute, link in re.findall(r'(src|href)="([^"]+)"', text):
         if link.startswith("./"):
@@ -262,9 +266,11 @@ def test_showcase_article_width_matches_workbench_mobile_viewport() -> None:
         assert 'href="./article.css?' in text
         assert f"{width}PX WECHAT PREVIEW" in text
         assert "390PX" not in text and "width:390px" not in text
-    gallery_css = (ROOT / "site/styles.css").read_text(encoding="utf-8")
-    iframe_rule = re.search(r"\.edition-preview iframe\s*\{([^}]+)\}", gallery_css).group(1)
-    assert f"width: {width}px;" in iframe_rule
+    gallery_css = (ROOT / "site/editorial.css").read_text(encoding="utf-8")
+    preview_rule = re.search(r"\.edition-preview\s*\{([^}]+)\}", gallery_css)
+    assert preview_rule and f"width: {width}px;" in preview_rule.group(1)
+    script = (ROOT / "site/app.js").read_text(encoding="utf-8")
+    assert f"const phoneSourceWidth = {width};" in script
 
 
 def test_readme_article_presentation_has_clear_images_and_current_product_copy() -> None:
@@ -295,8 +301,10 @@ def test_public_film_is_opt_in_and_readme_links_to_real_player() -> None:
     assert "autoplay" not in video and "muted" not in video
     assert 'src="./assets/media/product-demo.mp4"' in video
     assert 'poster="./assets/media/product-demo-poster.png"' in video
-    assert 'id="product-film"' in text
-    assert 'aria-label="播放 48 秒产品演示" hidden' in text
+    trigger = re.search(r'<a\b[^>]*\bid="product-film"[^>]*>', text)
+    assert trigger and 'href="./assets/media/product-demo.mp4"' in trigger.group()
+    player = re.search(r'<dialog\b[^>]*\bid="filmDialog"[^>]*>(.*?)</dialog>', text, re.S)
+    assert player and video in player.group(1)
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert re.search(r"(?m)^https://github\.com/user-attachments/assets/[0-9a-f-]{36}$", readme)
     assert "[![播放 48 秒宣传片" not in readme

@@ -768,6 +768,8 @@ function setupChapterStack() {
       face: sheet.querySelector(".sheet-section"), at: 0, progressStart: 0, distance: 0, progress: null,
     };
   });
+  const editions = chapters.find(chapter => chapter.sheet === layoutChapter);
+  const themes = chapters.find(chapter => chapter.sheet === themeChapter);
   main.style.setProperty("--stack-last-index", chapters.length - 1);
   let stacked = false;
   let requestedFrame = 0;
@@ -775,8 +777,6 @@ function setupChapterStack() {
   let galleryReady = false;
   let themeCaseReady = false;
   let activeChapter = -1;
-  let editionsRestingAt = null;
-  let editionsSeen = false;
   let lastEditionWheel = 0;
   let lastEditionDelta = 0;
   let tailUntil = 0;
@@ -814,7 +814,6 @@ function setupChapterStack() {
     if (previous?.sheet === themeChapter) previous.progress = null;
     departingChapter = animateTurn && direction < 0 ? previous : undefined;
     activeChapter = next;
-    editionsRestingAt = null;
     lastEditionWheel = 0;
     tailUntil = 0;
     chapters.forEach((chapter, index) => {
@@ -826,15 +825,11 @@ function setupChapterStack() {
 
     const enteringEditions = chapters[next].sheet === layoutChapter;
     if (enteringEditions) {
-      window.addEventListener("wheel", paceEditionWheel, { passive: false });
-      const returning = direction < 0 && editionsSeen;
       if (animateTurn && direction > 0 && !reduced) layoutChapter.style.setProperty("--arrival-lead", "420ms");
       else layoutChapter.style.removeProperty("--arrival-lead");
-      layoutChapter.dataset.entrance = returning ? "settled" : "playing";
-      if (returning) editionsRestingAt = window.scrollY;
+      layoutChapter.dataset.entrance = direction < 0 ? "settled" : "playing";
     }
     else if (previous?.sheet === layoutChapter) {
-      window.removeEventListener("wheel", paceEditionWheel);
       layoutChapter.removeAttribute("data-entrance");
       layoutChapter.style.removeProperty("--arrival-lead");
     }
@@ -885,18 +880,8 @@ function setupChapterStack() {
       else if (visible >= .3 * Math.min(papers.height, innerHeight)) layoutChapter.dataset.entrance = "playing";
       return;
     }
-    let position = window.scrollY;
+    const position = window.scrollY;
     const scrollTurn = !remeasure && animate;
-    if (editionsRestingAt !== null && chapters[activeChapter]?.sheet === layoutChapter) {
-      const nextStart = chapters[activeChapter + 1].at;
-      const start = chapters[activeChapter].at;
-      if (scrollTurn && position !== editionsRestingAt && position >= start && position < nextStart) {
-        const forward = position > editionsRestingAt;
-        window.scrollTo({ top: forward ? Math.ceil(nextStart) : Math.floor(start) - 13, behavior: "instant" });
-        position = window.scrollY;
-      }
-      editionsRestingAt = position;
-    }
     // Leave room for tiny touchpad reversals at a chapter boundary.
     const current = chapters.findLastIndex(({ at }, index) =>
       position + .25 >= at - (scrollTurn && index <= activeChapter ? 12 : 0)
@@ -939,8 +924,11 @@ function setupChapterStack() {
       Number.parseFloat(getComputedStyle(pin).top) + pin.offsetHeight <= bottomLimit
     );
     main.classList.toggle("is-stacked", stacked);
+    if (stacked !== wasStacked) {
+      if (stacked) window.addEventListener("wheel", paceEditionWheel, { passive: false });
+      else window.removeEventListener("wheel", paceEditionWheel);
+    }
     if (!stacked && activeChapter >= 0) {
-      window.removeEventListener("wheel", paceEditionWheel);
       stopChapterAnimation();
       chapters.forEach(({ sheet, pin }) => {
         sheet.removeAttribute("data-stack-visible");
@@ -1009,22 +997,42 @@ function setupChapterStack() {
   // Let the three papers settle before another forward wheel tick turns the page.
   // Leave nested readers, zoom gestures and horizontal scrolling alone.
   function paceEditionWheel(event) {
-    if (event.ctrlKey || document.querySelector("dialog[open]") ||
-        Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    if (!event.cancelable || event.defaultPrevented || event.ctrlKey || !event.deltaY ||
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) || document.querySelector("dialog[open]") ||
+        event.target.closest?.("select")) return;
+    const reader = event.target.closest?.(".preview-scroll, .case-reading-window");
+    if (reader && (event.deltaY < 0 ? reader.scrollTop > 0 :
+        reader.scrollTop + reader.clientHeight < reader.scrollHeight - 1)) return;
+    const activeSheet = chapters[activeChapter]?.sheet;
+    if (activeSheet !== layoutChapter) {
+      // A single fast wheel tick can cross both boundaries of this short chapter.
+      const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? innerHeight : 1;
+      const destination = window.scrollY + event.deltaY * unit;
+      if ((activeSheet === cover && event.deltaY > 0 && destination >= themes.at) ||
+          (activeSheet === themeChapter && event.deltaY < 0 && destination < editions.at)) {
+        event.preventDefault();
+        window.scrollTo({ top: (editions.at + themes.at) / 2, behavior: "instant" });
+        paint();
+      }
+      return;
+    }
     const now = performance.now();
     const delta = event.deltaY;
     const trailing = now < tailUntil && now - lastEditionWheel < 90 &&
       event.deltaMode === 0 && delta <= 16 && delta <= lastEditionDelta;
     lastEditionWheel = now;
     lastEditionDelta = delta;
-    if (delta > 0 && (editionsRestingAt === null || trailing)) event.preventDefault();
+    if (delta > 0) {
+      // The last paper finishes last, even when the layout switches at a breakpoint.
+      const arriving = editionCards.at(-1)?.getAnimations().some(animation =>
+        animation.animationName === "edition-arrive" && animation.playState !== "finished");
+      if (arriving || trailing) event.preventDefault();
+    }
     if (delta < 0 && departingChapter && chapterAnimation) event.preventDefault();
   }
   editionCards.at(-1)?.addEventListener("animationend", event => {
     if (event.animationName === "edition-arrive" && chapters[activeChapter]?.sheet === layoutChapter) {
-      editionsSeen = true;
       tailUntil = performance.now() + 240;
-      editionsRestingAt = window.scrollY;
     }
   });
   window.addEventListener("resize", measure);

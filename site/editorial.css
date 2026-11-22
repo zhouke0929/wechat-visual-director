@@ -378,7 +378,6 @@ html:has(.edition-reader[open]) { overflow: hidden; }
   :root { --sheet-front-right: clamp(16px, 3.05vw, 52px); }
   .site-nav { padding-inline: var(--sheet-front-left) var(--sheet-front-right); }
 }
-.preview-scroll { overscroll-behavior-y: contain; }
 .sheet-section:not(.hero) {
   padding-top: clamp(26px, 3.6vh, 54px);
   padding-bottom: calc(var(--sheet-front-bottom) + 20px);
@@ -582,7 +581,6 @@ html:has(.edition-reader[open]) { overflow: hidden; }
 }
 html:has(#main.is-stacked) { scroll-behavior: auto; }
 .stack-start, .stack-runway { pointer-events: none; }
-.is-stacked #layout-demo { height: 72svh; }
 .is-stacked .stack-runway.stack-themes { height: clamp(620px, 109svh, 1050px); }
 .is-stacked .sheet-chapter {
   position: relative;
