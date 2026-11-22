@@ -1,11 +1,18 @@
 :root {
   --ink: #30223b;
-  --paper: #fff8f4;
+  --paper: #faf7ef;
   --accent: #b83450;
   --coral: #f26078;
   --line: #30223b24;
   --muted: #756b7c;
-  --surface: #fffdfb;
+  --control-radius: 6px;
+  --control-inset: 14px;
+  --surface: #fffdf7;
+  --paper-desk: #c1b4a0;
+  --paper-backing: #e0d5c0;
+  /* From the tutorial's layered-paper backdrop, based on ambientCG Paper 001 (CC0). */
+  --paper-grain: url("./assets/identity/paper-grain.webp");
+  --paper-grain-soft: linear-gradient(#fff8, #fff8), var(--paper-grain);
   --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "SimSun", Georgia, serif;
   --sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", sans-serif;
   --site-gutter: max(clamp(20px, 4vw, 72px), calc((100% - 1320px) / 2));

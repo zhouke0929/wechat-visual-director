@@ -44,6 +44,6 @@
 - [README 与源码](https://github.com/zhouke0929/wechat-visual-director): 产品定位、案例与快速开始。
 - [安装、配置与维护指南](https://github.com/zhouke0929/wechat-visual-director/blob/main/docs/usage-guide.md): 手动命令、图片与公众号配置、排障和卸载。
 - [轻量 Skill](https://github.com/zhouke0929/wechat-visual-director/tree/main/skills/wechat-visual-director): 宿主可加载包，不是完整运行环境。
-- [公开教程案例](https://zhouke0929.github.io/wechat-visual-director/articles/campus.html): 青春校园主题。
+- [公开教程案例](https://zhouke0929.github.io/wechat-visual-director/articles/campus.html)，自然图鉴主题。
 - [公开商业案例](https://zhouke0929.github.io/wechat-visual-director/articles/coffee.html): 温暖人文主题。
-- [公开品牌案例](https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html): 波普海报主题。
+- [公开品牌案例](https://zhouke0929.github.io/wechat-visual-director/articles/pop-collaboration.html)，编辑对比主题。

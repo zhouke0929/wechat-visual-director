@@ -15,6 +15,7 @@ from visual_director.brief_compiler import (  # noqa: E402
 )
 from visual_director.parser import parse_markdown  # noqa: E402
 from visual_director.planner import generate_plans  # noqa: E402
+from visual_director.publication import _materialized_image_markup  # noqa: E402
 from visual_director.renderer import render_preview  # noqa: E402
 
 
@@ -23,7 +24,7 @@ SHOWCASES = (
         "01-campus-project-portfolio.md",
         "brief-01-campus-project-portfolio.json",
         "campus.html",
-        "youth_campus",
+        "natural_atlas",
     ),
     (
         "02-neighborhood-coffee-repeat-visits.md",
@@ -35,7 +36,7 @@ SHOWCASES = (
         "03-pop-collaboration-memory.md",
         "brief-03-pop-collaboration-memory.json",
         "pop-collaboration.html",
-        "pop_poster",
+        "editorial_contrast",
     ),
 )
 HERO_PATTERN = re.compile(
@@ -48,8 +49,8 @@ SHOWCASE_DOCUMENT_PATTERN = re.compile(
     re.DOTALL,
 )
 POP_SHOWCASE_IMAGES = (
-    "pop-collaboration-memory.webp",
-    "pop-collaboration-experience.webp",
+    ("collaboration-package.webp", "象牙白纸盒与墨蓝织物套组成的联名设计示意"),
+    ("collaboration-workshop.webp", "合作活动现场，两人交接纸制体验套件的示意"),
 )
 
 
@@ -66,19 +67,19 @@ def _hydrate_showcase_images(rendered: str, image_slot_ids: list[str]) -> str:
     hydrated = rendered
     if len(image_slot_ids) != len(POP_SHOWCASE_IMAGES):
         raise RuntimeError("pop showcase image slots no longer match curated assets")
-    for index, (slot_id, image_name) in enumerate(zip(image_slot_ids, POP_SHOWCASE_IMAGES)):
+    for slot_id, (image_name, alt) in zip(image_slot_ids, POP_SHOWCASE_IMAGES):
         pattern = re.compile(
             rf'<section id="{re.escape(slot_id)}" class="image-slot-anchor"[^>]*>.*?</section>',
             re.DOTALL,
         )
-        replacement = (
-            f'<section id="{slot_id}" class="image-slot-anchor" '
-            'data-image-frame="pop_collage" style="scroll-margin-top:18px;margin:26px 0;">'
-            f'<img src="../assets/generated/{image_name}" '
-            'loading="eager" decoding="async" '
-            'alt="运营已确认的文章配图" '
-            'style="display:block;width:100%;height:auto;margin:0;border:0;" />'
-            '</section>'
+        replacement = _materialized_image_markup(
+            element_id=slot_id,
+            anchor_class="image-slot-anchor",
+            content_url=f"../assets/generated/{image_name}",
+            width=1672,
+            height=941,
+            alt=alt,
+            frame_variant="editorial_masthead",
         )
         hydrated, replacement_count = pattern.subn(replacement, hydrated, count=1)
         if replacement_count != 1:
@@ -133,8 +134,8 @@ def main() -> int:
             if replacement_count != 1:
                 raise RuntimeError("showcase document missing: pop-collaboration.html")
             updated = re.sub(
-                r"未来科技( · \d+PX WECHAT PREVIEW)",
-                r"波普海报\1",
+                r"(?:未来科技|波普海报)( · \d+PX WECHAT PREVIEW)",
+                r"编辑对比\1",
                 updated,
             )
         else:

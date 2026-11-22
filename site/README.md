@@ -2,7 +2,7 @@
 
 This directory is the public, backend-free GitHub Pages surface for WeChat Visual Director.
 
-- `index.html`, `styles.css`, `app.js`: product landing page and interactive theme browser;
+- `index.html`, `styles.css`, `editorial.css`, `app.js`: product landing page and interactive theme browser; `editorial.css` is the full-site editorial design layer;
 - `brand.css`: shared colors, typography and page gutters for the homepage and article pages;
 - `data/themes.json`: generated from the production theme catalog by `python scripts/export_theme_gallery.py`;
 - `articles/`: curated static 405px article previews with local image assets;
@@ -12,11 +12,11 @@ This directory is the public, backend-free GitHub Pages surface for WeChat Visua
 
 The public brand uses ivory `#FFF8F4`, plum `#30223B` and coral `#F26078`,
 with `#B83450` for small accent text. The approved comma mascot is used in
-the navigation, footer and favicon. Article iframe contents and theme-catalog
+the navigation, footer and favicon. Full article contents and theme-catalog
 HTML retain their own typography and palettes.
 
-The hero shows the approved 48-second product film beside a short product
-introduction. It starts in place when the play button is activated, with native
+The hero shows an editorial paper composition beside a short product
+introduction. Its play button opens the approved 48-second film in place, with native
 playback, volume and fullscreen controls. It does not autoplay or download the
 MP4 on page load (`preload="none"`). Without JavaScript, native video controls
 remain available. The finished-article gallery follows in its own section.
@@ -34,39 +34,43 @@ the live site while retaining each article's actual heading and text styles.
 
 ## A gallery, not a long-form manual
 
-The homepage has five main sections: a first-screen product introduction and
-film, three real article editions, the interactive theme atelier, a
-reference-to-custom-theme creation entry, and a compact installation CTA.
-On phones the first screen presents the introduction, film and installation
-action in that order. Image examples are integrated into the article gallery rather than repeated
-in separate feature, comparison and workflow modules. Keep supporting setup,
-cost and privacy details in a compact, always-visible two-column note (stacked
-on small screens) and linked documentation. Do not hide these notes behind a
-disclosure. The header contains the brand, GitHub and installation action only;
-the hero retains its theme-gallery link.
-Do not turn search optimization into another wall of feature cards.
+The homepage has four chapters: the product film, the finished-article
+walkthrough, the interactive theme library, and custom theme creation with
+installation and delivery information. On desktop, crossing a chapter boundary
+brings the next paper sheet up in a short animation. The previous sheet recedes
+into the stack and leaves its top edge showing. Native scroll still drives the
+article and theme sequences within their chapters. Narrow, short or zoomed-in
+viewports use normal document flow. The last chapter links to setup, cost and
+privacy details in a dialog.
 
-The article cards open complete static articles in the same tab. Each article
-has a branded return link on all screen sizes; the homepage iframes use the
-`#excerpt` fragment to hide that chrome without changing the rendered article.
-The atelier lists every official theme beside a phone that shows the entire
-production-rendered sample. Only the phone screen scrolls; the outer frame
-stays in place. Use `?theme=<id>#themes` to preselect a theme.
+The walkthrough shows three article excerpts side by side, using the original
+components at the workbench's 405px mobile width and 24px inner gutters. The
+papers scale in proportion to their columns. Scrolling reveals one excerpt
+at a time on desktop. On narrow screens the finished excerpts form a
+horizontal strip. Select any paper to open its complete article. Its link
+also works without JavaScript.
+The theme library shows six representative covers in a stack. On wide
+screens, page scroll and the previous and next buttons draw each cover from
+behind the stack and lay it on top. The phone updates the same article, stage
+color and theme description with each selection. The catalog selector exposes every built-in
+theme. Narrow screens use the existing horizontal specimen strip and short
+phones use the catalog selector.
+Use `?theme=<id>#themes` to preselect a theme.
 Preserve the established
 `#cases`, `#themes`, `#image-system`, `#workflow` and `#faq` link targets.
 The three complete articles share `articles/article.css`: a 405px viewport with
 24px inner gutters, matching the workbench's mobile source width (not its 600px
 proofreading content width). Smaller screens fit their available width; larger
-screens do not stretch the article. Card iframes use the same 405px source width
-with a visual scale. The excerpt ends after the complete first paragraph;
-the remaining article is clipped before the curated image row. Cards appear
-side by side on desktop and stack on phones. Keep the source width and
-article labels in sync with `ArticlePreviewViewport`; regression tests check it.
+screens do not stretch the article. Keep source width and article labels in
+sync with `ArticlePreviewViewport`. The walkthrough uses those same rendered examples.
 The workbench theme album includes 14 foundation specimens and 12 semantic
-components. The public phone shows a sample article, with no separate reader
-dialog or component picker. `#custom-themes` describes the
-workflow with explicitly labeled illustrative elements, not an unverified claim
-about a one-shot generation result; its copy button sends nothing automatically.
+components. The public theme phone shows a sample article.
+At `#custom-themes`, three original reference images point to the cover,
+chapter heading, and Q&A heading in the Spring Fold Notes edition of the coffee-corner
+article. The samples use the actual static article export, including its
+workbench illustrations, so this case also works without a running workbench.
+On narrow screens, the selected reference controls which sample is shown.
+The theme prompt and installer are available below the comparison.
 The phone uses the original showcase's metal-rimmed shell and shrinks to fit
 on narrow screens. Check that the final article block is reachable and that
 selecting a new theme resets the screen scroll without moving the frame.
@@ -76,6 +80,13 @@ The manual dialog must show the prompt associated with the clicked button,
 whether installation or custom-theme creation.
 
 Browser regression (Playwright + Microsoft Edge; no workbench or private data):
+
+The editorial version is currently a local design review. The legacy showcase
+harness below still assumes 26 individual theme buttons and homepage iframes;
+update those assertions and the promotional capture path before publishing.
+This version has been checked in the in-app browser at 320, 393, 768, 1024 and
+1440 pixels, including all 26 selections, fixed phone geometry, specimen
+switching, video playback and both copy actions.
 
 ```bash
 python scripts/check-product-showcase-ui.py --artifacts tmp/showcase

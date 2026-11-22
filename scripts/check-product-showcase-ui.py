@@ -256,12 +256,12 @@ def main() -> None:
             page.locator("#themes").screenshot(path=str(ROOT / "docs/assets/readme/product-showcase-themes.png"))
         page.set_viewport_size({"width": 1440, "height": 1000})
 
-        copy = page.locator("#heroCopyInstallPrompt")
+        copy = page.locator(".site-nav [data-copy-install]")
         copy.scroll_into_view_if_needed()
         before = copy.bounding_box()
         scroll_before = page.evaluate("scrollY")
         copy.click()
-        page.wait_for_function("document.querySelector('#heroCopyInstallPrompt').textContent.includes('已复制')")
+        page.wait_for_function("document.querySelector('.site-nav [data-copy-install]').textContent.includes('已复制')")
         after = copy.bounding_box()
         assert before and after and abs(before["width"] - after["width"]) < 1
         assert abs(page.evaluate("scrollY") - scroll_before) < 1
@@ -304,7 +304,7 @@ def main() -> None:
         fallback.add_init_script("Object.defineProperty(navigator, 'clipboard', {value:{writeText:async()=>{throw Error('denied')}}}); document.execCommand=()=>false;")
         failure_page = fallback.new_page()
         failure_page.goto(url, wait_until="networkidle")
-        failure_page.locator("#heroCopyInstallPrompt").click()
+        failure_page.locator(".site-nav [data-copy-install]").click()
         failure_page.locator("#installDialog[open]").wait_for()
         assert "main/INSTALL_FOR_AGENT.md" in failure_page.locator("#installPromptText").input_value()
         assert failure_page.locator("#promptHelpLink").is_visible()
