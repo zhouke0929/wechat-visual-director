@@ -56,9 +56,11 @@ def test_api_blocks_production_failure_before_creating_or_replacing_a_pack(tmp_p
     original = path.read_bytes()
     value = manifest()
     value["version"] = "2.0.0"
-    from visual_director import renderer
-    original_renderer = renderer.render_generated_paragraph
-    monkeypatch.setattr(renderer, "render_generated_paragraph", lambda text, config, lead=False: original_renderer(text, config, lead=False))
+    from visual_director import foundation_prose
+
+    original_renderer = foundation_prose.render_generated_paragraph
+    monkeypatch.setattr(foundation_prose, "render_generated_paragraph",
+                        lambda text, config, *, lead=False, reading=None: original_renderer(text, config, lead=False, reading=reading))
     with TestClient(app) as client:
         endpoint = "/api/v1/theme-packs" + ("" if install else "/validate")
         response = client.post(endpoint, headers=HEADERS, files={"theme_file": ("theme.json", content(value), "application/json")})

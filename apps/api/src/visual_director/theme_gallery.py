@@ -14,7 +14,7 @@ from .component_catalog import (
 from .components import render_component
 from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
-from .renderer import _render_heading
+from .foundation_structure import _render_heading
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
 from .theme_pair_samples import COMPARISON, TIMELINE
 from .theme_packs import BUNDLED_THEME_IDS, bundled_theme_acceptance, check_theme_pack_delivery, theme_pack, theme_pack_load_errors

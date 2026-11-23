@@ -9,7 +9,8 @@ from .component_catalog import COMPONENT_CATALOG, CORE_THEME_COMPONENTS
 from .parser import parse_markdown
 from .planner import generate_plans
 from .publication import _materialized_image_markup
-from .renderer import _opening_highlight, render_preview
+from .foundation_content import _opening_highlight
+from .renderer import render_preview
 from .theme_layouts import ROLE_FIELDS
 from .theme_pair_samples import review_pair
 

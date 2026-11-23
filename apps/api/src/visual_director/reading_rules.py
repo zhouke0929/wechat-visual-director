@@ -1,8 +1,8 @@
 """Reading roles shared by article components, independent of theme geometry.
 
-The role inventory describes both migrated and planned attachments. Only
-ordinary lists and logic paths opt in to resolving a profile in this slice.
-Editorial planning, v1 manifests and persisted HTML are not changed here.
+Lists/steps can use a complete reading profile in their original trial. Other
+authored fields retain the theme recipe unless a reviewed override exists.
+Neither mechanism infers roles from HTML or from the words in an article.
 """
 
 from __future__ import annotations
@@ -140,7 +140,7 @@ SEMANTIC_READING_ROLES: Mapping[str, tuple[str, ...]] = MappingProxyType({
     "concept_explainer": (COMPONENT_TITLE, BODY, LABEL, INLINE_EMPHASIS),
     "case_card": (COMPONENT_TITLE, BODY, LABEL, INLINE_EMPHASIS),
     "warning_note": (BODY, MARKER, LABEL, INLINE_EMPHASIS),
-    "action_checklist": (LIST_BODY, MARKER, LABEL, INLINE_EMPHASIS),
+    "action_checklist": (BODY, MARKER, LABEL, INLINE_EMPHASIS),
     "faq_card": (COMPONENT_TITLE, BODY, LABEL, INLINE_EMPHASIS),
     "comparison_card": (BODY, LABEL, MARKER, INLINE_EMPHASIS),
     "section_summary": (BODY, LABEL, MARKER, INLINE_EMPHASIS),
@@ -215,6 +215,10 @@ def apply_reading_css(
     if profile is None:
         return style
     rule = profile.rules[role]
+    return _apply_rule(style, role, rule, inset_before_offset)
+
+
+def _apply_rule(style: str, role: str, rule: TextRule, inset_before_offset: float = 0) -> str:
     values = {
         "font-size": f"{rule.size_px:g}px" if rule.size_px is not None else None,
         "font-weight": str(rule.weight) if rule.weight is not None else None,
@@ -231,6 +235,8 @@ def apply_reading_css(
     # Replacing declarations at the text host (not the surrounding component)
     # keeps alignment, borders, colors and the marker's geometry intact.
     updated = {name: value for name, value in values.items() if value is not None}
+    if not updated:
+        return style
     untouched = [item for item in style.split(";") if item.strip() and item.partition(":")[0].strip().lower() not in updated]
     return "".join(f"{item};" for item in untouched) + "".join(f"{n}:{v};" for n, v in updated.items())
 
@@ -244,10 +250,14 @@ def apply_reading_emphasis(markup: str, profile: ReadingProfile | None) -> str:
     if profile is None:
         return markup
 
+    return _emphasis_with_rule(markup, profile.rules[INLINE_EMPHASIS])
+
+
+def _emphasis_with_rule(markup: str, rule: TextRule) -> str:
     def update(match: re.Match[str]) -> str:
         attrs = match[1]
         inline_style = _STRONG_STYLE.search(attrs)
-        new_style = apply_reading_css(inline_style[1] if inline_style else "", INLINE_EMPHASIS, profile)
+        new_style = _apply_rule(inline_style[1] if inline_style else "", INLINE_EMPHASIS, rule)
         if inline_style is not None:
             attrs = attrs[:inline_style.start(1)] + new_style + attrs[inline_style.end(1):]
         else:
@@ -255,3 +265,48 @@ def apply_reading_emphasis(markup: str, profile: ReadingProfile | None) -> str:
         return f"<strong{attrs}>"
 
     return _STRONG_OPEN.sub(update, markup)
+
+
+def authored_metrics(role: str, profile: ReadingProfile | None) -> dict[str, Any]:
+    """Only explicit, reviewed choices; never flatten legacy typography by default."""
+    if profile is None:
+        return {}
+    return {key: getattr(profile.rules[role], key) for key, origin in profile.field_sources[role].items()
+            if origin == "theme role override"}
+
+
+def authored_host_css(style: str, role: str, profile: ReadingProfile | None) -> str:
+    values = authored_metrics(role, profile)
+    return _apply_rule(style, role, TextRule(**values)) if values else style
+
+
+def restore_authored_metrics(role: str, metrics: Mapping[str, Any]) -> ReadingProfile:
+    """Restore bounded metrics captured with a deferred field, never raw CSS."""
+    if role not in DEFAULT_READING_RULES:
+        raise ValueError(f"Unknown reading role: {role}")
+    _check_theme_metrics("snapshot", role, metrics)
+    return ReadingProfile({role: TextRule(**metrics)}, {role: "snapshot"},
+                          {role: dict.fromkeys(metrics, "theme role override")})
+
+
+def authored_emphasis(markup: str, profile: ReadingProfile | None) -> str:
+    if profile is None or INLINE_EMPHASIS not in profile.rules:
+        return markup
+    values = authored_metrics(INLINE_EMPHASIS, profile)
+    return _emphasis_with_rule(markup, TextRule(**values)) if values and "<strong" in markup else markup
+
+
+def render_authored_text(markup: str, role: str, profile: ReadingProfile | None) -> str:
+    """Project trusted, already escaped inline output, never decoration or raw source.
+
+    Inline fields do not own vertical box geometry. Layouts with a text host
+    can instead apply authored_host_css and authored_emphasis directly.
+    """
+    if not markup or profile is None:
+        return markup
+    text = authored_emphasis(markup, profile)
+    values = {key: value for key, value in authored_metrics(role, profile).items()
+              if key in {"size_px", "weight", "line_height", "letter_spacing_em", "wrap"}}
+    if not values:
+        return text
+    return f'<span style="{_apply_rule("", role, TextRule(**values))}">{text}</span>'

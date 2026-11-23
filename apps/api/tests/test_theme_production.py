@@ -32,10 +32,10 @@ def test_all_declared_roles_hit_their_actual_production_entry_points():
 
 
 def test_ordered_list_requires_real_numbers_not_only_a_layout_hit(monkeypatch):
-    from visual_director import renderer
+    from visual_director import foundation_lists
 
-    original = renderer.render_generated_list
-    monkeypatch.setattr(renderer, "render_generated_list",
+    original = foundation_lists.render_generated_list
+    monkeypatch.setattr(foundation_lists, "render_generated_list",
                         lambda items, ordered, config, role: original(items, False, config, role))
     report = check_theme_production(manifest())
     assert report["status"] == "blocking"
@@ -102,9 +102,11 @@ def test_authored_list_can_style_ordered_indexes_and_unordered_markers():
 
 
 def test_renderable_layout_is_blocking_when_production_silently_ignores_it(monkeypatch):
-    from visual_director import renderer
-    original = renderer.render_generated_paragraph
-    monkeypatch.setattr(renderer, "render_generated_paragraph", lambda content, config, lead=False: original(content, config, lead=False))
+    from visual_director import foundation_prose
+
+    original = foundation_prose.render_generated_paragraph
+    monkeypatch.setattr(foundation_prose, "render_generated_paragraph",
+                        lambda content, config, *, lead=False, reading=None: original(content, config, lead=False, reading=reading))
     report = theme_delivery_report(manifest())
     assert report["coverage"]["status"] == "complete"
     assert all(role["status"] == "pass" for role in report["rehearsal"]["roles"])

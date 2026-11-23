@@ -7,19 +7,19 @@ from typing import Any
 
 from .component_catalog import VISUAL_SYSTEM_ORDER
 from .parser import ParsedArticle
-from .generated_theme import render_generated_component
+from .generated_theme import render_generated_semantic
 from .logic_path_renderer import render_logic_path
 from .logic_path_styles import render_native_logic_path
 from .reading_rules import resolve_reading_profile
 from .render_pilot import logic_path_pilot_enabled
 from .step_content import render_step_inline
-from .theme_extensions import render_extended_component
+from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
+from .theme_extensions import render_extended_semantic
 
 
-REF_RE = re.compile(r"^(block-\d{3})(?::item:(\d+))?$")
-
-
-def _inline(value: str) -> str:
+def _inline(value: str | SemanticField) -> str:
+    if isinstance(value, SemanticField):
+        return value.render(_inline)
     escaped = html.escape(value)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     return escaped.replace("\n", "<br>")
@@ -27,33 +27,6 @@ def _inline(value: str) -> str:
 
 def _step_inline(value: str) -> str:
     return render_step_inline(value, _inline)
-
-
-def _resolve(parsed: ParsedArticle, reference: str) -> str:
-    match = REF_RE.fullmatch(reference)
-    if not match:
-        raise ValueError(f"无法解析内容绑定：{reference}")
-    block_id, item_index = match.groups()
-    block = next((item for item in parsed.blocks if item.id == block_id), None)
-    if block is None:
-        raise ValueError(f"内容块不存在：{block_id}")
-    if item_index is None:
-        return str(block.content)
-    return str(block.content[int(item_index)])
-
-
-def _one(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> str:
-    reference = bindings[role]
-    if not isinstance(reference, str):
-        raise ValueError(f"{role} 应为单个内容引用")
-    return _resolve(parsed, reference)
-
-
-def _many(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> list[str]:
-    references = bindings[role]
-    if not isinstance(references, list):
-        raise ValueError(f"{role} 应为内容引用数组")
-    return [_resolve(parsed, reference) for reference in references]
 
 
 DEFAULT_PALETTE = {
@@ -70,30 +43,14 @@ DEFAULT_PALETTE = {
 }
 
 
-def _plain_list(items: list[str], accent: str, *, item_inline: Callable[[str], str] = _inline) -> str:
+def _plain_list(items: tuple[SemanticField, ...], accent: str) -> str:
     rows = []
     for index, item in enumerate(items, 1):
         rows.append(
             '<p style="margin:0 0 12px;color:#34403E;font-size:16px;line-height:1.75;">'
-            f'<strong style="color:{accent};">{index:02d}.</strong> {item_inline(item)}</p>'
+            f'<strong style="color:{accent};">{index:02d}.</strong> {_inline(item)}</p>'
         )
     return '<section style="margin:24px 0;">' + "".join(rows) + "</section>"
-
-
-def _concept_entries(
-    parsed: ParsedArticle,
-    bindings: dict[str, Any],
-) -> list[tuple[str, str]]:
-    titles = [_one(parsed, bindings, "title")]
-    definitions = [_one(parsed, bindings, "definition")]
-    if "related_titles" in bindings or "related_definitions" in bindings:
-        if "related_titles" not in bindings or "related_definitions" not in bindings:
-            raise ValueError("连续概念词条必须同时提供标题与解释")
-        titles.extend(_many(parsed, bindings, "related_titles"))
-        definitions.extend(_many(parsed, bindings, "related_definitions"))
-    if len(titles) != len(definitions) or not 1 <= len(titles) <= 4:
-        raise ValueError("连续概念词条必须包含 1–4 组标题与解释")
-    return [(_inline(title), _inline(definition)) for title, definition in zip(titles, definitions, strict=True)]
 
 
 def _render_concept_group(
@@ -236,10 +193,44 @@ def render_component(
     *,
     visual_system: str | None = None,
 ) -> str:
-    component_type = slot["component_type"]
-    variant = slot["variant"]
-    bindings = slot["content_bindings"]
+    selected = visual_system or (config or {}).get("visual_system")
+    reading = resolve_reading_profile(config or {}, official=selected in VISUAL_SYSTEM_ORDER, theme_id=selected)
+    return render_bound_component(bind_semantic_content(slot, parsed, reading=reading), slot["variant"],
+                                  palette, config, visual_system=selected)
+
+
+def render_bound_component(
+    content: BoundSemanticContent, variant: str, palette: dict[str, str] | None,
+    config: dict[str, Any] | None, *, visual_system: str | None,
+) -> str:
+    component_type = content.component
+    selected = visual_system or (config or {}).get("visual_system")
     colors = {**DEFAULT_PALETTE, **(palette or {})}
+    step_inline = _step_inline if component_type == "logic_path" and selected in VISUAL_SYSTEM_ORDER else None
+    quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
+    if component_type == "logic_path" and logic_path_pilot_enabled():
+        return render_logic_path(
+            content.many("items"), variant, config or {}, colors,
+            theme_id=selected, quiet_folio=quiet_folio, inline=_inline, step_inline=step_inline,
+        )
+    generated = render_generated_semantic(content, config or {}, step_inline=step_inline)
+    if generated is not None:
+        return generated
+    extended = render_extended_semantic(
+        content, variant, colors, quiet_folio=quiet_folio, step_inline=step_inline, visual_system=selected,
+    )
+    if extended is not None:
+        return extended
+
+    return _render_native_semantic(content, variant, colors, config or {}, step_inline=step_inline)
+
+
+def _render_native_semantic(
+    content: BoundSemanticContent, variant: str, colors: dict[str, str], config: dict[str, Any], *,
+    step_inline: Callable[[str], str] | None,
+) -> str:
+    component_type = content.component
+    quiet_signal = config.get("theme_kit") == "future_science_editorial_v1"
     primary = colors["primary"]
     secondary = colors["secondary"]
     accent = colors["accent"]
@@ -251,29 +242,8 @@ def render_component(
     surface = colors["surface"]
     ink = colors["ink"]
 
-    # Use the actual selected theme, not an inherited base or a variant name.
-    # Custom packs retain their explicit field opt-in.
-    selected = visual_system or (config or {}).get("visual_system")
-    step_inline = _step_inline if component_type == "logic_path" and selected in VISUAL_SYSTEM_ORDER else None
-    quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
-    if component_type == "logic_path" and logic_path_pilot_enabled():
-        return render_logic_path(
-            parsed, bindings["items"], variant, config or {}, colors,
-            theme_id=selected, quiet_folio=quiet_folio, inline=_inline, step_inline=step_inline,
-            reading=resolve_reading_profile(config or {}, official=selected in VISUAL_SYSTEM_ORDER, theme_id=selected),
-        )
-    generated = render_generated_component(slot, parsed, config or {}, step_inline=step_inline)
-    if generated is not None:
-        return generated
-    quiet_signal = (config or {}).get("theme_kit") == "future_science_editorial_v1"
-    extended = render_extended_component(
-        slot, parsed, colors, quiet_folio=quiet_folio, step_inline=step_inline, visual_system=selected,
-    )
-    if extended is not None:
-        return extended
-
     if component_type == "question_hook":
-        title = _inline(_one(parsed, bindings, "title"))
+        title = _inline(content.one("title"))
         if variant == "plain_question":
             return f'<p style="margin:28px 0 20px;color:{primary};font-size:20px;font-weight:750;line-height:1.6;text-align:center;">{title}</p>'
         if variant == "warm_letter_prompt" and (config or {}).get("theme_kit") == "warm_storybook_v1":
@@ -338,7 +308,7 @@ def render_component(
         )
 
     if component_type == "numbered_insight":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_numbered_list":
             return _plain_list(items, primary)
         if variant == "leaf_index_ribbon":
@@ -480,7 +450,7 @@ def render_component(
         )
 
     if component_type == "evidence_callout":
-        evidence = _inline(_one(parsed, bindings, "evidence"))
+        evidence = _inline(content.one("evidence"))
         if variant == "plain_evidence_note":
             return f'<blockquote style="margin:25px 0;padding:4px 0 4px 16px;border-left:3px solid {primary};color:#3F4A47;font-size:16px;line-height:1.8;">{evidence}</blockquote>'
         if variant == "floating_quote_note":
@@ -553,8 +523,8 @@ def render_component(
         )
 
     if component_type == "before_after_timeline":
-        before = _inline(_one(parsed, bindings, "before"))
-        after = _inline(_one(parsed, bindings, "after"))
+        before = _inline(content.one("before"))
+        after = _inline(content.one("after"))
         if variant == "stacked_before_after":
             return (
                 '<section style="margin:25px 0;">'
@@ -654,12 +624,12 @@ def render_component(
 
     if component_type == "logic_path":
         return render_native_logic_path(
-            _many(parsed, bindings, "items"), variant, colors,
+            [field.text for field in content.many("items")], variant, colors,
             theme_kit=(config or {}).get("theme_kit"), item_inline=step_inline or _inline,
         )
 
     if component_type == "concept_explainer":
-        entries = _concept_entries(parsed, bindings)
+        entries = [(_inline(title), _inline(definition)) for title, definition in content.concepts()]
         if len(entries) > 1:
             return _render_concept_group(entries, variant, colors, quiet_signal=quiet_signal)
         title, definition = entries[0]
@@ -735,8 +705,8 @@ def render_component(
         )
 
     if component_type == "case_card":
-        title = _inline(_one(parsed, bindings, "title"))
-        body = _inline(_one(parsed, bindings, "body"))
+        title = _inline(content.one("title"))
+        body = _inline(content.one("body"))
         if variant == "plain_case":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{surface};"><strong style="color:{primary};">案例｜{title}</strong><p style="margin:8px 0 0;color:{ink};font-size:15px;line-height:1.8;">{body}</p></section>'
         if variant == "airy_story_note":
@@ -810,7 +780,7 @@ def render_component(
         )
 
     if component_type == "warning_note":
-        body = _inline(_one(parsed, bindings, "body"))
+        body = _inline(content.one("body"))
         if variant == "plain_warning":
             return f'<p style="margin:24px 0;padding:13px 15px;border-left:4px solid {accent};background-color:{accent_pale};color:{ink};font-size:15px;line-height:1.75;"><strong>注意：</strong>{body}</p>'
         if variant == "corner_flag":
@@ -874,7 +844,7 @@ def render_component(
         )
 
     if component_type == "action_checklist":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_checklist":
             rows = [f'<p style="margin:0 0 10px;color:{ink};font-size:15px;line-height:1.75;">□ {_inline(item)}</p>' for item in items]
             return f'<section style="margin:24px 0;padding:15px;border-left:3px solid {primary};background-color:{pale};">{"".join(rows)}</section>'
@@ -995,8 +965,8 @@ def render_component(
         return f'<section style="margin:28px 0;padding:17px 17px 7px;border:1px solid {primary};background-color:{surface};">{"".join(rows)}</section>'
 
     if component_type == "faq_card":
-        question = _inline(_one(parsed, bindings, "question"))
-        answer = _inline(_one(parsed, bindings, "answer"))
+        question = _inline(content.one("question"))
+        answer = _inline(content.one("answer"))
         if variant == "plain_qa":
             return f'<section style="margin:25px 0;"><p style="margin:0 0 8px;color:{primary};font-size:17px;font-weight:750;">Q：{question}</p><p style="margin:0;color:{ink};font-size:15px;line-height:1.8;">A：{answer}</p></section>'
         if variant == "conversation_bubble":
@@ -1061,8 +1031,8 @@ def render_component(
         )
 
     if component_type == "comparison_card":
-        left = _inline(_one(parsed, bindings, "left"))
-        right = _inline(_one(parsed, bindings, "right"))
+        left = _inline(content.one("left"))
+        right = _inline(content.one("right"))
         if variant == "plain_comparison":
             return f'<section style="margin:25px 0;"><p style="margin:0 0 9px;padding:12px;background-color:{accent_pale};line-height:1.75;"><strong>一：</strong>{left}</p><p style="margin:0;padding:12px;background-color:{pale};line-height:1.75;"><strong>二：</strong>{right}</p></section>'
         if variant == "orbit_comparison":
@@ -1142,7 +1112,7 @@ def render_component(
         )
 
     if component_type == "section_summary":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_summary":
             return _plain_list(items, primary)
         rows = []

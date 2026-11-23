@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .delivery_markup import DeliveryMarkup
+from .image_caption_render import stored_caption_profile
+from .reading_rules import CAPTION, ReadingProfile, authored_host_css
 from .theme_delivery import legacy_drawing_present
 
 
@@ -135,13 +137,14 @@ def _materialized_image_markup(
     frame_variant: str,
     caption_html: str = "",
     theme_config: dict[str, Any] | None = None,
+    reading: ReadingProfile | None = None,
 ) -> str:
     if theme_config:
         from .theme_layouts import render_layout
 
         custom = render_layout("image_caption", {
             "caption": html.unescape(caption_html), "media": {"src": content_url, "alt": alt},
-        }, theme_config)
+        }, theme_config, field_roles={"caption": CAPTION}, reading=reading)
         if custom is not None:
             return (f'<section id="{html.escape(element_id, quote=True)}" class="{anchor_class}" '
                     f'data-image-frame="custom-layout" style="scroll-margin-top:18px;">{custom}</section>')
@@ -180,6 +183,7 @@ def _materialized_image_markup(
         wrapper_style = "scroll-margin-top:18px;margin:26px 0;"
         image_style = "border-radius:12px;"
         caption_style = "margin:8px 0 0;color:#75817C;font-size:11px;line-height:1.55;text-align:center;"
+    caption_style = authored_host_css(caption_style, CAPTION, reading)
     caption = (
         f'<p data-content-role="image-caption" style="{caption_style}">{caption_html}</p>'
         if caption_html
@@ -272,6 +276,7 @@ def materialize_preview_document(
                 frame_variant=frame_variant,
                 caption_html=caption_html,
                 theme_config=_custom_image_config(match.group(0)),
+                reading=stored_caption_profile(match.group(0)),
             )
 
         document = pattern.sub(replace_source, document)

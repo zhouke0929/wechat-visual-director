@@ -9,12 +9,13 @@ import html
 import math
 import re
 from collections import Counter
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from .logic_path_content import step_field_attributes, step_field_css, step_field_text
 from .ordinary_list_content import OrdinaryListField, ordinary_list_attributes, ordinary_list_ordinal, ordinary_list_text
-from .reading_rules import LIST_BODY, apply_reading_css
+from .reading_rules import LIST_BODY, ReadingProfile, apply_reading_css, authored_emphasis, authored_host_css
+from .semantic_content import SemanticField
 from .step_content import STEP_HIERARCHY_FORMAT, render_step_inline
 from .theme_drawings import render_drawing, validate_drawing
 
@@ -269,6 +270,8 @@ def _inline(value: Any) -> str:
 def render_layout(
     role: str, payload: dict[str, Any], config: dict[str, Any], *,
     step_inline: Callable[[str], str] | None = None,
+    field_roles: Mapping[str, str] | None = None,
+    reading: ReadingProfile | None = None,
 ) -> str | None:
     layouts = config.get("generated_design_system", {}).get("layouts", {})
     if role not in layouts:
@@ -351,8 +354,15 @@ def render_layout(
                 attr += ordinary_list_attributes(value)
                 css = apply_reading_css(css, LIST_BODY, value.reading)
                 content = ordinary_list_text(value)
+            elif kind == "field" and isinstance(value, SemanticField):
+                css = authored_host_css(css, value.role, value.reading)
+                content = authored_emphasis(_inline(value.text), value.reading)
             else:
                 content = _inline(value)
+                field_role = (field_roles or {}).get(node["bind"]) if kind == "field" else None
+                if field_role and reading is not None:
+                    css = authored_host_css(css, field_role, reading)
+                    content = authored_emphasis(content, reading)
             return f'<{tag} {attr} style="{css}">{content}</{tag}>'
         if kind == "shape":
             return f'<span aria-hidden="true" style="display:inline-block;width:{node["width"]:g}px;height:{node["height"]:g}px;{css}">&#160;</span>'

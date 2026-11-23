@@ -12,10 +12,12 @@ from typing import Any
 from PIL import Image
 
 from .brief_compiler import apply_visual_system
+from .image_caption_render import stored_caption_profile
 from .parser import parse_markdown
 from .planner import generate_plans
 from .publication import _materialized_image_markup, _placeholder_metadata
-from .renderer import _opening_highlight, render_preview
+from .foundation_content import _opening_highlight
+from .renderer import render_preview
 
 ARTICLE = """# 给好内容留一点呼吸的空间
 
@@ -163,6 +165,7 @@ def build_production_specimens(
         element_id=image_block.id, anchor_class="source-image-anchor", content_url="/api/v1/theme-assets/atlas-leaf.png",
         width=width, height=height, alt="公开植物插画 · 图框演示", frame_variant=frame,
         caption_html=html.escape(html.unescape(caption)), theme_config=configuration,
+        reading=stored_caption_profile(placeholder),
     )
     # Keep the theme compiler's controlled-asset boundary; embed only after rendering.
     picture = picture.replace('src="/api/v1/theme-assets/atlas-leaf.png"', f'src="{uri}"')
