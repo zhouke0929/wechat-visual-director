@@ -214,6 +214,45 @@ function labelForGroup(group: EditableGroup, index: number): string {
   return `直接编辑${labels[group.block.type]}${suffix}`;
 }
 
+function findIndexedEditorFields(wrapper: HTMLElement, block: ContentEditorBlock, count: number): HTMLElement[] | null {
+  const wrapperType = wrapper.dataset.editorBlockType;
+  const kind = wrapperType === "component:logic_path"
+    ? "step"
+    : wrapperType === block.type && (block.type === "ordered_list" || block.type === "unordered_list")
+      ? "list"
+      : null;
+  if (!kind) return null;
+  const refAttribute = `data-editor-${kind}-ref`;
+  const marked = wrapper.querySelectorAll<HTMLElement>(`[${refAttribute}]`);
+  if (!marked.length) return null; // Already saved previews keep the legacy discovery path.
+  const fields = new Map<string, HTMLElement>();
+  marked.forEach((element) => {
+    const key = element.getAttribute(refAttribute);
+    if (key && !fields.has(key)) fields.set(key, element);
+  });
+  const result: HTMLElement[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const key = typeof block.content === "string" ? block.block_id : `${block.block_id}:item:${index}`;
+    const element = fields.get(key);
+    if (!element) return []; // A partial list cannot round-trip the entire source block.
+    result.push(element);
+  }
+  if (kind === "list") return result;
+  return result.map((element) => {
+    const prefix = element.querySelector<HTMLElement>(":scope > [data-editor-step-prefix]");
+    if (!prefix) return element;
+    const tail = prefix.nextSibling;
+    if (tail === null) return element;
+    if (tail instanceof element.ownerDocument.defaultView!.HTMLElement && tail.hasAttribute("data-workbench-inline-fragment")) return tail;
+    // Some layouts place a fixed marker inside the text host. Keep that
+    // prefix out of the editable value, without changing delivery HTML.
+    const fragment = createInlineFragment(element);
+    prefix.after(fragment);
+    while (fragment.nextSibling) fragment.appendChild(fragment.nextSibling);
+    return fragment;
+  });
+}
+
 function discoverEditableGroups(document: Document, editorDocument: ContentEditorDocument): EditableGroup[] {
   const groups: EditableGroup[] = [];
   const title = document.querySelector<HTMLElement>("[data-editor-title='true']");
@@ -238,12 +277,15 @@ function discoverEditableGroups(document: Document, editorDocument: ContentEdito
       : block.type === "table" && block.content.every(Array.isArray)
         ? (block.content as string[][]).flat()
         : block.content as string[];
-    const elements: HTMLElement[] = [];
-    for (const value of values) {
-      const element = findTextElement(wrapper, value, used);
-      if (!element) return;
-      used.add(element);
-      elements.push(element);
+    const stableFields = findIndexedEditorFields(wrapper, block, values.length);
+    const elements: HTMLElement[] = stableFields ?? [];
+    if (stableFields === null) {
+      for (const value of values) {
+        const element = findTextElement(wrapper, value, used);
+        if (!element) return;
+        used.add(element);
+        elements.push(element);
+      }
     }
     if (elements.length === values.length) {
       groups.push({

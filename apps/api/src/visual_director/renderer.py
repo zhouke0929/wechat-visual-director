@@ -4,10 +4,12 @@ import html
 import json
 import os
 import re
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from .brand import load_brand_profile
+from .component_catalog import VISUAL_SYSTEM_ORDER
 from .components import render_component
 from .delivery_markup import DeliveryMarkup, preserve_wechat_decorative_nodes
 from .heading_numbers import has_explicit_heading_number
@@ -23,9 +25,12 @@ from .generated_theme import (
     render_generated_quote,
     render_generated_table,
 )
+from .ordinary_list_content import ListValue, bind_ordinary_list, list_field_reading, ordinary_list_marker, ordinary_list_rows
 from .parser import ContentBlock, ParsedArticle
 from .preview_profiles import BODY_PADDING_X
 from .plan_schema import validate_plan_for_article
+from .reading_rules import LIST_BODY, apply_reading_css, resolve_reading_profile
+from .render_pilot import renderer_pilot_enabled
 from .theme_extensions import (
     extended_image_frame_variant,
     extended_image_placeholder_style,
@@ -572,25 +577,8 @@ def _list_semantic_role(parsed: ParsedArticle, block_index: int, ordered: bool) 
     return "key_points"
 
 
-def _list_marker(
-    index: int,
-    *,
-    ordered: bool,
-    semantic_role: str,
-    action_marker: str = "✓",
-    neutral_marker: str = "•",
-) -> str:
-    if ordered:
-        return f"{index:02d}"
-    if semantic_role == "action_checklist":
-        return action_marker
-    if semantic_role == "case_points" and index <= 26:
-        return chr(64 + index)
-    return neutral_marker
-
-
 def _render_list(
-    items: list[str],
+    items: Sequence[ListValue],
     ordered: bool,
     config: dict[str, Any],
     semantic_role: str = "key_points",
@@ -605,21 +593,25 @@ def _render_list(
     palette = config.get("palette", {})
     secondary = palette.get("secondary", accent)
     sky = palette.get("sky", secondary)
+    rows = ordinary_list_rows(items, lambda text: _body_inline(text, config))
+    reading = list_field_reading(items)
     if config["list_variant"] == "leaf_path":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = str(index) if ordered else _list_marker(index, ordered=False, semantic_role=semantic_role)
+        item_style = apply_reading_css("box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:0 0 10px 13px;border-bottom:1px solid #D7E5E1;color:#34403E;font-size:16px;line-height:1.72;vertical-align:top;", LIST_BODY, reading)
+        for index, field_attrs, item in rows:
+            marker = str(index) if ordered else ordinary_list_marker(index, ordered=False, semantic_role=semantic_role)
             marker_color = (accent, sky, secondary)[(index - 1) % 3]
             rendered.append(
                 '<section style="margin:0 0 14px;white-space:normal;">'
                 f'<span style="display:inline-block;width:29px;height:20px;border-radius:16px 3px 16px 3px;background-color:{marker_color};color:#fff;font:700 10px/20px Arial;text-align:center;transform:rotate(-6deg);vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:0 0 10px 13px;border-bottom:1px solid #D7E5E1;color:#34403E;font-size:16px;line-height:1.72;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+                f'<p{field_attrs} style="{item_style}">{item}</p></section>'
             )
         return f'<section style="margin:22px 0 25px;padding-left:7px;border-left:1px dotted {sky};">{"".join(rendered)}</section>'
     if config["list_variant"] == "audit_track":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = _list_marker(
+        item_style = apply_reading_css("box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 9px;border-left:1px solid #C7D0CC;color:#34403E;font-size:15px;line-height:1.7;vertical-align:top;", LIST_BODY, reading)
+        for index, field_attrs, item in rows:
+            marker = ordinary_list_marker(
                 index,
                 ordered=ordered,
                 semantic_role=semantic_role,
@@ -631,7 +623,7 @@ def _render_list(
             rendered.append(
                 '<section style="border-bottom:1px solid #C7D0CC;white-space:normal;">'
                 f'<span style="display:inline-block;width:18%;padding:12px 5px;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 9px;border-left:1px solid #C7D0CC;color:#34403E;font-size:15px;line-height:1.7;vertical-align:top;">{_body_inline(item, config)}</p>'
+                f'<p{field_attrs} style="{item_style}">{item}</p>'
                 f'<span style="display:inline-block;width:12%;padding:12px 0;color:{secondary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">{"□" if semantic_role == "action_checklist" else "·"}</span></section>'
             )
         return (
@@ -641,12 +633,13 @@ def _render_list(
         )
     if config["list_variant"] == "stitched_path":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = _list_marker(index, ordered=ordered, semantic_role=semantic_role)
+        item_style = apply_reading_css("box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:2px 0 11px 13px;border-bottom:1px dashed #D7B995;color:#342B28;font-family:Georgia,'Noto Serif SC',serif;font-size:15px;line-height:1.76;vertical-align:top;", LIST_BODY, reading)
+        for index, field_attrs, item in rows:
+            marker = ordinary_list_marker(index, ordered=ordered, semantic_role=semantic_role)
             rendered.append(
                 '<section style="margin:0 0 14px;white-space:normal;">'
                 f'<span style="display:inline-block;width:28px;height:28px;margin-left:-16px;border:1px solid {accent};border-radius:50%;background-color:#FFFCF7;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;line-height:28px;text-align:center;vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:2px 0 11px 13px;border-bottom:1px dashed #D7B995;color:#342B28;font-family:Georgia,\'Noto Serif SC\',serif;font-size:15px;line-height:1.76;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+                f'<p{field_attrs} style="{item_style}">{item}</p></section>'
             )
         return (
             f'<section style="margin:22px 0 25px;padding:4px 0 1px 17px;border-left:3px dotted {secondary};">'
@@ -654,8 +647,9 @@ def _render_list(
         )
     if config["list_variant"] == "proof_list":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = _list_marker(
+        item_style = apply_reading_css(f"box-sizing:border-box;display:inline-block;width:80%;margin:0;padding:11px 0 12px 14px;border-left:5px solid {accent};color:#202B33;font-size:15px;font-weight:700;line-height:1.7;vertical-align:top;", LIST_BODY, reading)
+        for index, field_attrs, item in rows:
+            marker = ordinary_list_marker(
                 index,
                 ordered=ordered,
                 semantic_role=semantic_role,
@@ -665,7 +659,7 @@ def _render_list(
             rendered.append(
                 '<section style="border-top:1px solid #202B33;white-space:normal;">'
                 f'<span style="display:inline-block;width:20%;padding:12px 7px 11px 0;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:18px;font-weight:800;vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:80%;margin:0;padding:11px 0 12px 14px;border-left:5px solid {accent};color:#202B33;font-size:15px;font-weight:700;line-height:1.7;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+                f'<p{field_attrs} style="{item_style}">{item}</p></section>'
             )
         return (
             '<section style="margin:22px 0 25px;border-top:10px solid #202B33;border-bottom:3px solid #202B33;">'
@@ -673,8 +667,9 @@ def _render_list(
         )
     if config["list_variant"] == "campus_steps":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = _list_marker(index, ordered=ordered, semantic_role=semantic_role)
+        item_style = apply_reading_css(f"box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 11px;padding:6px 0 11px;border-bottom:2px dashed {sky};color:{palette.get('ink', '#20304A')};font-size:15px;line-height:1.72;vertical-align:top;", LIST_BODY, reading)
+        for index, field_attrs, item in rows:
+            marker = ordinary_list_marker(index, ordered=ordered, semantic_role=semantic_role)
             marker_color = (
                 accent,
                 palette.get("accent", accent),
@@ -684,13 +679,13 @@ def _render_list(
             rendered.append(
                 '<section style="margin:0 0 12px;white-space:normal;">'
                 f'<span style="display:inline-block;width:31px;height:31px;border:3px solid #FFFEFB;border-radius:10px 10px 3px 10px;background-color:{marker_color};box-shadow:3px 3px 0 {palette.get("secondary_pale", "#FFF6D9")};color:#FFFFFF;font-family:Georgia,serif;font-size:10px;font-weight:800;line-height:31px;text-align:center;transform:rotate({-4 if index % 2 else 4}deg);vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 11px;padding:6px 0 11px;border-bottom:2px dashed {sky};color:{palette.get("ink", "#20304A")};font-size:15px;line-height:1.72;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+                f'<p{field_attrs} style="{item_style}">{item}</p></section>'
             )
         return f'<section style="margin:22px 0 25px;padding:15px 13px 5px;border:2px solid {accent};border-radius:18px 6px 18px 18px;">{"".join(rendered)}</section>'
     if config["list_variant"] == "signal_track":
         rendered = []
-        for index, item in enumerate(items, 1):
-            marker = _list_marker(
+        for index, field_attrs, item in rows:
+            marker = ordinary_list_marker(
                 index,
                 ordered=ordered,
                 semantic_role=semantic_role,
@@ -701,26 +696,28 @@ def _render_list(
                 palette.get("secondary_pale", "#EAF9F6"),
                 palette.get("accent_pale", "#FFF1EC"),
             )[(index - 1) % 3]
+            item_style = apply_reading_css(f"box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:11px 14px;border-radius:4px 18px 18px 18px;background-color:{item_background};color:{palette.get('ink', '#24304F')};font-size:15px;line-height:1.72;vertical-align:top;", LIST_BODY, reading)
             rendered.append(
                 '<section style="margin:0 0 11px;white-space:normal;">'
                 f'<span style="display:inline-block;width:17%;padding:10px 0;color:{palette.get("accent", accent)};font-family:Georgia,serif;font-size:18px;font-weight:800;vertical-align:top;">{marker}</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:11px 14px;border-radius:4px 18px 18px 18px;background-color:{item_background};color:{palette.get("ink", "#24304F")};font-size:15px;line-height:1.72;vertical-align:top;">{_body_inline(item, config)}</p></section>'
+                f'<p{field_attrs} style="{item_style}">{item}</p></section>'
             )
         return (
             f'<section style="margin:23px 0 26px;padding:4px 0 1px;">'
             f'{"".join(rendered)}</section>'
         )
     rendered = []
-    for index, item in enumerate(items, 1):
+    item_style = apply_reading_css("display:inline-block;max-width:84%;vertical-align:top;", LIST_BODY, reading)
+    for index, field_attrs, item in rows:
         marker = (
             str(index)
             if ordered or config["list_variant"] == "vertical_numbered"
-            else _list_marker(index, ordered=False, semantic_role=semantic_role)
+            else ordinary_list_marker(index, ordered=False, semantic_role=semantic_role)
         )
         rendered.append(
             '<p style="margin:0 0 12px;color:#34403E;font-size:16px;line-height:1.72;">'
             f'<span style="display:inline-block;width:25px;height:25px;margin-right:9px;border-radius:8px;background-color:{accent};color:#fff;font:700 12px/25px Arial;text-align:center;vertical-align:top;">{marker}</span>'
-            f'<span style="display:inline-block;max-width:84%;vertical-align:top;">{_body_inline(item, config)}</span></p>'
+            f'<span{field_attrs} style="{item_style}">{item}</span></p>'
         )
     return f'<section style="margin:20px 0 24px;">{"".join(rendered)}</section>'
 
@@ -973,6 +970,8 @@ def render_preview(
         image_slots_by_anchor.setdefault(image_slot["anchor_block_id"], []).append(image_slot)
     consumed = {block_id for slot in validated.get("slots", []) for block_id in slot["consume_block_ids"]}
     body: list[str] = []
+    bind_list_fields = renderer_pilot_enabled()
+    reading = resolve_reading_profile(config, official=visual_system in VISUAL_SYSTEM_ORDER, theme_id=visual_system) if bind_list_fields else None
     section_index = 0
     opening_highlight_id, opening_highlight_label = _opening_highlight(parsed)
 
@@ -1165,9 +1164,10 @@ def render_preview(
                 )
         elif block.type in {"ordered_list", "unordered_list"}:
             ordered = block.type == "ordered_list"
+            items = bind_ordinary_list(block.id, block.content, reading=reading) if bind_list_fields else list(block.content)
             body.append(
                 _render_list(
-                    list(block.content),
+                    items,
                     ordered,
                     config,
                     _list_semantic_role(parsed, block_index, ordered),

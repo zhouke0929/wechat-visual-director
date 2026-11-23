@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import html
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .parser import ParsedArticle
 from .heading_numbers import has_explicit_heading_number
+from .logic_path_content import LogicPathField, step_field_attributes, step_field_css, step_field_text
 from .official_theme_tables import render_official_theme_table
+from .ordinary_list_content import ListValue, list_field_reading, ordinary_list_marker, ordinary_list_rows
+from .reading_rules import LIST_BODY, apply_reading_css
 from .theme_extensions import _palette, _payload
 from .theme_layouts import render_layout, text_style
 
@@ -356,7 +359,7 @@ _OFFICIAL_ORDERED_LIST_LAYOUTS = {
 }
 
 
-def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
+def render_generated_list(items: Sequence[ListValue], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
@@ -365,27 +368,35 @@ def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any
         design = {**design, "layouts": {**design.get("layouts", {}), "list": ordered_layout}}
         config = {**config, "generated_design_system": design}
     layout = design.get("layouts", {}).get("list")
+    profile = list_field_reading(items)
     if ordered and layout and not _has_list_index(layout):
         # An authored bullet list must not erase the sequence of an ordered
         # Markdown list. Keep its paragraph typography and explicit, copyable
         # numbers without introducing another layout role or a semantic card.
+        item_style = apply_reading_css(
+            "display:inline-block;width:90%;vertical-align:top;margin:0;overflow-wrap:anywhere;", LIST_BODY, profile,
+        )
         rows = "".join(
             '<section style="padding:5px 0;">'
             f'<span data-theme-static="true" data-theme-list-index="true" style="display:inline-block;'
             f'width:10%;vertical-align:top;color:{p["primary"]};font-weight:700;">{index:02d}</span>'
-            f'<p data-theme-field="item" style="display:inline-block;width:90%;vertical-align:top;margin:0;overflow-wrap:anywhere;">'
-            f'{_inline(item)}</p></section>'
-            for index, item in enumerate(items, 1)
+            f'<p data-theme-field="item"{field_attrs} style="{item_style}">'
+            f'{item}</p></section>'
+            for index, field_attrs, item in ordinary_list_rows(items)
         )
         return f'<section data-theme-list-fallback="numbering" style="margin:{design["rhythm"]["component_gap"]}px 0;{text_style(config)}">{rows}</section>'
     custom = render_layout("list", {"items": items, "ordered": ordered}, config)
     if custom is not None:
         return custom
     rows = []
-    for index, item in enumerate(items, 1):
-        value = f"{index:02d}" if ordered else ("✓" if semantic_role == "action_checklist" else chr(64 + index) if semantic_role == "case_points" and index <= 26 else "·")
+    item_style = apply_reading_css(
+        f'box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;',
+        LIST_BODY, profile,
+    )
+    for index, field_attrs, item in ordinary_list_rows(items):
+        value = ordinary_list_marker(index, ordered=ordered, semantic_role=semantic_role, neutral_marker="·")
         index_attr = ' data-theme-list-index="true"' if ordered else ''
-        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span{index_attr} style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p style="box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
+        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span{index_attr} style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p{field_attrs} style="{item_style}">{item}</p></section>')
     return f'<section data-theme-grammar="generated-{design["marker"]}-list" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:-5px 0 9px;text-align:right;">{_motif(config, compact=True)}</p>{"".join(rows)}</section>'
 
 
@@ -443,7 +454,24 @@ def render_generated_component(
     if not design:
         return None
     component_type = str(slot["component_type"])
-    payload = _payload(slot, parsed)
+    return _render_generated_component_payload(component_type, _payload(slot, parsed), config, design, p, step_inline)
+
+
+def render_generated_logic_path(
+    items: list[LogicPathField], config: dict[str, Any], *, step_inline: Callable[[str], str] | None,
+) -> str | None:
+    design, palette = _metrics(config)
+    if not design:
+        return None
+    return _render_generated_component_payload(
+        "logic_path", {"kind": "list", "items": items}, config, design, palette, step_inline,
+    )
+
+
+def _render_generated_component_payload(
+    component_type: str, payload: dict[str, Any], config: dict[str, Any],
+    design: dict[str, Any], p: dict[str, str], step_inline: Callable[[str], str] | None,
+) -> str:
     layout_payload = payload
     if component_type == "concept_explainer" and payload["kind"] == "title_body":
         layout_payload = {"entries": [{"title": payload["title"], "body": payload["body"]}]}
@@ -482,8 +510,10 @@ def render_generated_component(
     if kind == "list":
         rows = []
         item_inline = step_inline or _inline
+        legacy_style = f'box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;'
         for index, item in enumerate(payload["items"], 1):
-            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;">{item_inline(item)}</p></section>')
+            item_style = step_field_css(legacy_style, item) if component_type == "logic_path" else legacy_style
+            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p{step_field_attributes(item)} style="{item_style}">{step_field_text(item, item_inline)}</p></section>')
         content = "".join(rows)
     elif kind == "pair":
         content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["left"])}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["right"])}</p></section></section>'

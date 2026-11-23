@@ -12,6 +12,9 @@ from collections import Counter
 from collections.abc import Callable
 from typing import Any
 
+from .logic_path_content import step_field_attributes, step_field_css, step_field_text
+from .ordinary_list_content import OrdinaryListField, ordinary_list_attributes, ordinary_list_ordinal, ordinary_list_text
+from .reading_rules import LIST_BODY, apply_reading_css
 from .step_content import STEP_HIERARCHY_FORMAT, render_step_inline
 from .theme_drawings import render_drawing, validate_drawing
 
@@ -335,10 +338,19 @@ def render_layout(
                 else:
                     attr += ' data-theme-list-index="true"'
             tag = "h1" if role == "hero" and kind == "field" and node["bind"] == "title" else "p"
-            if step_inline and role == "logic_path" and kind == "field" and node["bind"] == "item":
-                content = step_inline(str(value))
-            elif node.get("format") == STEP_HIERARCHY_FORMAT:
-                content = render_step_inline(str(value), _inline)
+            if role == "logic_path" and kind == "field" and node["bind"] == "item":
+                attr += step_field_attributes(value)
+                css = step_field_css(css, value)
+                if step_inline is not None:
+                    content = step_field_text(value, step_inline)
+                elif node.get("format") == STEP_HIERARCHY_FORMAT:
+                    content = step_field_text(value, lambda text: render_step_inline(text, _inline))
+                else:
+                    content = step_field_text(value, _inline)
+            elif role == "list" and kind == "field" and node["bind"] == "item" and isinstance(value, OrdinaryListField):
+                attr += ordinary_list_attributes(value)
+                css = apply_reading_css(css, LIST_BODY, value.reading)
+                content = ordinary_list_text(value)
             else:
                 content = _inline(value)
             return f'<{tag} {attr} style="{css}">{content}</{tag}>'
@@ -354,7 +366,8 @@ def render_layout(
         if kind == "repeat":
             rows = []
             for index, item in enumerate(context[node["bind"]], 1):
-                child_context = {**(item if isinstance(item, dict) else {"item": item}), "index": f"{index:02d}"}
+                ordinal = ordinary_list_ordinal(item, index) if role == "list" else index
+                child_context = {**(item if isinstance(item, dict) else {"item": item}), "index": f"{ordinal:02d}"}
                 rows.append(f'<section style="{css}">' + "".join(render(c, child_context) for c in node["children"]) + "</section>")
             return "".join(rows)
         if kind == "row":
