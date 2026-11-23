@@ -473,6 +473,12 @@ def compile_editorial_brief(
         parsed,
         slots,
         recent,
+        plain_block_ids={
+            block_id
+            for section in contract.sections
+            if section.component_intent == "plain"
+            for block_id in section.source_block_ids
+        },
     )
     compiler_adjustments.extend(coverage_adjustments)
     opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)

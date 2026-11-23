@@ -436,6 +436,8 @@ def supplement_component_coverage(
     parsed: ParsedArticle,
     selected_slots: list[dict[str, Any]],
     recent_summaries: list[dict[str, Any]] | None = None,
+    *,
+    plain_block_ids: set[str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
     """Fill weak-model gaps using only deterministic, fact-bound candidates.
 
@@ -451,7 +453,9 @@ def supplement_component_coverage(
     if len(selected_slots) >= target and len(selected_types) >= diversity_target:
         return copy.deepcopy(selected_slots), [], target
 
-    candidates = _build_candidates(parsed, recent)
+    plain = plain_block_ids or set()
+    candidates = [item for item in _build_candidates(parsed, recent)
+                  if plain.isdisjoint(item["consume_block_ids"])]
     priority = {
         component_type: index
         for index, component_type in enumerate(COMPONENT_COVERAGE_PRIORITIES)
