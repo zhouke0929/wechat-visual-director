@@ -6,24 +6,32 @@ import html
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .reading_rules import STEP_BODY, ReadingProfile, apply_reading_css
+from .reading_rules import STEP_BODY, STEP_DETAIL, STEP_TITLE, ReadingProfile, apply_reading_css, authored_metrics
+from .step_content import StepContent, interpret_step, render_step_text
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LogicPathField:
     reference: str
-    text: str
+    content: StepContent
     reading: ReadingProfile | None = None
+    editable: bool = False
 
 
 def step_field_attributes(value: str | LogicPathField) -> str:
-    if not isinstance(value, LogicPathField):
+    if not isinstance(value, LogicPathField) or not value.editable:
         return ""
     return f' data-editor-step-ref="{html.escape(value.reference, quote=True)}"'
 
 
-def step_field_text(value: str | LogicPathField, inline: Callable[[str], str]) -> str:
-    return inline(value.text if isinstance(value, LogicPathField) else value)
+def step_field_text(value: str | LogicPathField, inline: Callable[[str], str], *, hierarchy: bool = False) -> str:
+    if not isinstance(value, LogicPathField):
+        # Standalone theme-layout samples may still supply raw strings. Real
+        # articles always arrive through BoundSemanticContent.step_fields().
+        return render_step_text(interpret_step(value), inline, hierarchy=True) if hierarchy else inline(value)
+    reading = value.reading
+    hierarchy = hierarchy or bool(authored_metrics(STEP_TITLE, reading) or authored_metrics(STEP_DETAIL, reading))
+    return render_step_text(value.content, inline, hierarchy=hierarchy, reading=reading)
 
 
 def step_field_reading(value: object) -> ReadingProfile | None:

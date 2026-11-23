@@ -12,7 +12,7 @@ def _override(monkeypatch, value):
     monkeypatch.setenv("WVD_RENDERER_PILOT", "1")
     monkeypatch.setenv("WVD_READING_RULES_PILOT", "1")
     monkeypatch.setattr(rules, "THEME_READING_OVERRIDES", {"light_reading": value})
-    return rules.resolve_reading_profile({}, official=True, theme_id="light_reading")
+    return rules.resolve_reading_profile(visual_system_configuration("light_reading"), official=True, theme_id="light_reading")
 
 
 def test_authored_type_retains_theme_recipe_and_styles_only_source_emphasis(monkeypatch):
@@ -25,6 +25,17 @@ def test_authored_type_retains_theme_recipe_and_styles_only_source_emphasis(monk
     rendered = rules.render_authored_text(markup, rules.BODY, trial)
     assert rendered == '<span style="font-size:17px;">' + markup.replace("color:#456;", "color:#456;font-weight:800;") + "</span>"
     assert rules.authored_host_css("color:#345;", rules.BODY, trial) == "color:#345;font-size:17px;margin-top:2px;"
+
+
+@pytest.mark.parametrize("role", [rules.LIST_BODY, rules.STEP_BODY])
+def test_registration_does_not_apply_reference_metrics_to_published_styles(monkeypatch, role):
+    css = "font-size:14px;font-weight:650;line-height:1.67;padding:2px 9px;"
+    original = _override(monkeypatch, {})
+    assert rules.apply_reading_css(css, role, original) == css
+    assert rules.apply_reading_emphasis("<strong>原来的重点</strong>", original) == "<strong>原来的重点</strong>"
+    assert rules.reading_gap(rules.STEP_TITLE, original, 9) == 9
+    custom = _override(monkeypatch, {role: {"line_height": 1.91}})
+    assert rules.apply_reading_css(css, role, custom) == css.replace("line-height:1.67;", "") + "line-height:1.91;"
 
 
 @pytest.mark.parametrize("theme", ("light_reading", "folded_fan_detail"))

@@ -9,6 +9,8 @@ from .heading_numbers import has_explicit_heading_number
 from .logic_path_content import LogicPathField, step_field_attributes, step_field_text
 from .ordinary_list_content import ListValue, OrdinaryListField, ordinary_list_row
 from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
+from .component_presentation import ComponentRecipe
+from .timeline_recipe import timeline_field, timeline_margin
 from .parser import ParsedArticle
 from .reading_rules import LIST_BODY, STEP_BODY, apply_reading_css
 from .reading_rules import (ARTICLE_TITLE, LABEL, LEAD, QUOTE, SECTION_TITLE, SUBHEADING, TABLE_BODY, TABLE_HEADER, ReadingProfile, render_authored_text)
@@ -449,6 +451,7 @@ def _list_paragraph_renderer(
 def _distinct_payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
     item_inline: Callable[[str], str] = _inline,
+    recipe: ComponentRecipe | None = None,
 ) -> str:
     """Render five materially different reading grammars without theme recolors."""
     kind = payload["kind"]
@@ -548,17 +551,18 @@ def _distinct_payload_html(
         return f'<section data-theme-grammar="storyboard-track" data-list-role="{component_type}" style="margin:32px 0;padding:13px 0 3px;border-top:4px solid {p["primary"]};"><p style="margin:0 0 16px;color:{p["secondary"]};font:700 8px/1.2 Georgia;letter-spacing:.24em;">{list_heading}</p>{rows}</section>'
 
     if kind == "pair":
-        left, right = _semantic_inline(payload["left"]), _semantic_inline(payload["right"])
+        left = timeline_field(payload["left"], "left", recipe, _inline)
+        right = timeline_field(payload["right"], "right", recipe, _inline)
         if grammar == "oriental":
             first, second = ("前", "后") if quiet_folio and component_type == "before_after_timeline" else ("其一", "其二")
-            return f'<section data-theme-grammar="folding-page" style="margin:32px 0;padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">{first}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">{second}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="folding-page" style="{timeline_margin(recipe, 32)}padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">{first}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">{second}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
         if grammar == "press":
-            return f'<section data-theme-grammar="two-column-clipping" style="margin:32px 0;padding:14px;background-color:{p["pale"]};border:1px dashed #A99A81;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:13px;background-color:{p["surface"]};border:1px solid #C9BAA0;transform:rotate(-1deg);vertical-align:top;"><b style="color:{p["accent"]};font:900 20px Georgia;">A</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:22px 0 0 4%;padding:13px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;transform:rotate(1deg);vertical-align:top;"><b style="color:{p["primary"]};font:900 20px Georgia;">B</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="two-column-clipping" style="{timeline_margin(recipe, 32)}padding:14px;background-color:{p["pale"]};border:1px dashed #A99A81;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:13px;background-color:{p["surface"]};border:1px solid #C9BAA0;transform:rotate(-1deg);vertical-align:top;"><b style="color:{p["accent"]};font:900 20px Georgia;">A</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:22px 0 0 4%;padding:13px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;transform:rotate(1deg);vertical-align:top;"><b style="color:{p["primary"]};font:900 20px Georgia;">B</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{right}</p></section></section>'
         if grammar == "atlas":
-            return f'<section data-theme-grammar="specimen-comparison" style="margin:32px 0;padding:16px 11px 12px 27px;border-left:2px dotted {p["sky"]};background-color:{p["surface"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:15px 12px;border-bottom:2px solid {p["primary"]};vertical-align:top;"><span style="display:block;width:18px;height:18px;margin-bottom:12px;border:1px solid {p["primary"]};border-radius:50%;"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:46%;margin:26px 0 0 8%;padding:15px 12px;border-top:2px solid {p["accent"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0 0 12px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:26px;height:13px;margin-left:auto;border-radius:80% 0 80% 0;background-color:{p["accent"]};transform:rotate(-14deg);"></span></section></section>'
+            return f'<section data-theme-grammar="specimen-comparison" style="{timeline_margin(recipe, 32)}padding:16px 11px 12px 27px;border-left:2px dotted {p["sky"]};background-color:{p["surface"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:15px 12px;border-bottom:2px solid {p["primary"]};vertical-align:top;"><span style="display:block;width:18px;height:18px;margin-bottom:12px;border:1px solid {p["primary"]};border-radius:50%;"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:46%;margin:26px 0 0 8%;padding:15px 12px;border-top:2px solid {p["accent"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0 0 12px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:26px;height:13px;margin-left:auto;border-radius:80% 0 80% 0;background-color:{p["accent"]};transform:rotate(-14deg);"></span></section></section>'
         if grammar == "business":
-            return f'<section data-theme-grammar="decision-spread" style="margin:34px 0;padding:7px 0 16px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:45%;padding:15px 17px 19px;border-radius:42px 42px 8px 42px;background-color:{p["secondary_pale"]};vertical-align:top;transform:rotate(-1deg);"><span style="display:block;color:{p["secondary"]};font:800 24px Georgia;">A</span><p style="margin:8px 0 0;color:{p["ink"]};font-size:13px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:51%;margin:34px 0 0 4%;padding:17px 17px 16px;border-radius:8px 42px 42px 42px;background-color:{p["sky_pale"]};vertical-align:top;transform:rotate(1deg);"><span style="color:{p["accent"]};font-size:8px;letter-spacing:.2em;">ALTERNATIVE B</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.78;">{right}</p></section></section>'
-        return f'<section data-theme-grammar="shot-reverse-shot" style="margin:34px 0;padding:8px 0 15px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:58%;padding:16px 15px 18px;border:1px solid {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:6px 6px 0 {p["secondary_pale"]};vertical-align:top;transform:rotate(-.7deg);"><span style="color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;">SHOT A / WIDE</span><p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:38%;margin:43px 0 0 4%;padding:15px 13px;border-radius:22px 3px 22px 3px;background-color:{p["accent_pale"]};color:{p["primary"]};vertical-align:top;transform:rotate(1deg);"><span style="font:700 8px Georgia;letter-spacing:.18em;">REVERSE / CLOSE</span><p style="margin:12px 0 0;font-size:13px;line-height:1.75;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="decision-spread" style="{timeline_margin(recipe, 34)}padding:7px 0 16px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:45%;padding:15px 17px 19px;border-radius:42px 42px 8px 42px;background-color:{p["secondary_pale"]};vertical-align:top;transform:rotate(-1deg);"><span style="display:block;color:{p["secondary"]};font:800 24px Georgia;">A</span><p style="margin:8px 0 0;color:{p["ink"]};font-size:13px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:51%;margin:34px 0 0 4%;padding:17px 17px 16px;border-radius:8px 42px 42px 42px;background-color:{p["sky_pale"]};vertical-align:top;transform:rotate(1deg);"><span style="color:{p["accent"]};font-size:8px;letter-spacing:.2em;">ALTERNATIVE B</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.78;">{right}</p></section></section>'
+        return f'<section data-theme-grammar="shot-reverse-shot" style="{timeline_margin(recipe, 34)}padding:8px 0 15px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:58%;padding:16px 15px 18px;border:1px solid {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:6px 6px 0 {p["secondary_pale"]};vertical-align:top;transform:rotate(-.7deg);"><span style="color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;">SHOT A / WIDE</span><p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:38%;margin:43px 0 0 4%;padding:15px 13px;border-radius:22px 3px 22px 3px;background-color:{p["accent_pale"]};color:{p["primary"]};vertical-align:top;transform:rotate(1deg);"><span style="font:700 8px Georgia;letter-spacing:.18em;">REVERSE / CLOSE</span><p style="margin:12px 0 0;font-size:13px;line-height:1.75;">{right}</p></section></section>'
 
     if kind == "title_body":
         title, body = _semantic_inline(payload["title"]), _semantic_inline(payload["body"])
@@ -614,7 +618,7 @@ def _distinct_payload_html(
 def _payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
     item_inline: Callable[[str], str] = _inline,
-    official_theme: bool = False,
+    recipe: ComponentRecipe | None = None,
 ) -> str:
     kind = payload["kind"]
     label = COMPONENT_LABELS.get(component_type, component_type)
@@ -622,7 +626,7 @@ def _payload_html(
         return _decorate_payload(
             grammar,
             component_type,
-            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio, item_inline=item_inline),
+            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio, item_inline=item_inline, recipe=recipe),
             p,
         )
     if kind == "concept_group":
@@ -658,12 +662,9 @@ def _payload_html(
             return f'<section data-list-role="{component_type}" style="margin:29px 0;border-top:12px solid {p["primary"]};border-bottom:3px solid {p["primary"]};"><p style="margin:0;padding:7px 0;color:{p["accent"]};font-size:9px;font-weight:900;letter-spacing:.18em;">{list_heading}</p>{rows}</section>'
         if grammar == "pop":
             colors = (p["secondary_pale"], p["accent_pale"], p["sky_pale"])
-            official_route = official_theme and component_type == "logic_path"
-            marker_size = 14 if official_route else 12
-            body_weight = 400 if official_route else 700
             rows = "".join(
-                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:{marker_size}px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span>'
-                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:{body_weight};line-height:1.68;vertical-align:top;', item)
+                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:12px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.68;vertical-align:top;', item)
                 + '</section>'
                 for index, field_attrs, item in items
             )
@@ -693,17 +694,18 @@ def _payload_html(
         return f'<section data-list-role="{component_type}" style="margin:30px 0;padding:8px 16px 13px;border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};background-color:{p["surface"]};"><p style="margin:0 0 7px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.2em;">{list_heading}</p>{rows}</section>'
 
     if kind == "pair":
-        left, right = _semantic_inline(payload["left"]), _semantic_inline(payload["right"])
+        left = timeline_field(payload["left"], "left", recipe, _inline)
+        right = timeline_field(payload["right"], "right", recipe, _inline)
         if grammar == "oriental":
-            return f'<section style="margin:30px 0;padding:16px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:12px 13px;border-right:1px solid #D9CCB5;vertical-align:top;"><span style="color:{p["accent"]};font-family:Georgia,serif;font-size:22px;">壹</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><span style="display:inline-block;width:8%;padding-top:55px;color:{p["secondary"]};text-align:center;vertical-align:top;">◆</span><section style="box-sizing:border-box;display:inline-block;width:46%;margin-top:17px;padding:12px 13px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-family:Georgia,serif;font-size:22px;">贰</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}padding:16px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:12px 13px;border-right:1px solid #D9CCB5;vertical-align:top;"><span style="color:{p["accent"]};font-family:Georgia,serif;font-size:22px;">壹</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><span style="display:inline-block;width:8%;padding-top:55px;color:{p["secondary"]};text-align:center;vertical-align:top;">◆</span><section style="box-sizing:border-box;display:inline-block;width:46%;margin-top:17px;padding:12px 13px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-family:Georgia,serif;font-size:22px;">贰</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p></section></section>'
         if grammar in {"press", "business"}:
             top = 11 if grammar == "press" else 7
-            return f'<section style="margin:30px 0;border-top:{top}px solid {p["primary"]};border-bottom:2px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:44%;min-width:0;min-height:145px;padding:15px 13px;border-right:5px solid {p["accent"]};overflow-wrap:anywhere;vertical-align:top;"><span style="color:{p["secondary"]};font-family:Georgia,serif;font-size:20px;font-weight:900;">A</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:56%;min-width:0;min-height:145px;margin-top:17px;padding:15px;background-color:{p["pale"]};overflow-wrap:anywhere;vertical-align:top;"><span style="display:block;max-width:100%;color:{p["primary"]};font-family:Georgia,serif;font-size:14px;font-weight:900;overflow-wrap:anywhere;">B / 对照观点</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.76;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}border-top:{top}px solid {p["primary"]};border-bottom:2px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:44%;min-width:0;min-height:145px;padding:15px 13px;border-right:5px solid {p["accent"]};overflow-wrap:anywhere;vertical-align:top;"><span style="color:{p["secondary"]};font-family:Georgia,serif;font-size:20px;font-weight:900;">A</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:56%;min-width:0;min-height:145px;margin-top:17px;padding:15px;background-color:{p["pale"]};overflow-wrap:anywhere;vertical-align:top;"><span style="display:block;max-width:100%;color:{p["primary"]};font-family:Georgia,serif;font-size:14px;font-weight:900;overflow-wrap:anywhere;">B / 对照观点</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.76;">{right}</p></section></section>'
         if grammar == "pop":
-            return f'<section style="margin:31px 0;padding:13px;border:3px solid {p["primary"]};background-color:{p["secondary_pale"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border-top:8px solid {p["accent"]};background-color:{p["surface"]};transform:rotate(-1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{left}</p></section><span style="display:inline-block;width:6%;padding-top:48px;color:{p["primary"]};font-weight:900;text-align:center;vertical-align:top;">×</span><section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:19px;padding:15px 13px;border-bottom:8px solid {p["primary"]};background-color:{p["sky_pale"]};transform:rotate(1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 31)}padding:13px;border:3px solid {p["primary"]};background-color:{p["secondary_pale"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border-top:8px solid {p["accent"]};background-color:{p["surface"]};transform:rotate(-1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{left}</p></section><span style="display:inline-block;width:6%;padding-top:48px;color:{p["primary"]};font-weight:900;text-align:center;vertical-align:top;">×</span><section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:19px;padding:15px 13px;border-bottom:8px solid {p["primary"]};background-color:{p["sky_pale"]};transform:rotate(1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{right}</p></section></section>'
         if grammar == "atlas":
-            return f'<section style="margin:30px 0;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:17px 14px;border:1px solid {p["sky"]};border-radius:25px 4px 25px 4px;background-color:{p["sky_pale"]};vertical-align:top;"><span style="display:block;width:25px;height:15px;margin-bottom:10px;border-radius:18px 3px 18px 3px;background-color:{p["primary"]};transform:rotate(-10deg);"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:20px 0 0 4%;padding:17px 14px;border:1px solid {p["secondary"]};border-radius:4px 25px 4px 25px;background-color:{p["secondary_pale"]};vertical-align:top;"><p style="margin:0 0 10px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:25px;height:15px;margin-left:auto;border-radius:18px 3px 18px 3px;background-color:{p["accent"]};transform:rotate(9deg);"></span></section></section>'
-        return f'<section style="margin:31px 0;border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;border-right:2px solid {p["accent"]};vertical-align:top;"><span style="color:{p["secondary"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT A</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["accent"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT B</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:17px 14px;border:1px solid {p["sky"]};border-radius:25px 4px 25px 4px;background-color:{p["sky_pale"]};vertical-align:top;"><span style="display:block;width:25px;height:15px;margin-bottom:10px;border-radius:18px 3px 18px 3px;background-color:{p["primary"]};transform:rotate(-10deg);"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:20px 0 0 4%;padding:17px 14px;border:1px solid {p["secondary"]};border-radius:4px 25px 4px 25px;background-color:{p["secondary_pale"]};vertical-align:top;"><p style="margin:0 0 10px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:25px;height:15px;margin-left:auto;border-radius:18px 3px 18px 3px;background-color:{p["accent"]};transform:rotate(9deg);"></span></section></section>'
+        return f'<section style="{timeline_margin(recipe, 31)}border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;border-right:2px solid {p["accent"]};vertical-align:top;"><span style="color:{p["secondary"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT A</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["accent"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT B</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{right}</p></section></section>'
 
     if kind == "title_body":
         title, body = _semantic_inline(payload["title"]), _semantic_inline(payload["body"])
@@ -745,45 +747,46 @@ def render_extended_component(
     palette: dict[str, str],
     *,
     quiet_folio: bool = False,
-    step_inline: Callable[[str], str] | None = None,
     visual_system: str | None = None,
 ) -> str | None:
     variant = str(slot.get("variant", ""))
     if extended_variant_theme(variant) is None:
         return None
     return render_extended_semantic(bind_semantic_content(slot, parsed), variant, palette,
-                                    quiet_folio=quiet_folio, step_inline=step_inline, visual_system=visual_system)
+                                    quiet_folio=quiet_folio)
 
 
 def render_extended_semantic(
     content: BoundSemanticContent, variant: str, palette: dict[str, str], *,
-    quiet_folio: bool, step_inline: Callable[[str], str] | None, visual_system: str | None,
+    quiet_folio: bool,
+    recipe: ComponentRecipe | None = None,
 ) -> str | None:
     theme_id = extended_variant_theme(variant)
     if theme_id is None:
         return None
     return _render_extended_component_payload(
         theme_id, content.component, content.layout_payload(), palette,
-        quiet_folio=quiet_folio, step_inline=step_inline, visual_system=visual_system,
+        quiet_folio=quiet_folio, recipe=recipe,
     )
 
 
 def render_extended_logic_path(
     variant: str, items: list[LogicPathField], palette: dict[str, str], *,
-    quiet_folio: bool, step_inline: Callable[[str], str] | None, visual_system: str | None,
+    quiet_folio: bool,
 ) -> str | None:
     theme_id = extended_variant_theme(variant)
     if theme_id is None:
         return None
     return _render_extended_component_payload(
         theme_id, "logic_path", {"kind": "list", "items": items}, palette,
-        quiet_folio=quiet_folio, step_inline=step_inline, visual_system=visual_system,
+        quiet_folio=quiet_folio,
     )
 
 
 def _render_extended_component_payload(
     theme_id: str, component_type: str, payload: dict[str, Any], palette: dict[str, str], *,
-    quiet_folio: bool, step_inline: Callable[[str], str] | None, visual_system: str | None,
+    quiet_folio: bool,
+    recipe: ComponentRecipe | None = None,
 ) -> str:
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
     component_markup = _payload_html(
@@ -791,9 +794,7 @@ def _render_extended_component_payload(
         component_type,
         payload,
         _palette(palette),
-        quiet_folio=quiet_folio,
-        item_inline=step_inline or _inline,
-        official_theme=visual_system == theme_id,
+        quiet_folio=quiet_folio, recipe=recipe,
     )
     if grammar == "pop":
         asset = "pop-arrow.png" if component_type in {"numbered_insight", "action_checklist", "logic_path"} else "pop-star.png"

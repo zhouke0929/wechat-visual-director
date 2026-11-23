@@ -145,6 +145,10 @@ def test_plain_list_preview_matches_legacy_except_for_edit_anchors(tmp_path, mon
         monkeypatch.setenv(SWITCH, "1")
         candidate = render_preview(article, plan, brand_profile={})
         assert re.sub(rf' (?:{REF}|{PREFIX})="[^"]+"', "", candidate) == legacy
+        # Every authored and fallback list must retain the same text host, not
+        # just the same text. Enabling the rule reader is not a font migration.
+        monkeypatch.setenv("WVD_READING_RULES_PILOT", "1")
+        assert render_preview(article, plan, brand_profile={}) == candidate
 
         dom = BeautifulSoup(candidate, "html.parser")
         assert [node[REF] for node in dom.select(f"[{REF}]")] == _ordinary_marked_fields(article)

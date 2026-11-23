@@ -23,9 +23,9 @@
 | 卡片上下或左右、表格外观、图框装饰 | 相应的主题配方或受控布局节点 | “共用内容规则”不等于把时间线、表格等做成一种外形。复制、API 不单独设计第二套组件。 |
 | 图片确定后才展示的原稿图注 | `foundation_media` 快照 → `image_caption_render` → `publication` | 只记录明确覆盖的有限数值；无覆盖不新增属性。装配旧占位时不去查询今天的主题设置。 |
 
-**兼容策略。** 列表和逻辑路径保留原有试点的完整阅读规则；其他已有配方默认保留各自的有效样式，仅在维护者显式声明角色覆盖时采用新的值。结构接入、启用阅读规则、对外正式切换是三件事。不要通过更改全局默认值、启用所有开关或修改官网导出文件来掩盖迁移差异。静态装饰、某些没有独立文本容器的几何间距，不属于一个“改全站所有元素”的接口。
+**兼容策略。** 所有组件（包括无序列表、有序列表、逻辑路径）的默认视觉基线都是已发布的 v1.0.0。接入统一接口、开启编辑定位，都不构成改字号、字重或间距的理由。阅读配置里的参考值不是要覆盖主题的 CSS；只有显式声明的属性才覆盖，其余沿用主题自己的配方。分层显示标题和说明也是单独的可选能力。静态装饰、没有独立文本容器的几何间距，不属于一个“改全站所有元素”的接口。
 
-**验收方法。** `apps/api/tests/test_renderer_catalog_parity.py` 使用固定旧提交 `ab9e481` 的归档作为期望，而非用候选代码覆盖期望；对照三种开关状态下每套主题的 26 项样张和整篇。另用 `renderer_mobile_probe.py` 比较真实 Chromium 手机尺寸下的整篇像素。有意的视觉更新应该独立评审并留下新基线依据。结构比对之外，还要验证临时阅读覆盖确实能改到目标原文字段、不会改动装饰，以及工作台改稿、冻结、素材装配和各交付路径；离线通过不替代微信实测。
+**验收方法。** `apps/api/tests/test_renderer_catalog_parity.py` 以 v1.0.0 发布提交 `10e5661` 为视觉基准，不使用试点结果替发布版作证。固定输入和计划，对照三种开关状态下每套主题的 26 项样张和整篇；编辑锚点不参与样式比对，其功能单独验证。另用 `renderer_mobile_probe.py` 比较真实 Chromium 手机尺寸下的整篇像素。改渲染配方与改输入解析、规划不是一回事：解析或选出的组件不同，不能把最终文章差异一概归咎于 CSS。除外观外还需验证临时阅读覆盖能到达目标文字，以及改稿、冻结、素材装配和各交付路径。
 
 在仓库根目录使用项目 Python 环境执行：
 
@@ -36,3 +36,28 @@ python apps/api/tests/render_catalog_review.py
 ```
 
 第二条需要本机有 Chromium 和基线提交；第三条生成可离线打开的 `artifacts/render-component-contracts-review/index.html`，不更新官网。做可编辑工作台的浏览器验收时，`VISUAL_DIRECTOR_WEB_DIST` 必须指向与源码配套的前端构建，并启用 `WVD_REQUIRE_PILOT_BROWSER=1`、`WVD_REQUIRE_LIST_PILOT_BROWSER=1`，不能以缺少浏览器时的跳过作为通过。
+
+### 三种实际改法
+
+1. **只调一个组件，不改整套主题。** 例如只改折扇时间线第一段正文的字号和整组的外距，在 `official_component_recipes.OFFICIAL_COMPONENT_RECIPES` 登记下面这项即可。它不改第二段、字重、行高比例或卡片内边距；相邻块最终的可见间距仍遵循浏览器的外边距折叠规则。这里的 left/right 是内容字段（之前/之后），即使纵排也不交换。正式配置为空，以下数字只用于验收。
+
+   ```python
+   {"folded_fan_detail": {"before_after_timeline": {
+       "field_sizes_px": {"left": 19.5}, "outer_before_px": 13, "outer_after_px": 31,
+   }}}
+   ```
+
+2. **只换现有构图，不改原文绑定。** 在同一项加 `"layout": "split_page_flip"` 表示左右翻页，`"stacked_before_after"` 表示上下对照。不填则保留原主题画法。它们复用同一份时间线实现，而不是让三个后端分别重画。维护者只指定布局；系统在选择主题时记录该组件的默认变体，若稿件用的是其他变体，不用主题默认布局把它盖回去。
+
+3. **改步骤如何分层，不在每套主题里猜一遍。** 逻辑路径在绑定原文时通过 `interpret_step` 一次得到原文和可选的标题/说明，外观层只决定如何显示。区分“真的有步骤标题”“正文里有强调”“只有一句正文”；无标题不补造，单纯加粗也不自动另起一行。可编辑锚点与标题分层是两项能力。
+
+**选择范围。** 要改一个主题的一类文字角色（例如所有普通列表项）用 `reading_theme_overrides`，要改一个组件的某个字段才用组件配方。两者都是在选择主题时拷入排版计划，之后重放该计划不读取最新登记表；选择另一个主题时使用新主题的配置。继承官方主题的普通 v1 扩展包不会暗中继承这两张私有登记表。组件级配置目前仅登记时间线的两个实际文字字段、外距和上述两种布局，不是任意组件通用 CSS。要支持一个新组件，先确定它的真实字段和外层容器，再登记、验证。
+
+维护演练（不修改主题配置或创建工作台任务）：
+
+```console
+python -m pytest apps/api/tests/test_component_spacing_contract.py apps/api/tests/test_timeline_recipe_contract.py apps/api/tests/test_official_recipe_snapshot.py apps/api/tests/test_official_step_hierarchy.py
+python apps/api/tests/test_timeline_recipe_contract.py
+```
+
+第二条需项目 Python 导入路径含 `apps/api/src`、本机已安装 Playwright Chromium；实际检查两种手机宽度的方向、长文换行与横向溢出，不只是对照 HTML 字符串。

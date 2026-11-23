@@ -1183,7 +1183,7 @@ def test_editorial_contrast_logic_path_keeps_the_staircase_in_the_gutter() -> No
 
 
 @pytest.mark.parametrize("theme", ["editorial_contrast", "warm_humanist"])
-def test_logic_path_separates_only_explicit_step_titles_from_their_details(theme: str) -> None:
+def test_logic_path_preserves_original_step_emphasis_and_hard_break_in_clipboard(theme: str) -> None:
     parsed = parse_markdown(
         "# 步骤\n\n"
         "1. **先记录 & 核对。**\\\n   用不同日期观察市场，保留 **原始记录**。\n"
@@ -1203,10 +1203,9 @@ def test_logic_path_separates_only_explicit_step_titles_from_their_details(theme
     markup = render_component(slot, parsed, config["palette"], config, visual_system=theme)
     detail_style = 'style="display:block;padding-top:2px;font-weight:400;"'
     formatted = (
-        f'<strong style="font-weight:750;">先记录 &amp; 核对。</strong>\n'
-        f'<span {detail_style}>用不同日期观察市场，保留 <strong>原始记录</strong>。</span>'
+        '<strong>先记录 &amp; 核对。</strong><br>用不同日期观察市场，保留 <strong>原始记录</strong>。'
     )
-    assert markup.count(detail_style) == 1
+    assert detail_style not in markup
     assert formatted in markup
     assert "<strong>先看营业时间。</strong></p>" in markup
     assert f">{steps.content[2]}</p>" in markup

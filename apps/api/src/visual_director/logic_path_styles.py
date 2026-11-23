@@ -22,7 +22,7 @@ def render_native_logic_path(
     if variant == "plain_steps":
         rows = []
         for index, item in enumerate(items, 1):
-            prefix_attr = ' data-editor-step-prefix="true"' if isinstance(item, LogicPathField) else ""
+            prefix_attr = ' data-editor-step-prefix="true"' if isinstance(item, LogicPathField) and item.editable else ""
             prefix = f'<strong{prefix_attr} style="color:{primary};">{index:02d}.</strong> '
             rows.append(text_field(item, "margin:0 0 12px;color:#34403E;font-size:16px;line-height:1.75;", prefix=prefix))
         return '<section style="margin:24px 0;">' + "".join(rows) + "</section>"

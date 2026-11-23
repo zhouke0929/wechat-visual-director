@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import html
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import Any
 
 from .parser import ParsedArticle
+from .component_presentation import resolve_component_recipe
+from .timeline_recipe import timeline_field
 from .heading_numbers import has_explicit_heading_number
 from .logic_path_content import LogicPathField, step_field_attributes, step_field_css, step_field_text
 from .official_theme_tables import render_official_theme_table
@@ -51,13 +53,12 @@ class _GeneratedTypeScale:
         # is private to the token layout (not accepted by declarative layouts).
         return f"<!--wvd-type-field:{len(self.fields)-1}-->"
 
-    def finish(self, template: str) -> str:
-        def scale_tag(tag: re.Match[str]) -> str:
-            return re.sub(r"font-size:(\d+(?:\.\d+)?)px;",
-                          lambda m: f"font-size:{float(m[1]) * self.scale:g}px;letter-spacing:{self.spacing};",
-                          tag[0])
+    def scale_css(self, css: str) -> str:
+        return re.sub(r"font-size:(\d+(?:\.\d+)?)px;",
+                      lambda m: f"font-size:{float(m[1]) * self.scale:g}px;letter-spacing:{self.spacing};", css)
 
-        scaled = re.sub(r"<[a-zA-Z][^>]*>", scale_tag, template)
+    def finish(self, template: str) -> str:
+        scaled = re.sub(r"<[a-zA-Z][^>]*>", lambda tag: self.scale_css(tag[0]), template)
         return re.sub(r"<!--wvd-type-field:(\d+)-->", lambda m: self.fields[int(m[1])], scaled)
 
 
@@ -474,44 +475,43 @@ def render_generated_quote(content: str, config: dict[str, Any], *, reading: Rea
 
 
 def render_generated_component(
-    slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any], *,
-    step_inline: Callable[[str], str] | None = None,
+    slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any],
 ) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
     content = bind_semantic_content(slot, parsed)
-    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p, step_inline)
+    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p)
 
 
 def render_generated_semantic(
-    content: BoundSemanticContent, config: dict[str, Any], *, step_inline: Callable[[str], str] | None,
+    content: BoundSemanticContent, config: dict[str, Any],
 ) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
-    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p, step_inline)
+    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p)
 
 
 def render_generated_logic_path(
-    items: list[LogicPathField], config: dict[str, Any], *, step_inline: Callable[[str], str] | None,
+    items: list[LogicPathField], config: dict[str, Any],
 ) -> str | None:
     design, palette = _metrics(config)
     if not design:
         return None
     return _render_generated_component_payload(
-        "logic_path", {"kind": "list", "items": items}, config, design, palette, step_inline,
+        "logic_path", {"kind": "list", "items": items}, config, design, palette,
     )
 
 
 def _render_generated_component_payload(
     component_type: str, payload: dict[str, Any], config: dict[str, Any],
-    design: dict[str, Any], p: dict[str, str], step_inline: Callable[[str], str] | None,
+    design: dict[str, Any], p: dict[str, str],
 ) -> str:
     layout_payload = payload
     if component_type == "concept_explainer" and payload["kind"] == "title_body":
         layout_payload = {"entries": [{"title": payload["title"], "body": payload["body"]}]}
-    custom = render_layout(component_type, layout_payload, config, step_inline=step_inline)
+    custom = render_layout(component_type, layout_payload, config)
     if custom is not None:
         return f'<section data-component-type="{component_type}">{custom}</section>'
     gap = int(design["rhythm"]["component_gap"])
@@ -541,23 +541,29 @@ def _render_generated_component_payload(
         "case_card": "CASE FILE", "warning_note": "NOTICE", "action_checklist": "CHECKLIST",
         "faq_card": "Q / A", "comparison_card": "COMPARISON", "section_summary": "SUMMARY",
     }.get(component_type, component_type.upper())
+    recipe = resolve_component_recipe(config, component_type)
     scale = _GeneratedTypeScale(config)
 
-    def render_field(value: str | SemanticField) -> str:
-        return scale.field(field_inline(value, _inline))
+    def render_field(value: str | SemanticField, name: str = "") -> str:
+        return scale.field(timeline_field(value, name, recipe, _inline) if name else field_inline(value, _inline))
 
     head = f'<p style="margin:-5px 0 14px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.17em;">{label}<span style="float:right;">{_motif(config, compact=True)}</span></p>'
     kind = payload["kind"]
     if kind == "list":
         rows = []
-        item_inline = step_inline or _inline
         legacy_style = f'box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;'
         for index, item in enumerate(payload["items"], 1):
-            item_style = step_field_css(legacy_style, item) if component_type == "logic_path" else legacy_style
-            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p{step_field_attributes(item)} style="{item_style}">{scale.field(item.render(item_inline)) if isinstance(item, SemanticField) else step_field_text(item, item_inline)}</p></section>')
+            if isinstance(item, LogicPathField):
+                # Scale this legacy host first, then apply its absolute role
+                # metrics. Its title/detail and original strong are already projected.
+                style = step_field_css(scale.scale_css(legacy_style), item)
+                cell = scale.field(f'<p{step_field_attributes(item)} style="{style}">{step_field_text(item, _inline)}</p>')
+            else:
+                cell = f'<p style="{legacy_style}">{render_field(item)}</p>'
+            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span>{cell}</section>')
         content = "".join(rows)
     elif kind == "pair":
-        content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["left"])}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["right"])}</p></section></section>'
+        content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["left"], "left")}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["right"], "right")}</p></section></section>'
     elif kind == "concept_group":
         entries = []
         for index, entry in enumerate(payload["entries"], 1):
@@ -572,7 +578,7 @@ def _render_generated_component_payload(
             content = f'<strong style="display:block;color:{p["primary"]};font-size:18px;line-height:1.6;">{title}</strong><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>'
     else:
         content = f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:16px;font-weight:650;line-height:1.85;">{render_field(payload["body"])}</p>'
-    return scale.finish(f'<section data-generated-theme="{html.escape(str(config.get("visual_system", "custom")))}" data-theme-grammar="{grammar}" data-component-type="{component_type}" style="margin:{gap}px 0;{frame}background-color:{component_surface}">{head}{content}</section>')
+    return scale.finish(f'<section data-generated-theme="{html.escape(str(config.get("visual_system", "custom")))}" data-theme-grammar="{grammar}" data-component-type="{component_type}" style="{recipe.margin_css(gap)}{frame}background-color:{component_surface}">{head}{content}</section>')
 
 
 def generated_rhythm_primitives(config: dict[str, Any]) -> list[dict[str, str]]:

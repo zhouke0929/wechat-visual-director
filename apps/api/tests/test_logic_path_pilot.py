@@ -49,13 +49,13 @@ MARKDOWN = (
     "## 附件\n\n1. 归档截图\n2. 归档字体\n"
 )
 FAMILIES = (
-    ("light_reading", "primary", True),
-    ("pop_poster", "kit", True),
-    ("folded_fan_detail", "bundled", True),
+    ("light_reading", "primary", False),
+    ("pop_poster", "kit", False),
+    ("folded_fan_detail", "bundled", False),
     ("pilot_pack_on", "custom_opt_in", True),
     ("pilot_pack_inherited", "custom_inherit", False),
 )
-CASES = FAMILIES + (("light_reading", "manual_plain", True),)
+CASES = FAMILIES + (("light_reading", "manual_plain", False),)
 
 
 def _install_test_themes() -> None:

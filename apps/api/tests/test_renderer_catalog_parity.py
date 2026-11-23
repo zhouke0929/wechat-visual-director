@@ -12,6 +12,7 @@ import json
 import os
 from contextlib import contextmanager
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -22,13 +23,48 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
-ORACLE = Path(__file__).with_name("fixtures") / "catalog-ab9e481.json"
-REVISION = "ab9e481d2bb91a2c32f309793d2906851b3cff09"
+ORACLE = Path(__file__).with_name("fixtures") / "catalog-v1.0.0.json"
+# git rev-parse 'v1.0.0^{}' (annotated release tag, not the previous local trial).
+REVISION = "10e5661afbe39e9999c7e8a3b5ca943f67c12ba5"
 MODES = {"default": ("0", "0"), "structure": ("1", "0"), "reading": ("1", "1")}
 FOUNDATIONS = frozenset("hero lead paragraph section_heading subheading quote unordered_list "
                         "ordered_list image_caption table divider source reference_list closing_cta".split())
 SEMANTIC = frozenset("question_hook numbered_insight evidence_callout before_after_timeline logic_path "
                      "concept_explainer case_card warning_note action_checklist faq_card comparison_card section_summary".split())
+
+_OPEN_TAG = re.compile(r"<[A-Za-z][^<>]*>")
+_EDITOR_REF = re.compile(r"""(?:"[^"]*"|'[^']*'|(?P<ref> data-editor-(?:list|step)-ref="block-\d{3}(?::item:\d+)?"))""")
+
+
+def _visible_markup(markup: str) -> str:
+    # Do not parse/reserialize arbitrary HTML: that could hide changes to
+    # wrappers, whitespace, style precedence, line breaks, or author text.
+    return _OPEN_TAG.sub(lambda tag: _EDITOR_REF.sub(lambda m: "" if m["ref"] else m[0], tag[0]), markup)
+
+
+def test_display_comparison_retains_markup_source_text_and_unrelated_hooks():
+    for value in (' data-editor-list-ref="block-123:item:2"', ' data-editor-step-ref="block-123"'):
+        quoted = "title='" + value + "'"
+        unchanged = f'<p {quoted} data-editor-block-ids="block-123" style="font-weight:700;">{value}</p>'
+        marked = unchanged.replace(" style=", value + " style=")
+        assert _visible_markup(marked) == unchanged
+
+
+def _stress_logic_path(theme: str) -> str:
+    from visual_director import theme_gallery as gallery
+    from visual_director.brief_compiler import visual_system_configuration
+    from dataclasses import replace
+    from visual_director.parser import ContentBlock, parse_markdown
+
+    # Already-parsed source, just like a saved plan: do not test Markdown parser
+    # differences here. Both duplicate items retain their independent references.
+    rows = ["**核对图片位置**\n逐段确认图片放在它所说明的段落之后，观察引导语、图注和下一条说明的阅读节奏。"
+            "这里还需确认**行内强调**和很长的说明不会变成另一层小标题。",
+            "保存之前再检查。", "保存之前再检查。",
+            "**注意**：这是一句普通说明，不是一个单独的小标题。"]
+    parsed = replace(parse_markdown("# 固定复测"), blocks=[ContentBlock("block-001", "ordered_list", rows)])
+    refs = {"logic_path": {"items": [f"block-001:item:{i}" for i in range(len(rows))]}}
+    return gallery._component_specimen(parsed, "logic_path", theme, visual_system_configuration(theme)["palette"], refs)["html"]
 
 
 def _samples(root: Path, mode: str, plan: dict):
@@ -51,7 +87,7 @@ def _samples(root: Path, mode: str, plan: dict):
             samples = [(s["role"], s["html"]) for s in foundations] + [
                 (role, gallery._component_specimen(parsed, role, theme, palette, bindings)["html"])
                 for role in sorted(SEMANTIC)
-            ] + [("whole_article", article)]
+            ] + [("whole_article", article), ("logic_path_stress", _stress_logic_path(theme))]
             for role, markup in samples:
                 assert markup.strip(), (theme, role)
                 yield theme, role, markup
@@ -62,7 +98,7 @@ def _render(root: Path, mode: str, plan: dict) -> dict[str, str]:
     # actual pixels; only platform-specific encoding can vary, never markup.
     with patch.object(sys, "path", [str(root / "scripts"), *sys.path]):
         from export_theme_gallery import comparable_gallery
-    return {f"{theme}/{role}": hashlib.sha256(comparable_gallery(markup).encode()).hexdigest()
+    return {f"{theme}/{role}": hashlib.sha256(_visible_markup(comparable_gallery(markup)).encode()).hexdigest()
             for theme, role, markup in _samples(root, mode, plan)}
 
 
@@ -142,10 +178,10 @@ def _print_archived(root: Path) -> None:
 
 
 @contextmanager
-def _pinned_source_tree():
+def _pinned_source_tree(revision=REVISION):
     with tempfile.TemporaryDirectory(prefix="wvd-golden-catalog-") as name:
         root = Path(name).resolve()
-        archive = subprocess.check_output(["git", "archive", "--format=zip", REVISION, "apps/api/src",
+        archive = subprocess.check_output(["git", "archive", "--format=zip", revision, "apps/api/src",
                                            "assets", "config", "contracts", "skills/wechat-visual-director/assets",
                                            "scripts/export_theme_gallery.py"], cwd=ROOT)
         with zipfile.ZipFile(io.BytesIO(archive)) as sources:
@@ -163,8 +199,33 @@ def _reproduce() -> None:
         ORACLE.write_text(generated, encoding="utf-8", newline="\n")
 
 
+def _diagnose_revision(revision: str) -> None:
+    # Optional: reconstruct a pre-fix candidate even if the working tree has
+    # moved. Both sides always receive the one plan archived with the release.
+    with _pinned_source_tree(revision) as (root, env):
+        out = subprocess.check_output([sys.executable, str(Path(__file__).resolve()), "--inspect", str(root)],
+                                      cwd=root, env=env, encoding="utf-8")
+    print(out)
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "--archived":
         _print_archived(Path(sys.argv[2]).resolve())
+    elif len(sys.argv) == 3 and sys.argv[1] == "--diff-at":
+        _diagnose_revision(sys.argv[2])
+    elif len(sys.argv) == 3 and sys.argv[1] == "--inspect":
+        from visual_director import theme_specimens as ts
+        from visual_director.component_catalog import CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
+        from visual_director.theme_packs import configure_theme_packs
+        folder = Path(sys.argv[2]).resolve()
+        assert Path(ts.__file__).resolve().is_relative_to(folder)
+        configure_theme_packs(folder / "empty-packs", reserved_ids=VISUAL_SYSTEM_ORDER, core_components=CORE_THEME_COMPONENTS)
+        golden = json.loads(ORACLE.read_text(encoding="utf-8"))
+        for mode in MODES:
+            old = {**golden["default"], **golden.get(mode, {})}
+            new = _render(folder, mode, golden["fixed_plan"])
+            assert old.keys() == new.keys()
+            differences = [key for key in sorted(old) if old[key] != new[key]]
+            print(json.dumps({"mode": mode, "differences": differences}))
     else:
         _reproduce()

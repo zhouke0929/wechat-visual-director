@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 
 import pytest
@@ -22,7 +21,7 @@ from test_plain_lists_pilot import (
     _list_blocks,
     _prepare_task,
 )
-from visual_director.brief_compiler import apply_visual_system
+from visual_director.brief_compiler import apply_visual_system, visual_system_configuration
 from visual_director.component_catalog import CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
 from visual_director.image_provider import ManualImageProvider
 from visual_director.main import create_app
@@ -101,13 +100,6 @@ def _by_text(elements, text):
     return matches[0]
 
 
-def _em(value: str) -> float:
-    if value == "normal":
-        return 0.0
-    assert value.endswith("em"), value
-    return float(value[:-2])
-
-
 def _trial_on(monkeypatch) -> None:
     monkeypatch.setenv(SWITCH, "1")
     monkeypatch.setenv(READING_SWITCH, "1")
@@ -175,7 +167,7 @@ def test_normal_tracking_inherits_but_an_explicit_zero_role_override_wins(monkey
     profile = reading_rules.resolve_reading_profile(normal, official=True, theme_id=theme)
     assert profile is not None and profile.rules[reading_rules.LIST_BODY].letter_spacing_em == 0.015
     _replace_theme_overrides(monkeypatch, {theme: {reading_rules.LIST_BODY: {"letter_spacing_em": 0}}})
-    tight = {"generated_design_system": {"typography": {"letter_spacing": "tight"}}}
+    tight = {**visual_system_configuration(theme), "generated_design_system": {"typography": {"letter_spacing": "tight"}}}
     profile = reading_rules.resolve_reading_profile(tight, official=True, theme_id=theme)
     assert profile is not None
     assert profile.rules[reading_rules.LIST_BODY].letter_spacing_em == 0
@@ -184,21 +176,14 @@ def test_normal_tracking_inherits_but_an_explicit_zero_role_override_wins(monkey
             != profile.field_sources[reading_rules.STEP_BODY]["letter_spacing_em"])
 
 
-def test_pop_checked_in_override_changes_list_only(monkeypatch):
+def test_pop_poster_retains_its_existing_list_style_until_explicitly_overridden(monkeypatch):
     article, plan = _fixed_inputs("pop_poster")
+    monkeypatch.setenv(SWITCH, "1")
+    before = render_preview(article, plan, brand_profile={})
     _trial_on(monkeypatch)
-    profile = reading_rules.resolve_reading_profile(plan["configuration"], official=True, theme_id="pop_poster")
-    assert profile is not None
-    list_rule = profile.rules[reading_rules.LIST_BODY]
-    assert (list_rule.size_px, list_rule.line_height, list_rule.weight) == (15, 1.75, 400)
-    assert (profile.rules[reading_rules.STEP_BODY].size_px, profile.rules[reading_rules.STEP_BODY].line_height) == (16, 1.8)
-    list_origin = profile.field_sources[reading_rules.LIST_BODY]
-    assert list_origin["size_px"] == list_origin["line_height"] and list_origin["size_px"] != list_origin["weight"]
-    doc = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
-    assert all((_style(node)["font-size"], _style(node)["line-height"]) == ("15px", "1.75")
-               for node in doc.select(f"[{REF}]"))
-    assert all((_style(node)["font-size"], _style(node)["line-height"]) == ("16px", "1.8")
-               for node in doc.select(f"[{STEP_REF}]"))
+    assert render_preview(article, plan, brand_profile={}) == before
+    rows = BeautifulSoup(before, "html.parser").select(f"[{REF}]")
+    assert rows and any(_style(row).get("font-weight") == "700" for row in rows)
 
 
 @pytest.mark.parametrize("selector_theme", ("light_reading", "pop_poster", "folded_fan_detail"))
@@ -216,6 +201,8 @@ def test_one_private_role_override_updates_only_one_theme_and_role_in_real_rende
                                   "inset_before_px": 3, "inset_after_px": 5},
     }
     _replace_theme_overrides(monkeypatch, overrides)
+    assert render_preview(article, plan, brand_profile={}) == before  # A saved draft is not a live catalogue entry.
+    plan["configuration"] = visual_system_configuration(selector_theme)
     changed = render_preview(article, plan, brand_profile={})
     after_doc = BeautifulSoup(changed, "html.parser")
     before_doc = BeautifulSoup(before, "html.parser")
@@ -236,6 +223,23 @@ def test_one_private_role_override_updates_only_one_theme_and_role_in_real_rende
     assert list_source["wrap"] != origin
 
 
+@pytest.mark.parametrize("theme", ("light_reading", "pop_poster", "folded_fan_detail"))
+def test_explicit_emphasis_changes_only_authored_strong_inside_list_fields(monkeypatch, theme):
+    _trial_on(monkeypatch)
+    article, plan = _fixed_inputs(theme)
+    before = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
+    _replace_theme_overrides(monkeypatch, {theme: {reading_rules.INLINE_EMPHASIS: {"weight": 825}}})
+    plan["configuration"] = visual_system_configuration(theme)
+    after = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
+    old_fields, fields = (doc.select(f"[{REF}]") for doc in (before, after))
+    assert fields and [node[REF] for node in fields] == [node[REF] for node in old_fields]
+    for old, changed in zip(old_fields, fields):
+        assert old.get("style") == changed.get("style")
+        assert old.get_text() == changed.get_text()
+    emphasis = [word for node in fields for word in node.find_all("strong")]
+    assert emphasis and all(_style(word)["font-weight"] == "825" for word in emphasis)
+
+
 @pytest.mark.parametrize(("inset", "expected"), ((0, "7px"), (4, "11px")))
 def test_step_title_gap_is_projected_once_and_combines_with_the_detail_inset(monkeypatch, inset, expected):
     _trial_on(monkeypatch)
@@ -244,6 +248,7 @@ def test_step_title_gap_is_projected_once_and_combines_with_the_detail_inset(mon
         reading_rules.STEP_TITLE: {"after_px": 7},
         reading_rules.STEP_DETAIL: {"inset_before_px": inset},
     }})
+    plan["configuration"] = visual_system_configuration("light_reading")
     dom = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
     title = _by_text(dom.find_all("strong"), STEP_TITLE_TEXT)
     detail = _by_text(dom.find_all("span"), STEP_DETAIL_TEXT)
@@ -259,12 +264,14 @@ def test_optional_step_title_insets_use_a_box_but_default_title_stays_inline(mon
     _replace_theme_overrides(monkeypatch, {"light_reading": {
         reading_rules.STEP_TITLE: {"before_px": 2, "inset_before_px": 1, "inset_after_px": 4},
     }})
+    plan["configuration"] = visual_system_configuration("light_reading")
     doc = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
     title = _style(_by_text(doc.find_all("strong"), STEP_TITLE_TEXT))
     assert {"display": "inline-block", "margin-top": "2px", "padding-top": "1px",
             "padding-bottom": "4px"}.items() <= title.items()
     assert "margin-bottom" not in title
-    assert _style(_by_text(doc.find_all("span"), STEP_DETAIL_TEXT))["padding-top"] == "3px"
+    # No explicit title/detail gap: the existing hierarchy uses its own 2px.
+    assert _style(_by_text(doc.find_all("span"), STEP_DETAIL_TEXT))["padding-top"] == "2px"
 
 
 def test_default_plain_steps_keep_existing_row_gap_but_explicit_zero_can_override_it(monkeypatch):
@@ -276,6 +283,7 @@ def test_default_plain_steps_keep_existing_row_gap_but_explicit_zero_can_overrid
     assert orig["margin"] == "0 0 12px"
     assert "margin-bottom" not in orig
     _replace_theme_overrides(monkeypatch, {"light_reading": {reading_rules.STEP_BODY: {"after_px": 0}}})
+    plan["configuration"] = visual_system_configuration("light_reading")
     after = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
     adjusted = _style(after.select(f"[{STEP_REF}]")[1])
     assert adjusted["margin"] == orig["margin"]  # Leave the shorthand's other edges in place.
@@ -289,62 +297,48 @@ def test_private_override_does_not_accept_css_strings_or_invalid_metrics(monkeyp
     _replace_theme_overrides(monkeypatch, {theme: {reading_rules.LIST_BODY: metric}})
     assert reading_rules.resolve_reading_profile({}, official=False, theme_id=theme) is None
     with pytest.raises(ValueError, match="Invalid official reading metric"):
-        reading_rules.resolve_reading_profile({}, official=True, theme_id=theme)
+        visual_system_configuration(theme)
+    with pytest.raises(ValueError, match="Invalid official reading metric"):
+        reading_rules.resolve_reading_profile({"reading_overrides": {reading_rules.LIST_BODY: metric}}, official=True)
 
 
 @pytest.mark.parametrize("theme", ("light_reading", "pop_poster", "folded_fan_detail"))
-def test_one_body_token_reaches_each_renderer_without_overriding_step_hierarchy(monkeypatch, theme):
+def test_shared_role_overrides_reach_each_renderer_without_flattening_step_hierarchy(monkeypatch, theme):
     article, plan = _fixed_inputs(theme)
-    monkeypatch.setenv(SWITCH, "1")
-    monkeypatch.setenv(READING_SWITCH, "1")
-    original = dict(reading_rules.DEFAULT_READING_RULES)
-    revised = {**original, reading_rules.BODY: replace(original[reading_rules.BODY], weight=450)}
-    monkeypatch.setattr(reading_rules, "DEFAULT_READING_RULES", revised)
+    _trial_on(monkeypatch)
+    _replace_theme_overrides(monkeypatch, {theme: {
+        reading_rules.LIST_BODY: {"weight": 450}, reading_rules.STEP_BODY: {"weight": 450},
+        reading_rules.STEP_TITLE: {"weight": 725}, reading_rules.STEP_DETAIL: {"weight": 450},
+    }})
+    plan["configuration"] = visual_system_configuration(theme)
     dom = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
-    rows = dom.select(f"[{REF}], [{STEP_REF}]")
-    assert rows and all(_style(row)["font-weight"] == "450" for row in rows)
+    for selector in (REF, STEP_REF):
+        rows = dom.select(f"[{selector}]")
+        assert rows and all(_style(row)["font-weight"] == "450" for row in rows)
     title = _by_text(dom.find_all("strong"), STEP_TITLE_TEXT)
     detail = _by_text(dom.find_all("span"), STEP_DETAIL_TEXT)
-    assert int(_style(title)["font-weight"]) == original[reading_rules.STEP_TITLE].weight
+    assert _style(title)["font-weight"] == "725"
     assert _style(detail)["font-weight"] == "450"
 
 
 @pytest.mark.parametrize("theme", VISUAL_SYSTEM_ORDER)
-def test_official_list_and_step_fields_use_reading_roles_without_other_markup_changes(monkeypatch, theme):
+def test_official_lists_and_steps_preserve_theme_css_and_source_hierarchy(monkeypatch, theme):
     article, plan = _fixed_inputs(theme)
     monkeypatch.setenv(SWITCH, "1")
     baseline = render_preview(article, plan, brand_profile={})
     monkeypatch.setenv(READING_SWITCH, "1")
     trial = render_preview(article, plan, brand_profile={})
-    assert _without_reading_differences(trial) == _without_reading_differences(baseline)
-    profile = reading_rules.resolve_reading_profile(plan["configuration"], official=True, theme_id=theme)
-    assert profile is not None
+    # Not a normalized DOM comparison: no font declaration, line break, box
+    # spacing, marker shape or source emphasis may drift without an override.
+    assert trial == baseline
 
     dom = BeautifulSoup(trial, "html.parser")
     step, *lists = _list_blocks(article)
     ordinary_rows = dom.select(f"[{REF}]")
     assert [row[REF] for row in ordinary_rows] == [f"{block.id}:item:{i}" for block in lists for i in range(len(block.content))]
-    for row in ordinary_rows:
-        style = _style(row)
-        assert style["font-weight"] == "400"
-        assert re.fullmatch(r"\d+(?:\.\d+)?px", style["font-size"])
-        assert float(style["font-size"][:-2]) == profile.rules[reading_rules.LIST_BODY].size_px
-        assert float(style["line-height"]) == profile.rules[reading_rules.LIST_BODY].line_height
-        assert _em(style["letter-spacing"]) == profile.rules[reading_rules.LIST_BODY].letter_spacing_em
-    emphasis = [node for row in ordinary_rows for node in row.find_all("strong")]
-    assert emphasis and all(_style(word)["font-weight"] == "700" for word in emphasis)
-
+    assert any(row.find("strong") for row in ordinary_rows)
     step_rows = dom.select(f"[{STEP_REF}]")
     assert [row[STEP_REF] for row in step_rows] == [f"{step.id}:item:{i}" for i in range(len(step.content))]
-    assert all(_style(row)["font-weight"] == "400" for row in step_rows)
-    assert all(float(_style(row)["font-size"][:-2]) == profile.rules[reading_rules.STEP_BODY].size_px for row in step_rows)
-    first = step_rows[0]
-    title = _by_text(first.find_all("strong"), STEP_TITLE_TEXT)
-    detail = _by_text(first.find_all("span", recursive=False), STEP_DETAIL_TEXT)
-    assert int(_style(title)["font-weight"]) > 400
-    assert _style(detail)["font-weight"] == "400"
-    assert _style(detail)["display"] == "block"
-    assert float(_style(detail)["padding-top"][:-2]) == profile.rules[reading_rules.STEP_TITLE].after_px
     assert step_rows[1].get_text(strip=True) == STEP_UNTITLED_TEXT
     assert not step_rows[1].find("strong")  # Plain steps never become inferred titles.
 
@@ -407,6 +401,11 @@ def test_enabling_reading_pilot_does_not_rewrite_an_old_frozen_revision(tmp_path
                     if node.get_text(strip=True) == bullets.content[1]]
             assert rows and all(_style(row)["font-weight"] == "700" for row in rows)
             monkeypatch.setenv(READING_SWITCH, "1")
+            _replace_theme_overrides(monkeypatch, {"pop_poster": {reading_rules.LIST_BODY: {"weight": 425}}})
+            article, plan = _fixed_inputs("pop_poster")
+            current = BeautifulSoup(render_preview(article, plan, brand_profile={}), "html.parser")
+            live_rows = current.select(f"[{REF}]")
+            assert live_rows and all(_style(row)["font-weight"] == "425" for row in live_rows)
             assert client.get(preview_url).content == before.content
     finally:
         app.state.repository.connection.close()
@@ -415,12 +414,12 @@ def test_enabling_reading_pilot_does_not_rewrite_an_old_frozen_revision(tmp_path
 def test_edited_reading_trial_survives_copy_freeze_and_mock_wechat(tmp_path, monkeypatch):
     monkeypatch.setenv(SWITCH, "1")
     monkeypatch.setenv(READING_SWITCH, "1")
-    overrides = dict(reading_theme_overrides.THEME_READING_OVERRIDES)
-    pop = dict(overrides["pop_poster"])
-    pop[reading_rules.LIST_BODY] = {**pop[reading_rules.LIST_BODY], "letter_spacing_em": 0.02,
-                                   "before_px": 2, "after_px": 5, "inset_before_px": 3, "inset_after_px": 4}
-    overrides["pop_poster"] = pop
-    _replace_theme_overrides(monkeypatch, overrides)
+    _replace_theme_overrides(monkeypatch, {"pop_poster": {
+        reading_rules.LIST_BODY: {"size_px": 15, "line_height": 1.75, "weight": 400, "letter_spacing_em": 0.02,
+                                  "before_px": 2, "after_px": 5, "inset_before_px": 3, "inset_after_px": 4},
+        reading_rules.STEP_BODY: {"size_px": 16, "line_height": 1.8, "weight": 400},
+        reading_rules.STEP_TITLE: {"weight": 750}, reading_rules.STEP_DETAIL: {"weight": 400},
+    }})
     remote = _WechatTransportFixture()
     publisher = WechatDraftPublisher(ROOT, token_endpoint="https://wechat-pilot.invalid/token",
                                      api_base="https://wechat-pilot.invalid", requester=remote)

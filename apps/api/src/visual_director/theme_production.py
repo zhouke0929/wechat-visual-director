@@ -4,7 +4,7 @@ from __future__ import annotations
 from html.parser import HTMLParser
 from typing import Any
 
-from .brief_compiler import visual_system_configuration, visual_system_variant
+from .brief_compiler import base_visual_system_configuration, visual_system_variant
 from .component_catalog import COMPONENT_CATALOG, CORE_THEME_COMPONENTS
 from .parser import parse_markdown
 from .planner import generate_plans
@@ -124,7 +124,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
     layouts = manifest.get("design_system", {}).get("layouts", {})
     if not layouts:
         return {"status": "not_applicable", "scope": "declared_production_entrypoints", "cases": [], "checked_roles": []}
-    config = visual_system_configuration(manifest["base_theme"])
+    config = base_visual_system_configuration(manifest["base_theme"])
     config.update(palette=manifest["palette"], accent=manifest["palette"]["primary"],
                   generated_design_system=manifest["design_system"], visual_system="production_probe", theme_id=manifest["id"])
     brand = {"standard_kicker": "阅读检查", "fixed_footer": {"enabled": True, "text": "保持完整表达。"}}

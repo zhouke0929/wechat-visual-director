@@ -177,7 +177,7 @@ def test_fixed_labels_require_semantic_review_without_rejecting_valid_layouts():
 
 def test_logic_path_step_hierarchy_reuses_core_format_without_changing_old_packs():
     from jsonschema import Draft202012Validator
-    from visual_director.brief_compiler import visual_system_configuration, visual_system_variant
+    from visual_director.brief_compiler import visual_system_variant
     from visual_director.component_catalog import CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
     from visual_director.components import render_component
     from visual_director.parser import parse_markdown
@@ -204,8 +204,6 @@ def test_logic_path_step_hierarchy_reuses_core_format_without_changing_old_packs
     steps = next(block for block in parsed.blocks if block.type == 'ordered_list')
     slot = {'component_type': 'logic_path', 'variant': visual_system_variant('logic_path', 'editorial_contrast'),
             'content_bindings': {'items': [f'{steps.id}:item:{index}' for index in range(3)]}}
-    official = visual_system_configuration('editorial_contrast')
-    reference = BeautifulSoup(render_component(slot, parsed, official['palette'], official, visual_system='editorial_contrast'), 'html.parser')
 
     def fields(design_system):
         config = {'palette': manifest['palette'], 'generated_design_system': design_system}
@@ -214,7 +212,8 @@ def test_logic_path_step_hierarchy_reuses_core_format_without_changing_old_packs
     new_fields, old_fields = fields(design), fields(old)
     assert [row.get_text(strip=True) for row in new_fields] == [row.get_text(strip=True) for row in old_fields]
     assert len(new_fields) == 3 and all(field.name == 'p' for field in new_fields)
-    assert new_fields[0].decode_contents() == reference.find('strong').parent.decode_contents()
+    assert new_fields[0].strong.get_text() == '先做核对。'
+    assert new_fields[0].strong['style'] == 'font-weight:750;'
     assert new_fields[0].span.strong.get_text() == '原始 & 真实记录'
     assert old_fields[0].decode_contents() == '<strong>先做核对。</strong><br/>保留 <strong>原始 &amp; 真实记录</strong>。'
     assert [field.decode_contents() for field in new_fields[1:]] == [field.decode_contents() for field in old_fields[1:]]

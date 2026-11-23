@@ -5,13 +5,15 @@ No schema, CSS names, punctuation, heading text or static decoration is inferred
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 from types import MappingProxyType
 from typing import Any
 
 from .parser import ContentBlock, ParsedArticle
+from .logic_path_content import LogicPathField
 from .reading_rules import BODY, COMPONENT_TITLE, QUOTE, STEP_BODY, ReadingProfile, render_authored_text
+from .step_content import interpret_step
 
 _REFERENCE = re.compile(r"(block-\d{3})(?::item:(\d+))?")
 
@@ -45,6 +47,7 @@ def _role(component: str, key: str) -> str:
 class BoundSemanticContent:
     component: str
     fields: Mapping[str, SemanticField | tuple[SemanticField, ...]]
+    steps: tuple[LogicPathField, ...] = ()
 
     def one(self, key: str) -> SemanticField:
         value = self.fields[key]
@@ -70,13 +73,15 @@ class BoundSemanticContent:
             raise ValueError("连续概念词条必须包含 1–4 组标题与解释")
         return list(zip(titles, definitions, strict=True))
 
+    def step_fields(self, *, editable: bool = False) -> list[LogicPathField]:
+        return [replace(step, editable=True) if editable else step for step in self.steps]
+
     def layout_payload(self) -> dict[str, Any]:
         """Existing kit and declarative layout field names, with source identity retained."""
-        if self.component in {"numbered_insight", "logic_path", "action_checklist", "section_summary"}:
-            items = self.many("items")
-            # The legacy step renderer handles its own inline hierarchy. The
-            # structural pilot instead passes LogicPathField directly to it.
-            return {"kind": "list", "items": [i.text for i in items] if self.component == "logic_path" else items}
+        if self.component == "logic_path":
+            return {"kind": "list", "items": self.step_fields()}
+        if self.component in {"numbered_insight", "action_checklist", "section_summary"}:
+            return {"kind": "list", "items": self.many("items")}
         if self.component in {"before_after_timeline", "comparison_card"}:
             a, b = ("before", "after") if self.component == "before_after_timeline" else ("left", "right")
             return {"kind": "pair", "left": self.one(a), "right": self.one(b)}
@@ -132,7 +137,13 @@ class SemanticSource:
             role = _role(component, key)
             fields[key] = (tuple(self._field(ref, role) for ref in value) if isinstance(value, list)
                            else self._field(value, role))
-        return BoundSemanticContent(component, MappingProxyType(fields))
+        steps = ()
+        if component == "logic_path":
+            items = fields["items"]
+            if not isinstance(items, tuple):
+                raise ValueError("items 应为内容引用数组")
+            steps = tuple(LogicPathField(item.reference, interpret_step(item.text), item.reading) for item in items)
+        return BoundSemanticContent(component, MappingProxyType(fields), steps)
 
 
 def bind_semantic_content(

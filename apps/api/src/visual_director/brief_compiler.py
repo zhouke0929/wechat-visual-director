@@ -25,6 +25,8 @@ from .editorial_brief import (
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
+from .official_component_recipes import capture_component_recipes
+from .reading_rules import capture_reading_overrides
 from .image_intent import build_visual_intent
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
@@ -603,9 +605,23 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
 
 
 def visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    """The selected theme's configuration; an old plan keeps the resulting snapshot."""
+    config = base_visual_system_configuration(visual_system)
+    if visual_system in VISUAL_SYSTEM_ORDER:
+        reading = capture_reading_overrides(visual_system)
+        if reading:
+            config["reading_overrides"] = reading
+        snapshot = capture_component_recipes(visual_system, visual_system_variant)
+        if snapshot is not None:
+            config["component_recipes"] = snapshot
+    return config
+
+
+def base_visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    """Inheritable v1 theme configuration, excluding private official recipe choices."""
     custom_pack = theme_pack(visual_system)
     if custom_pack:
-        configuration = visual_system_configuration(str(custom_pack["base_theme"]))
+        configuration = base_visual_system_configuration(str(custom_pack["base_theme"]))
         configuration["palette"] = copy.deepcopy(custom_pack["palette"])
         configuration["accent"] = custom_pack["palette"]["primary"]
         configuration["visual_system"] = visual_system

@@ -80,11 +80,11 @@ def test_saved_concept_group_preserves_the_projector_contract(theme, extension):
 def test_native_kit_and_json_receive_authored_roles_without_styling_their_furniture(theme, monkeypatch):
     monkeypatch.setenv("WVD_RENDERER_PILOT", "1")
     monkeypatch.setenv("WVD_READING_RULES_PILOT", "1")
-    config = visual_system_configuration(theme)
     # Synthetic, non-published values distinguish actual typography from legacy artwork.
     monkeypatch.setattr(reading_rules, "THEME_READING_OVERRIDES",
                         {theme: {BODY: {"size_px": 23.1}, COMPONENT_TITLE: {"size_px": 22.2},
                                  QUOTE: {"size_px": 21.3}, INLINE_EMPHASIS: {"weight": 833}}})
+    config = visual_system_configuration(theme)
     profile = reading_rules.resolve_reading_profile(config, official=True, theme_id=theme)
     parsed = parse_markdown("# Test\n\n### Original heading\n\nA **real focus** and <unchanged>.\n\n> Quote.")
     refs = {b.type: b.id for b in parsed.blocks}

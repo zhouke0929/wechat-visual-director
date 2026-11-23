@@ -1,8 +1,8 @@
 """Reading roles shared by article components, independent of theme geometry.
 
-Lists/steps can use a complete reading profile in their original trial. Other
-authored fields retain the theme recipe unless a reviewed override exists.
-Neither mechanism infers roles from HTML or from the words in an article.
+All authored fields, including list items and steps, retain their theme recipe
+unless a reviewed override exists. Registering a role or enabling editing hooks
+does not restyle a published theme.
 """
 
 from __future__ import annotations
@@ -154,6 +154,27 @@ class ReadingProfile:
     field_sources: Mapping[str, Mapping[str, str]]
 
 
+def _checked_overrides(raw: object, theme_id: str) -> dict[str, dict[str, Any]]:
+    if not isinstance(raw, Mapping):
+        raise ValueError("Invalid official reading overrides")
+    result = {}
+    for role, metrics in raw.items():
+        if role not in DEFAULT_READING_RULES and role not in _INHERITS_BODY:
+            raise ValueError(f"Unknown official reading role: {theme_id}.{role}")
+        if not isinstance(metrics, Mapping):
+            raise ValueError(f"Invalid official reading metrics: {theme_id}.{role}")
+        _check_theme_metrics(theme_id, role, metrics)
+        values = {key: value for key, value in metrics.items() if value is not None}
+        if values:
+            result[role] = values
+    return result
+
+
+def capture_reading_overrides(theme_id: str) -> dict[str, dict[str, Any]]:
+    """Copy explicit choices at selection time, even when the display pilot is off."""
+    return _checked_overrides(THEME_READING_OVERRIDES.get(theme_id, {}), theme_id)
+
+
 def resolve_reading_profile(
     config: Mapping[str, Any], *, official: bool, theme_id: str | None = None,
 ) -> ReadingProfile | None:
@@ -188,34 +209,24 @@ def resolve_reading_profile(
             sources[role] = "theme typography.letter_spacing"
             field_sources[role]["letter_spacing_em"] = "theme typography.letter_spacing"
 
-    for role, override in THEME_READING_OVERRIDES.get(theme_id or "", {}).items():
-        if role not in rules:
-            raise ValueError(f"Unknown official reading role: {theme_id}.{role}")
-        _check_theme_metrics(theme_id or "", role, override)
-        values = {name: value for name, value in override.items() if value is not None}
-        if values:
-            rules[role] = replace(rules[role], **values)
-            sources[role] = "theme role override"
-            field_sources[role].update(dict.fromkeys(values, "theme role override"))
+    for role, values in _checked_overrides(config.get("reading_overrides", {}), theme_id or "").items():
+        rules[role] = replace(rules[role], **values)
+        sources[role] = "theme role override"
+        field_sources[role].update(dict.fromkeys(values, "theme role override"))
     return ReadingProfile(MappingProxyType(rules), MappingProxyType(sources), MappingProxyType({
         role: MappingProxyType(origins) for role, origins in field_sources.items()
     }))
 
 
 def reading_gap(role: str, profile: ReadingProfile | None, fallback: float) -> float:
-    if profile is None:
-        return fallback
-    gap = profile.rules[role].after_px
-    return fallback if gap is None else gap
+    return authored_metrics(role, profile).get("after_px", fallback)
 
 
 def apply_reading_css(
     style: str, role: str, profile: ReadingProfile | None, *, inset_before_offset: float = 0,
 ) -> str:
-    if profile is None:
-        return style
-    rule = profile.rules[role]
-    return _apply_rule(style, role, rule, inset_before_offset)
+    values = authored_metrics(role, profile)
+    return _apply_rule(style, role, TextRule(**values), inset_before_offset) if values else style
 
 
 def _apply_rule(style: str, role: str, rule: TextRule, inset_before_offset: float = 0) -> str:
@@ -247,10 +258,7 @@ _STRONG_STYLE = re.compile(r'\bstyle="([^"]*)"')
 
 def apply_reading_emphasis(markup: str, profile: ReadingProfile | None) -> str:
     """Style only inline emphasis already emitted from escaped source text."""
-    if profile is None:
-        return markup
-
-    return _emphasis_with_rule(markup, profile.rules[INLINE_EMPHASIS])
+    return authored_emphasis(markup, profile)
 
 
 def _emphasis_with_rule(markup: str, rule: TextRule) -> str:
@@ -276,8 +284,7 @@ def authored_metrics(role: str, profile: ReadingProfile | None) -> dict[str, Any
 
 
 def authored_host_css(style: str, role: str, profile: ReadingProfile | None) -> str:
-    values = authored_metrics(role, profile)
-    return _apply_rule(style, role, TextRule(**values)) if values else style
+    return apply_reading_css(style, role, profile)
 
 
 def restore_authored_metrics(role: str, metrics: Mapping[str, Any]) -> ReadingProfile:

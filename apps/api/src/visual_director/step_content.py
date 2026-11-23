@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 
 from .reading_rules import STEP_DETAIL, STEP_TITLE, ReadingProfile, apply_reading_css, apply_reading_emphasis, reading_gap
 
@@ -19,14 +20,27 @@ def explicit_step_title(line: str) -> str | None:
     return match[1] if match and match[1].strip() else None
 
 
-def render_step_inline(
-    value: str, inline: Callable[[str], str], *, reading: ReadingProfile | None = None,
-) -> str:
-    """Render the source's explicit title and detail in one editable field."""
+@dataclass(frozen=True, slots=True)
+class StepContent:
+    """The literal source and its optional explicit title/detail; no presentation here."""
+
+    source: str
+    title: str | None = None
+    detail: str | None = None
+
+
+def interpret_step(value: str) -> StepContent:
     first_line, boundary, detail = value.partition("\n")
-    title = explicit_step_title(first_line)
-    if not (boundary and title and detail.strip()):
-        return apply_reading_emphasis(inline(value), reading)
+    title = explicit_step_title(first_line) if boundary and detail.strip() else None
+    return StepContent(value, title, detail if title is not None else None)
+
+
+def render_step_text(
+    step: StepContent, inline: Callable[[str], str], *, hierarchy: bool, reading: ReadingProfile | None = None,
+) -> str:
+    """Project previously interpreted source; even an opt-in cannot invent a title."""
+    if not hierarchy or step.title is None:
+        return apply_reading_emphasis(inline(step.source), reading)
     title_box = "font-weight:750;"
     if reading is not None:
         title_rule = reading.rules[STEP_TITLE]
@@ -40,10 +54,10 @@ def render_step_inline(
         f"display:block;padding-top:{gap:g}px;font-weight:400;", STEP_DETAIL, reading,
         inset_before_offset=gap,
     )
-    detail_text = apply_reading_emphasis(inline(detail), reading)
+    detail_text = apply_reading_emphasis(inline(step.detail or ""), reading)
     # The space between the two HTML elements is a literal newline so the
     # editor can round-trip the source boundary without inspecting CSS.
     return (
-        f'<strong style="{title_style}">{html.escape(title)}</strong>\n'
+        f'<strong style="{title_style}">{html.escape(step.title)}</strong>\n'
         f'<span style="{detail_style}">{detail_text}</span>'
     )

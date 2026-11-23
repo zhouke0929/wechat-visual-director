@@ -50,6 +50,7 @@ def test_generated_token_typography_never_scales_authored_text_twice(monkeypatch
     monkeypatch.setattr(rules, "THEME_READING_OVERRIDES", {theme: {
         role: {"size_px": 19} for role in (rules.QUOTE, rules.TABLE_BODY, rules.TABLE_HEADER)
     }})
+    config["reading_overrides"] = rules.capture_reading_overrides(theme)
     profile = rules.resolve_reading_profile(config, official=True, theme_id=theme)
     source = "font-size:12px; <span> <!--wvd-type-field:0-->"
     for markup in (render_generated_quote(source, config, reading=profile),

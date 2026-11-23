@@ -9,14 +9,15 @@ import html
 import math
 import re
 from collections import Counter
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
+from .component_presentation import resolve_component_recipe
 from .logic_path_content import step_field_attributes, step_field_css, step_field_text
 from .ordinary_list_content import OrdinaryListField, ordinary_list_attributes, ordinary_list_ordinal, ordinary_list_text
 from .reading_rules import LIST_BODY, ReadingProfile, apply_reading_css, authored_emphasis, authored_host_css
 from .semantic_content import SemanticField
-from .step_content import STEP_HIERARCHY_FORMAT, render_step_inline
+from .step_content import STEP_HIERARCHY_FORMAT
 from .theme_drawings import render_drawing, validate_drawing
 
 PALETTE_KEYS = {"primary", "secondary", "accent", "sky", "pale", "secondary_pale", "accent_pale", "sky_pale", "surface", "ink"}
@@ -269,7 +270,6 @@ def _inline(value: Any) -> str:
 
 def render_layout(
     role: str, payload: dict[str, Any], config: dict[str, Any], *,
-    step_inline: Callable[[str], str] | None = None,
     field_roles: Mapping[str, str] | None = None,
     reading: ReadingProfile | None = None,
 ) -> str | None:
@@ -280,6 +280,7 @@ def render_layout(
     errors = validate_layouts({role: layouts[role]})
     if errors:
         raise ValueError(f"Invalid theme layout: {errors[0]['field']}: {errors[0]['message']}")
+    recipe = resolve_component_recipe(config, role)
 
     def render(node: dict[str, Any], context: dict[str, Any]) -> str:
         kind = node["type"]
@@ -344,12 +345,7 @@ def render_layout(
             if role == "logic_path" and kind == "field" and node["bind"] == "item":
                 attr += step_field_attributes(value)
                 css = step_field_css(css, value)
-                if step_inline is not None:
-                    content = step_field_text(value, step_inline)
-                elif node.get("format") == STEP_HIERARCHY_FORMAT:
-                    content = step_field_text(value, lambda text: render_step_inline(text, _inline))
-                else:
-                    content = step_field_text(value, _inline)
+                content = step_field_text(value, _inline, hierarchy=node.get("format") == STEP_HIERARCHY_FORMAT)
             elif role == "list" and kind == "field" and node["bind"] == "item" and isinstance(value, OrdinaryListField):
                 attr += ordinary_list_attributes(value)
                 css = apply_reading_css(css, LIST_BODY, value.reading)
@@ -363,6 +359,8 @@ def render_layout(
                 if field_role and reading is not None:
                     css = authored_host_css(css, field_role, reading)
                     content = authored_emphasis(content, reading)
+            if kind == "field":
+                css = recipe.field_css(css, node["bind"])
             return f'<{tag} {attr} style="{css}">{content}</{tag}>'
         if kind == "shape":
             return f'<span aria-hidden="true" style="display:inline-block;width:{node["width"]:g}px;height:{node["height"]:g}px;{css}">&#160;</span>'
@@ -410,4 +408,4 @@ def render_layout(
     rhythm = config["generated_design_system"]["rhythm"]
     gap = rhythm["section_gap" if role == "heading" else "component_gap"]
     gap = round(gap * {"airy": 1.2, "balanced": 1, "compact": .85}[rhythm["density"]])
-    return f'<section data-theme-layout="{role}" style="margin:{gap}px 0;{text_style(config)}">{render(layouts[role], payload)}</section>'
+    return f'<section data-theme-layout="{role}" style="{recipe.margin_css(gap)}{text_style(config)}">{render(layouts[role], payload)}</section>'

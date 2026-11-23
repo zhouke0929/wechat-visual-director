@@ -16,7 +16,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from test_renderer_catalog_parity import ORACLE, ROOT, _pinned_source_tree
+from test_renderer_catalog_parity import ORACLE, ROOT, _pinned_source_tree, _stress_logic_path
 
 
 def _stage(root: Path, destination: Path) -> None:
@@ -36,13 +36,19 @@ def _stage(root: Path, destination: Path) -> None:
 
     with patch.object(ts, "generate_plans", return_value=[plan]):
         for theme in VISUAL_SYSTEM_ORDER:
-            _, article = ts.build_production_specimens(theme)
-            article = re.sub(r"/api/v1/theme-assets/([a-z0-9-]+\.png)", lambda m: sticker(m[1]), article)
-            (destination / f"{theme}.html").write_text(
-                '<!DOCTYPE html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" '
-                'content="width=device-width, initial-scale=1"><body style="margin:0">' + article + "</body></html>",
-                encoding="utf-8",
-            )
+            foundations, article = ts.build_production_specimens(theme)
+            lists = {s["role"]: s["html"] for s in foundations if s["role"] in {"unordered_list", "ordered_list"}}
+            assert len(lists) == 2
+            # The frozen whole article need not happen to bind these three
+            # components: always include all three explicitly on a second page.
+            trio = lists["unordered_list"] + lists["ordered_list"] + _stress_logic_path(theme)
+            for suffix, markup in (("", article), ("-list-path", trio)):
+                markup = re.sub(r"/api/v1/theme-assets/([a-z0-9-]+\.png)", lambda m: sticker(m[1]), markup)
+                (destination / f"{theme}{suffix}.html").write_text(
+                    '<!DOCTYPE html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" '
+                    'content="width=device-width, initial-scale=1"><body style="margin:0">' + markup + "</body></html>",
+                    encoding="utf-8",
+                )
 
 
 def _capture(page, path: Path):
@@ -53,7 +59,10 @@ def _capture(page, path: Path):
       return {width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight,
               images: document.images.length};
     }""")
-    assert metrics["images"] > 0 and metrics["height"] > 800, (path.name, metrics)
+    if not path.stem.endswith("-list-path"):
+        assert metrics["images"] > 0 and metrics["height"] > 800, (path.name, metrics)
+    else:
+        assert page.locator("body").inner_text().count("保存之前再检查。") == 2, path.name
     pixels = hashlib.sha256(page.screenshot(full_page=True, animations="disabled")).hexdigest()
     return metrics, pixels
 
@@ -73,7 +82,7 @@ def compare_mobile() -> None:
                            cwd=src, env=env, check=True)
             paths.append(out)
         names = sorted(p.name for p in paths[0].glob("*.html"))
-        assert len(names) == 26 and names == sorted(p.name for p in paths[1].glob("*.html"))
+        assert len(names) == 52 and names == sorted(p.name for p in paths[1].glob("*.html"))
         issues = []
         verified = 0
         with sync_playwright() as pw:
@@ -91,7 +100,7 @@ def compare_mobile() -> None:
             finally:
                 browser.close()
         assert not issues, issues
-        print(f"{verified} full article screenshot pairs identical (26 themes x 320/390px).")
+        print(f"{verified} screenshot pairs equal to v1.0.0 (26 themes x article/list+path stress x 320/390px).")
 
 
 if __name__ == "__main__":
