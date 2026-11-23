@@ -28,8 +28,9 @@ def blur_task(tmp_path, monkeypatch, request):
     monkeypatch.setenv("VISUAL_DIRECTOR_WEB_DIST", str(dist.resolve()))
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(tmp_path / "synthetic.env"))
     monkeypatch.setenv("VISUAL_DIRECTOR_THEME_PACK_DIR", str(tmp_path / "packs"))
-    monkeypatch.setenv("WVD_RENDERER_PILOT", "1")
-    for key in ("WECHAT_APP_ID", "WECHAT_APP_SECRET"):
+    # Exercise the same unconfigured runtime an ordinary Workbench launch uses.
+    for key in ("WVD_RENDERER_PILOT", "WVD_LOGIC_PATH_PILOT", "WVD_READING_RULES_PILOT",
+                "WECHAT_APP_ID", "WECHAT_APP_SECRET"):
         monkeypatch.delenv(key, raising=False)
     app = create_app(
         str(tmp_path / "inline-blur.db"),

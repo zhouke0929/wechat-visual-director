@@ -26,7 +26,11 @@ ROOT = Path(__file__).resolve().parents[3]
 ORACLE = Path(__file__).with_name("fixtures") / "catalog-v1.0.0.json"
 # git rev-parse 'v1.0.0^{}' (annotated release tag, not the previous local trial).
 REVISION = "10e5661afbe39e9999c7e8a3b5ca943f67c12ba5"
-MODES = {"default": ("0", "0"), "structure": ("1", "0"), "reading": ("1", "1")}
+# "default" in the pinned v1 fixture means the historical no-switch rendering;
+# do not relabel or recapture that oracle when promoting the compatible renderer.
+MODES = {"default": {}, "legacy": {"WVD_RENDERER_PILOT": "0"},
+         "structure": {"WVD_RENDERER_PILOT": "1"},
+         "reading": {"WVD_RENDERER_PILOT": "1", "WVD_READING_RULES_PILOT": "1"}}
 FOUNDATIONS = frozenset("hero lead paragraph section_heading subheading quote unordered_list "
                         "ordered_list image_caption table divider source reference_list closing_cta".split())
 SEMANTIC = frozenset("question_hook numbered_insight evidence_callout before_after_timeline logic_path "
@@ -72,11 +76,11 @@ def _samples(root: Path, mode: str, plan: dict):
     from visual_director.component_catalog import VISUAL_SYSTEM_ORDER
     from visual_director.parser import parse_markdown
     from visual_director.brief_compiler import visual_system_configuration
-    renderer, reading = MODES[mode]
-    flags = {"WVD_RENDERER_PILOT": renderer, "WVD_LOGIC_PATH_PILOT": "0",
-             "WVD_READING_RULES_PILOT": reading, "VISUAL_DIRECTOR_PROJECT_ROOT": str(root)}
     assert len(VISUAL_SYSTEM_ORDER) == 26
-    with patch.dict(os.environ, flags), patch.object(theme_specimens, "generate_plans", return_value=[plan]):
+    with patch.dict(os.environ, VISUAL_DIRECTOR_PROJECT_ROOT=str(root)), patch.object(theme_specimens, "generate_plans", return_value=[plan]):
+        for name in ("WVD_RENDERER_PILOT", "WVD_LOGIC_PATH_PILOT", "WVD_READING_RULES_PILOT"):
+            os.environ.pop(name, None)
+        os.environ.update(MODES[mode])
         parsed = parse_markdown(gallery.THEME_FIXTURE)
         bindings = gallery._fixture_bindings(parsed)
         assert set(bindings) == SEMANTIC

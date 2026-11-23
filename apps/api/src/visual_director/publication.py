@@ -103,14 +103,14 @@ def replace_asset_urls(document: str, url_to_token: dict[str, str]) -> str:
     return DeliveryMarkup(document).rewrite_image_sources({source: f"asset://{token}" for source, token in url_to_token.items()})
 
 
-def strip_workbench_editor_attributes(document: str) -> str:
-    """Remove preview-only editing hooks before freezing publication HTML."""
-    return re.sub(
-        r'\sdata-editor-(?:title|block-ids|block-type|step-ref|step-prefix|list-ref)="[^"]*"',
-        "",
-        document,
-        flags=re.IGNORECASE,
-    )
+_FIELD_HOOKS = frozenset({"data-editor-step-ref", "data-editor-step-prefix", "data-editor-list-ref"})
+_EDITOR_HOOKS = _FIELD_HOOKS | {"data-editor-title", "data-editor-block-ids", "data-editor-block-type"}
+
+
+def strip_workbench_editor_attributes(document: str, *, field_anchors_only: bool = False) -> str:
+    """Public specimens retain their original block metadata; frozen articles retain no edit hooks."""
+    omitted = _FIELD_HOOKS if field_anchors_only else _EDITOR_HOOKS
+    return DeliveryMarkup(document, omit_attributes=omitted).without_omitted_attributes()
 
 
 def render_frozen_asset_urls(document: str, token_to_url: dict[str, str]) -> str:

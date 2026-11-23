@@ -354,10 +354,12 @@ def test_reading_trial_is_byte_exact_for_v1_custom_themes(monkeypatch, theme):
 
 @pytest.mark.parametrize("theme", ("light_reading", "pop_poster", "folded_fan_detail"))
 @pytest.mark.parametrize("step_pilot", (False, True))
-def test_reading_flag_cannot_change_default_or_step_only_visual_output(monkeypatch, theme, step_pilot):
+def test_reading_flag_cannot_change_legacy_or_step_only_visual_output(monkeypatch, theme, step_pilot):
     article, plan = _fixed_inputs(theme)
     if step_pilot:
         monkeypatch.setenv(STEP_SWITCH, "1")
+    else:
+        monkeypatch.setenv(SWITCH, "0")
     before = render_preview(article, plan, brand_profile={})
     monkeypatch.setenv(READING_SWITCH, "1")
     assert render_preview(article, plan, brand_profile={}) == before
@@ -457,7 +459,7 @@ def test_edited_reading_trial_survives_copy_freeze_and_mock_wechat(tmp_path, mon
             assert before.status_code == 200
             _assert_pop_body_styles_in_delivered_html(before.text, texts)
             monkeypatch.delenv(READING_SWITCH)
-            monkeypatch.delenv(SWITCH)
+            monkeypatch.setenv(SWITCH, "0")
             assert client.get(f"{revision_url}/content").content == before.content
             _assert_pop_body_styles_in_delivered_html(client.get(f"{revision_url}/clipboard").json()["html"], texts)
 

@@ -1,17 +1,28 @@
-"""Process-local switches for the isolated, compatibility-first render pilot."""
+"""Process-local rollout policy; structural binding and visual tuning are separate."""
 
 from __future__ import annotations
 
 import os
+from typing import Literal
+
+
+def _structure_mode() -> Literal["structured", "legacy", "steps_only"]:
+    override = os.environ.get("WVD_RENDERER_PILOT")
+    if override is not None:
+        # Preserve explicit 1; 0 is a full rollback even with stale trial flags.
+        return "structured" if override == "1" else "legacy"
+    if os.environ.get("WVD_LOGIC_PATH_PILOT") == "1":
+        # A pre-rollout review launcher explicitly requested *only* step anchors.
+        return "steps_only"
+    return "structured"
 
 
 def renderer_pilot_enabled() -> bool:
-    return os.environ.get("WVD_RENDERER_PILOT") == "1"
+    return _structure_mode() == "structured"
 
 
 def logic_path_pilot_enabled() -> bool:
-    # Keep the original review launcher working without opting it into new roles.
-    return renderer_pilot_enabled() or os.environ.get("WVD_LOGIC_PATH_PILOT") == "1"
+    return _structure_mode() != "legacy"
 
 
 def reading_rules_pilot_enabled() -> bool:

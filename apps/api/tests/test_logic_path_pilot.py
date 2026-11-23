@@ -102,8 +102,9 @@ def test_logic_path_pilot_preserves_entire_old_preview_except_editing_identity(
             plan["slots"][0]["variant"] = "plain_steps"
         refs = [f"{block.id}:item:{index}" for index in range(len(ITEMS))]
         assert plan["slots"][0]["content_bindings"]["items"] == refs
-        monkeypatch.delenv(SWITCH, raising=False)
+        monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
         legacy = render_preview(article, plan, brand_profile={})
+        monkeypatch.delenv("WVD_RENDERER_PILOT")
         monkeypatch.setenv(SWITCH, "1")
         pilot = render_preview(article, plan, brand_profile={})
         _assert_render_source(theme, family, visual_system_configuration(theme), legacy)
@@ -255,7 +256,7 @@ def test_logic_path_pilot_live_workbench_and_frozen_delivery(
         ROOT, token_endpoint="https://wechat-pilot.invalid/token", api_base="https://wechat-pilot.invalid",
         requester=remote,
     )
-    monkeypatch.delenv(SWITCH, raising=False)
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
     app = create_app(str(tmp_path / "pilot.db"), image_provider=ManualImageProvider(),
                      text_planner_provider=MockTextPlannerProvider(), wechat_publisher=publisher)
     server = None
@@ -266,6 +267,7 @@ def test_logic_path_pilot_live_workbench_and_frozen_delivery(
                 _install_test_themes()
             task_url, plan, block_id = _prepare_task(client, theme, plain_variant=family == "manual_plain")
             assert REF_ATTRIBUTE not in client.get(plan["preview_url"]).text
+        monkeypatch.delenv("WVD_RENDERER_PILOT")
         monkeypatch.setenv(SWITCH, "1")
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
         thread = threading.Thread(target=server.run, daemon=True)
@@ -327,7 +329,7 @@ def test_logic_path_pilot_live_workbench_and_frozen_delivery(
 
                 # A newly written artifact stays readable after rollback; reopening
                 # and both delivery operations must not invoke another renderer.
-                monkeypatch.delenv(SWITCH, raising=False)
+                monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
                 page.reload(wait_until="networkidle")
                 playwright.expect(third).to_have_text(EDITED)
                 assert second.inner_text().strip() == REPEATED

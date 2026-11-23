@@ -14,6 +14,7 @@ from visual_director.component_catalog import VISUAL_SYSTEM_ORDER
 from visual_director.theme_gallery import build_theme_gallery
 from visual_director.theme_specimens import ARTICLE, BRAND, build_production_specimens
 from visual_director.parser import parse_markdown
+from visual_director.publication import strip_workbench_editor_attributes
 from visual_director.renderer import _opening_highlight, render_preview
 from visual_director.planner import generate_plans
 from visual_director.brief_compiler import visual_system_configuration
@@ -43,6 +44,9 @@ def test_all_official_themes_expose_real_foundations_and_balanced_article():
         assert not article.select_one("script")
         assert 0 < len(article.select(".component-anchor")) <= 6
         assert len(theme["components"]) == 12
+        for markup in [theme["article_preview_html"], theme["full_preview_html"],
+                       *(s["html"] for s in [*foundations, *theme["components"]])]:
+            assert not re.search(r'\sdata-editor-(?:step-ref|step-prefix|list-ref)=', markup)
 
 
 def test_foundation_quotes_and_lists_are_exact_production_nodes():
@@ -51,10 +55,23 @@ def test_foundation_quotes_and_lists_are_exact_production_nodes():
         samples, _ = build_production_specimens(theme_id)
         plan = generate_plans(parsed, "tutorial_steps", 5)[0]
         plan.update(configuration=visual_system_configuration(theme_id), slots=[], image_slots=[])
-        production = render_preview(parsed, plan, brand_profile=BRAND)
+        production = strip_workbench_editor_attributes(render_preview(parsed, plan, brand_profile=BRAND),
+                                                      field_anchors_only=True)
         for role in ("quote", "ordered_list", "unordered_list", "table", "source", "reference_list"):
             sample = next(item for item in samples if item["role"] == role)
             assert sample["html"] in production
+
+
+def test_readonly_fields_and_frozen_hooks_only_remove_real_attributes():
+    literal = ' data-editor-step-ref="literal > text"'
+    raw = (f"<section title='{literal}' data-editor-block-ids='block-001'>"
+           f'<span DATA-EDITOR-STEP-REF="block-001:item:2" data-editor-step-prefix="true">{literal}</span>'
+           "<br data-editor-list-ref='ref'/>"
+           f"<!-- <i{literal}> --></section>")
+    readonly = (f"<section title='{literal}' data-editor-block-ids='block-001'>"
+                f"<span>{literal}</span><br/><!-- <i{literal}> --></section>")
+    assert strip_workbench_editor_attributes(raw, field_anchors_only=True) == readonly
+    assert strip_workbench_editor_attributes(raw) == readonly.replace(" data-editor-block-ids='block-001'", "")
 
 
 def test_weekend_fieldnotes_renders_both_list_kinds_as_theme_layouts():

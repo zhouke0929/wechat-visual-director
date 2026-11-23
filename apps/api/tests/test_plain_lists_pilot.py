@@ -142,7 +142,6 @@ def test_plain_list_preview_matches_legacy_except_for_edit_anchors(tmp_path, mon
         legacy = render_preview(article, plan, brand_profile={})
         assert REF not in legacy and "data-editor-step-ref" in legacy
         monkeypatch.delenv(STEP_SWITCH)
-        monkeypatch.setenv(SWITCH, "1")
         candidate = render_preview(article, plan, brand_profile={})
         assert re.sub(rf' (?:{REF}|{PREFIX})="[^"]+"', "", candidate) == legacy
         # Every authored and fallback list must retain the same text host, not
@@ -260,7 +259,6 @@ def test_ordinary_lists_workbench_edits_duplicate_by_index_and_delivers(tmp_path
             task_url, plan, (ordered, bullets, actions, _) = _prepare_task(client, theme)
             assert REF not in client.get(plan["preview_url"]).text
         monkeypatch.delenv(STEP_SWITCH)
-        monkeypatch.setenv(SWITCH, "1")
         server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
         worker = threading.Thread(target=server.run, daemon=True)
         worker.start()
@@ -314,7 +312,7 @@ def test_ordinary_lists_workbench_edits_duplicate_by_index_and_delivers(tmp_path
                     assert actual_by_block == expected_by_block
                     page.reload(wait_until="networkidle")
 
-                monkeypatch.delenv(SWITCH)
+                monkeypatch.setenv(SWITCH, "0")
                 page.reload(wait_until="networkidle")
                 for block, value in ((ordered, ORDERED_EDIT), (bullets, BULLET_EDIT)):
                     playwright.expect(article_frame.locator(f'[{REF}="{block.id}:item:2"]')).to_have_text(value)

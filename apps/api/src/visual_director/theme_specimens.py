@@ -15,7 +15,7 @@ from .brief_compiler import apply_visual_system
 from .image_caption_render import stored_caption_profile
 from .parser import parse_markdown
 from .planner import generate_plans
-from .publication import _materialized_image_markup, _placeholder_metadata
+from .publication import _materialized_image_markup, _placeholder_metadata, strip_workbench_editor_attributes
 from .foundation_content import _opening_highlight
 from .renderer import render_preview
 
@@ -150,7 +150,8 @@ def build_production_specimens(
     configuration = plan["configuration"]
     # The library exposes unconsumed Markdown primitives, unlike semantic cards.
     plain_plan = {**plan, "slots": []}
-    document = render_preview(parsed, plain_plan, brand_profile=BRAND)
+    document = strip_workbench_editor_attributes(render_preview(parsed, plain_plan, brand_profile=BRAND),
+                                                field_anchors_only=True)
     image_block = next(block for block in parsed.blocks if block.type == "image_reference")
     placeholder = next(markup for _, attrs, markup in _Nodes(document).nodes if attrs.get("id") == image_block.id)
     frame, caption = _placeholder_metadata(placeholder)
@@ -202,7 +203,8 @@ def build_production_specimens(
     ]
     specimens = [{"role": role, "label": label, "production_trigger": trigger,
                   "production_status": "production", "html": markup} for role, label, trigger, markup in samples]
-    article = render_preview(parsed, plan, brand_profile=BRAND).replace(placeholder, picture)
+    article = strip_workbench_editor_attributes(render_preview(parsed, plan, brand_profile=BRAND),
+                                               field_anchors_only=True).replace(placeholder, picture)
     # Return only body content for embedding; retain the body's production padding.
     content = re.search(r'<body[^>]*>(.*)</body>', article, re.DOTALL).group(1)
     style = re.search(r'<body style="([^"]*)"', article).group(1)
