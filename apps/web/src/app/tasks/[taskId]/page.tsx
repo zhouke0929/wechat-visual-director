@@ -139,6 +139,7 @@ export default function TaskReviewPage() {
   const [contentSaveMessage, setContentSaveMessage] = useState("");
   const [contentPreviewRefreshToken, setContentPreviewRefreshToken] = useState(0);
   const previewInlineEditingRef = useRef(false);
+  const editFocusGeneration = useRef(0);
   const appliedContentRevisionRef = useRef(0);
   const [coverBusy, setCoverBusy] = useState("");
   const [imageBusy, setImageBusy] = useState<string[]>([]);
@@ -669,8 +670,22 @@ export default function TaskReviewPage() {
   }
 
   function handleInlineEditingChange(editing: boolean) {
+    if (editing) editFocusGeneration.current++;
     previewInlineEditingRef.current = editing;
     if (!editing && !themeChangeBusyRef.current && contentEditorRef.current) applyContentPreview(contentEditorRef.current);
+  }
+
+  async function flushBeforeMobilePreview() {
+    const focus = editFocusGeneration.current;
+    try {
+      await flushInlineEditsRef.current?.();
+      // Do not switch away if the user started editing again during a slow save.
+      return focus === editFocusGeneration.current;
+    } catch (reason) {
+      setContentSaveState("error");
+      setContentSaveMessage(reason instanceof Error ? reason.message : "正文保存失败，请重试");
+      return false;
+    }
   }
 
   async function handleFreezePublication(metadata: PublicationMetadata) {
@@ -1136,6 +1151,7 @@ export default function TaskReviewPage() {
 
               <section className="preview-workspace" id={`preview-${activePlan.id}`} inert={Boolean(switchingTheme || restoring)}>
                 <ArticlePreviewViewport
+                  beforeMobilePreview={activePlanSelected && contentEditor ? flushBeforeMobilePreview : undefined}
                   editingEnabled={Boolean(activePlanSelected && contentEditor)}
                   editingMessage={contentSaveMessage}
                   editingState={contentSaveState}

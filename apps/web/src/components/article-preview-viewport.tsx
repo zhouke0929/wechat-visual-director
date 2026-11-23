@@ -15,7 +15,7 @@ type Props = {
   editingMessage?: string;
   editingState?: "idle" | "editing" | "saving" | "saved" | "error";
   label?: string;
-  onModeChange?: (mode: PreviewMode) => void;
+  beforeMobilePreview?: () => Promise<boolean>;
 };
 
 const WECHAT_EDITOR_CONTENT_WIDTH = PREVIEW_PROFILES.proof.content_width;
@@ -43,9 +43,10 @@ export function ArticlePreviewViewport({
   editingMessage,
   editingState = "idle",
   label,
-  onModeChange,
+  beforeMobilePreview,
 }: Props) {
   const [mode, setMode] = useState<PreviewMode>("proof");
+  const requestedMode = useRef(0);
   const [previewScale, setPreviewScale] = useState(1);
   const deviceFrameRef = useRef<HTMLElement>(null);
   const previewSlotRef = useRef<HTMLDivElement>(null);
@@ -108,8 +109,8 @@ export function ArticlePreviewViewport({
             aria-selected={mode === "proof"}
             className={mode === "proof" ? "active" : ""}
             onClick={() => {
+              requestedMode.current++;
               setMode("proof");
-              onModeChange?.("proof");
             }}
             role="tab"
             type="button"
@@ -119,9 +120,11 @@ export function ArticlePreviewViewport({
           <button
             aria-selected={mode === "mobile"}
             className={mode === "mobile" ? "active" : ""}
-            onClick={() => {
-              setMode("mobile");
-              onModeChange?.("mobile");
+            onClick={async () => {
+              if (mode === "mobile") return;
+              const request = ++requestedMode.current;
+              if (beforeMobilePreview && !await beforeMobilePreview()) return;
+              if (request === requestedMode.current) setMode("mobile");
             }}
             role="tab"
             type="button"

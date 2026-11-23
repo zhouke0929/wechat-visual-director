@@ -179,6 +179,70 @@ def test_quick_click_blank_saves_without_stale_editing_or_scroll_jump(blur_task,
     pw.expect(field.locator("strong")).to_have_text("第三项")
 
 
+def test_mobile_preview_does_not_discard_a_failed_edit(blur_task, live_page):
+    page, pw = live_page
+    base, url, block_id = blur_task
+    proof = page.get_by_role("tab", name="内容校对", exact=True)
+    mobile = page.get_by_role("tab", name="手机预览", exact=True)
+    frame = page.frame_locator("iframe.preview-frame")
+    field = frame.get_by_role("textbox", name="直接编辑编号列表第 3 项", exact=True)
+    stop = True
+
+    def gate(route):
+        if stop and route.request.method == "PATCH":
+            route.fulfill(status=503, json={"error": {"message": "测试：此刻不能保存"}})
+        else:
+            route.continue_()
+
+    page.route("**/content-editor", gate)
+    with page.expect_response(lambda r: r.request.method == "PATCH" and r.status == 503):
+        field.fill("尚未成功保存的内容。")
+        page.locator(".preview-simulation-note").click()
+    pw.expect(page.locator(".preview-editing-note")).to_have_attribute("data-state", "error")
+    with page.expect_response(lambda r: r.request.method == "PATCH" and r.status == 503):
+        mobile.click()
+    pw.expect(proof).to_have_attribute("aria-selected", "true")
+    pw.expect(field).to_have_text("尚未成功保存的内容。")
+
+    stop = False
+    new = "网络恢复后保留**最后一版**。"
+    field.fill(new)
+    mobile.click()
+    pw.expect(mobile).to_have_attribute("aria-selected", "true")
+    pw.expect(frame.get_by_text("最后一版", exact=True)).to_be_visible()
+    stored = page.request.get(base + url + "/content-editor").json()
+    assert next(b["content"] for b in stored["blocks"] if b["block_id"] == block_id)[2] == new
+
+
+def test_slow_mobile_switch_yields_to_a_new_edit(blur_task, live_page):
+    page, pw = live_page
+    _, _, block_id = blur_task
+    frame = page.frame_locator("iframe.preview-frame")
+    group = frame.locator(f'[data-workbench-inline-block-id="{block_id}"]')
+    second = group.and_(frame.get_by_role("textbox", name="直接编辑编号列表第 2 项", exact=True))
+    third = group.and_(frame.get_by_role("textbox", name="直接编辑编号列表第 3 项", exact=True))
+    pending = []
+
+    def hold_first(route):
+        if route.request.method == "PATCH" and not pending:
+            pending.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/content-editor", hold_first)
+    mobile = page.get_by_role("tab", name="手机预览", exact=True)
+    with page.expect_request(lambda r: r.method == "PATCH" and r.url.endswith("/content-editor")):
+        third.fill("第一处修改。")
+        mobile.click()
+    with page.expect_response(lambda r: r.request.method == "PATCH" and "继续编辑" in r.request.post_data):
+        second.fill("继续编辑这一项。")
+        pending[0].continue_()
+    pw.expect(second).to_be_focused()
+    pw.expect(mobile).to_have_attribute("aria-selected", "false")
+    mobile.click()
+    pw.expect(mobile).to_have_attribute("aria-selected", "true")
+
+
 def test_slow_blur_save_does_not_evict_the_next_edit(blur_task, live_page):
     page, pw = live_page
     base, task_url, block_id = blur_task
