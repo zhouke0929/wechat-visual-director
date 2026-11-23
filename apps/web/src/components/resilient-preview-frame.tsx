@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState, type RefObject } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { ArticlePreviewModeContext } from "@/components/article-preview-viewport";
 import { PREVIEW_NORMALIZATION_CSS, PREVIEW_PROFILES } from "@/lib/preview-profiles";
@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 
 type Props = {
+  contentRevision?: number;
   editable?: boolean;
   editorDocument?: ContentEditorDocument | null;
   flushEditsRef?: RefObject<(() => Promise<void>) | null>;
@@ -342,7 +343,8 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const pending = new Map<string, { group: EditableGroup; value: EditableContentValue }>();
   const saveFailures = new Map<string, { group: EditableGroup; value: EditableContentValue; message: string }>();
   let sequence = Promise.resolve();
-  let savedIndicator = 0;
+  let saving = 0;
+  let focusGeneration = 0;
   let disposed = false;
 
   const report = (state: InlineSaveState, message?: string) => {
@@ -351,20 +353,25 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
 
   const runSave = (group: EditableGroup, value: EditableContentValue) => {
     pending.delete(group.key);
+    saving += 1;
     report("saving");
     sequence = sequence
       .catch(() => undefined)
       .then(() => callbacks.onSave?.(group.target, value))
       .then(() => {
         saveFailures.delete(group.key);
-        report("saved");
-        window.clearTimeout(savedIndicator);
-        savedIndicator = window.setTimeout(() => report("editing"), 1400);
       })
       .catch((reason: Error) => {
         const message = reason.message || "自动保存失败";
         saveFailures.set(group.key, { group, value, message });
-        report("error", message);
+      })
+      .finally(() => {
+        saving -= 1;
+        const failure = saveFailures.values().next().value?.message;
+        if (saving) report("saving");
+        else if (pending.size) report("editing");
+        else if (failure) report("error", failure);
+        else report("saved");
       });
   };
 
@@ -416,18 +423,21 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const onFocusIn = (event: Event) => {
     const target = (event.target as Element | null)?.closest?.("[data-workbench-inline-editor]") as HTMLElement | null;
     if (!target) return;
+    focusGeneration += 1;
     callbacks.onEditingChange?.(true);
-    report("editing");
   };
   const onFocusOut = () => {
+    const generation = ++focusGeneration;
     window.setTimeout(async () => {
-      if ((document.activeElement as Element | null)?.closest?.("[data-workbench-inline-editor]")) return;
+      const stillLeaving = () => !disposed && generation === focusGeneration
+        && !(document.hasFocus() && document.activeElement?.closest("[data-workbench-inline-editor]"));
+      if (!stillLeaving()) return;
       await flushPending();
+      if (!stillLeaving()) return;
       const failure = saveFailures.values().next().value?.message;
       if (failure) report("error", failure);
       else {
         callbacks.onEditingChange?.(false);
-        report("idle");
       }
     }, 0);
   };
@@ -484,7 +494,6 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
     document.removeEventListener("paste", onPaste);
     document.removeEventListener("click", onClick);
     document.removeEventListener("keydown", onKeyDown);
-    window.clearTimeout(savedIndicator);
     groups.forEach((group) => group.elements.forEach((element) => {
       element.removeAttribute("contenteditable");
       element.removeAttribute("data-workbench-inline-editor");
@@ -572,6 +581,7 @@ function applyWorkbenchPreviewProfile(
 }
 
 export function ResilientPreviewFrame({
+  contentRevision,
   editable = false,
   editorDocument,
   flushEditsRef,
@@ -582,6 +592,12 @@ export function ResilientPreviewFrame({
   title,
 }: Props) {
   const previewMode = useContext(ArticlePreviewModeContext);
+  const currentMode = useRef(previewMode);
+  currentMode.current = previewMode;
+  const [navigationSrc, setNavigationSrc] = useState(src);
+  const previousRequest = useRef({ src, contentRevision });
+  const editingRef = useRef(false);
+  const readyProof = useRef<(() => void) | null>(null);
   const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -597,28 +613,87 @@ export function ResilientPreviewFrame({
   editorDocumentRef.current = editorDocument;
   callbacksRef.current = {
     onEditingChange: (editing) => {
+      editingRef.current = editing;
       if (!editing) captureFrameScroll();
       onEditingChange?.(editing);
+      if (!editing) queueMicrotask(() => readyProof.current?.());
     },
     onSave,
     onSaveStateChange,
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const previous = previousRequest.current;
+    previousRequest.current = { src, contentRevision };
+    if (previous.src === src) return;
+    const frame = frameRef.current;
+    const doc = frame?.contentDocument;
+    const target = new URL(src, window.location.href);
+    // Only a text edit in this same proof is eligible. Theme changes, image
+    // actions, retries and explicit anchor navigation retain the native loader.
+    if (!frame || !doc?.documentElement.dataset.workbenchPreviewMode || !editable
+      || !contentRevision || contentRevision === previous.contentRevision
+      || previewHash(src) !== previewHash(previous.src)
+      || target.origin !== window.location.origin
+      || !/^\/api\/v1\/render-artifacts\/[^/]+\/content$/.test(target.pathname)) {
+      setNavigationSrc(src);
+      return;
+    }
+    const abort = new AbortController();
+    function whenIdle(commit: () => void) {
+      if (abort.signal.aborted) return;
+      readyProof.current = () => {
+        if (editingRef.current || abort.signal.aborted) return;
+        readyProof.current = null;
+        // An older response may arrive while the next edit is being saved.
+        if (frame?.contentDocument === doc && editorDocumentRef.current?.revision === contentRevision) commit();
+      };
+      readyProof.current();
+    }
+    void fetch(target, { signal: abort.signal, mode: "same-origin", redirect: "error" })
+      .then(async (response) => {
+        if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) throw Error();
+        const next = new DOMParser().parseFromString(await response.text(), "text/html");
+        whenIdle(() => {
+          const scroll = readFrameScrollTop(frame);
+          inlineEditorCleanups.get(doc)?.();
+          inlineEditorCleanups.delete(doc);
+          const body = doc.importNode(next.body, true);
+          // Keep decoded original images (and their intrinsic layout sizes)
+          // when a text-only edit replaces surrounding article markup.
+          const images = Array.from(doc.images);
+          body.querySelectorAll("img").forEach((image) => {
+            const i = images.findIndex(old => old.isEqualNode(image));
+            if (i !== -1) image.replaceWith(images.splice(i, 1)[0]);
+          });
+          doc.body.replaceWith(body);
+          doc.title = next.title;
+          applyWorkbenchPreviewProfile(frame, currentMode.current, editable, editorDocumentRef.current, callbacksRef.current);
+          restoreFrameScroll(frame, scroll);
+        });
+      })
+      .catch(() => whenIdle(() => setNavigationSrc(src)));
+    return () => {
+      abort.abort();
+      readyProof.current = null;
+    };
+  }, [src, contentRevision, editable]);
+
+  useLayoutEffect(() => {
     const previousSrc = previousSrcRef.current;
-    if (previousSrc !== src) {
+    if (previousSrc !== navigationSrc) {
       const previousHash = previewHash(previousSrc);
-      const nextHash = previewHash(src);
+      const nextHash = previewHash(navigationSrc);
       const intentionalAnchorNavigation = Boolean(nextHash && nextHash !== previousHash);
       restoreScrollTopRef.current = intentionalAnchorNavigation ? null : lastScrollTopRef.current;
-      previousSrcRef.current = src;
+      previousSrcRef.current = navigationSrc;
     }
     loadVersionRef.current += 1;
     retryRef.current = 0;
     setRetry(0);
     setLoading(true);
     setFailed(false);
-  }, [src]);
+  }, [navigationSrc]);
 
   useEffect(() => () => {
     scrollCleanupRef.current?.();
@@ -680,17 +755,15 @@ export function ResilientPreviewFrame({
     scrollCleanupRef.current = () => view.removeEventListener("scroll", track);
   }
 
-  function scheduleScrollRestore(frame: HTMLIFrameElement, scrollTop: number | null) {
+  function restoreFrameScroll(frame: HTMLIFrameElement, scrollTop: number | null) {
     if (scrollTop === null) return;
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      if (frameRef.current !== frame) return;
-      try {
-        frame.contentWindow?.scrollTo(0, scrollTop);
-        lastScrollTopRef.current = readFrameScrollTop(frame);
-      } catch {
-        // Cross-origin previews cannot be restored; current previews are same-origin.
-      }
-    }));
+    // The article enables smooth anchor scrolling. Restoration is not an
+    // anchor click: apply it before revealing this document, without animating.
+    try {
+      frame.contentWindow?.scrollTo({ top: scrollTop, behavior: "instant" });
+    } catch {
+      // Cross-origin previews cannot be restored; current previews are same-origin.
+    }
   }
 
   function retryOrFail(loadVersion: number) {
@@ -712,8 +785,8 @@ export function ResilientPreviewFrame({
     const scrollTopToRestore = restoreScrollTopRef.current;
     restoreScrollTopRef.current = null;
     applyWorkbenchPreviewProfile(frame, previewMode, editable, editorDocumentRef.current, callbacksRef.current);
+    restoreFrameScroll(frame, scrollTopToRestore);
     bindFrameScrollTracking(frame);
-    scheduleScrollRestore(frame, scrollTopToRestore);
     const loadVersion = loadVersionRef.current;
     let images: HTMLImageElement[];
     try {
@@ -735,7 +808,6 @@ export function ResilientPreviewFrame({
         return;
       }
       if (images.every((image) => image.complete && image.naturalWidth > 0)) {
-        scheduleScrollRestore(frame, scrollTopToRestore);
         setLoading(false);
         setFailed(false);
       }
@@ -763,7 +835,7 @@ export function ResilientPreviewFrame({
         onLoad={handleLoad}
         ref={frameRef}
         scrolling="yes"
-        src={withRetryToken(src, retry)}
+        src={withRetryToken(navigationSrc, retry)}
         title={title}
       />
       {loading ? (

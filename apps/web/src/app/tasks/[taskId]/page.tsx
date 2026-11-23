@@ -1141,6 +1141,7 @@ export default function TaskReviewPage() {
                   editingState={contentSaveState}
                 >
                   <ResilientPreviewFrame
+                    contentRevision={contentPreviewRefreshToken}
                     editable={Boolean(activePlanSelected && contentEditor)}
                     editorDocument={contentEditor}
                     flushEditsRef={flushInlineEditsRef}
