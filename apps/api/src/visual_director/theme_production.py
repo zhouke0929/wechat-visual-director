@@ -65,6 +65,8 @@ def _fixture(long: bool):
     phrase = "观察具体条件，再说明自己的判断，不补写不存在的事实。" * (5 if long else 1)
     before, after = review_pair("before_after_timeline", long=long)
     left, right = review_pair("comparison_card", long=long)
+    first_step = f"**先理解已有条件。**\\\n   {phrase}" if long else "先理解已有条件。"
+    next_step = f"**再确认下一步。**\\\n   {phrase}" if long else "再确认下一步。"
     return parse_markdown(f"""# 正式主题链路检查
 
 本文从阅读顺序、正文层级与图文关系出发，说明怎样保持完整而清楚的表达。{phrase}
@@ -80,8 +82,8 @@ def _fixture(long: bool):
 - 保存具体观察。{phrase}
 - 说明判断依据。{phrase}
 
-1. 先理解已有条件。{phrase}
-2. 再确认下一步。{phrase}
+1. {first_step}
+2. {next_step}
 
 ### 什么是阅读节奏
 

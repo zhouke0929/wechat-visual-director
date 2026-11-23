@@ -142,7 +142,7 @@ function wrapMatchingInlineRun(root: HTMLElement, value: string): HTMLElement | 
       for (let end = start; end < children.length; end += 1) {
         const node = children[end];
         if (!isInlineEditableNode(node)) break;
-        combined += node.textContent ?? "";
+        combined += node.nodeName === "BR" ? "\n" : (node.textContent ?? "");
         const normalized = normalizedText(combined);
         if (normalized === expected) {
           const wrapper = createInlineFragment(parent);
@@ -164,7 +164,9 @@ function findTextElement(root: HTMLElement, value: string, used: Set<HTMLElement
   const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>("p,strong,h1,h2,h3,h4,h5,h6,li,td,th,blockquote,span"))]
     .filter((element) => !used.has(element) && allowed.has(element.tagName))
     .filter((element) => !element.closest("[data-theme-static]"))
-    .filter((element) => normalizedText(element.textContent ?? "") === expected)
+    .filter((element) => normalizedText(element.textContent ?? "") === expected
+      || (value.includes("\n") && element.querySelector("br") !== null
+        && renderedText(markdownFromNode(element)) === expected))
     .sort((left, right) => Number(right.hasAttribute("data-theme-field")) - Number(left.hasAttribute("data-theme-field")) || elementDepth(right, root) - elementDepth(left, root));
   return candidates[0] ?? wrapMatchingInlineRun(root, value);
 }

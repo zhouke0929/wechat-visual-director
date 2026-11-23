@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from .step_content import explicit_step_title
+
 
 class MarkdownInputError(ValueError):
     pass
@@ -66,6 +68,28 @@ def _is_reference_list(blocks: list[ContentBlock], items: list[str]) -> bool:
     )
     link_only = bool(items) and all(REFERENCE_ITEM_RE.fullmatch(item.strip()) for item in items)
     return under_reference_heading or link_only
+
+
+def _ordered_step_continuation(first: str, following: str, content_column: int) -> tuple[str, str] | None:
+    """Recognize a marked hard break and one aligned prose continuation."""
+    head = first.rstrip(" \t")
+    if head.endswith("\\"):
+        head = head[:-1].rstrip(" \t")
+    elif len(first) - len(first.rstrip(" ")) < 2:
+        return None
+    if not explicit_step_title(head) or not following.startswith(" " * content_column):
+        return None
+    detail = following.strip()
+    if (
+        not detail
+        or detail.startswith(("#", ">", "|", "<", "```", "~~~"))
+        or ORDERED_RE.match(detail)
+        or UNORDERED_RE.match(detail)
+        or HORIZONTAL_RULE_RE.fullmatch(detail)
+        or IMAGE_LINE_RE.fullmatch(detail)
+    ):
+        return None
+    return head, detail
 
 
 def _split_frontmatter(markdown: str) -> tuple[dict[str, Any], str]:
@@ -190,8 +214,15 @@ def parse_markdown(markdown: str, title_override: str | None = None) -> ParsedAr
                 candidate = ORDERED_RE.match(lines[cursor]) if ordered_list else UNORDERED_RE.match(lines[cursor])
                 if not candidate:
                     break
-                items.append(candidate.group(1).strip())
+                raw_item = candidate.group(1)
+                item = raw_item.strip()
                 cursor += 1
+                if ordered_list and cursor < len(lines):
+                    step = _ordered_step_continuation(raw_item, lines[cursor], candidate.start(1))
+                    if step is not None:
+                        item = "\n".join(step)
+                        cursor += 1
+                items.append(item)
             blocks.append(
                 ContentBlock(
                     f"block-{len(blocks) + 1:03d}",

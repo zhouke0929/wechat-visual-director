@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Callable
 from typing import Any
 
 from .heading_numbers import has_explicit_heading_number
@@ -458,6 +459,7 @@ def _folio_list_marker(component_type: str, index: int, ordered: bool, accent: s
 
 def _distinct_payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+    item_inline: Callable[[str], str] = _inline,
 ) -> str:
     """Render five materially different reading grammars without theme recolors."""
     kind = payload["kind"]
@@ -489,7 +491,7 @@ def _distinct_payload_html(
         return f'<section data-content-role="concept-glossary" style="{wrappers[grammar]}">{entries}</section>'
 
     if kind == "list":
-        items = [_inline(item) for item in payload["items"]]
+        items = [item_inline(item) for item in payload["items"]]
         list_heading = _list_heading(grammar, component_type, label)
         if grammar == "oriental":
             if quiet_folio:
@@ -610,6 +612,8 @@ def _distinct_payload_html(
 
 def _payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+    item_inline: Callable[[str], str] = _inline,
+    official_theme: bool = False,
 ) -> str:
     kind = payload["kind"]
     label = COMPONENT_LABELS.get(component_type, component_type)
@@ -617,7 +621,7 @@ def _payload_html(
         return _decorate_payload(
             grammar,
             component_type,
-            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio),
+            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio, item_inline=item_inline),
             p,
         )
     if kind == "concept_group":
@@ -632,7 +636,7 @@ def _payload_html(
         )
         return f'<section data-content-role="concept-glossary" style="margin:30px 0;">{entries}</section>'
     if kind == "list":
-        items = [_inline(item) for item in payload["items"]]
+        items = [item_inline(item) for item in payload["items"]]
         list_heading = _list_heading(grammar, component_type, label)
         if grammar == "oriental":
             rows = "".join(
@@ -648,8 +652,11 @@ def _payload_html(
             return f'<section data-list-role="{component_type}" style="margin:29px 0;border-top:12px solid {p["primary"]};border-bottom:3px solid {p["primary"]};"><p style="margin:0;padding:7px 0;color:{p["accent"]};font-size:9px;font-weight:900;letter-spacing:.18em;">{list_heading}</p>{rows}</section>'
         if grammar == "pop":
             colors = (p["secondary_pale"], p["accent_pale"], p["sky_pale"])
+            official_route = official_theme and component_type == "logic_path"
+            marker_size = 14 if official_route else 12
+            body_weight = 400 if official_route else 700
             rows = "".join(
-                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:12px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.68;vertical-align:top;">{item}</p></section>'
+                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:{marker_size}px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:{body_weight};line-height:1.68;vertical-align:top;">{item}</p></section>'
                 for index, item in enumerate(items, 1)
             )
             return f'<section data-list-role="{component_type}" style="margin:30px 0;padding:18px 13px 7px;border:3px solid {p["primary"]};box-shadow:7px 7px 0 {p["secondary"]};"><p style="margin:-31px 0 16px;"><span style="display:inline-block;padding:5px 12px;background-color:{p["accent"]};color:#FFFFFF;font-size:9px;font-weight:900;letter-spacing:.14em;transform:rotate(-2deg);">{list_heading}</span></p>{rows}</section>'
@@ -724,6 +731,8 @@ def render_extended_component(
     palette: dict[str, str],
     *,
     quiet_folio: bool = False,
+    step_inline: Callable[[str], str] | None = None,
+    visual_system: str | None = None,
 ) -> str | None:
     theme_id = extended_variant_theme(str(slot.get("variant", "")))
     if theme_id is None:
@@ -736,6 +745,8 @@ def render_extended_component(
         _payload(slot, parsed),
         _palette(palette),
         quiet_folio=quiet_folio,
+        item_inline=step_inline or _inline,
+        official_theme=visual_system == theme_id,
     )
     if grammar == "pop":
         asset = "pop-arrow.png" if component_type in {"numbered_insight", "action_checklist", "logic_path"} else "pop-star.png"

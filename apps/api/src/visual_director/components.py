@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Callable
 from typing import Any
 
+from .component_catalog import VISUAL_SYSTEM_ORDER
 from .parser import ParsedArticle
 from .generated_theme import render_generated_component
+from .step_content import render_step_inline
 from .theme_extensions import render_extended_component
 
 
@@ -16,6 +19,10 @@ def _inline(value: str) -> str:
     escaped = html.escape(value)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     return escaped.replace("\n", "<br>")
+
+
+def _step_inline(value: str) -> str:
+    return render_step_inline(value, _inline)
 
 
 def _resolve(parsed: ParsedArticle, reference: str) -> str:
@@ -59,12 +66,12 @@ DEFAULT_PALETTE = {
 }
 
 
-def _plain_list(items: list[str], accent: str) -> str:
+def _plain_list(items: list[str], accent: str, *, item_inline: Callable[[str], str] = _inline) -> str:
     rows = []
     for index, item in enumerate(items, 1):
         rows.append(
             '<p style="margin:0 0 12px;color:#34403E;font-size:16px;line-height:1.75;">'
-            f'<strong style="color:{accent};">{index:02d}.</strong> {_inline(item)}</p>'
+            f'<strong style="color:{accent};">{index:02d}.</strong> {item_inline(item)}</p>'
         )
     return '<section style="margin:24px 0;">' + "".join(rows) + "</section>"
 
@@ -222,6 +229,8 @@ def render_component(
     parsed: ParsedArticle,
     palette: dict[str, str] | None = None,
     config: dict[str, Any] | None = None,
+    *,
+    visual_system: str | None = None,
 ) -> str:
     component_type = slot["component_type"]
     variant = slot["variant"]
@@ -238,12 +247,18 @@ def render_component(
     surface = colors["surface"]
     ink = colors["ink"]
 
-    generated = render_generated_component(slot, parsed, config or {})
+    # Use the actual selected theme, not an inherited base or a variant name.
+    # Custom packs retain their explicit field opt-in.
+    selected = visual_system or (config or {}).get("visual_system")
+    step_inline = _step_inline if component_type == "logic_path" and selected in VISUAL_SYSTEM_ORDER else None
+    generated = render_generated_component(slot, parsed, config or {}, step_inline=step_inline)
     if generated is not None:
         return generated
     quiet_signal = (config or {}).get("theme_kit") == "future_science_editorial_v1"
     quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
-    extended = render_extended_component(slot, parsed, colors, quiet_folio=quiet_folio)
+    extended = render_extended_component(
+        slot, parsed, colors, quiet_folio=quiet_folio, step_inline=step_inline, visual_system=selected,
+    )
     if extended is not None:
         return extended
 
@@ -629,8 +644,9 @@ def render_component(
 
     if component_type == "logic_path":
         items = _many(parsed, bindings, "items")
+        item_inline = step_inline or _inline
         if variant == "plain_steps":
-            return _plain_list(items, primary)
+            return _plain_list(items, primary, item_inline=item_inline)
         if variant == "warm_route_nodes" and (config or {}).get("theme_kit") == "warm_storybook_v1":
             rows = []
             for index, item in enumerate(items, 1):
@@ -641,7 +657,7 @@ def render_component(
                 rows.append(
                     f'<section style="box-sizing:border-box;padding:8px 9px 8px 8px;border-bottom:{seam};white-space:normal;">'
                     f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:31px;margin:1px 8px 0 -39px;padding:3px 0 2px;border-left:2px solid {tab_edge};border-radius:1px 8px 8px 1px;background-color:{tab_color};color:{primary};font:700 12px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:550;line-height:1.76;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:550;line-height:1.76;vertical-align:top;overflow-wrap:anywhere;">{item_inline(item)}</p></section>'
                 )
             return (
                 f'<section data-theme-grammar="warm-stitched-notebook" style="margin:28px 0;padding:0 3px 3px 26px;border-bottom:1px solid #D7B995;">'
@@ -662,7 +678,7 @@ def render_component(
                 rows.append(
                     f'<section style="padding:0 0 {0 if last else 13}px 26px;border-left:1px solid {rail_color};white-space:normal;">'
                     f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:32px;height:30px;margin:0 10px 0 -42px;border:1px solid {node_border};border-radius:{node_shape};background-color:{node_background};color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:700;line-height:28px;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;padding:2px 0 0;color:{ink};font-size:15px;font-weight:500;line-height:1.75;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;padding:2px 0 0;color:{ink};font-size:15px;font-weight:500;line-height:1.75;vertical-align:top;overflow-wrap:anywhere;">{item_inline(item)}</p>'
                     '</section>'
                 )
             sprout = (
@@ -678,7 +694,7 @@ def render_component(
                 rows.append(
                     f'<section style="margin:0 0 11px;white-space:normal;">'
                     f'<span style="display:inline-block;width:34px;height:34px;border:2px solid {sky};border-radius:50%;background-color:{surface};color:{primary};font-family:Georgia,serif;font-size:11px;font-weight:750;line-height:34px;text-align:center;vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0 0 0 10px;padding:10px 13px;border-radius:15px 15px 15px 3px;background-color:{sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:middle;">{_inline(item)}</p>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0 0 0 10px;padding:10px 13px;border-radius:15px 15px 15px 3px;background-color:{sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:middle;">{item_inline(item)}</p>'
                     f'</section>'
                 )
             return (
@@ -692,7 +708,7 @@ def render_component(
                 rows.append(
                     f'<section style="margin:0 0 11px;white-space:normal;">'
                     f'<span style="display:inline-block;width:20%;padding:10px 5px;background-color:{node_color};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.08em;text-align:center;transform:rotate({-2 if index % 2 else 2}deg);vertical-align:middle;">STOP {index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p></section>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{item_inline(item)}</p></section>'
                 )
             return (
                 f'<section style="margin:29px 0;padding:17px 14px 8px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
@@ -707,7 +723,7 @@ def render_component(
                 rows.append(
                     f'<section style="margin:0 0 12px;white-space:normal;">'
                     f'<span style="display:inline-block;width:38px;height:38px;border:3px solid {surface};border-radius:12px 12px 4px 12px;background-color:{node_color};box-shadow:3px 3px 0 {secondary_pale};color:{text_color};font-family:Georgia,serif;font-size:11px;font-weight:800;line-height:38px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:81%;margin:0 0 0 11px;padding:11px 14px;border-bottom:2px solid {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:81%;margin:0 0 0 11px;padding:11px 14px;border-bottom:2px solid {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{item_inline(item)}</p>'
                     f'</section>'
                 )
             return (
@@ -720,7 +736,7 @@ def render_component(
                 rows.append(
                     f'<section style="border-top:1px solid #B7C5C0;white-space:normal;">'
                     f'<span style="display:inline-block;width:52px;padding:13px 7px;color:{primary};font-family:Georgia,serif;font-size:13px;font-weight:750;vertical-align:top;">P-{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:69%;margin:0;padding:12px 10px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:top;">{_inline(item)}</p>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:69%;margin:0;padding:12px 10px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:top;">{item_inline(item)}</p>'
                     f'<span style="box-sizing:border-box;display:inline-block;width:14%;padding:15px 5px;color:{accent};font-size:13px;font-weight:800;text-align:right;vertical-align:top;">→</span>'
                     f'</section>'
                 )
@@ -739,7 +755,7 @@ def render_component(
                 rows.append(
                     f'<section style="margin:0 0 13px;padding-left:{offset}%;white-space:normal;">'
                     f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{_inline(item)}</p></section>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{item_inline(item)}</p></section>'
                 )
             caption = "" if quiet_signal else f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径' f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
             return (
@@ -753,7 +769,7 @@ def render_component(
                 rows.append(
                     f'<section style="border-top:1px solid #B9D8D2;white-space:normal;">'
                     f'<span style="display:inline-block;width:50px;padding:13px 7px;color:{accent};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">S{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:12px 10px;border-left:2px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:top;">{_inline(item)}</p>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:12px 10px;border-left:2px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:top;">{item_inline(item)}</p>'
                     f'<span style="display:inline-block;width:13%;padding:14px 5px;color:{primary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">●</span>'
                     f'</section>'
                 )
@@ -771,7 +787,7 @@ def render_component(
                 rows.append(
                     f'<section style="margin:0 0 7px {inset}px;padding:9px 10px 9px 49px;border-top:1px solid {primary};border-bottom:1px solid #DFDDD3;background-color:{surface};white-space:normal;">'
                     f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:37px;margin:0 12px 0 -49px;padding:2px 0 4px;background-color:{tab_color};border-radius:0 0 10px 0;color:{tab_ink};font:750 16px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:650;line-height:1.73;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
+                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:650;line-height:1.73;vertical-align:top;overflow-wrap:anywhere;">{item_inline(item)}</p></section>'
                 )
             return (
                 f'<section data-theme-grammar="editorial-step-folio" style="margin:28px 0;padding:4px 0 1px;border-bottom:3px solid {ink};">'
@@ -790,7 +806,7 @@ def render_component(
                 rows.append(
                     f'<section style="box-sizing:border-box;width:{width}%;min-height:58px;margin:0 0 8px {margin}%;padding:11px 12px;background-color:{background};white-space:normal;">'
                     f'<span style="display:inline-block;width:36px;color:{number_color};font-family:Georgia,serif;font-size:16px;font-weight:750;line-height:1.5;opacity:.76;vertical-align:top;">{index:02d}</span>'
-                    f'<strong style="display:inline-block;width:78%;color:{ink};font-size:13px;line-height:1.6;vertical-align:top;">{_inline(item)}</strong>'
+                    f'<strong style="display:inline-block;width:78%;color:{ink};font-size:13px;line-height:1.6;vertical-align:top;">{item_inline(item)}</strong>'
                     f'</section>'
                 )
             return (
@@ -810,7 +826,7 @@ def render_component(
                 '<section style="margin:0 0 12px;white-space:normal;">'
                 f'<span style="display:inline-block;width:40px;height:40px;border:2px solid {surface};border-radius:50%;background-color:{node_accent};box-shadow:0 0 0 2px {node_pale};color:{node_text};font-size:12px;font-weight:750;line-height:40px;text-align:center;vertical-align:middle;">{index:02d}</span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:80%;margin-left:10px;padding:13px 15px;border:1px solid {node_accent};border-radius:3px 15px 15px 15px;background-color:{node_pale};vertical-align:middle;">'
-                f'<p style="margin:0;color:{ink};font-size:15px;font-weight:700;line-height:1.65;">{_inline(item)}</p></section></section>'
+                f'<p style="margin:0;color:{ink};font-size:15px;font-weight:700;line-height:1.65;">{item_inline(item)}</p></section></section>'
             )
         return (
             '<section style="margin:28px 0;">'

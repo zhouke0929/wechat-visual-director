@@ -1182,6 +1182,45 @@ def test_editorial_contrast_logic_path_keeps_the_staircase_in_the_gutter() -> No
     )
 
 
+@pytest.mark.parametrize("theme", ["editorial_contrast", "warm_humanist"])
+def test_logic_path_separates_only_explicit_step_titles_from_their_details(theme: str) -> None:
+    parsed = parse_markdown(
+        "# 步骤\n\n"
+        "1. **先记录 & 核对。**\\\n   用不同日期观察市场，保留 **原始记录**。\n"
+        "2. **先看营业时间。**\n"
+        "3. 这句话虽然很长，但原文没有步骤小标题，不应该擅自从中拆出一个标题。\n"
+        "4. **先核对** 单价和数量，再决定怎么整理结果。\n"
+        "5. **不用先删掉重复照片。** 先复制原件，再检查 **重复项**。\n"
+        "6. **注意：** 请保留原件。\n"
+    )
+    steps = next(block for block in parsed.blocks if block.type == "ordered_list")
+    slot = {
+        "component_type": "logic_path",
+        "variant": visual_system_variant("logic_path", theme),
+        "content_bindings": {"items": [f"{steps.id}:item:{index}" for index in range(len(steps.content))]},
+    }
+    config = visual_system_configuration(theme)
+    markup = render_component(slot, parsed, config["palette"], config, visual_system=theme)
+    detail_style = 'style="display:block;padding-top:2px;font-weight:400;"'
+    formatted = (
+        f'<strong style="font-weight:750;">先记录 &amp; 核对。</strong>\n'
+        f'<span {detail_style}>用不同日期观察市场，保留 <strong>原始记录</strong>。</span>'
+    )
+    assert markup.count(detail_style) == 1
+    assert formatted in markup
+    assert "<strong>先看营业时间。</strong></p>" in markup
+    assert f">{steps.content[2]}</p>" in markup
+    assert "<strong>先核对</strong> 单价和数量，再决定怎么整理结果。" in markup
+    assert "<strong>不用先删掉重复照片。</strong> 先复制原件，再检查 <strong>重复项</strong>。" in markup
+    assert "<strong>注意：</strong> 请保留原件。" in markup
+    payload = build_clipboard_payload({"frozen_html": f"<main>{markup}</main>", "metadata": {"title": parsed.title}}, [], lambda _: "")
+    assert formatted in payload["html"]
+    assert "先记录 & 核对。 用不同日期观察市场，保留 原始记录。" in " ".join(payload["text"].split())
+    assert detail_style not in render_component(
+        slot, parsed, config["palette"], {**config, "theme_kit": "user_pack:demo"}, visual_system="demo"
+    )
+
+
 def test_warm_humanist_revised_components_keep_content_and_scope() -> None:
     from visual_director.renderer import _render_fixed_footer
 

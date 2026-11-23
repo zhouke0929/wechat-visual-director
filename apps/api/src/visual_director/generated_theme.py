@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Callable
 from typing import Any
 
 from .parser import ParsedArticle
@@ -434,7 +435,10 @@ def render_generated_quote(content: str, config: dict[str, Any]) -> str | None:
     return _body_metrics(f'<blockquote data-theme-grammar="generated-{design["composition"]}-quote" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:0 0 12px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.16em;">EVIDENCE · {_motif(config, compact=True)}</p><p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:650;line-height:1.85;">{_inline(content)}</p></blockquote>', config)
 
 
-def render_generated_component(slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any]) -> str | None:
+def render_generated_component(
+    slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any], *,
+    step_inline: Callable[[str], str] | None = None,
+) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
@@ -443,7 +447,7 @@ def render_generated_component(slot: dict[str, Any], parsed: ParsedArticle, conf
     layout_payload = payload
     if component_type == "concept_explainer" and payload["kind"] == "title_body":
         layout_payload = {"entries": [{"title": payload["title"], "body": payload["body"]}]}
-    custom = render_layout(component_type, layout_payload, config)
+    custom = render_layout(component_type, layout_payload, config, step_inline=step_inline)
     if custom is not None:
         return f'<section data-component-type="{component_type}">{custom}</section>'
     gap = int(design["rhythm"]["component_gap"])
@@ -477,8 +481,9 @@ def render_generated_component(slot: dict[str, Any], parsed: ParsedArticle, conf
     kind = payload["kind"]
     if kind == "list":
         rows = []
+        item_inline = step_inline or _inline
         for index, item in enumerate(payload["items"], 1):
-            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
+            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;">{item_inline(item)}</p></section>')
         content = "".join(rows)
     elif kind == "pair":
         content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["left"])}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["right"])}</p></section></section>'

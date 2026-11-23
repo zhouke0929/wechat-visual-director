@@ -183,6 +183,7 @@ def _component_specimen(
             parsed,
             palette,
             configuration,
+            visual_system=visual_system,
         ),
     }
 

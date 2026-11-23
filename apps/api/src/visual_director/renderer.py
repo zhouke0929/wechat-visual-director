@@ -957,6 +957,7 @@ def render_preview(
     )
     profile = brand_profile if brand_profile is not None else load_brand_profile(project_root)
     config = validated["configuration"]
+    visual_system = validated.get("visual_system") or config.get("visual_system")
     accent = config["accent"]
     palette = config.get("palette", {"primary": accent})
     generated_theme = bool(config.get("generated_design_system"))
@@ -985,7 +986,7 @@ def render_preview(
             editor_block_type = f'component:{slot["component_type"]}'
             body.append(
                 f'<section id="{html.escape(slot["slot_id"])}" class="component-anchor" style="scroll-margin-top:18px;">'
-                f'{render_component(slot, parsed, palette, config)}</section>'
+                f'{render_component(slot, parsed, palette, config, visual_system=visual_system)}</section>'
             )
         elif block.id in consumed:
             pass

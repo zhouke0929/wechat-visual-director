@@ -9,8 +9,10 @@ import html
 import math
 import re
 from collections import Counter
+from collections.abc import Callable
 from typing import Any
 
+from .step_content import STEP_HIERARCHY_FORMAT, render_step_inline
 from .theme_drawings import render_drawing, validate_drawing
 
 PALETTE_KEYS = {"primary", "secondary", "accent", "sky", "pale", "secondary_pale", "accent_pale", "sky_pale", "surface", "ink"}
@@ -117,7 +119,7 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
             keys = {"stack": {"children"}, "row": {"children", "widths"},
                     "marker_row": {"children", "marker_width", "gap"},
                     "ornament_rule": {"children", "slot_width", "line_color"}, "text": {"text"},
-                    "field": {"bind"}, "repeat": {"bind", "children"}, "rule": set(),
+                    "field": {"bind", "format"}, "repeat": {"bind", "children"}, "rule": set(),
                     "shape": {"width", "height"}, "media": set(),
                     "cutout": {"children", "fill", "radius", "pitch", "inset"},
                     "drawing": {"width", "height", "parts", "sizing"}}
@@ -153,6 +155,11 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
                     error(path, "固定标签须为 1–60 字符，不放文章正文")
             elif kind == "field":
                 bind = node.get("bind")
+                if "format" in node and not (
+                    node["format"] == STEP_HIERARCHY_FORMAT and role == "logic_path"
+                    and inside == "items" and bind == "item"
+                ):
+                    error(f"{path}.format", "step_hierarchy 仅用于逻辑路径重复项中的 item 字段")
                 allowed = ({"item", "index"} if inside == "items" else {"title", "body", "index"}) if inside else required | ({"index"} if role in {"heading", "subheading"} else set())
                 if not isinstance(bind, str) or bind not in allowed:
                     error(path, "字段不属于当前语义角色或重复项")
@@ -256,7 +263,10 @@ def _inline(value: Any) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped).replace("\n", "<br>")
 
 
-def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) -> str | None:
+def render_layout(
+    role: str, payload: dict[str, Any], config: dict[str, Any], *,
+    step_inline: Callable[[str], str] | None = None,
+) -> str | None:
     layouts = config.get("generated_design_system", {}).get("layouts", {})
     if role not in layouts:
         return None
@@ -325,7 +335,13 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
                 else:
                     attr += ' data-theme-list-index="true"'
             tag = "h1" if role == "hero" and kind == "field" and node["bind"] == "title" else "p"
-            return f'<{tag} {attr} style="{css}">{_inline(value)}</{tag}>'
+            if step_inline and role == "logic_path" and kind == "field" and node["bind"] == "item":
+                content = step_inline(str(value))
+            elif node.get("format") == STEP_HIERARCHY_FORMAT:
+                content = render_step_inline(str(value), _inline)
+            else:
+                content = _inline(value)
+            return f'<{tag} {attr} style="{css}">{content}</{tag}>'
         if kind == "shape":
             return f'<span aria-hidden="true" style="display:inline-block;width:{node["width"]:g}px;height:{node["height"]:g}px;{css}">&#160;</span>'
         if kind == "rule":
