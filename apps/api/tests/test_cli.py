@@ -865,10 +865,12 @@ def test_task_context_returns_host_agent_contract(monkeypatch, capsys, current_t
     assert payload["context"]["schema_version"] == "host_agent_planner_context.v0.1"
 
 
+@pytest.mark.parametrize("fallback_metadata", [{"fallback_used": False}, {"fallback_used": True}, {}])
 def test_task_plan_submits_host_brief_and_reports_normalization(
     tmp_path: Path,
     monkeypatch,
     capsys,
+    fallback_metadata,
 ) -> None:
     brief_path = tmp_path / "editorial-brief.json"
     brief_path.write_text(json.dumps({"schema_version": "editorial_brief.v0.1"}), encoding="utf-8")
@@ -890,7 +892,7 @@ def test_task_plan_submits_host_brief_and_reports_normalization(
                 "planner_metadata": {
                     "provider": "host_agent",
                     "model": "opencode-host",
-                    "fallback_used": False,
+                    **fallback_metadata,
                     "normalization_count": 2,
                     "normalization_adjustments": [{"code": "safe_adjustment"}],
                 }
@@ -914,8 +916,13 @@ def test_task_plan_submits_host_brief_and_reports_normalization(
     )
 
     payload = json.loads(capsys.readouterr().out)
+    if fallback_metadata.get("fallback_used") is not False:
+        assert exit_code == 5
+        assert payload["error"]["code"] == "unexpected_planner"
+        return
     assert exit_code == 0
     assert payload["planner_provider"] == "host_agent"
+    assert payload["fallback_used"] is False
     assert payload["status"] == "plan_selected"
     assert payload["normalization_count"] == 2
     assert payload["next_action"] == "human_review"

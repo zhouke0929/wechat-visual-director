@@ -1231,7 +1231,7 @@ def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
     review_url = _review_url(args.web_base, generation.get("review_path"), args.task_id)
     if not review_url or generation.get("status") not in {"plans_ready", "plan_selected"}:
         raise CliError("plan_not_committed", "服务未确认 Agent 成稿已保存，请检查任务状态。", exit_code=5)
-    if metadata.get("provider") != "host_agent" or metadata.get("fallback_used"):
+    if metadata.get("provider") != "host_agent" or metadata.get("fallback_used") is not False:
         raise CliError("unexpected_planner", "服务未按宿主规划交稿，请核对工作台版本。", exit_code=5)
     opened = bool(webbrowser.open(review_url, new=2)) if args.open else False
     return {
@@ -1241,6 +1241,7 @@ def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
         "status": generation["status"],
         "planner": "host_agent",
         "planner_provider": metadata.get("provider"),
+        "fallback_used": metadata["fallback_used"],
         "planner_model": metadata.get("model"),
         "normalization_count": int(metadata.get("normalization_count") or 0),
         "normalization_adjustments": metadata.get("normalization_adjustments") or [],
