@@ -62,6 +62,16 @@ def _parse(raw: object) -> dict[str, ComponentRecipe]:
         raise ValueError("Invalid component_recipes snapshot: expected version 1 and a roles object")
     recipes: dict[str, ComponentRecipe] = {}
     for role, definition in raw["roles"].items():
+        if role == "logic_path":
+            # Allow only artwork/layout pairs implemented by a projector.
+            if not isinstance(definition, Mapping) or definition not in (
+                {"layout": "first_line_ticket", "default_variant": "club_route_map"},
+                {"layout": "first_line_marker", "default_variant": "orbit_route"},
+                {"layout": "first_line_marker", "default_variant": "business_review__logic_path"},
+            ):
+                raise ValueError(f"Invalid or unsupported component recipe: {role}")
+            recipes[role] = ComponentRecipe(layout=definition["layout"], default_variant=definition["default_variant"])
+            continue
         if (role not in _FIELDS or not isinstance(definition, Mapping) or not definition
                 or set(definition) - {"layout", "default_variant", "outer_before_px", "outer_after_px", "field_sizes_px"}):
             raise ValueError(f"Invalid or unsupported component recipe: {role}")

@@ -133,6 +133,11 @@ def test_plain_list_preview_matches_legacy_except_for_edit_anchors(tmp_path, mon
         assert ordered.content[1:3] == [ORDERED_DUPLICATE] * 2
         assert bullets.content[1:3] == [BULLET_DUPLICATE] * 2
         plan = apply_visual_system(generate_plans(article, "tutorial_steps", 5)[0], theme)
+        # This migration probe replays a v1 plan. Later intentional changes
+        # to the independent logic-path slot are covered by its own contract.
+        plan["configuration"].pop("reading_overrides", None)
+        plan["configuration"].pop("reading_overrides_version", None)
+        plan["configuration"].pop("component_recipes", None)
         plan["slots"] = [slot for slot in plan["slots"] if slot["component_type"] == "logic_path"
                          and slot["anchor_block_id"] == step.id]
         assert len(plan["slots"]) == 1

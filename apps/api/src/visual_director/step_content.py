@@ -39,7 +39,8 @@ def render_step_text(
     step: StepContent, inline: Callable[[str], str], *, hierarchy: bool, reading: ReadingProfile | None = None,
 ) -> str:
     """Project previously interpreted source; even an opt-in cannot invent a title."""
-    if not hierarchy or step.title is None:
+    title, detail = step.title, step.detail
+    if not hierarchy or title is None:
         return apply_reading_emphasis(inline(step.source), reading)
     title_box = "font-weight:750;"
     if reading is not None:
@@ -54,10 +55,9 @@ def render_step_text(
         f"display:block;padding-top:{gap:g}px;font-weight:400;", STEP_DETAIL, reading,
         inset_before_offset=gap,
     )
-    detail_text = apply_reading_emphasis(inline(step.detail or ""), reading)
-    # The space between the two HTML elements is a literal newline so the
-    # editor can round-trip the source boundary without inspecting CSS.
+    detail_text = apply_reading_emphasis(inline(detail or ""), reading)
+    # Preserve the authored newline for editing as well as presentation.
     return (
-        f'<strong style="{title_style}">{html.escape(step.title)}</strong>\n'
+        f'<strong style="{title_style}">{html.escape(title)}</strong>\n'
         f'<span style="{detail_style}">{detail_text}</span>'
     )

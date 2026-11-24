@@ -30,7 +30,8 @@ def step_field_text(value: str | LogicPathField, inline: Callable[[str], str], *
         # articles always arrive through BoundSemanticContent.step_fields().
         return render_step_text(interpret_step(value), inline, hierarchy=True) if hierarchy else inline(value)
     reading = value.reading
-    hierarchy = hierarchy or bool(authored_metrics(STEP_TITLE, reading) or authored_metrics(STEP_DETAIL, reading))
+    title_metrics = authored_metrics(STEP_TITLE, reading)
+    hierarchy = hierarchy or bool(title_metrics or authored_metrics(STEP_DETAIL, reading))
     return render_step_text(value.content, inline, hierarchy=hierarchy, reading=reading)
 
 
@@ -40,3 +41,10 @@ def step_field_reading(value: object) -> ReadingProfile | None:
 
 def step_field_css(style: str, value: str | LogicPathField) -> str:
     return apply_reading_css(style, STEP_BODY, step_field_reading(value))
+
+
+def marker_alignment_css(layout: str | None, inset_px: int) -> tuple[str, str]:
+    """CSS for adjacent inline marker and text boxes; offsets belong to their artwork."""
+    if layout == "first_line_marker":
+        return f"vertical-align:top;margin-top:{inset_px}px;", "vertical-align:top;"
+    return "vertical-align:middle;", "vertical-align:middle;"

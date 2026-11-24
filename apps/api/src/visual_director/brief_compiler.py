@@ -611,6 +611,7 @@ def visual_system_configuration(visual_system: str) -> dict[str, Any]:
         reading = capture_reading_overrides(visual_system)
         if reading:
             config["reading_overrides"] = reading
+            config["reading_overrides_version"] = 1
         snapshot = capture_component_recipes(visual_system, visual_system_variant)
         if snapshot is not None:
             config["component_recipes"] = snapshot

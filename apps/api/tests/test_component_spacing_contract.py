@@ -36,7 +36,10 @@ def test_one_theme_one_component_one_text_field_and_real_outer_edges(monkeypatch
     # These are the actual official registry, snapshot, content binding and HTML
     # projection, not a hand-built layout shown only on a standalone test page.
     original = {theme: samples(theme) for theme in VISUAL_SYSTEM_ORDER}
-    monkeypatch.setattr(catalog, "OFFICIAL_COMPONENT_RECIPES", {FAN: {TIMELINE: LOCAL}})
+    monkeypatch.setattr(catalog, "OFFICIAL_COMPONENT_RECIPES", {
+        **catalog.OFFICIAL_COMPONENT_RECIPES,
+        FAN: {**catalog.OFFICIAL_COMPONENT_RECIPES.get(FAN, {}), TIMELINE: LOCAL},
+    })
     changed = {theme: samples(theme) for theme in VISUAL_SYSTEM_ORDER}
     altered = [(theme, role) for theme in original for role in original[theme]
                if original[theme][role] != changed[theme][role]]

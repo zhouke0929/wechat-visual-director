@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import Any
 
 from .reading_theme_overrides import THEME_READING_OVERRIDES
-from .render_pilot import reading_rules_pilot_enabled
+from .render_pilot import reading_rules_pilot_enabled, renderer_pilot_enabled
 
 
 BODY = "body"
@@ -171,14 +171,18 @@ def _checked_overrides(raw: object, theme_id: str) -> dict[str, dict[str, Any]]:
 
 
 def capture_reading_overrides(theme_id: str) -> dict[str, dict[str, Any]]:
-    """Copy explicit choices at selection time, even when the display pilot is off."""
+    """Snapshot reviewed choices at theme selection; never restyle old plans by lookup."""
     return _checked_overrides(THEME_READING_OVERRIDES.get(theme_id, {}), theme_id)
 
 
 def resolve_reading_profile(
     config: Mapping[str, Any], *, official: bool, theme_id: str | None = None,
 ) -> ReadingProfile | None:
-    if not official or not reading_rules_pilot_enabled():
+    if not official or not renderer_pilot_enabled():
+        return None
+    # Unversioned overrides came from the pre-rollout reading experiment.
+    # They must not become active merely because the program was upgraded.
+    if config.get("reading_overrides_version") != 1 and not reading_rules_pilot_enabled():
         return None
     rules = dict(DEFAULT_READING_RULES)
     sources = dict.fromkeys(rules, "default")

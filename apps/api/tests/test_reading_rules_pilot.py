@@ -196,6 +196,7 @@ def test_one_private_role_override_updates_only_one_theme_and_role_in_real_rende
     unrelated_before = render_preview(other_article, other_plan, brand_profile={})
     overrides = dict(reading_theme_overrides.THEME_READING_OVERRIDES)
     overrides[selector_theme] = {
+        **overrides.get(selector_theme, {}),
         reading_rules.LIST_BODY: {"size_px": 15.25, "weight": 425, "line_height": 1.72,
                                   "letter_spacing_em": 0.025, "before_px": 2, "after_px": 4,
                                   "inset_before_px": 3, "inset_after_px": 5},

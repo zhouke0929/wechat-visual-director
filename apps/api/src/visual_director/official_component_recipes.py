@@ -11,7 +11,11 @@ from .component_presentation import validate_component_recipes
 
 # theme ID -> component ID -> presentation options. Nothing in v1.0.0 opts in.
 # These are maintainer declarations, separate from the v1 extension-pack schema.
-OFFICIAL_COMPONENT_RECIPES: Mapping[str, dict[str, dict[str, Any]]] = MappingProxyType({})
+OFFICIAL_COMPONENT_RECIPES: Mapping[str, dict[str, dict[str, Any]]] = MappingProxyType({
+    "youth_campus": {"logic_path": {"layout": "first_line_ticket"}},
+    "future_tech": {"logic_path": {"layout": "first_line_marker"}},
+    "business_review": {"logic_path": {"layout": "first_line_marker"}},
+})
 
 
 def capture_component_recipes(theme: str, default_variant: Callable[[str, str], str]) -> dict | None:

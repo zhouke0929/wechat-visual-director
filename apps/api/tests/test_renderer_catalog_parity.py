@@ -31,6 +31,25 @@ REVISION = "10e5661afbe39e9999c7e8a3b5ca943f67c12ba5"
 MODES = {"default": {}, "legacy": {"WVD_RENDERER_PILOT": "0"},
          "structure": {"WVD_RENDERER_PILOT": "1"},
          "reading": {"WVD_RENDERER_PILOT": "1", "WVD_READING_RULES_PILOT": "1"}}
+# Digests from the approved isolated poster/step trial, not a refresh of v1.
+# The legacy rollback digests always remain pinned to v1.
+APPROVED_POSTER_STEPS = {
+    "pop_poster/logic_path": "62997dc102bccd620a23d626b35c392fac2a81b354a5e3a914c7223e566af251",
+    "pop_poster/logic_path_stress": "1c04ab920d418bc4e2da29d8475f1cb587030053ad9b433e4ed1b6bd2192663f",
+}
+# Step typography and approved marker alignments: normal and stress cases.
+STEP_WEIGHT_SAMPLES = {
+    "youth_campus/logic_path": "9754db9e7474e171aa69c5a595e7bdca7f2296160c6867023a23f34631d6db7d",
+    "youth_campus/logic_path_stress": "49e695dd914f8272bcba059249679b396f8776d3ba5d07b784aabb299b20ee2f",
+    "editorial_contrast/logic_path": "7eda89cf28473c78a375f9f8a65c8d23f8fc676fd9adef14a4406d95b157c4de",
+    "editorial_contrast/logic_path_stress": "8fb801ccf64ca338020001a96beb44916bd5308bff456470dd4bda33083586a9",
+    "structured_grid/logic_path": "62f471f33949e5b3d8a33f5e015640acbfaddce0ea6d72fc68272f30bba56ba5",
+    "structured_grid/logic_path_stress": "5ce838b6afbd52c665fe0ef7877400d23c66da2c7c9bc3fe10824289a415d758",
+    "future_tech/logic_path": "de93d6c990a1853669df894099bde0f6413a739f9106c9ddb78e89e448345748",
+    "future_tech/logic_path_stress": "141c75ba722dd1f80de87aa0dcdbcbdbad30a8f90e2275569c4036dfc65c7a6d",
+    "business_review/logic_path": "6de469fa0e464bcbbb8d95ebb84a6d3c6b368cfd800566836a4177c66c9c0f72",
+    "business_review/logic_path_stress": "09551f500cf14043912610d35c5f4d0ea499ea0aeaa56375c4ce012ed6bc9f35",
+}
 FOUNDATIONS = frozenset("hero lead paragraph section_heading subheading quote unordered_list "
                         "ordered_list image_caption table divider source reference_list closing_cta".split())
 SEMANTIC = frozenset("question_hook numbered_insight evidence_callout before_after_timeline logic_path "
@@ -125,6 +144,9 @@ def fixed_catalog(monkeypatch, tmp_path):
 @pytest.mark.parametrize("mode", MODES)
 def test_complete_catalog_matches_pinned_renderer(mode, fixed_catalog):
     expected = {**fixed_catalog["default"], **fixed_catalog.get(mode, {})}
+    if mode != "legacy":
+        expected.update(APPROVED_POSTER_STEPS)
+        expected.update(STEP_WEIGHT_SAMPLES)
     observed = _render(ROOT, mode, fixed_catalog["fixed_plan"])
     differing = sorted(k for k in expected.keys() | observed.keys() if expected.get(k) != observed.get(k))
     assert not differing, f"{mode}: {len(differing)} changed theme/roles: {differing}"

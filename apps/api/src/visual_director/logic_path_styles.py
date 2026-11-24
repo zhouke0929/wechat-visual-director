@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from .logic_path_content import LogicPathField, step_field_attributes, step_field_css, step_field_text
+from .logic_path_content import LogicPathField, marker_alignment_css, step_field_attributes, step_field_css, step_field_text
 
 
 def render_native_logic_path(
     items: Sequence[str | LogicPathField], variant: str, colors: dict[str, str],
-    *, theme_kit: str | None, item_inline: Callable[[str], str],
+    *, theme_kit: str | None, item_inline: Callable[[str], str], layout: str | None = None,
 ) -> str:
     primary, secondary, accent, sky = (colors[name] for name in ("primary", "secondary", "accent", "sky"))
     pale, secondary_pale, accent_pale, sky_pale = (colors[name] for name in ("pale", "secondary_pale", "accent_pale", "sky_pale"))
@@ -82,12 +82,17 @@ def render_native_logic_path(
         )
     if variant == "club_route_map":
         rows = []
+        first_line = layout == "first_line_ticket"
+        align = "top" if first_line else "middle"
+        # Anchor the ticket centre to the first line, not to the paragraph height.
+        anchor = "position:relative;top:23px;" if first_line else ""
+        translate = "translateY(-50%) " if first_line else ""
         for index, item in enumerate(items, 1):
             node_color = (primary, accent, sky, secondary)[(index - 1) % 4]
             rows.append(
                 f'<section style="margin:0 0 11px;white-space:normal;">'
-                f'<span style="display:inline-block;width:20%;padding:10px 5px;background-color:{node_color};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.08em;text-align:center;transform:rotate({-2 if index % 2 else 2}deg);vertical-align:middle;">STOP {index:02d}</span>'
-                f'{text_field(item, f"box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;")}</section>'
+                f'<span style="display:inline-block;width:20%;padding:10px 5px;background-color:{node_color};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.08em;text-align:center;{anchor}transform:{translate}rotate({-2 if index % 2 else 2}deg);vertical-align:{align};">STOP {index:02d}</span>'
+                f'{text_field(item, f"box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:{align};")}</section>'
             )
         return (
             f'<section style="margin:29px 0;padding:17px 14px 8px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
@@ -126,6 +131,7 @@ def render_native_logic_path(
         )
     if variant == "orbit_route":
         rows = []
+        marker_align, body_align = marker_alignment_css(layout, 8)
         for index, item in enumerate(items, 1):
             item_color = (primary, secondary, accent, sky)[(index - 1) % 4]
             item_pale = (pale, secondary_pale, accent_pale, sky_pale)[(index - 1) % 4]
@@ -133,8 +139,8 @@ def render_native_logic_path(
             radius = "4px 24px 24px 16px" if index % 2 else "24px 4px 16px 24px"
             rows.append(
                 f'<section style="margin:0 0 13px;padding-left:{offset}%;white-space:normal;">'
-                f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;vertical-align:middle;">{index:02d}</span>'
-                f'{text_field(item, f"box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;")}</section>'
+                f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;{marker_align}">{index:02d}</span>'
+                f'{text_field(item, f"box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;{body_align}")}</section>'
             )
         caption = "" if theme_kit == "future_science_editorial_v1" else f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径' f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
         return (

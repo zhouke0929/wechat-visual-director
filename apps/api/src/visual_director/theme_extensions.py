@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from typing import Any
 
 from .heading_numbers import has_explicit_heading_number
-from .logic_path_content import LogicPathField, step_field_attributes, step_field_text
+from .logic_path_content import LogicPathField, marker_alignment_css, step_field_attributes, step_field_text
 from .ordinary_list_content import ListValue, OrdinaryListField, ordinary_list_row
 from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
 from .component_presentation import ComponentRecipe
@@ -535,9 +535,10 @@ def _distinct_payload_html(
             )
             return f'<section data-theme-grammar="field-log" data-list-role="{component_type}" style="margin:31px 0;padding:18px 12px 5px 32px;border-left:2px dotted {p["sky"]};background:repeating-linear-gradient(0deg,{p["surface"]}, {p["surface"]} 31px, {p["sky_pale"]} 32px);"><p style="margin:-28px 0 18px;color:{p["primary"]};font:700 9px/1.2 Georgia;letter-spacing:.22em;">{list_heading}</p>{rows}</section>'
         if grammar == "business":
+            marker_align, body_align = marker_alignment_css(recipe.layout if recipe else None, 4)
             rows = "".join(
-                f'<section style="margin:0 0 13px;white-space:normal;transform:translateX({0 if index % 2 else 12}px);"><span style="display:inline-block;width:38px;height:38px;border-radius:50%;background-color:{p["secondary"] if index % 2 else p["accent"]};color:{p["primary"]};font:800 13px/38px Georgia;text-align:center;vertical-align:middle;">{index:02d}</span>'
-                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:78%;margin:0 0 0 10px;padding:10px 14px 11px;border-bottom:2px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;', item)
+                f'<section style="margin:0 0 13px;white-space:normal;transform:translateX({0 if index % 2 else 12}px);"><span style="display:inline-block;width:38px;height:38px;border-radius:50%;background-color:{p["secondary"] if index % 2 else p["accent"]};color:{p["primary"]};font:800 13px/38px Georgia;text-align:center;{marker_align}">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:78%;margin:0 0 0 10px;padding:10px 14px 11px;border-bottom:2px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;{body_align}', item)
                 + '</section>'
                 for index, field_attrs, item in items
             )
@@ -772,14 +773,14 @@ def render_extended_semantic(
 
 def render_extended_logic_path(
     variant: str, items: list[LogicPathField], palette: dict[str, str], *,
-    quiet_folio: bool,
+    quiet_folio: bool, recipe: ComponentRecipe | None = None,
 ) -> str | None:
     theme_id = extended_variant_theme(variant)
     if theme_id is None:
         return None
     return _render_extended_component_payload(
         theme_id, "logic_path", {"kind": "list", "items": items}, palette,
-        quiet_folio=quiet_folio,
+        quiet_folio=quiet_folio, recipe=recipe,
     )
 
 

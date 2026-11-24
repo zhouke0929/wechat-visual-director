@@ -42,22 +42,107 @@ def test_official_theme_keeps_source_inline_emphasis_without_inventing_a_step_hi
     markup = render(theme, config, selected=theme)
     doc = BeautifulSoup(markup, "html.parser")
     assert DETAIL_STYLE not in markup
-    assert doc.find("strong", string="先看原图").next_sibling.name == "br"
-    assert doc.find("strong", string="最后复查").next_sibling.name == "br"
+    for title in ("先看原图", "最后复查"):
+        lead = doc.find("strong", string=title)
+        if theme == "pop_poster" and structure:
+            assert lead.next_sibling == "\n"
+            assert "font-weight:400" in lead.find_next_sibling("span")["style"]
+        else:
+            assert lead.next_sibling.name == "br"
     assert doc.find("strong", string="原来的位置")
     assert [el.get_text() for el in doc.select("[data-editor-step-ref]")] or not structure
 
 
 @pytest.mark.parametrize("kind", ["logic_path", "numbered_insight", "action_checklist"])
-def test_pop_uses_the_released_list_artwork_without_new_theme_id_exceptions(kind):
+def test_pop_preserves_markers_and_changes_only_logic_path_typography(kind):
     config = visual_system_configuration("pop_poster")
     markup = render("pop_poster", config, selected="pop_poster", kind=kind)
     doc = BeautifulSoup(markup, "html.parser")
     rows = doc.select(f'[data-list-role="{kind}"] section > p')
     markers = doc.select(f'[data-list-role="{kind}"] section > span')
-    assert len(rows) == 4 and all("font-weight:700;line-height:1.68;" in row["style"] for row in rows)
+    expected = "font-weight:400;line-height:1.72;" if kind == "logic_path" else "font-weight:700;line-height:1.68;"
+    assert len(rows) == 4 and all(expected in row["style"] for row in rows)
     assert [marker.get_text() for marker in markers] == ["01", "02", "03", "04"]
     assert all("font-size:12px;font-weight:900;line-height:29px;" in marker["style"] for marker in markers)
+
+
+def test_campus_tickets_only_align_to_the_first_line_in_the_new_selected_layout(monkeypatch):
+    monkeypatch.delenv("WVD_RENDERER_PILOT", raising=False)
+    monkeypatch.delenv("WVD_LOGIC_PATH_PILOT", raising=False)
+    theme = "youth_campus"
+    cfg = visual_system_configuration(theme)
+    old = {k: v for k, v in cfg.items() if k != "component_recipes"}
+    current = BeautifulSoup(render(theme, cfg), "html.parser")
+    previous = BeautifulSoup(render(theme, old), "html.parser")
+    rows = current.select("[data-editor-step-ref]")
+    assert len(rows) == 4
+    for row in rows:
+        marker = row.find_previous_sibling("span")
+        assert "position:relative;top:23px;transform:translateY(-50%) rotate(" in marker["style"]
+        assert "vertical-align:top;" in marker["style"] and "vertical-align:top;" in row["style"]
+    assert previous.get_text() == current.get_text()
+    assert "translateY(-50%)" not in str(previous)
+    assert render(theme, cfg, variant="plain_steps") == render(theme, old, variant="plain_steps")
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
+    assert render(theme, cfg) == render(theme, old)
+
+
+@pytest.mark.parametrize("theme,inset", [("future_tech", 8), ("business_review", 4)])
+def test_marker_alignment_changes_only_the_two_styles_in_the_selected_snapshot(theme, inset, monkeypatch):
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "1")
+    cfg = visual_system_configuration(theme)
+    old = {k: v for k, v in cfg.items() if k != "component_recipes"}
+    doc = BeautifulSoup(render(theme, cfg), "html.parser")
+    rows = doc.select("[data-editor-step-ref]")
+    assert len(rows) == 4
+    for row in rows:
+        marker = row.find_previous_sibling("span")
+        mark = f"vertical-align:top;margin-top:{inset}px;"
+        assert mark in marker["style"] and "vertical-align:top;" in row["style"]
+        marker["style"] = marker["style"].replace(mark, "vertical-align:middle;")
+        row["style"] = row["style"].replace("vertical-align:top;", "vertical-align:middle;")
+    assert doc == BeautifulSoup(render(theme, old), "html.parser")
+    assert render(theme, cfg, variant="plain_steps") == render(theme, old, variant="plain_steps")
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
+    assert render(theme, cfg) == render(theme, old)
+
+
+def test_approved_poster_steps_use_the_selected_snapshot_without_a_reading_trial(monkeypatch):
+    for flag in ("WVD_RENDERER_PILOT", "WVD_READING_RULES_PILOT", "WVD_LOGIC_PATH_PILOT"):
+        monkeypatch.delenv(flag, raising=False)
+    theme = "pop_poster"
+    cfg = visual_system_configuration(theme)
+    assert cfg["reading_overrides_version"] == 1
+    src = parse_markdown(
+        "# 周末活动校对手记\n\n"
+        "1. **先核对基本信息。** 对照最新确认的安排，检查**报名截止日**。\n"
+        "2. 保存之前再检查。\n"
+        "3. **注意：** 时间有变，请看最新通知。")
+    block = next(b for b in src.blocks if b.type == "ordered_list")
+    slot = {"component_type": "logic_path", "variant": visual_system_variant("logic_path", theme),
+            "content_bindings": {"items": [f"{block.id}:item:{i}" for i in range(3)]}}
+    def project(snapshot, selected=theme):
+        return render_component(slot, src, snapshot["palette"], snapshot, visual_system=selected)
+
+    # Before, after, and trial-only snapshots may coexist in one user's task history.
+    old = {k: v for k, v in cfg.items() if k not in {"reading_overrides", "reading_overrides_version"}}
+    unversioned = {**old, "reading_overrides": cfg["reading_overrides"]}
+    legacy_html = project(old)
+    assert project(unversioned) == legacy_html
+    assert project(cfg, "custom_poster") == legacy_html
+    fresh = project(cfg)
+    rows = BeautifulSoup(fresh, "html.parser").select("[data-editor-step-ref]")
+    assert len(rows) == 3
+    assert all("font-size:14px;" in row["style"] and "font-weight:400;" in row["style"] for row in rows)
+    assert not rows[0].find(["span", "br"])
+    assert [s.string for s in rows[0].find_all("strong")] == ["先核对基本信息。", "报名截止日"]
+    assert str(rows[0].strong.next_sibling).startswith(" 对照")
+    assert not rows[1].find(["strong", "span"]) and not rows[2].span and rows[2].strong.string == "注意："
+    assert project(old) == legacy_html
+    monkeypatch.setenv("WVD_READING_RULES_PILOT", "1")
+    assert project(unversioned) == fresh
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
+    assert project(cfg) == project(old)
 
 
 def test_the_field_format_not_official_status_controls_custom_step_hierarchy():
