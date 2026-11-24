@@ -10,7 +10,7 @@ from .parser import ParsedArticle
 from .generated_theme import render_generated_semantic
 from .logic_path_renderer import render_logic_path
 from .reading_rules import resolve_reading_profile
-from .render_pilot import logic_path_pilot_enabled
+from .render_pilot import logic_path_pilot_enabled, renderer_pilot_enabled
 from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
 from .theme_extensions import render_extended_semantic
 from .timeline_recipe import render_timeline
@@ -478,10 +478,18 @@ def _render_native_semantic(
                 f'</section>'
             )
         if variant == "megaphone_quote":
+            if not renderer_pilot_enabled():  # Keep the explicit v1 rollback layout.
+                return (
+                    f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:66px;margin-left:4px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                    f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
+                    f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
+                )
             return (
-                f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
-                f'<span style="box-sizing:border-box;display:inline-block;width:66px;margin-left:4px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
+                f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};">'
+                f'<section style="margin:0 0 0 3%;font-size:10px;line-height:1;">'
+                f'<span data-theme-static="true" style="display:inline-block;padding:4px 9px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;line-height:1.2;white-space:nowrap;transform:rotate(-2deg);vertical-align:top;">CAMPUS RADIO</span></section>'
+                f'<section style="margin:0 6px 0 3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};">'
                 f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
             )
         if variant == "pulse_quote":

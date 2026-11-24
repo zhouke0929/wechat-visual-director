@@ -155,6 +155,8 @@ def test_complete_catalog_matches_pinned_renderer(mode, fixed_catalog):
     if mode != "legacy":
         expected.update(APPROVED_POSTER_STEPS)
         expected.update(STEP_WEIGHT_SAMPLES)
+        # Campus evidence card: single-line radio sticker above the note.
+        expected["youth_campus/evidence_callout"] = "03f24b1dd1b1298938bb827a87aa1be51f565b8857e02b5e1ccabf7d8075a826"
     observed = _render(ROOT, mode, fixed_catalog["fixed_plan"])
     differing = sorted(k for k in expected.keys() | observed.keys() if expected.get(k) != observed.get(k))
     assert not differing, f"{mode}: {len(differing)} changed theme/roles: {differing}"
