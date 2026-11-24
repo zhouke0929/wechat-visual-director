@@ -85,7 +85,8 @@ from .ocr_verifier import verify_locked_copy, verify_no_text
 from .image_intent import (
     apply_theme_to_image_slot,
     build_art_direction_snapshot,
-    build_visual_grammar,
+    readable_node_copy,
+    rebind_visual_grammar,
     evaluate_theme_compatibility,
     resolve_display_copy,
 )
@@ -683,16 +684,10 @@ def create_app(
             if not anchors:
                 continue
             visual_intent = image_slot.setdefault("visual_intent", {})
-            visual_intent["fact_anchors"] = anchors
             title = resolve_reference(bindings.get("title_ref"))
             if title:
                 visual_intent["subject"] = title
-            visual_intent["visual_grammar"] = build_visual_grammar(
-                layout_family=str(visual_intent.get("layout_family") or "structural_breakdown"),
-                fact_anchors=anchors,
-                style_family=str(visual_intent.get("style_family") or "editorial_paper_cut"),
-                article_type=str(visual_intent.get("article_type") or "viewpoint_trend"),
-            )
+            rebind_visual_grammar(visual_intent, anchors)
         return rebound
 
     @app.exception_handler(NotFoundError)
@@ -3292,6 +3287,11 @@ def create_app(
                         infographic_items,
                     )
                     locked_copy = [display_title, *display_items]
+                    if not readable_node_copy(display_items):
+                        blocked_targets.append({"asset_type": "body_image", "image_slot_id": image_slot["image_slot_id"],
+                                                "reason": "infographic_copy_too_long",
+                                                "message": "当前节点没有适合上图的短句，可重新规划此图、上传或跳过。"})
+                        continue
                 candidate_index = model_candidate_count + 1
                 prompt = build_provider_prompt(
                     generation_slot,

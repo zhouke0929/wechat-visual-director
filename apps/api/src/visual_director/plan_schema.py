@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .component_catalog import COMPONENT_CATALOG, PLAN_SCHEMA_VERSION, allowed_variants
 from .image_intent import build_visual_grammar, normalize_source_copy
+from .infographic_limits import MAX_INFOGRAPHIC_NODES, supports_node_count
 from .parser import ParsedArticle
 from .visual_dna import IMAGE_STYLE_MANIFESTS
 
@@ -165,7 +166,7 @@ class ImageFactBindings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title_ref: str | None = None
-    item_refs: list[str] = Field(default_factory=list, max_length=4)
+    item_refs: list[str] = Field(default_factory=list, max_length=MAX_INFOGRAPHIC_NODES)
     facts_locked: bool = True
 
 
@@ -201,8 +202,8 @@ class ImageSlotPlan(BaseModel):
         if not self.fact_bindings.facts_locked:
             raise ValueError("图片事实绑定必须锁定原文")
         if self.purpose == "structured_infographic":
-            if not 2 <= len(self.fact_bindings.item_refs) <= 4:
-                raise ValueError("结构信息图必须绑定 2–4 个原文节点")
+            if not supports_node_count(len(self.fact_bindings.item_refs)):
+                raise ValueError("结构信息图必须绑定 2–5 个原文节点")
             if self.visual_intent.layout_family == "semantic_scene":
                 self.visual_intent.layout_family = "linear_progression"
             if self.visual_intent.visual_role in {"establish_context", "create_emotional_pause"}:
@@ -218,7 +219,7 @@ class ImageSlotPlan(BaseModel):
                 )
         elif self.fact_bindings.item_refs or self.fact_bindings.title_ref:
             raise ValueError("氛围图不得绑定需要叠加的关键事实")
-        elif self.visual_intent.fact_anchors:
+        elif self.visual_intent.fact_anchors or self.visual_intent.visual_grammar.display_labels:
             raise ValueError("氛围图不得携带需要模型绘制的事实锚点")
         return self
 
@@ -326,18 +327,15 @@ def validate_plan_for_article(plan: dict[str, Any], parsed: ParsedArticle) -> di
                     raise ValueError(f"图片非列表内容不能使用 item 引用：{reference}")
                 if int(item_index) >= len(block.content):
                     raise ValueError(f"图片列表项不存在：{reference}")
-        if image_slot.purpose == "structured_infographic" and not image_slot.visual_intent.fact_anchors:
-            recovered_anchors: list[str] = []
-            for reference in image_slot.fact_bindings.item_refs:
-                match = BLOCK_REF_RE.fullmatch(reference)
-                if not match:
-                    continue
-                block_id, item_index = match.groups()
-                block = blocks[block_id]
-                if item_index is not None and isinstance(block.content, list):
-                    recovered_anchors.append(
-                        re.sub(r"\s+", " ", str(block.content[int(item_index)])).strip()[:120]
-                    )
+        if image_slot.purpose != "structured_infographic":
+            continue
+        recovered_anchors = []
+        for reference in image_slot.fact_bindings.item_refs:
+            block_id, _, item_index = reference.partition(":item:")
+            if not item_index:
+                raise ValueError("图片事实节点必须绑定原文列表项")
+            recovered_anchors.append(" ".join(str(blocks[block_id].content[int(item_index)]).split()))
+        if not image_slot.visual_intent.fact_anchors:
             image_slot.visual_intent.fact_anchors = recovered_anchors
             image_slot.visual_intent.visual_grammar = InfographicVisualGrammar.model_validate(
                 build_visual_grammar(
@@ -347,23 +345,20 @@ def validate_plan_for_article(plan: dict[str, Any], parsed: ParsedArticle) -> di
                     article_type=image_slot.visual_intent.article_type,
                 )
             )
-        allowed_fact_anchors: set[str] = set()
-        for block_id in image_slot.source_block_ids:
-            block = blocks[block_id]
-            values = block.content if isinstance(block.content, list) else [block.content]
-            allowed_fact_anchors.update(
-                re.sub(r"\s+", " ", str(value)).strip()[:120]
-                for value in values
-                if str(value).strip()
-            )
-        for fact_anchor in image_slot.visual_intent.fact_anchors:
-            if fact_anchor not in allowed_fact_anchors:
+        # Older plans persisted only the first 120 characters of each fact.
+        if len(recovered_anchors) != len(image_slot.visual_intent.fact_anchors):
+            raise ValueError("图片事实锚点数量与原文节点数量不符")
+        for fact_anchor, source in zip(image_slot.visual_intent.fact_anchors, recovered_anchors):
+            if fact_anchor not in (source, source[:120]):
                 raise ValueError(f"图片事实锚点未逐字绑定原文：{fact_anchor}")
         normalized_anchors = [
             normalize_source_copy(value)
             for value in image_slot.visual_intent.fact_anchors
         ]
-        for display_label in image_slot.visual_intent.visual_grammar.display_labels:
-            if not any(display_label in anchor for anchor in normalized_anchors):
+        labels = image_slot.visual_intent.visual_grammar.display_labels
+        if len(labels) != len(normalized_anchors):
+            raise ValueError("图片短标签数量与原文节点数量不符")
+        for display_label, anchor in zip(labels, normalized_anchors):
+            if not display_label or display_label not in anchor:
                 raise ValueError(f"图片短标签未逐字绑定事实锚点：{display_label}")
     return contract.model_dump(mode="json")

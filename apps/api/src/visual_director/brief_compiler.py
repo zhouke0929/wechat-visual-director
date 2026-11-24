@@ -26,7 +26,8 @@ from .editorial_brief import (
 from .parser import ContentBlock, ParsedArticle
 from .official_component_recipes import capture_component_recipes
 from .reading_rules import capture_reading_overrides
-from .image_intent import build_visual_intent
+from .image_intent import build_visual_intent, readable_node_copy, source_bound_label
+from .infographic_limits import supports_node_count
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
 from .theme_extensions import EXTENDED_THEME_KITS
@@ -365,20 +366,43 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
         fact_anchors: list[str] = []
         heading_text: str | None = None
         if intent.purpose == "structured_infographic":
-            list_block = next(
-                (block for block in blocks if block.type in {"ordered_list", "unordered_list"} and len(block.content) >= 2),
-                None,
-            )
-            if list_block is None:
-                raise EditorialBriefCompileError("结构信息图必须引用至少包含两个条目的原文列表")
+            lists = [
+                b for b in blocks if b.type in {"ordered_list", "unordered_list"} and supports_node_count(len(b.content))
+            ]
+            if not lists:
+                raise EditorialBriefCompileError("结构信息图必须引用包含 2–5 项的完整原文列表")
+            if len(intent.display_labels) == 5:
+                # The anchor is the insertion point; only the labels identify the source facts.
+                matches = [b for b in lists if len(b.content) == 5 and all(
+                    source_bound_label(label, str(item)) for label, item in zip(intent.display_labels, b.content)
+                )]
+                if len(matches) != 1:
+                    continue
+                list_block = matches[0]
+            else:
+                if any(b.id == intent.anchor_block_id and len(b.content) == 5 for b in lists):
+                    continue  # Incomplete five-node copy must not bind to a different list.
+                list_block = next((b for b in lists if len(b.content) < 5), None)
+                if list_block is None:
+                    continue
             heading = next((block for block in blocks if block.type == "heading"), None)
             heading_text = str(heading.content) if heading else intent.visual_metaphor
-            fact_anchors = [str(item) for item in list_block.content[:4]]
+            fact_anchors = [str(item) for item in list_block.content]
             fact_bindings = {
                 "title_ref": heading.id if heading else None,
-                "item_refs": _item_refs(list_block, 4),
+                "item_refs": _item_refs(list_block),
                 "facts_locked": True,
             }
+        visual_intent = build_visual_intent(
+            purpose=intent.purpose, subject=intent.visual_metaphor, article_type=brief.article.article_type,
+            title=heading_text, fact_anchors=fact_anchors, style_family=brief.art_direction.style_family,
+            palette_roles=list(brief.art_direction.palette_roles), tone=list(brief.art_direction.tone),
+            negative_space="lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
+            requested_visual_role=intent.visual_role, requested_learning_objective=intent.learning_objective,
+            requested_layout_family=intent.layout_family, suggested_labels=intent.display_labels,
+        )
+        if fact_anchors and not readable_node_copy(visual_intent["visual_grammar"]["display_labels"]):
+            continue  # Optional illustration: leave the source list in the article.
         result.append(
             {
                 "image_slot_id": f"image-slot-{len(result) + 1:03d}",
@@ -389,20 +413,7 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
                 "required": False,
                 "reason": f"{intent.necessity}：{intent.visual_metaphor}",
                 "aspect_ratio": intent.aspect_ratio,
-                "visual_intent": build_visual_intent(
-                    purpose=intent.purpose,
-                    subject=intent.visual_metaphor,
-                    article_type=brief.article.article_type,
-                    title=heading_text,
-                    fact_anchors=fact_anchors,
-                    style_family=brief.art_direction.style_family,
-                    palette_roles=list(brief.art_direction.palette_roles),
-                    tone=list(brief.art_direction.tone),
-                    negative_space="lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
-                    requested_visual_role=intent.visual_role,
-                    requested_learning_objective=intent.learning_objective,
-                    requested_layout_family=intent.layout_family,
-                ),
+                "visual_intent": visual_intent,
                 "fact_bindings": fact_bindings,
                 "history_evidence": {
                     "recent_use_count": 0,

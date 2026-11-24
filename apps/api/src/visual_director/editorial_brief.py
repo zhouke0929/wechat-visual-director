@@ -6,11 +6,12 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from .infographic_limits import MAX_INFOGRAPHIC_NODES, supports_node_count
 from .parser import ParsedArticle
 
 
 EDITORIAL_BRIEF_SCHEMA_VERSION = "editorial_brief.v0.1"
-EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.9-local-recovery"
+EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.10-source-labels"
 MAX_BRIEF_SECTIONS = 12
 
 CONCEPT_HEADING_RE = re.compile(r"什么是|核心概念|概念解释|概念定义|定义[：:]?")
@@ -195,6 +196,8 @@ class ImageIntent(BaseModel):
         "create_emotional_pause",
     ] | None = None
     learning_objective: str | None = Field(default=None, min_length=1, max_length=180)
+    display_labels: list[str] = Field(default_factory=list, max_length=MAX_INFOGRAPHIC_NODES,
+        description="结构信息图专用：按绑定列表原序逐项选取连续原文短语；完整表达该节点，勿改写。")
     layout_family: Literal[
         "semantic_scene",
         "linear_progression",
@@ -598,7 +601,7 @@ def _section_compatible(section: SectionBrief, blocks: dict[str, object]) -> boo
 def _structured_image_compatible(intent: ImageIntent, blocks: dict[str, object]) -> bool:
     source_blocks = [blocks[block_id] for block_id in intent.source_block_ids]
     return any(
-        block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4
+        block.type in {"ordered_list", "unordered_list"} and supports_node_count(len(block.content))
         for block in source_blocks
     )
 
@@ -623,6 +626,15 @@ def _prepare_image_intents(intents: list, block_ids: set[str], adjustments: list
                                 "from": anchor, "reason": "图片锚点重复，保留第一项"})
             continue
         metaphor = intent.get("visual_metaphor")
+        labels = intent.get("display_labels", [])
+        if "display_labels" in intent and (
+            (labels and intent.get("purpose") != "structured_infographic")
+            or not isinstance(labels, list) or len(labels) > MAX_INFOGRAPHIC_NODES
+            or not all(isinstance(label, str) for label in labels)
+        ):
+            intent.pop("display_labels")
+            adjustments.append({"code": "image_labels_ignored", "location": f"image_intents[{index}]",
+                                "reason": "此槽不适用或标签格式不符，只回退配图文案"})
         if isinstance(metaphor, str) and len(metaphor) > 160:
             intent["visual_metaphor"] = metaphor[:160]
             adjustments.append(
@@ -808,6 +820,7 @@ def normalize_editorial_brief_for_article(
             raise ValueError(f"图片建议引用了不存在的原文块：{sorted(missing)}")
         if intent.purpose == "structured_infographic" and not _structured_image_compatible(intent, blocks):
             intent.purpose = "atmosphere"
+            intent.display_labels = []
             intent.necessity = "optional"
             intent.aspect_ratio = "16:9"
             adjustments.append(
@@ -815,7 +828,7 @@ def normalize_editorial_brief_for_article(
                     "code": "structured_image_lowered_to_atmosphere",
                     "location": f"image_intents[{index}]",
                     "from": "structured_infographic",
-                    "reason": "没有可锁定 2–4 个原文列表事实的内容块",
+                    "reason": "没有可锁定 2–5 个原文列表事实的内容块",
                 }
             )
         containing_component = next(
@@ -898,6 +911,6 @@ def validate_editorial_brief_for_article(
             raise ValueError(f"图片建议引用了不存在的原文块：{sorted(missing)}")
         if intent.purpose == "structured_infographic":
             if not _structured_image_compatible(intent, blocks):
-                raise ValueError("结构信息图只能引用包含 2–4 个条目的原文列表")
+                raise ValueError("结构信息图只能引用包含 2–5 个条目的原文列表")
 
     return contract

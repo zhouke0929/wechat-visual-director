@@ -888,7 +888,7 @@ components:
         title_ref: {type: [string, 'null']}
         item_refs:
           type: array
-          maxItems: 4
+          maxItems: 5
           items: {type: string}
         facts_locked: {type: boolean, const: true}
 

@@ -125,6 +125,7 @@
           ]
         },
         "learning_objective": { "type": "string", "minLength": 1, "maxLength": 180 },
+        "display_labels": { "type": "array", "maxItems": 5, "items": { "type": "string" } },
         "layout_family": {
           "enum": [
             "semantic_scene",

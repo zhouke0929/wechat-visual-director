@@ -18,7 +18,8 @@ from urllib.parse import urlparse
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
-from .image_intent import build_visual_grammar, resolve_display_copy
+from .image_intent import build_visual_grammar, readable_node_copy, resolve_display_copy
+from .infographic_limits import supports_node_count
 from .preview_profiles import REVIEW_PROFILES
 from .visual_dna import image_style_recipe
 
@@ -104,6 +105,14 @@ class ImageProviderError(RuntimeError):
         self.retryable = retryable
         self.http_status = http_status
         self.details = details or {}
+
+
+def _infographic_copy(intent: dict[str, Any], title: str, items: list[str]) -> tuple[str, list[str]]:
+    title, labels = resolve_display_copy(intent, title, items)
+    if not readable_node_copy(labels):
+        raise ImageProviderError("infographic_copy_too_long", "节点没有适合上图的短句，可重新规划此图、上传或跳过。",
+                                 retryable=False, http_status=422)
+    return title, labels
 
 
 def sanitize_subject(value: str) -> str:
@@ -488,14 +497,14 @@ def _seedream_provider_prompt(
             for item in (infographic_items or [])
             if str(item).strip()
         ]
-        if not title or not 2 <= len(items) <= 4:
+        if not title or not supports_node_count(len(items)):
             raise ImageProviderError(
                 "infographic_copy_missing",
                 "结构信息图缺少可锁定的原文标题或节点，已停止生成。",
                 retryable=False,
                 http_status=422,
             )
-        title, labels = resolve_display_copy(intent, title, items)
+        title, labels = _infographic_copy(intent, title, items)
         grammar = intent.get("visual_grammar") or build_visual_grammar(
             layout_family=layout_family,
             fact_anchors=items,
@@ -641,14 +650,14 @@ def build_provider_prompt(
             for item in (infographic_items or [])
             if str(item).strip()
         ]
-        if not title or not 2 <= len(items) <= 4:
+        if not title or not supports_node_count(len(items)):
             raise ImageProviderError(
                 "infographic_copy_missing",
                 "结构信息图缺少可锁定的原文标题或节点，已停止生成。",
                 retryable=False,
                 http_status=422,
             )
-        title, labels = resolve_display_copy(intent, title, items)
+        title, labels = _infographic_copy(intent, title, items)
         grammar = intent.get("visual_grammar") or build_visual_grammar(
             layout_family=layout_family,
             fact_anchors=items,

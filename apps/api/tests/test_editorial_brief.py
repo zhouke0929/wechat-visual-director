@@ -15,8 +15,9 @@ from visual_director.editorial_brief import (
     validate_editorial_brief_for_article,
 )
 from visual_director.main import create_app
+from visual_director.image_provider import MockImageProvider
 from visual_director.parser import classify_article, parse_markdown
-from visual_director.planner import component_opportunity_diagnostics
+from visual_director.planner import component_opportunity_diagnostics, generate_plans
 from visual_director.renderer import render_preview
 from visual_director.text_planner import (
     adopt_host_agent_editorial_brief,
@@ -1276,6 +1277,187 @@ article_type: tutorial_steps
         assert plans[0]["recommendation"] == "recommended"
         assert plans[0]["visual_system_metadata"]["switch_requires_planner_call"] is False
         assert all(plan["planner_metadata"]["provider"] == "host_agent" for plan in plans)
+
+
+@pytest.mark.parametrize("count, proposed, expected", [
+    (2, ["开放入口", "确认出口"], ["开放入口", "确认出口"]),
+    (4, ["开放入口", "确认出口", "核对时间", "登记人数"], ["开放入口", "确认出口", "核对时间", "登记人数"]),
+    (2, ["确认出口", "杜撰节点"], ["请先开放入口。", "再确认出口。"]),
+    (2, ["开放入口", "杜撰节点"], ["开放入口", "再确认出口。"]),
+    (2, ["只有一项"], ["请先开放入口。", "再确认出口。"]),
+    (2, {"格式": "错误"}, ["请先开放入口。", "再确认出口。"]),
+    (2, None, ["请先开放入口。", "再确认出口。"]),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数"], None),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"], ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"]),
+    (5, ["确认出口", "开放入口", "核对时间", "登记人数", "补充地址"], None),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数", "另编地址"], None),
+    (5, None, None),
+    (6, ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"], None),
+])
+def test_agent_infographic_copy_is_source_bound_and_never_truncates_a_list(count, proposed, expected):
+    items = ["请先开放入口。", "再确认出口。", "接着核对时间。", "最后登记人数。", "补充地址。", "关闭入口。"][:count]
+    parsed = parse_markdown("# 核对流程\n\n## 现场安排\n\n" + "\n".join(f"{i}. {v}" for i, v in enumerate(items, 1)))
+    raw = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    block = next(block for block in parsed.blocks if block.type == "ordered_list")
+    raw["image_intents"] = [{
+        "anchor_block_id": block.id, "source_block_ids": [block.id], "purpose": "structured_infographic",
+        "necessity": "optional", "aspect_ratio": "4:3", "visual_metaphor": "现场检查路径",
+        "forbidden_elements": ["qr_code", "logo"],
+    }]
+    if proposed is not None:
+        raw["image_intents"][0]["display_labels"] = proposed
+    brief, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, brief, 5)
+    if expected is None:
+        assert not any(img["purpose"] == "structured_infographic" for img in plan["image_slots"])
+        if count == 5:
+            assert not plan["image_slots"]
+        assert list(block.content) == items
+        return
+    image = plan["image_slots"][0]
+    assert image["purpose"] == "structured_infographic"
+    assert image["visual_intent"]["visual_grammar"]["display_labels"] == expected
+    assert image["fact_bindings"]["item_refs"] == [f"{block.id}:item:{i}" for i in range(count)]
+
+
+def test_five_steps_alone_trigger_neither_an_agent_nor_a_rule_infographic():
+    parsed = parse_markdown("# 植树\n\n## 五个动作\n\n1. 挖坑\n2. 放苗\n3. 填土\n4. 踩实\n5. 浇水")
+    brief = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    brief["image_intents"] = []
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    for plan in generate_plans(parsed, "tutorial_steps", 5, []):
+        assert not any(img["purpose"] == "structured_infographic" for img in plan["image_slots"])
+
+
+def test_five_labels_bind_to_the_matching_list_not_the_first_list_in_the_section():
+    parsed = parse_markdown("# 植树\n\n## 安排\n\n- 铁锹\n- 水桶\n\n现场操作：\n\n1. 挖坑\n2. 放苗\n3. 填土\n4. 踩实\n5. 浇水")
+    request = TextPlannerRequest(parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={})
+    brief = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    tools, steps = [b for b in parsed.blocks if b.type.endswith("_list")]
+    brief["image_intents"] = [{
+        "anchor_block_id": steps.id, "source_block_ids": [tools.id, steps.id],
+        "purpose": "structured_infographic", "necessity": "recommended", "aspect_ratio": "4:3",
+        "display_labels": list(steps.content), "visual_metaphor": "植树过程",
+        "forbidden_elements": ["qr_code", "logo", "text_in_model_image"],
+    }]
+    slot, = compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    assert slot["fact_bindings"]["item_refs"] == [f"{steps.id}:item:{i}" for i in range(5)]
+    brief["image_intents"][0]["display_labels"].pop()
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+
+
+def test_long_unlabelled_copy_skips_optional_image_but_accepts_label_beyond_old_anchor_limit():
+    items = ["先观察" * 45 + "路口的照明方向", "再核对可通行时段"]
+    parsed = parse_markdown("# 现场记录\n\n## 核查\n\n1. " + items[0] + "\n2. " + items[1])
+    request = TextPlannerRequest(parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={})
+    brief = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    block = next(block for block in parsed.blocks if block.type == "ordered_list")
+    brief["image_intents"] = [{
+        "anchor_block_id": block.id, "source_block_ids": [block.id], "purpose": "structured_infographic",
+        "necessity": "optional", "aspect_ratio": "4:3", "visual_metaphor": "沿路观察",
+        "forbidden_elements": ["qr_code", "logo", "text_in_model_image"],
+    }]
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    brief["image_intents"][0]["display_labels"] = ["路口的照明方向", "可通行时段"]
+    intent = compile_editorial_brief(parsed, brief, 5)["image_slots"][0]["visual_intent"]
+    assert intent["fact_anchors"] == items
+    assert intent["visual_grammar"]["display_labels"] == brief["image_intents"][0]["display_labels"]
+
+
+@pytest.mark.parametrize("extra_items", [[], ["拍下指路牌。", "记录离场时间。"]], ids=["three", "five"])
+def test_first_pass_night_market_labels_survive_both_generation_routes_and_edits(tmp_path: Path, extra_items) -> None:
+    class CaptureProvider(MockImageProvider):
+        protocol = "ark"  # exercise the other prompt compiler without sending any HTTP requests
+        prompt = ""
+
+        def generate(self, *, prompt, aspect_ratio, candidate_index):
+            self.prompt = prompt
+            return super().generate(prompt=prompt, aspect_ratio=aspect_ratio, candidate_index=candidate_index)
+
+    markdown = """# 夜市动线
+
+先走一遍，再记录观察结果。
+
+## 沿途要观察什么
+
+1. 入口是否能在十秒内说明“这里为什么值得逛”；
+2. 中段是否有让人放慢脚步、产生交流的停留区；
+3. 尾段是否给出继续探索周边店铺或下次再来的线索。
+"""
+    markdown += "".join(f"{i}. {item}\n" for i, item in enumerate(extra_items, 4))
+    parsed = parse_markdown(markdown)
+    brief = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    ordered = next(block for block in parsed.blocks if block.type == "ordered_list")
+    labels = ["这里为什么值得逛", "产生交流的停留区", "继续探索周边店铺或下次再来的线索"]
+    labels += [item.rstrip("。") for item in extra_items]
+    brief["image_intents"] = [{
+        "anchor_block_id": ordered.id, "source_block_ids": [ordered.id],
+        "purpose": "structured_infographic", "necessity": "recommended", "aspect_ratio": "4:3",
+        "visual_metaphor": "沿着夜市一路观察", "display_labels": labels,
+        "forbidden_elements": ["qr_code", "logo"],
+    }]
+    provider = CaptureProvider()
+    with TestClient(create_app(str(tmp_path / "night-market.db"), image_provider=provider)) as client:
+        task = client.post("/api/v1/article-tasks", files={
+            "markdown_file": ("night-market.md", markdown.encode(), "text/markdown"),
+        }).json()["task"]
+        url = f'/api/v1/article-tasks/{task["id"]}'
+        generation = client.post(f"{url}/generate-plans", json={
+            "mode": "start", "planner": "host_agent", "expected_task_version": task["version"],
+            "editorial_brief": brief,
+        }).json()
+        assert not generation["planner_metadata"]["fallback_used"]
+        plan = client.get(f"{url}/plans").json()["plans"][0]
+        plan_url = f'{url}/plans/{plan["id"]}'
+
+        def host():
+            return client.get(f"{plan_url}/host-image-context").json()["requests"][0]
+
+        def edit(block_id, content):
+            revision = client.get(f"{url}/content-editor").json()["revision"]
+            saved = client.patch(f"{url}/content-editor", json={
+                "expected_revision": revision, "target": "block", "block_id": block_id, "content": content,
+            })
+            assert saved.is_success, saved.text
+
+        assert host()["locked_copy"][1:] == labels
+        edit(next(b.id for b in parsed.blocks if b.type == "paragraph"), "这一段改了，图上文案不变。")
+        assert host()["locked_copy"][1:] == labels
+        theme = "pop_poster" if plan["visual_system"] != "pop_poster" else "future_tech"
+        switched = client.patch(f"{plan_url}/theme", json={
+            "visual_system": theme, "expected_plan_revision": plan["revision"],
+        })
+        assert switched.is_success, switched.text
+        req = host()
+        assert req["locked_copy"][1:] == labels
+        draw = client.post(f'{plan_url}/image-slots/{req["image_slot_id"]}/generate', json={
+            "mode": "start", "expected_image_revision": req["expected_image_revision"],
+        })
+        assert draw.is_success, draw.text
+        assert draw.json()["image_slot"]["candidates"][0]["machine_checks"]["locked_copy"] == req["locked_copy"]
+        for prompt in (req["prompt"], provider.prompt):
+            for index, label in enumerate(labels, 1):
+                assert f'{index}.“{label}”' in prompt
+        edit(ordered.id, [ordered.content[0], "中段新增休息点。", *ordered.content[2:]])
+        assert host()["locked_copy"][1:] == [labels[0], "中段新增休息点", *labels[2:]]
+        # A later edit can leave one node with no phone-readable excerpt.
+        # Both routes must stop before drawing, without blocking the text edit.
+        edit(ordered.id, [ordered.content[0], "在不遮挡通行空间的前提下" * 4 + "设置休息点。", *ordered.content[2:]])
+        ctx = client.get(f"{plan_url}/host-image-context").json()
+        assert not ctx["requests"]
+        assert ctx["blocked_targets"][0]["reason"] == "infographic_copy_too_long"
+        provider.prompt = ""
+        blocked = client.post(f'{plan_url}/image-slots/{req["image_slot_id"]}/generate', json={
+            "mode": "regenerate", "expected_image_revision": draw.json()["image_slot"]["image_revision"],
+        })
+        assert blocked.status_code == 422
+        assert not provider.prompt
 
 
 def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Path) -> None:

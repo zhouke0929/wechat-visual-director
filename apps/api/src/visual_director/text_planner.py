@@ -19,8 +19,8 @@ from .parser import ParsedArticle
 from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.10-semantic-emphasis"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.7-semantic-emphasis"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.12-five-nodes"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.9-five-nodes"
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -43,7 +43,8 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "quote 块不自动等于 key_evidence。感受、原话和修辞摘句保持 plain，由渲染器使用普通引用样式；无需为它们增加强组件。只有内容确实为论点提供事实、数据或来源依据时才选择 evidence_callout，不能仅因使用了引用格式而升级为证据。",
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",
     "图片意图只能为 optional 或 recommended；不得把品牌 CTA 送入图片生成。",
-    "structured_infographic 只能引用含 2–4 项的原文列表，不得从普通段落编造列表。",
+    "structured_infographic 只在图能帮助读者理解顺序或关系时推荐；绑定完整的 2–5 项原文列表，不截取子集，不得从普通段落编造列表。",
+    "为结构信息图在 display_labels 中按列表顺序逐项选连续原文短语。看图能读懂动作、对象及必要条件，不增删否定或数字；已有完整短句可原样用。优先简短，单项最多32字，无法忠实表达则不推荐该图。氛围图不用此字段。",
     "每个图片意图先说明 visual_role 与 learning_objective，再选择 layout_family；信息结构必须来自原文关系，不能为了好看虚构时间、对比或层级。",
     "atmosphere 使用 semantic_scene；结构信息图可使用 linear_progression、binary_comparison、comparison_matrix、hierarchical_layers、hub_spoke、structural_breakdown、timeline 或 pathway。",
     "若原文只有 OCR 长段落，保持 plain 或按需要选择 atmosphere；确有证据语义时才使用 evidence_callout，不要伪造列表结构或证据身份。",

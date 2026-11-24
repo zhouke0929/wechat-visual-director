@@ -21,7 +21,7 @@ from .editorial_brief import (
     is_parallel_analysis_heading,
     is_reader_question_heading,
 )
-from .image_intent import build_visual_intent
+from .image_intent import build_visual_intent, extract_display_label, readable_node_copy
 
 
 STYLE_LABELS = {
@@ -595,7 +595,8 @@ def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
     blocks = parsed.blocks
     for index, block in enumerate(blocks):
         previous = blocks[index - 1] if index > 0 else None
-        if block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4:
+        if (block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4
+                and readable_node_copy([extract_display_label(str(item)) for item in block.content])):
             source = [block]
             title_ref: str | None = None
             subject = "并列关系或步骤路径"
