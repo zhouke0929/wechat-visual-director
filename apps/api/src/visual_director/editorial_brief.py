@@ -691,9 +691,17 @@ def normalize_editorial_brief_for_article(
         retained.append(section)
     normalized.sections = retained
     consumed: set[str] = set()
+    plain_ids = {ref for section in retained if section.component_intent == "plain"
+                 for ref in section.source_block_ids}
+
+    def would_expand_into_plain(section: SectionBrief, group: list[tuple[object, object]]) -> bool:
+        # Grouping is optional: never add a sibling the host reserved for prose.
+        # Only inspect newly inferred IDs, not context supplied for the selected term.
+        extra = {block.id for pair in group for block in pair}.difference(section.source_block_ids)
+        return not extra.isdisjoint(plain_ids)
 
     # A host may correctly select one item from a parallel H3 analysis series
-    # while leaving its siblings plain. Expand dispersed series into separate
+    # while leaving its siblings unspecified. Expand dispersed series into separate
     # components so their intervening prose keeps its original order. Directly
     # consecutive H3+paragraph pairs still use the existing single glossary
     # component path below.
@@ -710,7 +718,7 @@ def normalize_editorial_brief_for_article(
             if len(consecutive_group) > 1
             else surrounding_parallel_concept_series(section.source_block_ids, blocks)
         )
-        if len(parallel_group) < 3:
+        if len(parallel_group) < 3 or would_expand_into_plain(section, parallel_group):
             remaining_sections.append(section)
             continue
         series_key = tuple(pair[0].id for pair in parallel_group)
@@ -745,7 +753,7 @@ def normalize_editorial_brief_for_article(
             continue
         if section.component_intent == "concept_explainer":
             concept_group = surrounding_concept_group(section.source_block_ids, blocks)
-            if len(concept_group) > 1:
+            if len(concept_group) > 1 and not would_expand_into_plain(section, concept_group):
                 expanded_ids = [block.id for pair in concept_group for block in pair]
                 if expanded_ids != section.source_block_ids:
                     previous_ids = list(section.source_block_ids)
