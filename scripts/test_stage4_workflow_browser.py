@@ -42,22 +42,27 @@ def main():
         "VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual",
     })
     sys.path.insert(0, str(repo / "apps/api/src"))
+    sys.path.insert(0, str(repo / "apps/api/tests"))
+    from host_fixture import submit_fixture
     from fastapi.testclient import TestClient
     from playwright.sync_api import expect, sync_playwright
     import uvicorn
     from visual_director.main import create_app
     app = create_app()
     with TestClient(app) as client:
-        for index in range(10):
-            title = "阶段四出游文章" if index == 0 else f"测试记录 {index}"
+        for index in range(11):
+            title = "阶段四出游文章" if index == 0 else ("未排版原稿" if index == 10 else f"测试记录 {index}")
             content = f"---\ntitle: {title}\narticle_type: tutorial_steps\n---\n# {title}\n\n## 三步行动\n\n1. 确定范围\n2. 记录细节\n3. 整理笔记\n\n> 留下可复核的记录。\n"
             response = client.post("/api/v1/article-tasks", files={"markdown_file": ("article.md", content.encode(), "text/markdown")})
             assert response.status_code == 201, response.text
+            created = response.json()["task"]
+            if index == 10:
+                unplanned = created
+                continue
+            result = submit_fixture(client, f"/api/v1/article-tasks/{created['id']}", created["version"])
+            assert result.status_code == 202, result.text
             if index == 0:
-                task = response.json()["task"]
-        result = client.post(f"/api/v1/article-tasks/{task['id']}/generate-plans",
-                            json={"mode": "start", "expected_task_version": task["version"]})
-        assert result.status_code in (200, 202), result.text
+                task = created
         plans = client.get(f"/api/v1/article-tasks/{task['id']}/plans").json()
         assert plans["plans"], plans
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, log_level="warning"))
@@ -82,6 +87,14 @@ def main():
                 page.set_viewport_size({"width": width, "height": 1000})
                 page.goto(base + "/tasks", wait_until="networkidle")
                 expect(page.locator(".task-row")).to_have_count(8)
+                page.get_by_role("button", name="下一页").click()
+                expect(page.locator(".task-row")).to_have_count(2)
+                page.get_by_role("button", name="上一页").click()
+                expect(page.locator(".task-row")).to_have_count(8)
+                page.get_by_label("按文章标题查找").fill("未排版原稿")
+                page.get_by_role("button", name="查找", exact=True).click()
+                expect(page.get_by_role("heading", name="没有找到匹配的任务")).to_be_visible()
+                page.get_by_role("button", name="显示全部").click()
                 page.get_by_label("按文章标题查找").fill("阶段四出游")
                 page.get_by_role("button", name="查找", exact=True).click()
                 expect(page.locator(".task-row")).to_have_count(1)
@@ -94,6 +107,18 @@ def main():
                 page.get_by_role("button", name="显示全部").click()
                 expect(page.locator(".task-row")).to_have_count(8)
             checks.append("title search finds off-page task; no-match and reset; desktop/mobile layout")
+            unfinished_requests = []
+            def track_unfinished(request):
+                if f"/api/v1/article-tasks/{unplanned['id']}" in request.url:
+                    unfinished_requests.append((request.method, request.url))
+            page.on("request", track_unfinished)
+            page.goto(base + f"/tasks/{unplanned['id']}", wait_until="networkidle")
+            expect(page.get_by_text("这个任务还没有可审核的稿件。")).to_be_visible()
+            expect(page.get_by_role("button", name="生成视觉推荐稿")).to_have_count(0)
+            page.get_by_role("link", name="返回最近任务").click()
+            expect(page.locator(".task-row")).to_have_count(8)
+            assert unfinished_requests == [("GET", base + f"/api/v1/article-tasks/{unplanned['id']}")], unfinished_requests
+            checks.append("unfinished task hidden from search and pagination; old URL returns to recent tasks without planning or workspace requests")
             page.set_viewport_size({"width": 1440, "height": 1000})
             page.goto(base + f"/tasks/{task['id']}", wait_until="networkidle")
             page.get_by_role("tab", name="配图审核").click()

@@ -24,7 +24,7 @@ from visual_director.main import create_app
 from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans
 from visual_director.renderer import render_preview
-from visual_director.text_planner import MockTextPlannerProvider
+
 from visual_director.theme_extensions import extended_variant_theme
 from visual_director.theme_packs import BUNDLED_THEME_IDS, configure_theme_packs, install_theme_pack_bytes
 from visual_director.wechat_publisher import WechatDraftPublisher
@@ -122,7 +122,7 @@ def test_logic_path_pilot_preserves_entire_old_preview_except_editing_identity(
         configure_theme_packs(tmp_path / "clean", reserved_ids=VISUAL_SYSTEM_ORDER, core_components=CORE_THEME_COMPONENTS)
 
 
-def _prepare_task(client: TestClient, theme: str, *, use_rule_plan: bool = False, plain_variant: bool = False) -> tuple[str, dict, str]:
+def _prepare_task(client: TestClient, theme: str, *, plain_variant: bool = False) -> tuple[str, dict, str]:
     created = client.post(
         "/api/v1/article-tasks",
         files={"markdown_file": ("logic-path.md", MARKDOWN.encode(), "text/markdown")},
@@ -158,13 +158,11 @@ def _prepare_task(client: TestClient, theme: str, *, use_rule_plan: bool = False
         "facts_locked": True,
     }
     generate = {"mode": "start", "expected_task_version": cover.json()["task"]["version"]}
-    if not use_rule_plan:
-        generate.update(planner="host_agent", editorial_brief=brief)
+    generate.update(planner="host_agent", editorial_brief=brief)
     generated = client.post(f"{url}/generate-plans", json=generate)
     assert generated.status_code == 202, generated.text
-    if not use_rule_plan:
-        metadata = generated.json()["planner_metadata"]
-        assert metadata["fallback_used"] is False and metadata["planner_call_count"] == 0
+    metadata = generated.json()["planner_metadata"]
+    assert metadata["fallback_used"] is False and metadata["planner_call_count"] == 0
     plans = client.get(f"{url}/plans").json()["plans"]
     plan = next(plan for plan in plans if any(slot["component_type"] == "logic_path" for slot in plan["slots"]))
     plan_url = f'{url}/plans/{plan["id"]}'
@@ -187,8 +185,7 @@ def _prepare_task(client: TestClient, theme: str, *, use_rule_plan: bool = False
         assert changed.status_code == 200, changed.text
         plan = changed.json()["plan"]
     slots = client.get(f"{plan_url}/image-slots").json()["items"]
-    if not use_rule_plan:
-        assert not slots
+    assert not slots
     for entry in slots:
         skipped = client.post(f'{plan_url}/image-slots/{entry["image_slot_id"]}/skip', json={
             "expected_image_revision": entry["state"]["image_revision"],
@@ -258,7 +255,7 @@ def test_logic_path_pilot_live_workbench_and_frozen_delivery(
     )
     monkeypatch.setenv("WVD_RENDERER_PILOT", "0")
     app = create_app(str(tmp_path / "pilot.db"), image_provider=ManualImageProvider(),
-                     text_planner_provider=MockTextPlannerProvider(), wechat_publisher=publisher)
+                     wechat_publisher=publisher)
     server = None
     thread = None
     try:

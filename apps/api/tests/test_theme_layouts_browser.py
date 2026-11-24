@@ -124,7 +124,7 @@ def test_custom_layout_inline_save_and_mobile_preview(tmp_path, monkeypatch, the
     from test_api_workflow import _prepare_publication_ready_task
     from visual_director.image_provider import ManualImageProvider
     from visual_director.main import create_app
-    from visual_director.text_planner import MockTextPlannerProvider
+
 
     playwright = pytest.importorskip("playwright.sync_api")
     if not (ROOT / "apps/web/dist/index.html").exists():
@@ -132,7 +132,7 @@ def test_custom_layout_inline_save_and_mobile_preview(tmp_path, monkeypatch, the
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(tmp_path / "private.env"))
     monkeypatch.setenv("VISUAL_DIRECTOR_THEME_PACK_DIR", str(tmp_path / "packs"))
     monkeypatch.setenv("VISUAL_DIRECTOR_WEB_DIST", str(ROOT / "apps/web/dist"))
-    app = create_app(str(tmp_path / "editor.db"), image_provider=ManualImageProvider(), text_planner_provider=MockTextPlannerProvider())
+    app = create_app(str(tmp_path / "editor.db"), image_provider=ManualImageProvider())
     with TestClient(app) as client:
         manifest = json.loads((ROOT / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
         manifest = theme_factory(manifest)

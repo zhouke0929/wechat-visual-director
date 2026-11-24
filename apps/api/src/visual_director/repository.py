@@ -13,6 +13,7 @@ from typing import Any
 
 from .visual_dna import build_visual_signature
 from .content_editor import empty_content_edits
+from .preflight import refresh_preflight_permissions, retire_flat_prose_blocker
 
 
 DEFAULT_PUBLICATION_DRAFT_METADATA = {
@@ -33,6 +34,16 @@ class NotFoundError(LookupError):
 
 class VersionConflictError(RuntimeError):
     pass
+
+
+class PlanAlreadyExistsError(VersionConflictError):
+    pass
+
+
+# A saved plan (including older, unselected plans), not a transient task status,
+# authorizes listing in the workbench and delivery of a review link.
+_HAS_PLAN = "EXISTS (SELECT 1 FROM plans WHERE plans.task_id = tasks.id)"
+_TASK_SELECT = f"SELECT tasks.*, {_HAS_PLAN} AS has_plan FROM tasks"
 
 
 class PublicationLockedError(VersionConflictError):
@@ -543,12 +554,15 @@ class Repository:
         return self.get_task(task_id), False
 
     @_serialized_read
-    def list_tasks(self) -> list[dict[str, Any]]:
-        rows = self.connection.execute("SELECT * FROM tasks ORDER BY updated_at DESC, id DESC").fetchall()
+    def list_tasks(self, *, include_unplanned: bool = False) -> list[dict[str, Any]]:
+        where = "" if include_unplanned else f" WHERE {_HAS_PLAN}"
+        rows = self.connection.execute(_TASK_SELECT + where + " ORDER BY updated_at DESC, id DESC").fetchall()
         return [self._task_from_row(row) for row in rows]
 
     @_serialized_read
-    def list_tasks_page(self, *, page: int, page_size: int, query: str = "") -> dict[str, Any]:
+    def list_tasks_page(
+        self, *, page: int, page_size: int, query: str = "", include_unplanned: bool = False
+    ) -> dict[str, Any]:
         """Return a stable page of task summaries without loading the full history."""
         if page < 1:
             raise ValueError("页码必须从 1 开始")
@@ -556,13 +570,16 @@ class Repository:
             raise ValueError("每页任务数必须在 1 到 50 之间")
         # A title query is literal text, including SQL LIKE wildcard characters.
         query = query.strip()
-        where = " WHERE title LIKE ? ESCAPE '\\'" if query else ""
+        conditions = [] if include_unplanned else [_HAS_PLAN]
+        if query:
+            conditions.append("title LIKE ? ESCAPE '\\'")
+        where = " WHERE " + " AND ".join(conditions) if conditions else ""
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         params = (f"%{escaped}%",) if query else ()
         total = int(self.connection.execute("SELECT COUNT(*) FROM tasks" + where, params).fetchone()[0])
         offset = (page - 1) * page_size
         rows = self.connection.execute(
-            "SELECT * FROM tasks" + where + " ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
+            _TASK_SELECT + where + " ORDER BY updated_at DESC, id DESC LIMIT ? OFFSET ?",
             (*params, page_size, offset),
         ).fetchall()
         return {
@@ -709,7 +726,7 @@ class Repository:
 
     @_serialized_read
     def get_task(self, task_id: str) -> dict[str, Any]:
-        row = self.connection.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        row = self.connection.execute(_TASK_SELECT + " WHERE tasks.id = ?", (task_id,)).fetchone()
         if row is None:
             raise NotFoundError("任务不存在")
         return self._task_from_row(row)
@@ -781,7 +798,7 @@ class Repository:
                 "resolution_action": "ACKNOWLEDGE",
             }
         )
-        self._refresh_preflight_permissions(report)
+        refresh_preflight_permissions(report)
         with self.lock:
             self.connection.execute(
                 "UPDATE tasks SET input_summary_json = ?, version = version + 1, updated_at = ? WHERE id = ?",
@@ -802,18 +819,6 @@ class Repository:
             )
             self.connection.commit()
         return self.get_task(task_id)
-
-    @staticmethod
-    def _refresh_preflight_permissions(report: dict[str, Any]) -> None:
-        findings = report.get("findings") or []
-        unresolved = [item for item in findings if not item.get("resolved_at")]
-        report["planning_allowed"] = report.get("status") != "BLOCK" and not any(
-            item.get("planning_blocking") for item in unresolved
-        )
-        report["draft_creation_allowed"] = report.get("status") != "BLOCK" and not any(
-            item.get("draft_blocking") or item.get("resolution_policy") == "ACKNOWLEDGE"
-            for item in unresolved
-        )
 
     def ensure_preflight_report(self, task_id: str, report_builder: Any) -> dict[str, Any]:
         """Backfill only a missing report; keep existing review decisions intact."""
@@ -838,7 +843,7 @@ class Repository:
                             key: asset[key] for key in ("asset_role", "content_url", "content_type", "output_sha256", "width", "height")
                         }},
                     )
-            self._refresh_preflight_permissions(report)
+            refresh_preflight_permissions(report)
             summary["preflight_report"] = report
             self.connection.execute("UPDATE tasks SET input_summary_json = ? WHERE id = ?",
                                     (json.dumps(summary, ensure_ascii=False), task_id))
@@ -906,7 +911,7 @@ class Repository:
                 },
             }
         )
-        self._refresh_preflight_permissions(report)
+        refresh_preflight_permissions(report)
         try:
             with self.lock:
                 previous = self.connection.execute(
@@ -1014,7 +1019,11 @@ class Repository:
         return path, str(row["content_type"])
 
     def _task_from_row(self, row: sqlite3.Row) -> dict[str, Any]:
+        summary = json.loads(row["input_summary_json"])
+        if not row["has_plan"]:
+            retire_flat_prose_blocker(summary)
         return {
+            "review_path": f"/tasks/{row['id']}" if row["has_plan"] else None,
             "id": row["id"],
             "account_id": row["account_id"],
             "title": row["title"],
@@ -1032,7 +1041,7 @@ class Repository:
             "source_hash": row["source_hash"],
             "normalized_markdown": row["normalized_markdown"],
             "normalized_hash": row["normalized_hash"],
-            "input_summary": json.loads(row["input_summary_json"]),
+            "input_summary": summary,
             "progress": json.loads(row["progress_json"]),
             "last_error": json.loads(row["last_error_json"]) if row["last_error_json"] else None,
             "publication_draft_metadata": (
@@ -1049,115 +1058,81 @@ class Repository:
             "updated_at": row["updated_at"],
         }
 
-    def start_generation(self, task_id: str, expected_version: int) -> dict[str, Any]:
-        task = self.get_task(task_id)
-        if task["version"] != expected_version:
-            raise VersionConflictError("任务已被更新，请刷新后重试")
+    def save_first_plan(
+        self, task_id: str, expected_version: int, plan: dict[str, Any], document: str
+    ) -> dict[str, Any]:
+        """Insert once, never replace. A single transaction protects existing editorial assets."""
         now = utc_now()
-        progress = task["progress"]
-        for step in progress:
-            step.update(status="running", started_at=now, finished_at=None, message=None)
-        with self.lock:
-            self.connection.execute(
-                "UPDATE tasks SET status = 'analyzing', version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?",
-                (json.dumps(progress, ensure_ascii=False), now, task_id),
+        with self.lock, self.connection:
+            # Check and reserve in the first write, including across service processes.
+            result = self.connection.execute(
+                f"UPDATE tasks SET version = version + 1 WHERE id = ? AND version = ? "
+                f"AND NOT {_HAS_PLAN} AND status IN ('created', 'analyzing', 'failed')",
+                (task_id, expected_version),
             )
-            self.connection.commit()
-        return self.get_task(task_id)
-
-    def save_plans(self, task_id: str, plans: list[dict[str, Any]], html_documents: list[str]) -> dict[str, Any]:
-        now = utc_now()
-        with self.lock:
-            created_plan_ids: list[str] = []
-            old_cover_assets = self.connection.execute(
-                "SELECT output_filename FROM cover_candidates WHERE task_id = ?",
-                (task_id,),
-            ).fetchall()
-            self.connection.execute("DELETE FROM cover_candidates WHERE task_id = ?", (task_id,))
-            old_assets = self.connection.execute(
-                "SELECT output_filename, raw_output_filename FROM image_candidates WHERE task_id = ?",
-                (task_id,),
-            ).fetchall()
-            self.connection.execute("DELETE FROM image_candidates WHERE task_id = ?", (task_id,))
-            self.connection.execute("DELETE FROM image_slot_states WHERE task_id = ?", (task_id,))
-            for row in old_assets:
-                filename = Path(str(row["output_filename"])).name
-                (self.image_asset_dir / filename).unlink(missing_ok=True)
-                if row["raw_output_filename"]:
-                    raw_filename = Path(str(row["raw_output_filename"])).name
-                    (self.image_asset_dir / raw_filename).unlink(missing_ok=True)
-            for row in old_cover_assets:
-                filename = Path(str(row["output_filename"])).name
-                (self.image_asset_dir / filename).unlink(missing_ok=True)
+            if result.rowcount != 1:
+                current = self.get_task(task_id)
+                if current["review_path"]:
+                    raise PlanAlreadyExistsError("已有可编辑方案；请继续当前成稿，不得重新提交首轮规划")
+                raise VersionConflictError("任务已被更新，请读取最新上下文后重试")
+            state = self.connection.execute(
+                "SELECT input_summary_json, progress_json FROM tasks WHERE id = ?", (task_id,),
+            ).fetchone()
+            summary = json.loads(state["input_summary_json"])
+            if retire_flat_prose_blocker(summary):
+                self.connection.execute(
+                    "UPDATE tasks SET input_summary_json = ? WHERE id = ?",
+                    (json.dumps(summary, ensure_ascii=False), task_id),
+                )
+            plan_id, artifact_id = str(uuid.uuid4()), str(uuid.uuid4())
+            payload = {
+                **plan,
+                "id": plan_id,
+                "task_id": task_id,
+                "revision": 1,
+                "undo_stack": [],
+                "preview_artifact_id": artifact_id,
+                "preview_content_hash": hashlib.sha256(document.encode("utf-8")).hexdigest(),
+            }
             self.connection.execute(
-                "DELETE FROM plan_revisions WHERE plan_id IN (SELECT id FROM plans WHERE task_id = ?)",
-                (task_id,),
+                "INSERT INTO artifacts VALUES (?, ?, ?, ?, ?)",
+                (artifact_id, task_id, plan_id, document, now),
             )
-            self.connection.execute("DELETE FROM plans WHERE task_id = ?", (task_id,))
-            self.connection.execute("DELETE FROM artifacts WHERE task_id = ?", (task_id,))
-            for plan, document in zip(plans, html_documents, strict=True):
-                plan_id, artifact_id = str(uuid.uuid4()), str(uuid.uuid4())
-                created_plan_ids.append(plan_id)
-                payload = {
-                    **plan,
-                    "id": plan_id,
-                    "task_id": task_id,
-                    "revision": 1,
-                    "undo_stack": [],
-                    "preview_artifact_id": artifact_id,
-                    "preview_content_hash": hashlib.sha256(document.encode("utf-8")).hexdigest(),
-                }
-                self.connection.execute(
-                    "INSERT INTO artifacts VALUES (?, ?, ?, ?, ?)",
-                    (artifact_id, task_id, plan_id, document, now),
-                )
-                self.connection.execute(
-                    "INSERT INTO plans VALUES (?, ?, ?, ?, ?, ?)",
-                    (plan_id, task_id, plan["plan_index"], json.dumps(payload, ensure_ascii=False), artifact_id, now),
-                )
-                self.connection.execute(
-                    "INSERT INTO plan_revisions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    (
-                        str(uuid.uuid4()),
-                        task_id,
-                        plan_id,
-                        1,
-                        json.dumps(payload, ensure_ascii=False),
-                        artifact_id,
-                        "generated",
-                        now,
-                    ),
-                )
-                self._record_event_locked(
+            self.connection.execute(
+                "INSERT INTO plans VALUES (?, ?, ?, ?, ?, ?)",
+                (plan_id, task_id, plan["plan_index"], json.dumps(payload, ensure_ascii=False), artifact_id, now),
+            )
+            self.connection.execute(
+                "INSERT INTO plan_revisions VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    str(uuid.uuid4()),
                     task_id,
-                    "plan_generated",
-                    {"plan_id": plan_id, "revision": 1, "component_count": len(payload.get("slots", []))},
+                    plan_id,
+                    1,
+                    json.dumps(payload, ensure_ascii=False),
+                    artifact_id,
+                    "generated",
                     now,
-                )
-            task = self.get_task(task_id)
-            progress = task["progress"]
+                ),
+            )
+            self._record_event_locked(
+                task_id,
+                "plan_generated",
+                {"plan_id": plan_id, "revision": 1, "component_count": len(payload.get("slots", []))},
+                now,
+            )
+            progress = json.loads(state["progress_json"])
             for step in progress:
-                step.update(status="succeeded", finished_at=now)
-            if len(created_plan_ids) == 1:
-                selected_plan_id = created_plan_ids[0]
-                self.connection.execute(
-                    """UPDATE tasks SET status = 'plan_selected', selected_plan_id = ?,
-                    version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?""",
-                    (selected_plan_id, json.dumps(progress, ensure_ascii=False), now, task_id),
-                )
-                self._record_event_locked(
-                    task_id,
-                    "plan_auto_selected",
-                    {"plan_id": selected_plan_id, "reason": "single_recommendation"},
-                    now,
-                )
-            else:
-                self.connection.execute(
-                    "UPDATE tasks SET status = 'plans_ready', version = version + 1, progress_json = ?, updated_at = ? WHERE id = ?",
-                    (json.dumps(progress, ensure_ascii=False), now, task_id),
-                )
-            self.connection.commit()
-        return self.get_task(task_id)
+                step.update(status="succeeded", started_at=step.get("started_at") or now, finished_at=now)
+            self.connection.execute(
+                """UPDATE tasks SET status = 'plan_selected', selected_plan_id = ?,
+                progress_json = ?, updated_at = ? WHERE id = ?""",
+                (plan_id, json.dumps(progress, ensure_ascii=False), now, task_id),
+            )
+            self._record_event_locked(
+                task_id, "plan_auto_selected", {"plan_id": plan_id, "reason": "single_recommendation"}, now,
+            )
+            return self.get_task(task_id)
 
     @_serialized_read
     def list_plans(self, task_id: str) -> list[dict[str, Any]]:

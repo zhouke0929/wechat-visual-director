@@ -19,12 +19,11 @@ from visual_director.image_provider import MockImageProvider
 from visual_director.parser import classify_article, parse_markdown
 from visual_director.planner import component_opportunity_diagnostics, generate_plans
 from visual_director.renderer import render_preview
+from visual_director.rule_baseline import MockTextPlannerProvider
 from visual_director.text_planner import (
     adopt_host_agent_editorial_brief,
-    MockTextPlannerProvider,
     TextPlannerRequest,
     build_text_planner_payload,
-    generate_editorial_brief,
 )
 
 
@@ -490,7 +489,7 @@ def test_normalizer_does_not_turn_article_h1_into_body_question_component() -> N
     assert all("block-001" not in slot["consume_block_ids"] for slot in plan["slots"])
 
 
-def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> None:
+def test_grounded_candidates_do_not_impose_a_quota_on_the_brief() -> None:
     parsed = parse_markdown(
         """# 弱模型组件覆盖验收
 
@@ -558,20 +557,17 @@ def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> N
     diagnostics = plan["component_diagnostics"]
 
     assert diagnostics["requested_component_count"] == 0
-    assert diagnostics["coverage_target"] >= 4
-    assert diagnostics["coverage_added_count"] >= 4
-    assert diagnostics["selected_component_count"] >= 4
-    selected_types = set(diagnostics["selected_component_types"])
-    assert len(selected_types) >= 4
+    assert diagnostics["coverage_added_count"] == diagnostics["selected_component_count"] == 0
+    assert plan["slots"] == plan["image_slots"] == []
     assert {
         "warning_note",
         "action_checklist",
         "comparison_card",
-    }.issubset(selected_types)
-    assert all(
-        slot["selection_reason"].startswith("组件覆盖兜底：")
-        for slot in plan["slots"]
-    )
+    }.issubset(component_opportunity_diagnostics(parsed)["eligible_component_types"])
+    preview = render_preview(parsed, plan)
+    assert "相关项目仍需经过后续程序确认" in preview
+    assert "标记专业限制与个人条件" in preview
+    assert "同时核对位次和规则" in preview
 
 
 def _compile_with_sections(markdown: str, sections: list[dict]) -> tuple:
@@ -585,7 +581,7 @@ def _compile_with_sections(markdown: str, sections: list[dict]) -> tuple:
     return parsed, compile_editorial_brief(parsed, raw, 5, [])
 
 
-def test_automatic_coverage_leaves_ordinary_lists_quotes_and_personal_concerns_plain() -> None:
+def test_no_unrequested_components_for_ordinary_lists_quotes_and_personal_concerns() -> None:
     markdown = """# 一次产品试用
 
 我在反复跑过几轮以后，开始担心自己的维护成本和风险会上升。
@@ -609,7 +605,7 @@ def test_automatic_coverage_leaves_ordinary_lists_quotes_and_personal_concerns_p
     assert "桌面版本" in preview and "移动版本" in preview
 
 
-def test_automatic_coverage_respects_plain_and_does_not_repeat_warning_for_density() -> None:
+def test_requested_plain_and_unmentioned_warnings_both_remain_plain() -> None:
     markdown = """# 样稿检查
 
 风险提示：这份初稿不适用对外发布。
@@ -630,13 +626,13 @@ def test_automatic_coverage_respects_plain_and_does_not_repeat_warning_for_densi
     }
     parsed, plan = _compile_with_sections(markdown, [plain])
     warnings = [slot for slot in plan["slots"] if slot["component_type"] == "warning_note"]
-    assert len(warnings) == 1
-    assert warnings[0]["anchor_block_id"] == "block-005"
+    assert warnings == []
+    assert "warning_note" in component_opportunity_diagnostics(parsed)["eligible_component_types"]
     preview = render_preview(parsed, plan)
     assert "不适用对外发布" in preview and "删除原始记录" in preview
 
 
-def test_automatic_coverage_rescues_a_real_sequence_and_binary_comparison() -> None:
+def test_unrequested_sequence_and_comparison_keep_source_structure() -> None:
     parsed, plan = _compile_with_sections("""# 办理流程
 
 ## 操作步骤
@@ -652,8 +648,11 @@ def test_automatic_coverage_rescues_a_real_sequence_and_binary_comparison() -> N
 - 线上办理不需要前往窗口。
 - 线下办理可以当面核对材料。
 """, [])
-    assert {slot["component_type"] for slot in plan["slots"]} == {"logic_path", "comparison_card"}
-    assert plan["component_diagnostics"]["coverage_added_count"] == 2
+    candidates = set(component_opportunity_diagnostics(parsed)["eligible_component_types"])
+    assert {"logic_path", "comparison_card"} <= candidates
+    assert plan["slots"] == []
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+    assert [b.type for b in parsed.blocks if b.type.endswith("_list")] == ["ordered_list", "unordered_list"]
     preview = render_preview(parsed, plan)
     assert "接收审核结果" in preview and "当面核对材料" in preview
 
@@ -689,7 +688,10 @@ def test_multi_option_list_is_not_consumed_by_a_two_sided_component(heading, com
 
 
 def test_before_after_under_chapter_keeps_chapter_and_binds_both_items() -> None:
-    parsed, plan = _compile_with_sections("# 教学记录\n\n## 改革前后变化\n\n- 传统方式以讲授为主。\n- 新方式以协作为主。", [])
+    parsed, plan = _compile_with_sections("# 教学记录\n\n## 改革前后变化\n\n- 传统方式以讲授为主。\n- 新方式以协作为主。", [{
+        "source_block_ids": ["block-003"], "semantic_role": "comparison", "visual_priority": "medium",
+        "component_intent": "before_after_timeline", "reasoning": "原文以两项直接对照改革前后。",
+    }])
     chapter, source = parsed.blocks[-2:]
     slot, = plan["slots"]
     assert slot["component_type"] == "before_after_timeline"
@@ -1115,13 +1117,12 @@ def test_h2_concept_is_lowered_but_adjacent_h3_definition_is_allowed() -> None:
 @pytest.mark.parametrize("sample", _dev_samples(), ids=lambda item: item["id"])
 def test_mock_planner_compiles_all_seven_dev_samples(sample: dict) -> None:
     request = _request(sample)
-    result = generate_editorial_brief(MockTextPlannerProvider(), request)
-    assert not result.fallback_used
-    assert result.brief.article.article_type == sample["gold_article_type"]
-    assert len([item for item in result.brief.sections if item.component_intent != "plain"]) <= 6
-    assert len(result.brief.image_intents) <= 3
+    brief = MockTextPlannerProvider().generate(request)
+    assert brief.article.article_type == sample["gold_article_type"]
+    assert len([item for item in brief.sections if item.component_intent != "plain"]) <= 6
+    assert len(brief.image_intents) <= 3
 
-    plan = compile_editorial_brief(request.parsed, result.brief, 5, [])
+    plan = compile_editorial_brief(request.parsed, brief, 5, [])
     assert len(plan["slots"]) <= 6
     assert len(plan["image_slots"]) <= 3
     document = render_preview(request.parsed, plan)
@@ -1132,10 +1133,9 @@ def test_mock_planner_compiles_all_seven_dev_samples(sample: dict) -> None:
 @pytest.mark.parametrize("sample", _visual_contrast_samples(), ids=lambda item: item["id"])
 def test_mock_planner_compiles_visual_contrast_samples(sample: dict) -> None:
     request = _request(sample)
-    result = generate_editorial_brief(MockTextPlannerProvider(), request)
-    plan = compile_editorial_brief(request.parsed, result.brief, 5, [])
+    brief = MockTextPlannerProvider().generate(request)
+    plan = compile_editorial_brief(request.parsed, brief, 5, [])
 
-    assert not result.fallback_used
     assert plan["style_mode"] in {
         "ink_navy_editorial",
         "warm_coral_editorial",
@@ -1145,22 +1145,6 @@ def test_mock_planner_compiles_visual_contrast_samples(sample: dict) -> None:
     document = render_preview(request.parsed, plan)
     assert "width:100%" in document
     assert "width:390px" not in document
-
-
-def test_provider_error_falls_back_to_rule_brief() -> None:
-    class FailingProvider:
-        provider = "failing"
-        model = "failing-model"
-        configured = True
-
-        def generate(self, request: TextPlannerRequest):
-            raise TimeoutError("probe timeout")
-
-    request = _request(_dev_samples()[4])
-    result = generate_editorial_brief(FailingProvider(), request)
-    assert result.fallback_used
-    assert "TimeoutError" in (result.fallback_reason or "")
-    compile_editorial_brief(request.parsed, result.brief, 5, [])
 
 
 def test_provider_payload_excludes_secrets_and_full_history() -> None:
@@ -1190,29 +1174,9 @@ def test_provider_payload_excludes_secrets_and_full_history() -> None:
     assert payload["component_opportunities"]["eligible_component_types"]
 
 
-def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "brief.db"), text_planner_provider=MockTextPlannerProvider())
-    markdown = (ROOT / _dev_samples()[4]["path"]).read_bytes()
-    with TestClient(app) as client:
-        created = client.post(
-            "/api/v1/article-tasks",
-            files={"markdown_file": ("sample.md", markdown, "text/markdown")},
-        ).json()["task"]
-        response = client.post(
-            f'/api/v1/article-tasks/{created["id"]}/editorial-brief/generate',
-            json={"expected_task_version": created["version"]},
-        )
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["brief"]["schema_version"] == "editorial_brief.v0.1"
-        assert payload["planner_run"]["provider"] == "rule_text_planner"
-        assert payload["experimental_plan"]["plan_name"] == "智能规划 · Editorial Brief"
-        diagnostics = payload["experimental_plan"]["component_diagnostics"]
-        assert diagnostics["eligible_candidate_count"] >= diagnostics["selected_component_count"]
-        assert diagnostics["selected_component_types"]
-        assert len(payload["experimental_plans"]) == 2
-        assert len({plan["structure_fingerprint"] for plan in payload["experimental_plans"]}) == 1
-        assert payload["baseline_plan"]["recommendation"] == "recommended"
+def test_experimental_planning_route_is_not_shipped(tmp_path: Path) -> None:
+    with TestClient(create_app(str(tmp_path / "api.db"))) as client:
+        assert not any(path.endswith("/editorial-brief/generate") for path in client.get("/openapi.json").json()["paths"])
 
 
 def test_host_agent_context_and_brief_use_no_second_provider_call(tmp_path: Path) -> None:
@@ -1460,7 +1424,7 @@ def test_first_pass_night_market_labels_survive_both_generation_routes_and_edits
         assert not provider.prompt
 
 
-def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Path) -> None:
+def test_invalid_host_agent_brief_returns_the_same_task_for_revision(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "host-agent-fallback.db"))
     markdown = """# 三步完成志愿核对
 
@@ -1485,10 +1449,6 @@ def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Pa
                 "editorial_brief": {"unexpected": True},
             },
         )
-        assert generated.status_code == 202
-        metadata = generated.json()["planner_metadata"]
-        assert metadata["provider"] == "host_agent"
-        assert metadata["fallback_used"] is True
-        assert metadata["provider_error_code"] == "host_brief_invalid"
-        assert "ValidationError" in metadata["fallback_reason"]
-        assert len(client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]) == 1
+        assert generated.status_code == 422
+        assert "host_brief_invalid" in generated.text
+        assert client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"] == []

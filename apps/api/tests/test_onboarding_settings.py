@@ -173,7 +173,7 @@ def test_doctor_preserves_pending_guide_and_omits_acknowledged_one(monkeypatch) 
     def probe(url, **_kwargs):
         if url.endswith("setup-preferences"):
             return {"settings": {"target_mode": "typeset_only"}, "onboarding": onboarding}
-        return {"status": "ok"}
+        return {"status": "ok", "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION}
     monkeypatch.setattr(cli, "_probe_json", probe)
     for _ in range(2):
         payload, code = cli._doctor("http://127.0.0.1:8000/api/v1", "http://127.0.0.1:8000")

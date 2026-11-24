@@ -90,13 +90,21 @@ def _stress_logic_path(theme: str) -> str:
     return gallery._component_specimen(parsed, "logic_path", theme, visual_system_configuration(theme)["palette"], refs)["html"]
 
 
+def fixed_sample_plan(module, plan):
+    # The historical oracle runs against the release archive, which pre-dates
+    # the explicit fixture. Only this test adapter knows both interfaces.
+    if hasattr(module, "sample_article_plan"):
+        return patch.object(module, "sample_article_plan", return_value=plan)
+    return patch.object(module, "generate_plans", return_value=[plan])
+
+
 def _samples(root: Path, mode: str, plan: dict):
     from visual_director import theme_gallery as gallery, theme_specimens
     from visual_director.component_catalog import VISUAL_SYSTEM_ORDER
     from visual_director.parser import parse_markdown
     from visual_director.brief_compiler import visual_system_configuration
     assert len(VISUAL_SYSTEM_ORDER) == 26
-    with patch.dict(os.environ, VISUAL_DIRECTOR_PROJECT_ROOT=str(root)), patch.object(theme_specimens, "generate_plans", return_value=[plan]):
+    with patch.dict(os.environ, VISUAL_DIRECTOR_PROJECT_ROOT=str(root)), fixed_sample_plan(theme_specimens, plan):
         for name in ("WVD_RENDERER_PILOT", "WVD_LOGIC_PATH_PILOT", "WVD_READING_RULES_PILOT"):
             os.environ.pop(name, None)
         os.environ.update(MODES[mode])

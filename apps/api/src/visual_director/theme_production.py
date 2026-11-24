@@ -7,7 +7,7 @@ from typing import Any
 from .brief_compiler import base_visual_system_configuration, visual_system_variant
 from .component_catalog import COMPONENT_CATALOG, CORE_THEME_COMPONENTS
 from .parser import parse_markdown
-from .planner import generate_plans
+from .theme_fixture_plan import fixture_plan
 from .publication import _materialized_image_markup
 from .foundation_content import _opening_highlight
 from .renderer import render_preview
@@ -133,8 +133,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
     for long in (False, True):
         length = "long" if long else "short"
         parsed = _fixture(long)
-        plan = generate_plans(parsed, "tutorial_steps", 5)[0]
-        plan.update(configuration=config, slots=[], image_slots=[])
+        plan = {**fixture_plan(parsed), "configuration": config}
         paragraphs = [block for block in parsed.blocks if block.type == "paragraph"]
         headings = [block for block in parsed.blocks if block.type == "heading" and block.level == 3]
         heading = next(block for block in parsed.blocks if block.type == "heading" and block.level == 2)

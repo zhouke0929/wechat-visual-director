@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from test_api_workflow import _prepare_publication_ready_task
 from visual_director.image_provider import ManualImageProvider
 from visual_director.main import create_app
-from visual_director.text_planner import MockTextPlannerProvider
+
 
 
 def test_freeze_flushes_latest_edit_and_stops_if_autosave_fails(tmp_path, monkeypatch):
@@ -24,7 +24,7 @@ def test_freeze_flushes_latest_edit_and_stops_if_autosave_fails(tmp_path, monkey
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(tmp_path / "synthetic.env"))
     monkeypatch.setenv("VISUAL_DIRECTOR_WEB_DIST", str(root / "apps/web/dist"))
-    app = create_app(str(tmp_path / "freeze-browser.db"), image_provider=ManualImageProvider(), text_planner_provider=MockTextPlannerProvider())
+    app = create_app(str(tmp_path / "freeze-browser.db"), image_provider=ManualImageProvider())
     with TestClient(app) as client:
         task, _ = _prepare_publication_ready_task(client)
     task_id = task["id"]

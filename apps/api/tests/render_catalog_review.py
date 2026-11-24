@@ -10,7 +10,7 @@ import sys
 import tempfile
 from unittest.mock import patch
 
-from test_renderer_catalog_parity import ORACLE, ROOT
+from test_renderer_catalog_parity import ORACLE, ROOT, fixed_sample_plan
 
 OUT = ROOT / "artifacts/render-component-contracts-review"
 CSS = """
@@ -59,7 +59,7 @@ def generate() -> None:
     with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {
         "WVD_RENDERER_PILOT": "1", "WVD_READING_RULES_PILOT": "1", "WVD_LOGIC_PATH_PILOT": "0",
         "VISUAL_DIRECTOR_PROJECT_ROOT": str(ROOT), "VISUAL_DIRECTOR_THEME_PACK_DIR": temp,
-    }), patch.object(ts, "generate_plans", return_value=[plan]):
+    }), fixed_sample_plan(ts, plan):
         configure_theme_packs(Path(temp), reserved_ids=VISUAL_SYSTEM_ORDER, core_components=CORE_THEME_COMPONENTS)
         parsed = parse_markdown(gallery.THEME_FIXTURE)
         bindings = gallery._fixture_bindings(parsed)

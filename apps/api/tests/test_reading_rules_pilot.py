@@ -29,7 +29,7 @@ from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans
 from visual_director import reading_rules, reading_theme_overrides
 from visual_director.renderer import render_preview
-from visual_director.text_planner import MockTextPlannerProvider
+
 from visual_director.theme_specimens import build_production_specimens
 from visual_director.wechat_publisher import WechatDraftPublisher
 
@@ -387,8 +387,7 @@ def _assert_pop_body_styles_in_delivered_html(markup: str, texts: list[str]) -> 
 
 def test_enabling_reading_pilot_does_not_rewrite_an_old_frozen_revision(tmp_path, monkeypatch):
     monkeypatch.setenv(SWITCH, "1")
-    app = create_app(str(tmp_path / "frozen-baseline.db"), image_provider=ManualImageProvider(),
-                     text_planner_provider=MockTextPlannerProvider())
+    app = create_app(str(tmp_path / "frozen-baseline.db"), image_provider=ManualImageProvider())
     try:
         with TestClient(app) as client:
             task_url, _, (_, bullets, *_other) = _prepare_task(client, "pop_poster")
@@ -427,7 +426,7 @@ def test_edited_reading_trial_survives_copy_freeze_and_mock_wechat(tmp_path, mon
     publisher = WechatDraftPublisher(ROOT, token_endpoint="https://wechat-pilot.invalid/token",
                                      api_base="https://wechat-pilot.invalid", requester=remote)
     app = create_app(str(tmp_path / "reading.db"), image_provider=ManualImageProvider(),
-                     text_planner_provider=MockTextPlannerProvider(), wechat_publisher=publisher)
+                     wechat_publisher=publisher)
     try:
         with TestClient(app) as client:
             task_url, plan, (ordered, bullets, *_other) = _prepare_task(client, "pop_poster")

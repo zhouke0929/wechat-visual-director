@@ -14,7 +14,7 @@ from test_api_workflow import _png_bytes
 from test_logic_path_pilot import ITEMS, _prepare_task
 from visual_director.image_provider import ManualImageProvider
 from visual_director.main import create_app
-from visual_director.text_planner import MockTextPlannerProvider
+
 
 
 @pytest.fixture
@@ -35,7 +35,6 @@ def blur_task(tmp_path, monkeypatch, request):
     app = create_app(
         str(tmp_path / "inline-blur.db"),
         image_provider=ManualImageProvider(),
-        text_planner_provider=MockTextPlannerProvider(),
     )
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)

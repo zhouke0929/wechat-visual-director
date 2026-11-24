@@ -17,7 +17,7 @@ description: 将主题、资料或 Markdown 整理为公众号推文，在本地
 | 用户要做什么 | 先读什么、完成什么 |
 | --- | --- |
 | 安装、打开、升级、恢复工作台 | [安装与恢复](references/install.md)：Skill + 工作台就绪 + 简短上手回执；只下载文件不报就绪，已有安装不自动升级。 |
-| 写新文章或整理原稿 | [文章协议与任务流程](references/article-protocol.md)：事实锁定的 Markdown → 预检 → 宿主 Brief → 工作台人工评审。 |
+| 写新文章或整理原稿 | [文章协议与任务流程](references/article-protocol.md)：事实锁定的 Markdown → 预检 → 宿主 Brief → 核心校验 → 成稿后进入工作台；未通过则在原任务修订。 |
 | 按组件图创作或按描述探索新主题 | [主题创作流程](references/theme-design-review.md)：具体视觉参考与联想 → 正文构图 → 全篇扩展 → 校验、看图与重点修订。 |
 | 导入主题包、品牌换色或查字段 | [主题包契约](references/theme-packs.md)：现有包不重走创作；新风格编写时再查字段。 |
 | 为已确认的文章生成图片或封面 | [宿主生图桥接](references/host-images.md)：先取绑定请求，再生成、导入为候选；没有原生工具可上传、沿用或跳过。 |

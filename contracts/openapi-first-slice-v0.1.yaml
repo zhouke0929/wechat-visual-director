@@ -3,7 +3,7 @@ info:
   title: 公众号视觉主编 Agent 第一轮 MVP API
   version: 0.1.0
   description: >-
-    第一条垂直链路接口：Markdown 导入、任务与进度、双方案预览与选择、
+    第一条垂直链路接口：Markdown 导入、宿主规划、成稿预览与选择、
     历史窗口设置和 CTA 品牌资产版本管理。
 servers:
   - url: /api/v1
@@ -32,6 +32,10 @@ paths:
             type: array
             items:
               $ref: '#/components/schemas/TaskStatus'
+        - name: scope
+          in: query
+          description: 默认只统计已保存方案的任务；宿主显式使用 all 恢复未成稿。
+          schema: {type: string, enum: [ready, all], default: ready}
         - name: page
           in: query
           required: false
@@ -108,15 +112,24 @@ paths:
                 $ref: '#/components/schemas/TaskDetailResponse'
         '404': {$ref: '#/components/responses/NotFound'}
 
-  /article-tasks/{task_id}/plan-generation:
-    post:
+  /article-tasks/{task_id}/editorial-brief/context:
+    get:
       tags: [ArticleTasks]
-      operationId: startOrRetryPlanGeneration
-      summary: 首次启动或重试方案生成
+      operationId: getEditorialBriefContext
+      summary: 获取宿主规划输入、块 ID、规则与 Schema
       parameters:
         - $ref: '#/components/parameters/TaskId'
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200': {description: 宿主规划上下文}
+        '404': {$ref: '#/components/responses/NotFound'}
+
+  /article-tasks/{task_id}/generate-plans:
+    post:
+      tags: [ArticleTasks]
+      operationId: submitHostEditorialBrief
+      summary: 校验并保存首份宿主规划，拒绝覆盖已存在的方案
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
       requestBody:
         required: true
         content:
@@ -125,7 +138,7 @@ paths:
               $ref: '#/components/schemas/PlanGenerationRequest'
       responses:
         '202':
-          description: 已进入生成队列
+          description: 成稿已保存；无需轮询
           content:
             application/json:
               schema:
@@ -140,7 +153,7 @@ paths:
     get:
       tags: [Plans]
       operationId: listVisualPlans
-      summary: 查询两套视觉方案
+      summary: 查询已保存的视觉方案
       parameters:
         - $ref: '#/components/parameters/TaskId'
       responses:
@@ -594,6 +607,7 @@ components:
         history_window: {type: integer, minimum: 1, maximum: 20}
         brand_profile_version: {type: string}
         fixed_footer_asset_version: {type: string}
+        review_path: {type: [string, 'null'], description: 仅有持久化方案才提供评审入口。}
         selected_plan_id:
           type: [string, 'null']
           format: uuid
@@ -652,6 +666,7 @@ components:
       type: object
       required: [task, input_summary]
       properties:
+        review_path: {type: [string, 'null']}
         task: {$ref: '#/components/schemas/TaskSummary'}
         input_summary: {$ref: '#/components/schemas/InputSummary'}
 
@@ -677,17 +692,28 @@ components:
     AvailableAction:
       type: string
       enum:
-        - start_plan_generation
-        - retry_plan_generation
-        - create_revision_task
+        - submit_host_brief
+        - fix_source
         - view_plans
         - select_plan
         - change_selection
+        - view_publication_readiness
+        - view_frozen_revision
+        - create_mock_draft
+        - continue_editing
+        - view_mock_draft
+        - retry_mock_draft
+        - resolve_mock_unknown
+        - view_draft_operation
+        - view_wechat_draft
+        - view_draft_error
+        - verify_wechat_backend
 
     TaskDetailResponse:
       type: object
       required: [task, progress, input_summary, available_actions, last_error]
       properties:
+        review_path: {type: [string, 'null']}
         task: {$ref: '#/components/schemas/TaskSummary'}
         progress:
           type: array
@@ -703,32 +729,26 @@ components:
 
     PlanGenerationRequest:
       type: object
-      additionalProperties: false
-      required: [mode, expected_task_version]
+      required: [mode, expected_task_version, editorial_brief]
       properties:
-        mode:
-          type: string
-          enum: [start, retry]
-        expected_task_version:
-          type: integer
-          minimum: 1
-        planner:
-          type: string
-          enum: [rule, intelligent]
-          default: rule
+        mode: {type: string, enum: [start, retry]}
+        expected_task_version: {type: integer, minimum: 1}
+        planner: {type: string, const: host_agent, default: host_agent}
+        host_model: {type: string, maxLength: 120, default: host_managed}
+        editorial_brief:
+          type: object
+          description: 由宿主根据当前上下文中的 EditorialBrief Schema 编写。
 
     PlanGenerationAccepted:
       type: object
-      required: [task_id, status, poll_after_ms, version]
+      required: [task_id, status, version, planner, review_path]
       properties:
         task_id: {type: string, format: uuid}
-        status:
-          type: string
-          const: analyzing
-        poll_after_ms:
-          type: integer
-          minimum: 500
-          example: 2000
+        status: {type: string, enum: [plan_selected, plans_ready]}
+        planner: {type: string, const: host_agent}
+        planner_call_count: {type: integer, const: 0}
+        planner_metadata: {type: object}
+        review_path: {type: string}
         version: {type: integer, minimum: 1}
 
     RecommendationType:

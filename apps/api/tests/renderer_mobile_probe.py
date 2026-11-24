@@ -14,9 +14,8 @@ import re
 import subprocess
 import sys
 import tempfile
-from unittest.mock import patch
 
-from test_renderer_catalog_parity import ORACLE, ROOT, _pinned_source_tree, _stress_logic_path
+from test_renderer_catalog_parity import ORACLE, ROOT, _pinned_source_tree, _stress_logic_path, fixed_sample_plan
 
 
 def _stage(root: Path, destination: Path) -> None:
@@ -34,7 +33,7 @@ def _stage(root: Path, destination: Path) -> None:
         data = (root / "assets" / "theme-stickers" / name).read_bytes()
         return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
 
-    with patch.object(ts, "generate_plans", return_value=[plan]):
+    with fixed_sample_plan(ts, plan):
         for theme in VISUAL_SYSTEM_ORDER:
             foundations, article = ts.build_production_specimens(theme)
             lists = {s["role"]: s["html"] for s in foundations if s["role"] in {"unordered_list", "ordered_list"}}

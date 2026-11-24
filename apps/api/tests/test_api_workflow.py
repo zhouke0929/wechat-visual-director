@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
+from host_fixture import submit_fixture
 from visual_director.component_catalog import VISUAL_SYSTEM_ORDER
 
 from visual_director.main import (
@@ -16,7 +17,7 @@ from visual_director.main import (
 )
 from visual_director.wechat_publisher import WechatPublishResult
 from visual_director.image_provider import ManualImageProvider, MockImageProvider
-from visual_director.text_planner import MockTextPlannerProvider
+
 from visual_director.visual_dna import IMAGE_STYLE_MANIFESTS
 
 
@@ -158,10 +159,7 @@ article_type: tutorial_steps
     )
     assert cover.status_code == 200
     task = cover.json()["task"]
-    generated = client.post(
-        f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-        json={"mode": "start", "expected_task_version": task["version"]},
-    )
+    generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
     assert generated.status_code == 202
     task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
     plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
@@ -320,7 +318,7 @@ def test_official_themes_deliver_actual_images_without_blocking_prose(tmp_path: 
             response = client.post(f'{task_url}/preflight/findings/{item["code"]}/replace-asset', data=data, files=image)
             assert response.status_code == 200, response.text
             task = response.json()["task"]
-        generated = client.post(f"{task_url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]})
+        generated = submit_fixture(client, f"{task_url}", task["version"])
         assert generated.status_code == 202, generated.text
         plan = client.get(f"{task_url}/plans").json()["plans"][0]
         plan_url = f'{task_url}/plans/{plan["id"]}'
@@ -545,10 +543,7 @@ def test_publication_readiness_reports_missing_cover_once_with_specific_action(t
             files={"markdown_file": ("bookstore.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()
         task = created["task"]
-        generated = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         assert generated.status_code == 202
         task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
@@ -653,6 +648,10 @@ def test_task_list_supports_server_side_pagination_without_breaking_legacy_clien
                 },
             )
             assert response.status_code == 201
+
+            task = response.json()["task"]
+            planned = submit_fixture(client, f"/api/v1/article-tasks/{task['id']}", task["version"])
+            assert planned.status_code == 202, planned.text
 
         page = client.get("/api/v1/article-tasks", params={"page": 2, "page_size": 4})
         assert page.status_code == 200
@@ -811,10 +810,7 @@ article_type: tutorial_steps
         assert created.status_code == 201
         task = created.json()["task"]
 
-        generated = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         assert generated.status_code == 202
 
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
@@ -842,7 +838,7 @@ def test_create_task_returns_preflight_report_and_preserves_original(tmp_path: P
 
         assert response.status_code == 201
         payload = response.json()
-        assert payload["review_path"] == f'/tasks/{payload["task"]["id"]}'
+        assert payload["review_path"] is None  # Source is preserved before a reviewable plan exists.
         report = payload["input_summary"]["preflight_report"]
         assert report["status"] == "REVIEW"
         assert {item["code"] for item in report["findings"]} == {"missing_cover"}
@@ -912,10 +908,7 @@ cover: ./cover.jpg
         )
         assert created.status_code == 201
         task = created.json()["task"]
-        generated = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         assert generated.status_code == 409
         assert generated.json()["error"]["code"] == "preflight_confirmation_required"
 
@@ -1042,10 +1035,7 @@ cover: https://picsum.photos/900/383
         assert stored["markdown"] == markdown
         assert "picsum.photos" in stored["normalized_markdown"]
 
-        generated = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": body_payload["task"]["version"]},
-        )
+        generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', body_payload["task"]["version"])
         assert generated.status_code == 202
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         preview = client.get(plan["preview_url"])
@@ -1109,9 +1099,7 @@ def test_working_clipboard_copies_latest_body_without_cover_or_freezing(tmp_path
             item for item in created["input_summary"]["preflight_report"]["findings"]
             if item["code"] == "source_image_requires_import"
         )
-        assert client.post(
-            f"{url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]},
-        ).status_code == 202
+        assert submit_fixture(client, f"{url}", task["version"]).status_code == 202
         plan = client.get(f"{url}/plans").json()["plans"][0]
         task = client.get(url).json()["task"]
         editor = client.get(f"{url}/content-editor").json()
@@ -1422,9 +1410,8 @@ def test_mock_draft_fail_once_retry_and_unknown_resolution(tmp_path: Path, monke
         assert resolved.json()["operation"]["last_error"]["retryable"] is True
 
 
-def test_intelligent_planner_calls_once_and_returns_one_switchable_visual_system(tmp_path: Path) -> None:
-    provider = MockTextPlannerProvider()
-    app = create_app(str(tmp_path / "intelligent.db"), text_planner_provider=provider)
+def test_host_planner_returns_one_switchable_visual_system(tmp_path: Path) -> None:
+    app = create_app(str(tmp_path / "host.db"))
     with TestClient(app) as client:
         markdown = """---
 title: 三步完成升学判断
@@ -1446,16 +1433,9 @@ article_type: tutorial_steps
             "/api/v1/article-tasks",
             files={"markdown_file": ("intelligent.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        generated = client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={
-                "mode": "start",
-                "planner": "intelligent",
-                "expected_task_version": task["version"],
-            },
-        )
+        generated = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         assert generated.status_code == 202
-        assert generated.json()["planner_call_count"] == 1
+        assert generated.json()["planner_call_count"] == 0
 
         payload = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()
         plans = payload["plans"]
@@ -1468,8 +1448,8 @@ article_type: tutorial_steps
             "natural_atlas", "business_review", "cinematic_story",
         }
         assert len({plan["structure_fingerprint"] for plan in plans}) == 1
-        assert all(plan["planner_metadata"]["planner_call_count"] == 1 for plan in plans)
-        assert all(plan["planner_metadata"]["provider"] == "rule_text_planner" for plan in plans)
+        assert all(plan["planner_metadata"]["planner_call_count"] == 0 for plan in plans)
+        assert all(plan["planner_metadata"]["provider"] == "host_agent" for plan in plans)
 
         def semantic_slots(plan: dict) -> list[tuple]:
             return [
@@ -1509,10 +1489,7 @@ article_type: tutorial_steps
             "/api/v1/article-tasks",
             files={"markdown_file": ("sample.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{created["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": created["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{created["id"]}', created["version"])
         plan = client.get(f'/api/v1/article-tasks/{created["id"]}/plans').json()["plans"][0]
         slot = next(item for item in plan["slots"] if item["component_type"] == "logic_path")
         original_hash = plan["preview_content_hash"]
@@ -1591,10 +1568,7 @@ article_type: tutorial_steps
             "/api/v1/article-tasks",
             files={"markdown_file": ("theme.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         original = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         image_list = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{original["id"]}/image-slots'
@@ -1689,10 +1663,7 @@ def test_confirmed_theme_history_avoids_immediately_previous_theme(tmp_path: Pat
             "/api/v1/article-tasks",
             files={"markdown_file": ("history.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plans = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]
         assert len(plans) == 1
         assert plans[0]["visual_system"] != "light_reading"
@@ -1728,7 +1699,7 @@ def test_workbench_without_image_api_does_not_generate_placeholder_after_host_im
             files={"markdown_file": ("article.md", source.encode(), "text/markdown")},
         ).json()["task"]
         task_url = f'/api/v1/article-tasks/{task["id"]}'
-        client.post(f"{task_url}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]})
+        submit_fixture(client, f"{task_url}", task["version"])
         plan = client.get(f"{task_url}/plans").json()["plans"][0]
         url = f'{task_url}/plans/{plan["id"]}'
         request = client.get(f"{url}/host-image-context").json()["requests"][0]
@@ -1776,10 +1747,7 @@ def test_mock_image_candidate_generate_accept_regenerate_skip_and_replace(tmp_pa
             "/api/v1/article-tasks",
             files={"markdown_file": ("images.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plans = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]
         selected = plans[0]
@@ -1894,10 +1862,7 @@ def test_image_slot_can_keep_drawing_more_than_three_model_candidates(tmp_path: 
             "/api/v1/article-tasks",
             files={"markdown_file": ("unlimited-images.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         slot = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots'
@@ -1941,10 +1906,7 @@ def test_host_agent_image_context_import_and_theme_compatibility(tmp_path: Path)
             files={"markdown_file": ("host-images.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "tutorial_steps"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
 
         context_response = client.get(
@@ -2057,10 +2019,7 @@ def test_host_agent_image_import_survives_switch_away_and_back(tmp_path: Path) -
             files={"markdown_file": ("host-images.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "tutorial_steps"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         request = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/host-image-context'
@@ -2130,10 +2089,7 @@ def test_host_agent_can_append_after_selection_without_candidate_limit(tmp_path:
             files={"markdown_file": ("host-continue.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "tutorial_steps"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         slot = client.get(
             f'/api/v1/article-tasks/{task["id"]}/plans/{plan["id"]}/image-slots'
@@ -2204,7 +2160,7 @@ def test_pixel_style_upgrade_preserves_old_host_requests_and_adopted_body_image(
     # pin the exact legacy prompts, so this exercises real request IDs and data.
     with monkeypatch.context() as old:
         old.delitem(IMAGE_STYLE_MANIFESTS, "pixel_editorial")
-        with TestClient(create_app(db, image_provider=old_provider, text_planner_provider=MockTextPlannerProvider())) as client:
+        with TestClient(create_app(db, image_provider=old_provider)) as client:
             task_response = client.post(
                 "/api/v1/article-tasks",
                 files={"markdown_file": ("open-day.md", (
@@ -2215,10 +2171,7 @@ def test_pixel_style_upgrade_preserves_old_host_requests_and_adopted_body_image(
             assert task_response.status_code == 201, task_response.text
             task = task_response.json()["task"]
             task_url = f'/api/v1/article-tasks/{task["id"]}'
-            client.post(
-                f"{task_url}/generate-plans",
-                json={"mode": "start", "expected_task_version": task["version"]},
-            )
+            submit_fixture(client, f"{task_url}", task["version"])
             initial = client.get(f"{task_url}/plans").json()["plans"][0]
             plan_url = f'{task_url}/plans/{initial["id"]}'
             old_plan = client.patch(
@@ -2242,7 +2195,7 @@ def test_pixel_style_upgrade_preserves_old_host_requests_and_adopted_body_image(
             body_request = next(r for r in requests if r.get("image_slot_id") == slot["image_slot_id"])
             cover_request = next(r for r in requests if r["asset_type"] == "cover")
 
-    with TestClient(create_app(db, image_provider=MockImageProvider(), text_planner_provider=MockTextPlannerProvider())) as client:
+    with TestClient(create_app(db, image_provider=MockImageProvider())) as client:
         # Reading an old plan must neither change its art direction nor its issued IDs.
         assert client.get(f"{plan_url}/host-image-context?asset_type=all").json()["requests"] == requests
         current = old_plan
@@ -2311,10 +2264,7 @@ def test_host_agent_cover_context_imports_unselected_candidate(tmp_path: Path) -
             files={"markdown_file": ("host-cover.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "viewpoint_trend"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         context = client.get(
             (
@@ -2398,10 +2348,7 @@ def test_cover_planner_generates_crops_and_selects_controlled_cover(tmp_path: Pa
             files={"markdown_file": ("cover.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "tutorial_steps"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         selected = client.post(
@@ -2453,10 +2400,7 @@ def test_cover_fallback_skips_model_and_upload_but_satisfies_delivery_cover(tmp_
             files={"markdown_file": ("fallback.md", markdown.encode("utf-8"), "text/markdown")},
             data={"article_type": "viewpoint_trend"},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         selected = client.post(
@@ -2538,10 +2482,7 @@ def test_cover_planner_reuses_accepted_body_image_without_mutating_it(tmp_path: 
             "/api/v1/article-tasks",
             files={"markdown_file": ("reuse.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         task = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         selected = client.post(

@@ -13,8 +13,8 @@ from visual_director.brief_compiler import (  # noqa: E402
     apply_visual_system,
     compile_editorial_brief,
 )
+from visual_director.editorial_brief import normalize_editorial_brief_for_article  # noqa: E402
 from visual_director.parser import parse_markdown  # noqa: E402
-from visual_director.planner import generate_plans  # noqa: E402
 from visual_director.publication import _materialized_image_markup  # noqa: E402
 from visual_director.renderer import render_preview  # noqa: E402
 
@@ -95,11 +95,8 @@ def main() -> int:
         brief = _normalize_brief_for_current_contract(
             json.loads((sample_root / brief_name).read_text(encoding="utf-8"))
         )
-        plan = (
-            compile_editorial_brief(parsed, brief, 5, [])
-            if article_name == "pop-collaboration.html"
-            else generate_plans(parsed, brief["article"]["article_type"], 5, [])[0]
-        )
+        contract, _ = normalize_editorial_brief_for_article(brief, parsed)
+        plan = compile_editorial_brief(parsed, contract, 5)
         plan = apply_visual_system(
             plan,
             theme_id,

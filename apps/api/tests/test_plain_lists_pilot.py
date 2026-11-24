@@ -26,7 +26,7 @@ from visual_director.main import create_app
 from visual_director.parser import parse_markdown
 from visual_director.planner import generate_plans
 from visual_director.renderer import render_preview
-from visual_director.text_planner import MockTextPlannerProvider
+
 from visual_director.theme_packs import configure_theme_packs, install_theme_pack_bytes
 from visual_director.wechat_publisher import WechatDraftPublisher
 
@@ -255,7 +255,7 @@ def test_ordinary_lists_workbench_edits_duplicate_by_index_and_delivers(tmp_path
     publisher = WechatDraftPublisher(ROOT, token_endpoint="https://wechat-pilot.invalid/token",
                                      api_base="https://wechat-pilot.invalid", requester=remote)
     app = create_app(str(tmp_path / "pilot.db"), image_provider=ManualImageProvider(),
-                     text_planner_provider=MockTextPlannerProvider(), wechat_publisher=publisher)
+                     wechat_publisher=publisher)
     server = worker = None
     try:
         with TestClient(app) as client:

@@ -14,7 +14,7 @@ from PIL import Image
 from .brief_compiler import apply_visual_system
 from .image_caption_render import stored_caption_profile
 from .parser import parse_markdown
-from .planner import generate_plans
+from .theme_fixture_plan import fixture_plan, sample_article_plan
 from .publication import _materialized_image_markup, _placeholder_metadata, strip_workbench_editor_attributes
 from .foundation_content import _opening_highlight
 from .renderer import render_preview
@@ -107,8 +107,9 @@ class _Nodes(HTMLParser):
         self.nodes.append((tag, attrs, self.document[start:end]))
 
 
-def _specimen_plan(parsed, visual_system: str, theme_config: dict[str, Any] | None = None) -> dict[str, Any]:
-    plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], visual_system, recent_summaries=[])
+def _specimen_plan(parsed, visual_system: str, theme_config: dict[str, Any] | None = None, *, hero_only: bool = False) -> dict[str, Any]:
+    base = fixture_plan(parsed) if hero_only else sample_article_plan(parsed)
+    plan = apply_visual_system(base, visual_system, recent_summaries=[])
     if theme_config is not None:
         plan["configuration"] = {**plan["configuration"], **theme_config}
     plan["image_slots"] = []
@@ -131,7 +132,7 @@ def build_theme_card_specimens() -> dict[str, str]:
     cards = {}
     for theme_id in registered_visual_system_order():
         try:
-            plan = _specimen_plan(parsed, theme_id)
+            plan = _specimen_plan(parsed, theme_id, hero_only=True)
             cards[theme_id] = _specimen_hero(render_preview(parsed, {**plan, "slots": []}, brand_profile=BRAND))
         except (ValueError, KeyError, TypeError, OSError, RuntimeError):
             # A thumbnail failure must not hide the other themes or block selection.

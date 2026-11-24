@@ -16,7 +16,7 @@ from visual_director.theme_specimens import ARTICLE, BRAND, build_production_spe
 from visual_director.parser import parse_markdown
 from visual_director.publication import strip_workbench_editor_attributes
 from visual_director.renderer import _opening_highlight, render_preview
-from visual_director.planner import generate_plans
+from visual_director.theme_fixture_plan import fixture_plan
 from visual_director.brief_compiler import visual_system_configuration
 from visual_director.theme_packs import BUNDLED_THEME_IDS, configure_theme_packs, validate_theme_pack_manifest
 from visual_director.component_catalog import CORE_THEME_COMPONENTS
@@ -53,7 +53,7 @@ def test_foundation_quotes_and_lists_are_exact_production_nodes():
     parsed = parse_markdown(ARTICLE)
     for theme_id in VISUAL_SYSTEM_ORDER:
         samples, _ = build_production_specimens(theme_id)
-        plan = generate_plans(parsed, "tutorial_steps", 5)[0]
+        plan = fixture_plan(parsed)
         plan.update(configuration=visual_system_configuration(theme_id), slots=[], image_slots=[])
         production = strip_workbench_editor_attributes(render_preview(parsed, plan, brand_profile=BRAND),
                                                       field_anchors_only=True)

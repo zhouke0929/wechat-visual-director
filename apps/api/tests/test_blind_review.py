@@ -5,6 +5,14 @@ from fastapi.testclient import TestClient
 from visual_director.main import create_app
 
 
+MANIFEST = Path(__file__).resolve().parents[3] / "samples/evaluation/v0.6-public-blind-manifest.json"
+
+
+def test_source_checkout_does_not_run_historical_planner_on_startup(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("VISUAL_DIRECTOR_BLIND_REVIEW_MANIFEST", raising=False)
+    assert create_app(str(tmp_path / "normal.db")).state.blind_review_dataset is None
+
+
 def complete_submission(reviewer_id: str, assignment_token: str) -> dict:
     rating = {"left": 4, "right": 3, "reason": "方案 A 的规划重点更清晰"}
     return {
@@ -39,7 +47,7 @@ def test_blind_review_fixture_is_optional_for_portable_runtime(tmp_path: Path) -
 
 
 def test_blind_review_hides_sources_randomizes_and_locks_submission(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "blind.db"))
+    app = create_app(str(tmp_path / "blind.db"), blind_review_manifest_path=str(MANIFEST))
     eval_set_id = app.state.blind_review_dataset.eval_set_id
     sample_total = len(app.state.blind_review_dataset.samples)
     with TestClient(app) as client:
@@ -88,7 +96,7 @@ def test_blind_review_hides_sources_randomizes_and_locks_submission(tmp_path: Pa
 
 
 def test_blind_review_rejects_changed_assignment_and_early_reveal(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "blind-guard.db"))
+    app = create_app(str(tmp_path / "blind-guard.db"), blind_review_manifest_path=str(MANIFEST))
     eval_set_id = app.state.blind_review_dataset.eval_set_id
     with TestClient(app) as client:
         payload = client.get(

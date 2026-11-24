@@ -332,22 +332,6 @@ export async function probePublicIp(): Promise<PublicIpProbe> {
   return parseResponse<PublicIpProbe>(response);
 }
 
-export async function generatePlans(task: Task): Promise<void> {
-  const response = await fetch(`${API_BASE}/article-tasks/${task.id}/generate-plans`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": crypto.randomUUID(),
-    },
-    body: JSON.stringify({
-      mode: "start",
-      planner: "rule",
-      expected_task_version: task.version,
-    }),
-  });
-  await parseResponse(response);
-}
-
 export async function acknowledgePreflightFinding(
   task: Task,
   findingCode: string,

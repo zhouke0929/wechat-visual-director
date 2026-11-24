@@ -3,7 +3,8 @@ import pytest
 from visual_director.brief_compiler import compile_editorial_brief
 from visual_director.editorial_brief import normalize_editorial_brief_for_article
 from visual_director.parser import parse_markdown
-from visual_director.text_planner import MockTextPlannerProvider, TextPlannerRequest
+from visual_director.rule_baseline import MockTextPlannerProvider
+from visual_director.text_planner import TextPlannerRequest
 
 
 @pytest.mark.parametrize("separated", [False, True], ids=["one-glossary", "separate-cards"])

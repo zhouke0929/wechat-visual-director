@@ -86,13 +86,17 @@ for theme in gallery["themes"]:
     assert theme["article_preview_html"], theme["id"]
 PY
 
-"$INSTALL_ROOT/visual-director" task create --file "$PACKAGE_ROOT/samples/skill-alpha/canonical-article.md" --no-plan --json > "$TEMP_ROOT/task.json"
-"$INSTALL_ROOT/visual-director" task list --json > "$TEMP_ROOT/task-list.json"
-"$PACKAGE_PYTHON" - "$TEMP_ROOT/task.json" "$TEMP_ROOT/task-list.json" <<'PY'
+"$INSTALL_ROOT/visual-director" task create --file "$PACKAGE_ROOT/samples/skill-alpha/canonical-article.md" --open --json > "$TEMP_ROOT/task.json"
+"$INSTALL_ROOT/visual-director" task list --json > "$TEMP_ROOT/ready.json"
+"$INSTALL_ROOT/visual-director" task list --include-unplanned --json > "$TEMP_ROOT/task-list.json"
+"$PACKAGE_PYTHON" - "$TEMP_ROOT/task.json" "$TEMP_ROOT/task-list.json" "$TEMP_ROOT/ready.json" <<'PY'
 import json, sys
-task, listing = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+task, listing, ready = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+assert task["ok"] is True and task["opened"] is False and task["review_url"] is None, task
+assert ready["ok"] is True and ready["total"] == 0, ready
 assert listing["ok"] is True and listing["total"] == 1, listing
 assert listing["items"][0]["id"] == task["task_id"], listing
+assert listing["items"][0]["review_url"] is None, listing
 PY
 bash "$PACKAGE_ROOT/scripts/bootstrap.sh" --install-root "$INSTALL_ROOT" --host-home "$HOST_HOME" > "$TEMP_ROOT/upgrade.json"
 "$PACKAGE_PYTHON" - "$TEMP_ROOT/upgrade.json" <<'PY'
@@ -102,6 +106,13 @@ assert payload["ok"] is True, payload
 assert payload["data_continuity"]["preserved"] is True, payload
 assert payload["data_continuity"]["before_task_count"] == 1, payload
 assert payload["installation"]["running_task_count"] == 1, payload
+PY
+TASK_ID="$("$PACKAGE_PYTHON" -c 'import json,sys;print(json.load(open(sys.argv[1]))["task_id"])' "$TEMP_ROOT/task.json")"
+"$INSTALL_ROOT/visual-director" task status "$TASK_ID" --json > "$TEMP_ROOT/restored.json"
+"$PACKAGE_PYTHON" - "$TEMP_ROOT/restored.json" "$TASK_ID" <<'PY'
+import json, sys
+restored = json.load(open(sys.argv[1], encoding="utf-8"))
+assert restored["ok"] and restored["task_id"] == sys.argv[2] and restored["review_url"] is None, restored
 PY
 
 printf 'preserve-me\n' > "$INSTALL_ROOT/data/package-test-marker.txt"

@@ -28,16 +28,11 @@ from .official_component_recipes import capture_component_recipes
 from .reading_rules import capture_reading_overrides
 from .image_intent import build_visual_intent, readable_node_copy, source_bound_label
 from .infographic_limits import supports_node_count
+from .plan_envelope import article_strong_limit, plan_envelope
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
 from .theme_extensions import EXTENDED_THEME_KITS
 from .theme_packs import theme_pack
-from .planner import (
-    component_diversity_target,
-    component_opportunity_diagnostics,
-    generate_plans,
-    supplement_component_coverage,
-)
 
 
 class EditorialBriefCompileError(ValueError):
@@ -433,25 +428,8 @@ def compile_editorial_brief(
 ) -> dict[str, Any]:
     recent = recent_summaries or []
     contract = validate_editorial_brief_for_article(brief, parsed)
-    baseline = generate_plans(parsed, contract.article.article_type, history_window, recent)[0]
     palette_profile, art_configuration = _art_direction_profile(contract)
     slots, compiler_adjustments = _compile_slots(contract, parsed, recent)
-    slots, coverage_adjustments, coverage_target = supplement_component_coverage(
-        parsed,
-        slots,
-        recent,
-        plain_block_ids={
-            block_id
-            for section in contract.sections
-            if section.component_intent == "plain"
-            for block_id in section.source_block_ids
-        } | {
-            ref for adjustment in compiler_adjustments
-            for ref in adjustment["source_block_ids"].split(",")
-        },
-    )
-    compiler_adjustments.extend(coverage_adjustments)
-    opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
     selected_component_types = [slot["component_type"] for slot in slots]
     selected_type_counts = Counter(selected_component_types)
     block_positions = {block.id: index for index, block in enumerate(parsed.blocks)}
@@ -465,9 +443,14 @@ def compile_editorial_brief(
             for slot in slots
         }
     )
-    diversity_target = component_diversity_target(parsed, coverage_target)
     compiled = {
-        **baseline,
+        **plan_envelope(
+            parsed, article_type=contract.article.article_type, history_window=history_window,
+            slots=slots, strong_limit=article_strong_limit(parsed),
+        ),
+        "plan_index": 1,
+        "difference_from_recent": [],
+        "structural_differences": [],
         "plan_name": "智能规划 · Editorial Brief",
         "recommendation": "experimental",
         "style_mode": palette_profile,
@@ -488,7 +471,6 @@ def compile_editorial_brief(
             "compiler_adjustments": compiler_adjustments,
         },
         "component_diagnostics": {
-            **opportunity_diagnostics,
             "requested_component_count": sum(
                 1
                 for section in contract.sections
@@ -503,22 +485,10 @@ def compile_editorial_brief(
                 if count > 1
             ),
             "occupied_article_thirds": occupied_article_thirds,
-            "rhythm_target_distinct_types": diversity_target,
-            "rhythm_status": (
-                "pass"
-                if len(selected_type_counts) >= diversity_target
-                else "limited_by_source_candidates"
-            ),
-            "coverage_target": coverage_target,
-            "coverage_added_count": len(coverage_adjustments),
+            # Kept for readers of historical plans; current compilation never adds slots.
+            "coverage_added_count": 0,
             "compiler_adjustments": compiler_adjustments,
         },
-    }
-    strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
-    compiled["quality_constraints"] = {
-        **compiled["quality_constraints"],
-        "max_strong_components_per_article": strong_limit,
-        "facts_locked": True,
     }
     return validate_plan_for_article(compiled, parsed)
 

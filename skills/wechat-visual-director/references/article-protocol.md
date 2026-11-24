@@ -60,7 +60,7 @@ Markdown 只描述内容结构，不写组件名、主题名、分割线样式�
 - 风险、限制和注意事项：直接写清原文事实，不为了获得警示组件补造结论。
 - 引用的内容语义与 Markdown `>` 形式分开判断：主观感受或修辞摘句仍是普通引用；只有确实提供事实、数据或来源依据时才适合证据强调。不要为了组件覆盖率把“原文是引用块”当作证据理由。
 
-长篇 `data_policy`、`viewpoint_trend` 或 `tutorial_steps` 文章若包含大量段落，却没有 H3、列表或真实表格，系统会返回 `source_structure_too_flat`。此时只整理已有关系：
+长篇 `data_policy`、`viewpoint_trend` 或 `tutorial_steps` 文章若包含大量段落，却没有 H3、列表或真实表格，可以复核原文是否有遗漏的结构；这只是宿主的排版提示，不阻断交稿。没有真实结构就保留连续正文；确有关系时再考虑：
 
 - 多个真实因素、政策信号或读者判断 → 列表；
 - 有明确顺序的流程 → 有序列表；
@@ -69,7 +69,7 @@ Markdown 只描述内容结构，不写组件名、主题名、分割线样式�
 
 不要为了通过预检给叙事段落随意编号，也不要把一维数据硬凑成表格。导语不应完整复述第一章已经承担的事件说明。
 
-宿主模型仍负责判断文章类型、视觉方向和优先组件。篇幅只决定强调数量的上限；标题、原图和基础样式足以支撑阅读时，可以不用强组件。编译器只补有明确原文结构、且尚未使用的语义角色，不覆盖宿主明确保留普通排版的内容，不消费 H1/H2 或邻近强组件的内容，也不为凑数把普通列表或引用升级成卡片。
+宿主模型仍负责判断文章类型、视觉方向和优先组件。篇幅只决定强调数量的上限；标题、原图和基础样式足以支撑阅读时，可以不用强组件。上下文中的候选只供宿主判断。没有选用的组件不会在交稿后由核心补入；未选段落、列表与引用仍按原文基础样式呈现。
 
 组件、章节线、行内重点、图片外框和品牌页尾均由确定性渲染器按主题生成。`---` 只声明“此处需要内容转场”，不声明线条样式。更换或新增视觉主题时，不需要修改 `wechat_article.v1`，也不得让宿主 Agent 输出 HTML。
 
@@ -97,11 +97,11 @@ Markdown 只描述内容结构，不写组件名、主题名、分割线样式�
 1. 先只创建和预检任务：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File "{launcher}" task create --file "<absolute-article-path>" --no-plan --json
+powershell -ExecutionPolicy Bypass -File "{launcher}" task create --file "<absolute-article-path>" --json
 ```
 
 2. 只解析 stdout 中的 JSON：
-   - `next_action=fix_source`：读取返回的 `findings`，只修复其中明确的问题，再用同一幂等语义重试；`source_structure_too_flat` 只允许把原稿已有的并列、顺序、概念或二维数据改写为对应 Markdown 结构，不得补造事实。
+   - `next_action=fix_source`：读取返回的 `findings`，只修复其中明确的问题，再用同一幂等语义重试；不要因段落长或组件少而改写原稿。
    - `next_action=generate_editorial_brief`：继续下面的宿主规划步骤。
    - `next_action=human_review`：既有推荐稿已可评审，直接打开 `review_url` 并停止自主操作。
    - `idempotency_replayed=true`：说明复用了同一输入的既有任务，不要再创建副本。
@@ -131,8 +131,8 @@ powershell -ExecutionPolicy Bypass -File "{launcher}" task plan <task-id> --brie
 6. 解析规划结果：
    - `planner_provider=host_agent` 且 `fallback_used=false`：宿主 Brief 已通过校验；
    - `normalization_count>0`：核心做了安全降级或规范化，允许继续评审；
-   - `coverage_added_count>0`：核心补充了有明确原文依据的语义组件；这不是模型新增内容，也不代表可以跳过人工评审；
-   - `fallback_used=true`：宿主 Brief 未通过，当前方案来自规则兜底；必须如实告知用户，但不需要重复配置模型 Key。
+   - `host_brief_invalid`：没有保存方案，也没有生成规则稿。按 `details.issues` 修正对应字段，沿用同一任务及返回的版本重交一次；仍未通过就向用户说明具体阻碍，不反复建任务、不交空规划。
+   - `version_conflict`：重新读状态和上下文，不盲目重发旧请求；`plan_already_exists`：已有成稿，使用原评审入口，不覆盖人工修改。
    - `next_action=human_review`：把 `review_url` 告知用户并停止自主操作，等待其在工作台确认主题、图片与封面。需要换主题时使用工作台的确定性主题切换，不要求宿主重新规划文章。
 7. 用户明确要求“重新开一篇/另建版本”时，才在创建命令增加 `--new-task`。
 

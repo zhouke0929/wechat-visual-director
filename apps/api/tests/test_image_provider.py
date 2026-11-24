@@ -11,6 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from host_fixture import submit_fixture
 from visual_director.image_provider import (
     GeminiImageProvider,
     ImagesApiProvider,
@@ -857,10 +858,7 @@ def test_api_persists_sanitized_provider_failure_without_blocking_task(tmp_path:
             "/api/v1/article-tasks",
             files={"markdown_file": ("failure.md", markdown.encode("utf-8"), "text/markdown")},
         ).json()["task"]
-        client.post(
-            f'/api/v1/article-tasks/{task["id"]}/generate-plans',
-            json={"mode": "start", "expected_task_version": task["version"]},
-        )
+        submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', task["version"])
         detail = client.get(f'/api/v1/article-tasks/{task["id"]}').json()["task"]
         plan = client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"][0]
         client.post(

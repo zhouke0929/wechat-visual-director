@@ -16,7 +16,7 @@ export default function AppShell() {
   if (pathname === "/settings") return <SettingsPage />;
   if (pathname === "/theme-gallery") return <ThemeGalleryPage />;
   if (/^\/theme-gallery\/[^/]+$/.test(pathname)) return <ThemeDetailPage />;
-  if (/^\/tasks\/[^/]+$/.test(pathname)) return <TaskReviewPage />;
+  if (/^\/tasks\/[^/]+$/.test(pathname)) return <TaskReviewPage key={pathname} />;
   if (pathname === "/blind-review") return <BlindReviewPage />;
   if (pathname === "/component-gallery") return <ComponentGalleryPage />;
   if (pathname === "/variant-review") return <VariantReviewPage />;

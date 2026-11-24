@@ -248,6 +248,7 @@ export type PreflightReport = {
 };
 
 export type TaskDetail = {
+  review_path: string | null;
   task: Task;
   progress: ProgressStep[];
   input_summary: {
