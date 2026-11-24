@@ -8,6 +8,7 @@ from .generated_theme import render_generated_list
 from .theme_extensions import render_extended_list
 from .ordinary_list_content import ListValue, list_field_reading, ordinary_list_marker, ordinary_list_rows
 from .reading_rules import LIST_BODY, apply_reading_css
+from .render_pilot import current_theme_styles_enabled
 
 
 def _render_list(
@@ -41,6 +42,7 @@ def _render_list(
             )
         return f'<section style="margin:22px 0 25px;padding-left:7px;border-left:1px dotted {sky};">{"".join(rendered)}</section>'
     if config["list_variant"] == "audit_track":
+        sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
         rendered = []
         item_style = apply_reading_css("box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 9px;border-left:1px solid #C7D0CC;color:#34403E;font-size:15px;line-height:1.7;vertical-align:top;", LIST_BODY, reading)
         for index, field_attrs, item in rows:
@@ -55,7 +57,7 @@ def _render_list(
                 marker = f"C{index}"
             rendered.append(
                 '<section style="border-bottom:1px solid #C7D0CC;white-space:normal;">'
-                f'<span style="display:inline-block;width:18%;padding:12px 5px;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;vertical-align:top;">{marker}</span>'
+                f'<span style="{sizing}display:inline-block;width:18%;padding:12px 5px;color:{accent};font-family:Georgia,serif;font-size:11px;font-weight:800;vertical-align:top;">{marker}</span>'
                 f'<p{field_attrs} style="{item_style}">{item}</p>'
                 f'<span style="display:inline-block;width:12%;padding:12px 0;color:{secondary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">{"□" if semantic_role == "action_checklist" else "·"}</span></section>'
             )

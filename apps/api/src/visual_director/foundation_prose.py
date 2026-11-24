@@ -4,6 +4,7 @@ import html
 import re
 from typing import Any
 
+from .render_pilot import current_theme_styles_enabled
 from .foundation_inline import _inline, _body_inline
 from .generated_theme import render_generated_hero, render_generated_paragraph, render_generated_quote
 from .theme_extensions import render_extended_lead, render_extended_quote, render_extended_hero
@@ -47,10 +48,11 @@ def render_lead(content: str, label: str, config: dict[str, Any], family: str, r
             f'<p style="margin:9px 0 -18px;text-align:right;"><span style="display:inline-block;width:14px;height:8px;border-radius:12px 2px 12px 2px;background-color:{palette.get("secondary", accent)};transform:rotate(-14deg);"></span></p></section>'
         )
     elif family == "structured":
+        sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
         return (
             f'<section data-content-role="lead" data-lead-kind="{html.escape(label)}" '
             f'style="margin:24px 0 30px;border-top:4px solid {accent};border-bottom:1px solid #B9C3BE;white-space:normal;">'
-            f'<span style="display:inline-block;width:23%;padding:15px 8px 12px 0;color:{palette.get("secondary", accent)};font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.12em;vertical-align:top;">LEAD</span>'
+            f'<span style="{sizing}display:inline-block;width:23%;padding:15px 8px 12px 0;color:{palette.get("secondary", accent)};font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.12em;vertical-align:top;">LEAD</span>'
             f'<p style="box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:13px 0 14px 15px;border-left:1px solid #B9C3BE;color:#24302E;font-size:16px;font-weight:650;line-height:1.8;vertical-align:top;">{text}</p></section>'
         )
     elif family == "warm":
@@ -116,9 +118,10 @@ def render_quote(content: str, config: dict[str, Any], family: str, reading: Rea
             f'</blockquote>'
         )
     elif config.get("quote_variant") == "evidence_margin":
+        sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
         return (
             f'<blockquote style="margin:30px 0;padding:4px 0;border-top:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;white-space:normal;">'
-            f'<span style="display:inline-block;width:23%;padding:17px 8px 13px 0;color:{accent};font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.14em;vertical-align:top;">QUOTE<br>REF</span>'
+            f'<span style="{sizing}display:inline-block;width:23%;padding:17px 8px 13px 0;color:{accent};font-family:Georgia,serif;font-size:9px;font-weight:800;letter-spacing:.14em;vertical-align:top;">QUOTE<br>REF</span>'
             f'<span style="box-sizing:border-box;display:inline-block;width:77%;padding:15px 0 15px 16px;border-left:4px solid {accent};color:#1F2B29;font-size:17px;font-weight:700;line-height:1.85;vertical-align:top;">{text}</span></blockquote>'
         )
     elif config.get("quote_variant") == "postcard_quote":

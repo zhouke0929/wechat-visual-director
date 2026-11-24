@@ -10,7 +10,7 @@ from .parser import ParsedArticle
 from .generated_theme import render_generated_semantic
 from .logic_path_renderer import render_logic_path
 from .reading_rules import resolve_reading_profile
-from .render_pilot import logic_path_pilot_enabled, renderer_pilot_enabled
+from .render_pilot import current_theme_styles_enabled, logic_path_pilot_enabled, renderer_pilot_enabled
 from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
 from .theme_extensions import render_extended_semantic
 from .timeline_recipe import render_timeline
@@ -462,9 +462,10 @@ def _render_native_semantic(
                 f'</section>'
             )
         if variant == "evidence_margin":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:29px 0;padding:4px 0;border-top:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;white-space:normal;">'
-                f'<span style="display:inline-block;width:23%;padding:17px 10px 13px 0;color:{primary};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;vertical-align:top;">EVIDENCE<br><strong style="display:block;margin-top:8px;color:{accent};font-size:23px;letter-spacing:0;">↳</strong></span>'
+                f'<span style="{sizing}display:inline-block;width:23%;padding:17px 10px 13px 0;color:{primary};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;vertical-align:top;">EVIDENCE<br><strong style="display:block;margin-top:8px;color:{accent};font-size:23px;letter-spacing:0;">↳</strong></span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:16px 0 15px 16px;border-left:4px solid {primary};color:{ink};font-size:16px;font-weight:700;line-height:1.82;vertical-align:top;">{evidence}</p>'
                 f'</section>'
             )
@@ -546,9 +547,10 @@ def _render_native_semantic(
                 f'</section>'
             )
         if variant == "coordinate_definition":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:30px 0;padding:0;border-top:4px solid {primary};white-space:normal;">'
-                f'<span style="display:inline-block;width:25%;padding:14px 9px 12px 0;color:{accent};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;vertical-align:top;">TERM<small style="display:block;margin-top:8px;color:#71807A;font-size:8px;letter-spacing:.16em;">DEFINITION</small></span>'
+                f'<span style="{sizing}display:inline-block;width:25%;padding:14px 9px 12px 0;color:{accent};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;vertical-align:top;">TERM<small style="display:block;margin-top:8px;color:#71807A;font-size:8px;letter-spacing:.16em;">DEFINITION</small></span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:75%;padding:13px 0 14px 16px;border-left:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;vertical-align:top;">'
                 f'<strong style="display:block;margin-bottom:7px;color:{primary};font-size:17px;line-height:1.55;">{title}</strong>'
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.8;">{definition}</p></section>'
@@ -661,10 +663,11 @@ def _render_native_semantic(
                 f'<p style="margin:0;padding:15px 2px 17px;color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
             )
         if variant == "case_register":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:29px 0;border:1px solid {primary};background-color:{surface};">'
                 f'<p style="height:7px;margin:0;background-color:{primary};"><span style="display:block;width:27%;height:7px;background-color:{secondary};">&#160;</span></p>'
-                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="display:inline-block;width:25%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">CASE / 01</span>'
+                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="{sizing}display:inline-block;width:25%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">CASE / 01</span>'
                 f'<strong style="box-sizing:border-box;display:inline-block;width:75%;padding:13px 13px;border-left:1px solid #B7C5C0;color:{primary};font-size:17px;line-height:1.55;vertical-align:top;">{title}</strong></section>'
                 f'<p style="margin:0;padding:15px 16px 17px;color:{ink};font-size:15px;line-height:1.84;">{body}</p></section>'
             )
@@ -693,9 +696,10 @@ def _render_native_semantic(
                 f'</section>'
             )
         if variant == "risk_flag":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:30px 0;border-top:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;white-space:normal;">'
-                f'<span style="display:inline-block;width:21%;padding:16px 6px;background-color:{accent};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-align:center;vertical-align:top;">RISK<br><strong style="font-size:24px;line-height:1.15;">!</strong></span>'
+                f'<span style="{sizing}display:inline-block;width:21%;padding:16px 6px;background-color:{accent};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-align:center;vertical-align:top;">RISK<br><strong style="font-size:24px;line-height:1.15;">!</strong></span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:15px 0 15px 17px;color:{ink};font-size:15px;line-height:1.82;vertical-align:top;">{body}</p>'
                 f'</section>'
             )
@@ -764,11 +768,12 @@ def _render_native_semantic(
                 f'{"".join(rows)}</section>'
             )
         if variant == "audit_track":
+            sizing = "box-sizing:border-box;white-space:nowrap;" if current_theme_styles_enabled() else ""
             rows = []
             for index, item in enumerate(items, 1):
                 rows.append(
                     f'<section style="margin:0;border-bottom:1px solid #C7D0CC;white-space:normal;">'
-                    f'<span style="display:inline-block;width:18%;padding:12px 7px;color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">CHK-{index:02d}</span>'
+                    f'<span style="{sizing}display:inline-block;width:18%;padding:12px 7px;color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">CHK-{index:02d}</span>'
                     f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 10px;border-left:1px solid #C7D0CC;color:{ink};font-size:14px;line-height:1.7;vertical-align:top;">{_inline(item)}</p>'
                     f'<span style="display:inline-block;width:12%;padding:12px 0;color:{accent};font-size:15px;font-weight:800;text-align:right;vertical-align:top;">□</span></section>'
                 )

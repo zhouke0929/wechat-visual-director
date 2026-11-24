@@ -43,8 +43,6 @@ STEP_WEIGHT_SAMPLES = {
     "youth_campus/logic_path_stress": "49e695dd914f8272bcba059249679b396f8776d3ba5d07b784aabb299b20ee2f",
     "editorial_contrast/logic_path": "7eda89cf28473c78a375f9f8a65c8d23f8fc676fd9adef14a4406d95b157c4de",
     "editorial_contrast/logic_path_stress": "8fb801ccf64ca338020001a96beb44916bd5308bff456470dd4bda33083586a9",
-    "structured_grid/logic_path": "62f471f33949e5b3d8a33f5e015640acbfaddce0ea6d72fc68272f30bba56ba5",
-    "structured_grid/logic_path_stress": "5ce838b6afbd52c665fe0ef7877400d23c66da2c7c9bc3fe10824289a415d758",
     "future_tech/logic_path": "de93d6c990a1853669df894099bde0f6413a739f9106c9ddb78e89e448345748",
     "future_tech/logic_path_stress": "141c75ba722dd1f80de87aa0dcdbcbdbad30a8f90e2275569c4036dfc65c7a6d",
     "business_review/logic_path": "6de469fa0e464bcbbb8d95ebb84a6d3c6b368cfd800566836a4177c66c9c0f72",
@@ -54,6 +52,23 @@ FOUNDATIONS = frozenset("hero lead paragraph section_heading subheading quote un
                         "ordered_list image_caption table divider source reference_list closing_cta".split())
 SEMANTIC = frozenset("question_hook numbered_insight evidence_callout before_after_timeline logic_path "
                      "concept_explainer case_card warning_note action_checklist faq_card comparison_card section_summary".split())
+
+# Grid column sizing, plus the long-step and article probes.
+GRID_REGISTER_SAMPLES = {
+    "structured_grid/lead": "793152a15da59d5bb8461a7510d4af4ace515b23739e663e6c5845975e5155cd",
+    "structured_grid/section_heading": "9b5923940b6fa6636b14ce731984733a32936fd25ee88721c074fb234543fd13",
+    "structured_grid/unordered_list": "b82012ed23aaeab12c3342326f4df4295c2a9e9c6fd91fc9b4b6a7a71424c194",
+    "structured_grid/ordered_list": "3518770e2aa15e7be779a73f3ccf46b3f0cf01d5bd87d5434d3b9b1c5ca90787",
+    "structured_grid/action_checklist": "12662224aa2166567cb88eaa94696ab118e8281323bb6a2b14ee8499889578d2",
+    "structured_grid/logic_path": "45107790fa5eb3bafdb219519956ecdba8b492a265002a9ff4495f39f41c7cc4",
+    "structured_grid/warning_note": "2486d87dcab65a6b7619aaf86cc8166762c639c756d7bc9db4f2e68c796ab3d0",
+    "structured_grid/quote": "2686b8d9a748efe6bd8aa89929244e88ae51cfc4be80bb5cd737a65f3393e56f",
+    "structured_grid/evidence_callout": "df6990d73d15daed3b5d03b1ff1fe5cb54ad54d7cc73a39f2b947c08352d4fdc",
+    "structured_grid/concept_explainer": "e372945daf50b026f1efd3d8da074904dc00297b2c3db315f499e18f51538dde",
+    "structured_grid/case_card": "61815b16e7238bfbeff2848ed9c65e8abf3423636939d4ddcfa71245aff7d6ca",
+    "structured_grid/whole_article": "bfc4f73e71f1034721637c14e416e1399d2cd7953c02486ebc07bd39f4073dcc",
+    "structured_grid/logic_path_stress": "39a2e0bb3ac17dfd689055288a00a0b413522ea00baf2b41e237f6389f2a15d4",
+}
 
 _OPEN_TAG = re.compile(r"<[A-Za-z][^<>]*>")
 _EDITOR_REF = re.compile(r"""(?:"[^"]*"|'[^']*'|(?P<ref> data-editor-(?:list|step)-ref="block-\d{3}(?::item:\d+)?"))""")
@@ -155,6 +170,7 @@ def test_complete_catalog_matches_pinned_renderer(mode, fixed_catalog):
     if mode != "legacy":
         expected.update(APPROVED_POSTER_STEPS)
         expected.update(STEP_WEIGHT_SAMPLES)
+        expected.update(GRID_REGISTER_SAMPLES)
         # Campus evidence card: single-line radio sticker above the note.
         expected["youth_campus/evidence_callout"] = "03f24b1dd1b1298938bb827a87aa1be51f565b8857e02b5e1ccabf7d8075a826"
     observed = _render(ROOT, mode, fixed_catalog["fixed_plan"])

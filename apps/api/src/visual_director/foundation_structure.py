@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from .parser import ContentBlock
+from .render_pilot import current_theme_styles_enabled
 from .foundation_inline import _inline
 from .heading_numbers import has_explicit_heading_number
 from .generated_theme import render_generated_heading, render_generated_break, render_generated_table
@@ -99,10 +100,11 @@ def _render_heading(block: ContentBlock, config: dict[str, Any], section_index: 
 
     if level == 2 and config["heading_variant"] == "indexed_column":
         section_label = "IDX" if _has_explicit_heading_number(content) else f"{section_index:02d}"
+        sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
         return (
             f'<section data-heading-level="2" data-auto-numbered="{str(not _has_explicit_heading_number(content)).lower()}" '
             f'style="margin:44px 0 22px;border-top:4px solid {accent};white-space:normal;">'
-            f'<span style="display:inline-block;width:21%;padding:12px 8px 10px 0;color:{secondary};font-family:Georgia,serif;font-size:28px;font-weight:800;line-height:1;vertical-align:top;">{section_label}</span>'
+            f'<span style="{sizing}display:inline-block;width:21%;padding:12px 8px 10px 0;color:{secondary};font-family:Georgia,serif;font-size:28px;font-weight:800;line-height:1;vertical-align:top;">{section_label}</span>'
             f'<strong style="box-sizing:border-box;display:inline-block;width:79%;padding:10px 0 11px 14px;border-left:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;color:#14201F;font-size:21px;line-height:1.48;vertical-align:top;">{text}</strong>'
             "</section>"
         )

@@ -25,6 +25,11 @@ def logic_path_pilot_enabled() -> bool:
     return _structure_mode() != "legacy"
 
 
+def current_theme_styles_enabled() -> bool:
+    """Keep current theme styling independent of list binding; preserve full v1 rollback."""
+    return _structure_mode() != "legacy"
+
+
 def reading_rules_pilot_enabled() -> bool:
     """Keep intentional visual changes separate from compatibility proofs."""
     return renderer_pilot_enabled() and os.environ.get("WVD_READING_RULES_PILOT") == "1"

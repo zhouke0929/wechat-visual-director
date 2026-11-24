@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
+from .render_pilot import current_theme_styles_enabled
 from .logic_path_content import LogicPathField, marker_alignment_css, step_field_attributes, step_field_css, step_field_text
 
 
@@ -115,11 +116,12 @@ def render_native_logic_path(
             f'{"".join(rows)}</section>'
         )
     if variant == "process_register":
+        marker_width = "box-sizing:border-box;width:17%;max-width:52px;" if current_theme_styles_enabled() else "width:52px;"
         rows = []
         for index, item in enumerate(items, 1):
             rows.append(
                 f'<section style="border-top:1px solid #B7C5C0;white-space:normal;">'
-                f'<span style="display:inline-block;width:52px;padding:13px 7px;color:{primary};font-family:Georgia,serif;font-size:13px;font-weight:750;vertical-align:top;">P-{index:02d}</span>'
+                f'<span style="display:inline-block;{marker_width}padding:13px 7px;color:{primary};font-family:Georgia,serif;font-size:13px;font-weight:750;vertical-align:top;">P-{index:02d}</span>'
                 f'{text_field(item, f"box-sizing:border-box;display:inline-block;width:69%;margin:0;padding:12px 10px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:top;")}'
                 f'<span style="box-sizing:border-box;display:inline-block;width:14%;padding:15px 5px;color:{accent};font-size:13px;font-weight:800;text-align:right;vertical-align:top;">→</span>'
                 f'</section>'
