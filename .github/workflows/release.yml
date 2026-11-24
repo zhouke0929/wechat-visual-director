@@ -121,7 +121,7 @@ jobs:
       - name: Publish verified cross-platform release
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ github.ref_name == 'v1.0.0' && 'v1.0.0 · 首个稳定版' || github.ref_name }}
+          name: ${{ github.ref_name }}
           prerelease: ${{ contains(github.ref_name, '-') }}
           make_latest: ${{ !contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
