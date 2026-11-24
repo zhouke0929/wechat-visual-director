@@ -535,7 +535,7 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
         return [lists[0].id]
     if section.component_intent == "evidence_callout" and evidence:
         return [evidence[0].id]
-    if section.component_intent == "before_after_timeline" and lists and len(lists[0].content) >= 2:
+    if section.component_intent == "before_after_timeline" and lists and len(lists[0].content) == 2:
         return [lists[0].id]
     if (
         section.component_intent == "logic_path"
@@ -569,7 +569,7 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
     if section.component_intent == "section_summary" and lists and 2 <= len(lists[0].content) <= 6:
         return [lists[0].id]
     if section.component_intent == "comparison_card":
-        if lists and len(lists[0].content) >= 2:
+        if lists and len(lists[0].content) == 2:
             return [lists[0].id]
         pair = adjacent_comparison_pair(section.source_block_ids, blocks)
         if pair:

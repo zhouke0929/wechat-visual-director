@@ -19,8 +19,8 @@ from .parser import ParsedArticle
 from .planner import component_opportunity_diagnostics, generate_plans
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.9-quote-evidence"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.6-quote-evidence"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.10-semantic-emphasis"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.7-semantic-emphasis"
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -30,15 +30,15 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "不得输出 HTML、CSS、图片正文文字、凭据或模型密钥。",
     "H1/H2 是不可变的文章标题与主章节结构，任何组件都不得消费或替换它们。",
     "优先从 component_opportunities 提供的真实候选中选择不同语义角色；候选不足时保持 plain，不得补造结构。",
-    "中长分析稿若存在至少 3 种可绑定语义，应在不相邻、不重复消费内容的前提下使用 3–4 个不同角色，而不是只使用标题、引文或图片。",
-    "非 plain 组件预算随文章长度变化：短文最多 3 个、中长文最多 4 个、长文最多 5–6 个。",
+    "只在组件能明显帮助读者比较、定位、理解或行动时使用它；标题、段落、基本列表和原图已经足够时，保留普通排版，可以没有强组件。",
+    "非 plain 组件预算是上限，不是配额：短文最多 3 个、中长文最多 4 个、长文最多 5–6 个。",
     "视觉新鲜感不能破坏品牌一致性和正文可读性。",
     "question_hook 只能引用真正面向读者发问的 H3–H6 子标题：标题应以疑问词起句、冒号后的独立分句以疑问词起句，或以问号结尾；正文中间仅出现‘如何/是否’不构成提问。",
     "同一 H2 下以‘对象：分析维度’形式并列出现的 H3–H6 是同级分析骨架，应保持普通排版；不得只因其中一项含‘如何/是否’而把它单独改成 question_hook 或 faq_card。numbered_insight 必须引用含 2–5 项的列表。",
-    "logic_path 必须引用含 3–5 项的 ordered_list；before_after_timeline 必须引用至少 2 项的列表。",
+    "logic_path 必须引用含 3–5 项的 ordered_list；before_after_timeline 必须引用恰好两项且明确为前后的列表。",
     "concept_explainer 只能引用同一 H2 下 H3–H6 子标题及其各自紧随的解释段落；连续的 2–4 组会被编译为一个词条组。若同一 H2 下存在 3–4 个并列小节、但每项还有补充正文，则选择其中一项即代表整个并列系列，核心会让各项在原位使用一致组件并保留中间正文。",
-    "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 必须直接绑定含风险提示的原文。",
-    "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 可绑定原文列表，或绑定标题已明确表示对比且正文自身带有双方语义的两个相邻段落；不得把普通段落改写为列表或凭空制造对照。",
+    "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 只突出文章对读者明确提出的风险或适用限制，不因引用中含命令、否定词，或正文提到作者顾虑就使用。",
+    "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 只绑定确有两方的两项列表，或标题明确表示对比且正文自身带有双方语义的两个相邻段落；不要把多方压成两方。",
     "数据来源、资料来源、规则来源、参考来源与来源说明都使用来源小字，不得用作强组件；即使来源只概括官网、公开账号或行业资料而没有具体链接，也仍属于来源说明。",
     "quote 块不自动等于 key_evidence。感受、原话和修辞摘句保持 plain，由渲染器使用普通引用样式；无需为它们增加强组件。只有内容确实为论点提供事实、数据或来源依据时才选择 evidence_callout，不能仅因使用了引用格式而升级为证据。",
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",

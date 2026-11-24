@@ -344,16 +344,22 @@ def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> N
         for block_id in raw["image_intents"][0]["source_block_ids"]
         if block_id != anchor
     ]
-    extra = copy.deepcopy(raw["sections"][0])
-    extra["visual_priority"] = "low"
-    raw["sections"].append(extra)
+    # Exercise the count cap independently of the rule planner's choices for
+    # this fixture. Repeating a valid intent isolates this normalization check.
+    valid = next(section for section in raw["sections"] if section["component_intent"] == "logic_path")
+    raw["sections"] = [
+        {**copy.deepcopy(valid), "visual_priority": "low" if index == 4 else "high"}
+        for index in range(5)
+    ]
 
     normalized, adjustments = normalize_editorial_brief_for_article(raw, request.parsed)
     codes = {item["code"] for item in adjustments}
     assert "visual_metaphor_truncated" in codes
     assert "image_anchor_added_to_sources" in codes
-    assert "excess_component_intent_lowered_to_plain" in codes
-    assert len([item for item in normalized.sections if item.component_intent != "plain"]) == 4
+    assert [item["location"] for item in adjustments
+            if item["code"] == "excess_component_intent_lowered_to_plain"] == ["sections[4]"]
+    assert sum(item["code"] == "component_intent_lowered_to_plain" for item in adjustments) == 3
+    assert len([item for item in normalized.sections if item.component_intent != "plain"]) == 1
     assert len(normalized.image_intents[0].visual_metaphor) == 160
     compile_editorial_brief(request.parsed, normalized, 5, [])
 
@@ -460,6 +466,130 @@ def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> N
         slot["selection_reason"].startswith("组件覆盖兜底：")
         for slot in plan["slots"]
     )
+
+
+def _compile_with_sections(markdown: str, sections: list[dict]) -> tuple:
+    parsed = parse_markdown(markdown)
+    request = TextPlannerRequest(
+        parsed=parsed, article_type="viewpoint_trend", history_window=5,
+        recent_summaries=[], brand_config={},
+    )
+    raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    raw.update(sections=sections, image_intents=[])
+    return parsed, compile_editorial_brief(parsed, raw, 5, [])
+
+
+def test_automatic_coverage_leaves_ordinary_lists_quotes_and_personal_concerns_plain() -> None:
+    markdown = """# 一次产品试用
+
+我在反复跑过几轮以后，开始担心自己的维护成本和风险会上升。
+
+> 请注意素材不要照搬品牌原图。这是一段交给设计工具的任务说明。
+
+第二天我只试了下面两个版本，没有给它们排名。
+
+- 桌面版本
+- 移动版本
+"""
+    # A long narrative should not turn into a component quota.
+    markdown += "\n\n".join(f"\n第 {index} 次回访时，我记录了当天的情况。" for index in range(45))
+    parsed, plan = _compile_with_sections(markdown, [])
+
+    assert "warning_note" not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    assert plan["slots"] == []
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+    preview = render_preview(parsed, plan)
+    assert "交给设计工具的任务说明" in preview
+    assert "桌面版本" in preview and "移动版本" in preview
+
+
+def test_automatic_coverage_respects_plain_and_does_not_repeat_warning_for_density() -> None:
+    markdown = """# 样稿检查
+
+风险提示：这份初稿不适用对外发布。
+
+保留一段解释当时的背景。
+
+## 注意事项
+
+不要把临时账号用于正式报名。
+
+现在切换到后续维护事宜。
+
+请勿在归档时删除原始记录。
+"""
+    plain = {
+        "source_block_ids": ["block-002"], "semantic_role": "plain_narrative",
+        "visual_priority": "medium", "component_intent": "plain", "reasoning": "该段保留正文。",
+    }
+    parsed, plan = _compile_with_sections(markdown, [plain])
+    warnings = [slot for slot in plan["slots"] if slot["component_type"] == "warning_note"]
+    assert len(warnings) == 1
+    assert warnings[0]["anchor_block_id"] == "block-005"
+    preview = render_preview(parsed, plan)
+    assert "不适用对外发布" in preview and "删除原始记录" in preview
+
+
+def test_automatic_coverage_rescues_a_real_sequence_and_binary_comparison() -> None:
+    parsed, plan = _compile_with_sections("""# 办理流程
+
+## 操作步骤
+
+1. 下载申请表
+2. 填写并提交申请表
+3. 接收审核结果
+
+以上顺序以系统状态为准。
+
+## 两种办理方式对比
+
+- 线上办理不需要前往窗口。
+- 线下办理可以当面核对材料。
+""", [])
+    assert {slot["component_type"] for slot in plan["slots"]} == {"logic_path", "comparison_card"}
+    assert plan["component_diagnostics"]["coverage_added_count"] == 2
+    preview = render_preview(parsed, plan)
+    assert "接收审核结果" in preview and "当面核对材料" in preview
+
+
+@pytest.mark.parametrize("heading, component", [
+    ("三种方式对比", "comparison_card"),
+    ("改革前后变化", "before_after_timeline"),
+])
+def test_multi_option_list_is_not_consumed_by_a_two_sided_component(heading, component) -> None:
+    parsed, plan = _compile_with_sections(f"""# 选项说明
+
+## {heading}
+
+- 第一种：线上提交。
+- 第二种：现场办理。
+- 第三种：邮寄申请。
+""", [])
+    assert component not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    source = next(block for block in parsed.blocks if block.type == "unordered_list")
+    raw = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="viewpoint_trend", history_window=5,
+        recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    raw.update(sections=[{
+        "source_block_ids": [source.id], "semantic_role": "comparison",
+        "visual_priority": "high", "component_intent": component, "reasoning": "对照。",
+    }], image_intents=[])
+    normalized, _ = normalize_editorial_brief_for_article(raw, parsed)
+    assert normalized.sections[0].component_intent == "plain"
+    for result in (plan, compile_editorial_brief(parsed, normalized, 5, [])):
+        preview = render_preview(parsed, result)
+        assert all(preview.count(text) == 1 for text in source.content)
+
+
+def test_before_after_under_chapter_keeps_chapter_and_binds_both_items() -> None:
+    parsed, plan = _compile_with_sections("# 教学记录\n\n## 改革前后变化\n\n- 传统方式以讲授为主。\n- 新方式以协作为主。", [])
+    chapter, source = parsed.blocks[-2:]
+    slot, = plan["slots"]
+    assert slot["component_type"] == "before_after_timeline"
+    assert slot["consume_block_ids"] == [source.id]
+    preview = render_preview(parsed, plan)
+    assert all(preview.count(text) == 1 for text in [chapter.content, *source.content])
 
 
 def test_compiler_consumes_only_bound_blocks_and_preserves_context_copy() -> None:

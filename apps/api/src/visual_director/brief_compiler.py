@@ -201,7 +201,7 @@ def _compile_bindings(
         return {"items": _item_refs(lists[0], 5)}
     if component == "evidence_callout" and evidence:
         return {"evidence": evidence[0].id}
-    if component == "before_after_timeline" and lists and len(lists[0].content) >= 2:
+    if component == "before_after_timeline" and lists and len(lists[0].content) == 2:
         refs = _item_refs(lists[0], 2)
         return {"before": refs[0], "after": refs[1]}
     if component == "concept_explainer":
@@ -242,7 +242,7 @@ def _compile_bindings(
         return {"items": _item_refs(lists[0])}
     if component == "section_summary" and lists:
         return {"items": _item_refs(lists[0], 6)}
-    if component == "comparison_card" and lists and len(lists[0].content) >= 2:
+    if component == "comparison_card" and lists and len(lists[0].content) == 2:
         refs = _item_refs(lists[0], 2)
         return {"left": refs[0], "right": refs[1]}
     if component == "comparison_card":
