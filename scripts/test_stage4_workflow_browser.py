@@ -32,7 +32,8 @@ def main():
     (out / "brand.json").write_text(json.dumps({"schema_version": "brand_profile.v0.1",
         "name": "公开测试", "fixed_footer": {"enabled": False}}), encoding="utf-8")
     os.environ.update({
-        "VISUAL_DIRECTOR_PROJECT_ROOT": str(out / "isolated-root"),
+        # Official decoration PNGs belong to the app, not to the writable test profile.
+        "VISUAL_DIRECTOR_PROJECT_ROOT": str(repo),
         "VISUAL_DIRECTOR_HOME": str(out / "runtime"),
         "VISUAL_DIRECTOR_DB": str(out / "runtime/data/visual-director.db"),
         "VISUAL_DIRECTOR_ENV_FILE": str(out / "empty.env"),
@@ -204,6 +205,22 @@ def main():
             expect(current).to_have_attribute("data-current-theme", before)
             expect(page.get_by_role("button", name="回到上一版", exact=True)).to_have_count(0)
             checks.append("26 official options grouped by visual family; window theme switches and undo restores selection without regeneration")
+            page.get_by_role("tab", name="手机预览", exact=True).click()
+            for theme, prefix in (
+                ("natural_atlas", "atlas"), ("pop_poster", "pop"),
+                ("oriental_archive", "oriental"), ("vintage_press", "press"),
+                ("business_review", "business"), ("cinematic_story", "cinema"),
+            ):
+                catalog.locator(f'button[data-theme="{theme}"]').click()
+                expect(current).to_have_attribute("data-current-theme", theme)
+                # Wait for the new article (not the previous frame or a picker thumbnail).
+                page.wait_for_function("""prefix => {
+                    const doc = document.querySelector('iframe.preview-frame')?.contentDocument;
+                    return doc?.querySelector('img[src^="/api/v1/theme-assets/' + prefix + '-"]') &&
+                        Array.from(doc.images).every(img => img.complete && img.naturalWidth > 0);
+                }""", arg=prefix, timeout=15_000)
+                expect(page.locator(".preview-frame-state:visible")).to_have_count(0)
+            checks.append("phone article preview loads and decodes decoration images after switching across all six sticker themes")
             page.goto(base + "/settings", wait_until="networkidle")
             expect(page.get_by_text("本地设置", exact=True).first).to_be_visible()
             assert not forbidden, forbidden
