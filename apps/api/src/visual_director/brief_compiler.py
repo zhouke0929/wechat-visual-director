@@ -19,9 +19,8 @@ from .component_catalog import (
 from .editorial_brief import (
     EditorialBrief,
     SectionBrief,
-    adjacent_concept_pairs,
+    selected_concept_pairs,
     adjacent_comparison_pair,
-    surrounding_parallel_concept_series,
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
@@ -205,10 +204,9 @@ def _compile_bindings(
         refs = _item_refs(lists[0], 2)
         return {"before": refs[0], "after": refs[1]}
     if component == "concept_explainer":
-        pairs = adjacent_concept_pairs(
+        pairs = selected_concept_pairs(
             section.source_block_ids,
             {block.id: block for block in parsed.blocks},
-            require_concept_semantics=True,
         )
         if pairs:
             bindings: dict[str, str | list[str]] = {
@@ -278,14 +276,6 @@ def _compile_slots(
     consumed: set[str] = set()
     positions = {block.id: index for index, block in enumerate(parsed.blocks)}
     consumed_positions: set[int] = set()
-    selected_type_counts: Counter[str] = Counter()
-    selected_family_counts: Counter[str] = Counter()
-    semantic_family = {
-        "question_hook": "question",
-        "faq_card": "question",
-        "before_after_timeline": "comparison",
-        "comparison_card": "comparison",
-    }
     for section in brief.sections:
         if section.component_intent == "plain":
             continue
@@ -323,40 +313,6 @@ def _compile_slots(
                     "component": section.component_intent,
                     "source_block_ids": ",".join(section.source_block_ids),
                     "reason": "相邻强组件之间没有普通正文缓冲，已保留为普通排版。",
-                }
-            )
-            continue
-        family = semantic_family.get(section.component_intent, section.component_intent)
-        parallel_series_repeat = False
-        if section.component_intent == "concept_explainer":
-            series = surrounding_parallel_concept_series(
-                section.source_block_ids,
-                {block.id: block for block in parsed.blocks},
-            )
-            series_ids = {block.id for pair in series for block in pair}
-            existing_concepts = [
-                slot for slot in slots
-                if slot["component_type"] == "concept_explainer"
-            ]
-            parallel_series_repeat = bool(
-                len(series) >= 3
-                and existing_concepts
-                and all(
-                    set(slot["consume_block_ids"]).issubset(series_ids)
-                    for slot in existing_concepts
-                )
-                and selected_type_counts[section.component_intent] < len(series)
-            )
-        if (
-            selected_type_counts[section.component_intent] >= 2
-            or selected_family_counts[family] >= 2
-        ) and not parallel_series_repeat:
-            adjustments.append(
-                {
-                    "code": "repeated_component_lowered_to_plain",
-                    "component": section.component_intent,
-                    "source_block_ids": ",".join(section.source_block_ids),
-                    "reason": "同类强组件单篇最多出现两次，已保留为普通排版。",
                 }
             )
             continue
@@ -398,8 +354,6 @@ def _compile_slots(
         )
         consumed.update(consume_block_ids)
         consumed_positions.update(candidate_positions)
-        selected_type_counts[section.component_intent] += 1
-        selected_family_counts[family] += 1
     return slots, adjustments
 
 
@@ -480,6 +434,9 @@ def compile_editorial_brief(
             for section in contract.sections
             if section.component_intent == "plain"
             for block_id in section.source_block_ids
+        } | {
+            ref for adjustment in compiler_adjustments
+            for ref in adjustment["source_block_ids"].split(",")
         },
     )
     compiler_adjustments.extend(coverage_adjustments)

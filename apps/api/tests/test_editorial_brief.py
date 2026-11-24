@@ -19,6 +19,7 @@ from visual_director.parser import classify_article, parse_markdown
 from visual_director.planner import component_opportunity_diagnostics
 from visual_director.renderer import render_preview
 from visual_director.text_planner import (
+    adopt_host_agent_editorial_brief,
     MockTextPlannerProvider,
     TextPlannerRequest,
     build_text_planner_payload,
@@ -331,6 +332,18 @@ def test_parallel_h3_series_keeps_all_members_in_place_and_drops_conflicting_war
     assert preview.index("补充说明二") < preview.index("低压力的短暂停留")
     assert preview.index("不被打扰的自主性") < preview.index("与周边服务产生连接")
 
+    # When all protocol slots are already used, retain the host's selected
+    # member instead of expanding its siblings and rejecting the whole brief.
+    full = copy.deepcopy(raw)
+    full["sections"].extend([
+        {**full["sections"][0], "source_block_ids": [block.id], "component_intent": "plain"}
+        for block in parsed.blocks if block.id not in {"block-003", "block-004", "block-010"}
+    ][:10])
+    kept, changes = normalize_editorial_brief_for_article(full, parsed)
+    assert len(kept.sections) == 12
+    assert kept.sections[0].component_intent == "concept_explainer"
+    assert not any(c["code"] == "parallel_concept_series_expanded" for c in changes)
+
 
 def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> None:
     request = _request(_dev_samples()[4])
@@ -344,8 +357,7 @@ def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> N
         for block_id in raw["image_intents"][0]["source_block_ids"]
         if block_id != anchor
     ]
-    # Exercise the count cap independently of the rule planner's choices for
-    # this fixture. Repeating a valid intent isolates this normalization check.
+    # Four duplicate claims are resolved locally before applying the cap.
     valid = next(section for section in raw["sections"] if section["component_intent"] == "logic_path")
     raw["sections"] = [
         {**copy.deepcopy(valid), "visual_priority": "low" if index == 4 else "high"}
@@ -356,12 +368,105 @@ def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> N
     codes = {item["code"] for item in adjustments}
     assert "visual_metaphor_truncated" in codes
     assert "image_anchor_added_to_sources" in codes
-    assert [item["location"] for item in adjustments
-            if item["code"] == "excess_component_intent_lowered_to_plain"] == ["sections[4]"]
-    assert sum(item["code"] == "component_intent_lowered_to_plain" for item in adjustments) == 3
+    assert "excess_component_intent_lowered_to_plain" not in codes
+    assert sum(item["code"] == "component_intent_lowered_to_plain" for item in adjustments) == 4
     assert len([item for item in normalized.sections if item.component_intent != "plain"]) == 1
     assert len(normalized.image_intents[0].visual_metaphor) == 160
     compile_editorial_brief(request.parsed, normalized, 5, [])
+
+
+def test_host_isolates_missing_references_and_duplicate_images_without_changing_good_choices() -> None:
+    req = _concept_request()
+    good = _concept_brief(req).model_dump(mode="json")
+    raw = copy.deepcopy(good)
+    section, image = raw["sections"][0], raw["image_intents"][0]
+    raw["sections"] += [
+        {**section, "source_block_ids": ["block-999"]},
+        {**section, "source_block_ids": ["block-005", "block-999"]},
+    ]
+    raw["image_intents"] = [dict(image, source_block_ids=["block-999"]), image,
+                            dict(image, visual_metaphor="不要替换第一张")]
+    saved = copy.deepcopy(raw)
+    result = adopt_host_agent_editorial_brief(raw, req)
+    assert not result.fallback_used and raw == saved
+    assert [(s.component_intent, s.source_block_ids) for s in result.brief.sections] == [
+        ("concept_explainer", section["source_block_ids"]), ("plain", ["block-005"])]
+    assert len(result.brief.image_intents) == 1
+    codes = [item["code"] for item in result.normalization_adjustments]
+    assert codes.count("section_invalid_reference_isolated") == 2
+    assert "image_invalid_reference_removed" in codes and "duplicate_image_anchor_removed" in codes
+    before = adopt_host_agent_editorial_brief(good, req)
+    assert render_preview(req.parsed, compile_editorial_brief(req.parsed, result.brief, 5)) == render_preview(
+        req.parsed, compile_editorial_brief(req.parsed, before.brief, 5))
+
+
+def test_budget_counts_only_bindable_unique_requests_and_keeps_priority_order() -> None:
+    parsed = parse_markdown("# 通知\n\n" + "\n\n".join(f"事项 {i} 的具体约束。" for i in range(9)))
+    base = _concept_brief(_concept_request()).model_dump(mode="json")
+    base["image_intents"] = []
+    def section(n, kind, priority):
+        return dict(source_block_ids=[f"block-{n:03d}"], semantic_role="warning",
+                    component_intent=kind, visual_priority=priority, reasoning="原稿说明。")
+    # The four high-priority invalid requests must not take the three seats.
+    base["sections"] = [section(n, "comparison_card", "high") for n in (3, 5, 7, 9)] + [
+        section(2, "warning_note", "low"), section(4, "warning_note", "medium"),
+        section(6, "warning_note", "high"), section(8, "warning_note", "medium"),
+    ]
+    result, adjustments = normalize_editorial_brief_for_article(base, parsed)
+    assert [s.source_block_ids[0] for s in result.sections if s.component_intent != "plain"] == [
+        "block-004", "block-006", "block-008"]
+    assert sum(x["code"] == "excess_component_intent_lowered_to_plain" for x in adjustments) == 1
+
+
+def test_short_story_titles_are_not_automatic_concepts_and_three_host_cases_survive() -> None:
+    parsed = parse_markdown("# 阅览室\n\n## 三次改动\n\n" + "\n\n".join(
+        f"### {place}的案例：来访者停了一下\n\n值班同事移了位置后，来访者不用再回头问，就能找到要去的地方。\n\n这是在{place}留下的一次记录。"
+        for place in ("门口", "窗边", "还书台")))
+    assert "concept_explainer" not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw.update(image_intents=[], sections=[dict(source_block_ids=[f"block-{n:03d}", f"block-{n+1:03d}"],
+        component_intent="case_card", semantic_role="case", visual_priority="high", reasoning="并列案例。")
+        for n in (3, 6, 9)])
+    contract, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, contract, 5)
+    assert [(s["component_type"], s["anchor_block_id"]) for s in plan["slots"]] == [
+        ("case_card", "block-003"), ("case_card", "block-006"), ("case_card", "block-009")]
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+
+
+def test_host_plain_scene_headings_stay_plain_in_the_finished_article() -> None:
+    parsed = parse_markdown(
+        "# 渡口下了一夜雨\n\n## 候船室\n\n"
+        "### 铜铃\n\n风从没有扣紧的小窗灌进来，柜上的铃铛便轻轻响一下。\n\n"
+        "### 白线\n\n我的前轮压在地上一道褪色的漆上，我把车子往后挪了半步。\n\n"
+        "### 末班船\n\n穿蓝雨衣的人从坡底上来，拎着两包湿漉漉的菜。"
+    )
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw.update(image_intents=[], sections=[dict(
+        component_intent="plain", semantic_role="plain_narrative", visual_priority="medium",
+        source_block_ids=[b.id for b in parsed.blocks[2:]], reasoning="短标题是三个叙事场景。",
+    )])
+    result = adopt_host_agent_editorial_brief(raw, TextPlannerRequest(parsed, "lively_growth", 5, [], {}))
+    assert not result.fallback_used
+    plan = compile_editorial_brief(parsed, result.brief, 5)
+    assert plan["slots"] == []
+    html = render_preview(parsed, plan)
+    positions = [html.index(b.content) for b in parsed.blocks[2:]]
+    assert positions == sorted(positions)
+
+
+def test_explicit_bilingual_terms_bind_even_without_keyword_or_length_match() -> None:
+    parsed = parse_markdown("# 课堂观察\n\n## 两个术语\n\n### 认识论框架 (Epistemic Frames)\n\n研究者借此描述群体怎样建立知识。\n\n### 科学认同 (Science Identity)\n\n讨论一个人是否将自己视为科学实践者。")
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw["image_intents"] = []
+    raw["sections"][0]["source_block_ids"] = [f"block-{i:03d}" for i in range(3, 7)]
+    contract, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, contract, 5)
+    first, = plan["slots"]
+    assert first["component_type"] == "concept_explainer"
+    assert first["consume_block_ids"] == raw["sections"][0]["source_block_ids"]
+    preview = render_preview(parsed, plan)
+    assert preview.index("Epistemic Frames") < preview.index("Science Identity")
 
 
 def test_normalizer_does_not_turn_article_h1_into_body_question_component() -> None:

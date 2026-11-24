@@ -10,7 +10,8 @@ from .parser import ParsedArticle
 
 
 EDITORIAL_BRIEF_SCHEMA_VERSION = "editorial_brief.v0.1"
-EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.8-semantic-parity"
+EDITORIAL_BRIEF_NORMALIZER_VERSION = "editorial_brief_normalizer.v0.9-local-recovery"
+MAX_BRIEF_SECTIONS = 12
 
 CONCEPT_HEADING_RE = re.compile(r"什么是|核心概念|概念解释|概念定义|定义[：:]?")
 NON_CONCEPT_HEADING_RE = re.compile(
@@ -100,7 +101,7 @@ def is_parallel_analysis_heading(block_id: str, blocks: dict[str, object]) -> bo
     return len(colon_siblings) >= 2
 
 
-def is_concept_pair(heading: str, paragraph: str) -> bool:
+def is_concept_pair(heading: str, paragraph: str, *, allow_implicit: bool = True) -> bool:
     """Return whether an adjacent H3+ pair expresses a concept definition.
 
     Operational headings such as “核心功能五” must remain article structure,
@@ -112,16 +113,17 @@ def is_concept_pair(heading: str, paragraph: str) -> bool:
         return False
     if CONCEPT_DEFINITION_RE.search(paragraph):
         return True
+    if not allow_implicit:
+        return False
 
-    # A short H3+ noun phrase followed by a substantial explanatory paragraph
-    # is a safe concept unit even when Chinese prose does not literally use
-    # “是指/定义为”. H1/H2 are still protected by _is_component_heading,
-    # while operational headings remain excluded by NON_CONCEPT_HEADING_RE.
+    # Short noun phrases can corroborate a glossary series. A colon-led
+    # scene heading + prose is not by itself a term/definition relationship.
     compact_heading = re.sub(r"\s+", "", heading)
     compact_paragraph = re.sub(r"\s+", "", paragraph)
     return (
         2 <= len(compact_heading) <= 18
         and 20 <= len(compact_paragraph) <= 220
+        and not COLON_HEADING_RE.fullmatch(compact_heading)
         and not re.search(r"[？?]$", compact_heading)
     )
 
@@ -256,16 +258,18 @@ class ArtDirection(BaseModel):
     avoid_recent_patterns: list[str] = Field(max_length=5)
 
 
-class EditorialBrief(BaseModel):
+class _BriefFields(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal["editorial_brief.v0.1"]
     article: ArticleAnalysis
-    sections: list[SectionBrief] = Field(max_length=12)
+    sections: list[SectionBrief] = Field(max_length=MAX_BRIEF_SECTIONS)
     image_intents: list[ImageIntent] = Field(max_length=3)
     art_direction: ArtDirection
     facts_locked: Literal[True]
 
+
+class EditorialBrief(_BriefFields):
     @model_validator(mode="after")
     def validate_brief_limits(self) -> "EditorialBrief":
         strong_sections = [section for section in self.sections if section.component_intent != "plain"]
@@ -356,6 +360,20 @@ def adjacent_concept_pairs(
     if not runs:
         return []
     return max(runs, key=len)[:4]
+
+
+def selected_concept_pairs(source_ids: list[str], blocks: dict[str, object]) -> list[tuple[object, object]]:
+    """A host supplies the meaning; the core still verifies source structure.
+
+    Broader context is not permission to consume arbitrary prose. Only trust
+    an unrecognised definition when the host selected the exact adjacent pairs.
+    """
+    pairs = adjacent_concept_pairs(source_ids, blocks)
+    if pairs and {b.id for pair in pairs for b in pair} == set(source_ids):
+        if all(not NON_CONCEPT_HEADING_RE.search(str(h.content))
+               and not str(h.content).rstrip().endswith(("？", "?")) for h, _ in pairs):
+            return pairs
+    return adjacent_concept_pairs(source_ids, blocks, require_concept_semantics=True)
 
 
 def surrounding_concept_group(
@@ -545,11 +563,7 @@ def _section_bound_block_ids(section: SectionBrief, blocks: dict[str, object]) -
     ):
         return [lists[0].id]
     if section.component_intent == "concept_explainer":
-        pairs = adjacent_concept_pairs(
-            section.source_block_ids,
-            blocks,
-            require_concept_semantics=True,
-        )
+        pairs = selected_concept_pairs(section.source_block_ids, blocks)
         if pairs:
             return [block.id for pair in pairs for block in pair]
     if section.component_intent in {"case_card", "faq_card"}:
@@ -589,6 +603,61 @@ def _structured_image_compatible(intent: ImageIntent, blocks: dict[str, object])
     )
 
 
+def _prepare_image_intents(intents: list, block_ids: set[str], adjustments: list[dict[str, str]]) -> list:
+    kept = []
+    anchors: set[str] = set()
+    for index, intent in enumerate(intents):
+        if not isinstance(intent, dict):
+            kept.append(intent)  # Leave malformed shapes to schema validation.
+            continue
+        anchor = intent.get("anchor_block_id")
+        refs = intent.get("source_block_ids")
+        if (isinstance(anchor, str) and anchor not in block_ids) or (
+            isinstance(refs, list) and any(isinstance(ref, str) and ref not in block_ids for ref in refs)
+        ):
+            adjustments.append({"code": "image_invalid_reference_removed", "location": f"image_intents[{index}]",
+                                "reason": "配图原文引用不存在，保留其他规划"})
+            continue
+        if isinstance(anchor, str) and anchor in anchors:
+            adjustments.append({"code": "duplicate_image_anchor_removed", "location": f"image_intents[{index}]",
+                                "from": anchor, "reason": "图片锚点重复，保留第一项"})
+            continue
+        metaphor = intent.get("visual_metaphor")
+        if isinstance(metaphor, str) and len(metaphor) > 160:
+            intent["visual_metaphor"] = metaphor[:160]
+            adjustments.append(
+                {
+                    "code": "visual_metaphor_truncated",
+                    "location": f"image_intents[{index}].visual_metaphor",
+                    "from": f"{len(metaphor)} chars",
+                    "reason": "超过 Provider 语义字段安全长度",
+                }
+            )
+        anchor = intent.get("anchor_block_id")
+        source_ids = intent.get("source_block_ids")
+        if isinstance(anchor, str) and anchor in block_ids and isinstance(source_ids, list) and anchor not in source_ids:
+            intent["source_block_ids"] = [anchor, *source_ids][:6]
+            adjustments.append(
+                {
+                    "code": "image_anchor_added_to_sources",
+                    "location": f"image_intents[{index}].source_block_ids",
+                    "from": anchor,
+                    "reason": "VisualPlan 要求图片锚点包含在来源块中",
+                }
+            )
+        forbidden = intent.get("forbidden_elements")
+        if not isinstance(forbidden, list):
+            forbidden = []
+        for required in ("text_in_model_image", "qr_code", "logo"):
+            if required not in forbidden:
+                forbidden.append(required)
+        intent["forbidden_elements"] = forbidden[:6]
+        if isinstance(anchor, str):
+            anchors.add(anchor)
+        kept.append(intent)
+    return kept
+
+
 def normalize_editorial_brief_for_article(
     brief: EditorialBrief | dict,
     parsed: ParsedArticle,
@@ -597,82 +666,30 @@ def normalize_editorial_brief_for_article(
     blocks = {block.id: block for block in parsed.blocks}
     block_ids = set(blocks)
     adjustments: list[dict[str, str]] = []
-    if isinstance(brief, EditorialBrief):
-        contract = brief
-    else:
-        prepared = copy.deepcopy(brief)
-        prepared["schema_version"] = EDITORIAL_BRIEF_SCHEMA_VERSION
-        prepared["facts_locked"] = True
-
-        sections = prepared.get("sections")
-        if isinstance(sections, list):
-            priority = {"high": 0, "medium": 1, "low": 2}
-            strong_indices = [
-                index
-                for index, section in enumerate(sections)
-                if isinstance(section, dict) and section.get("component_intent") not in {None, "plain"}
-            ]
-            strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
-            if len(strong_indices) > strong_limit:
-                keep = set(
-                    sorted(
-                        strong_indices,
-                        key=lambda index: (priority.get(sections[index].get("visual_priority"), 3), index),
-                    )[:strong_limit]
-                )
-                for index in strong_indices:
-                    if index in keep:
-                        continue
-                    previous = sections[index].get("component_intent")
-                    sections[index]["component_intent"] = "plain"
-                    adjustments.append(
-                        {
-                            "code": "excess_component_intent_lowered_to_plain",
-                            "location": f"sections[{index}]",
-                            "from": str(previous),
-                            "reason": f"强组件超过当前文章长度对应的 {strong_limit} 个质量上限",
-                        }
-                    )
-
-        image_intents = prepared.get("image_intents")
-        if isinstance(image_intents, list):
-            for index, intent in enumerate(image_intents):
-                if not isinstance(intent, dict):
-                    continue
-                metaphor = intent.get("visual_metaphor")
-                if isinstance(metaphor, str) and len(metaphor) > 160:
-                    intent["visual_metaphor"] = metaphor[:160]
-                    adjustments.append(
-                        {
-                            "code": "visual_metaphor_truncated",
-                            "location": f"image_intents[{index}].visual_metaphor",
-                            "from": f"{len(metaphor)} chars",
-                            "reason": "超过 Provider 语义字段安全长度",
-                        }
-                    )
-                anchor = intent.get("anchor_block_id")
-                source_ids = intent.get("source_block_ids")
-                if isinstance(anchor, str) and anchor in block_ids and isinstance(source_ids, list) and anchor not in source_ids:
-                    intent["source_block_ids"] = [anchor, *source_ids][:6]
-                    adjustments.append(
-                        {
-                            "code": "image_anchor_added_to_sources",
-                            "location": f"image_intents[{index}].source_block_ids",
-                            "from": anchor,
-                            "reason": "VisualPlan 要求图片锚点包含在来源块中",
-                        }
-                    )
-                forbidden = intent.get("forbidden_elements")
-                if not isinstance(forbidden, list):
-                    forbidden = []
-                for required in ("text_in_model_image", "qr_code", "logo"):
-                    if required not in forbidden:
-                        forbidden.append(required)
-                intent["forbidden_elements"] = forbidden[:6]
-
-        contract = EditorialBrief.model_validate(prepared)
-
-    normalized = contract.model_copy(deep=True)
+    prepared = brief.model_dump(mode="python") if isinstance(brief, EditorialBrief) else copy.deepcopy(brief)
+    prepared["schema_version"] = EDITORIAL_BRIEF_SCHEMA_VERSION
+    prepared["facts_locked"] = True
+    if isinstance(prepared.get("image_intents"), list):
+        prepared["image_intents"] = _prepare_image_intents(prepared["image_intents"], block_ids, adjustments)
+    # Validate the individual fields now, the whole-plan constraints only
+    # after resolving bad references, collisions and the article budget.
+    normalized = _BriefFields.model_validate(prepared)
+    retained = []
+    for index, section in enumerate(normalized.sections):
+        known = [ref for ref in section.source_block_ids if ref in block_ids]
+        if len(known) != len(section.source_block_ids):
+            adjustments.append({
+                "code": "section_invalid_reference_isolated",
+                "location": f"sections[{index}]",
+                "from": section.component_intent,
+                "reason": "原文引用不存在；不猜测落点，已知部分保留为正文",
+            })
+            if not known:
+                continue
+            section.source_block_ids = known
+            section.component_intent = "plain"
+        retained.append(section)
+    normalized.sections = retained
     consumed: set[str] = set()
 
     # A host may correctly select one item from a parallel H3 analysis series
@@ -698,6 +715,12 @@ def normalize_editorial_brief_for_article(
             continue
         series_key = tuple(pair[0].id for pair in parallel_group)
         if series_key in expanded_series:
+            continue
+        slots_used = len(parallel_sections) + len(remaining_sections)
+        pending = len(normalized.sections) - index - 1
+        if slots_used + len(parallel_group) + pending > MAX_BRIEF_SECTIONS:
+            # An optional expansion must not invalidate a valid host plan.
+            remaining_sections.append(section)
             continue
         expanded_series.add(series_key)
         for heading, paragraph in parallel_group:
@@ -750,6 +773,18 @@ def normalize_editorial_brief_for_article(
             )
             continue
         consumed.update(bound_ids)
+
+    # An unbindable or overlapping request must never reserve a place ahead
+    # of a usable request. Keep article order for equally important choices.
+    limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
+    priority = {"high": 0, "medium": 1, "low": 2}
+    active = [i for i, s in enumerate(normalized.sections) if s.component_intent != "plain"]
+    for i in sorted(active, key=lambda i: priority[normalized.sections[i].visual_priority])[limit:]:
+        section = normalized.sections[i]
+        adjustments.append({"code": "excess_component_intent_lowered_to_plain",
+                            "location": f"sections[{i}]", "from": section.component_intent,
+                            "reason": f"强组件超过当前文章长度对应的 {limit} 个质量上限"})
+        section.component_intent = "plain"
 
     active_components = []
     for section in normalized.sections:
@@ -821,7 +856,7 @@ def normalize_editorial_brief_for_article(
         normalized_images.append(intent)
 
     normalized.image_intents = normalized_images
-    return validate_editorial_brief_for_article(normalized, parsed), adjustments
+    return validate_editorial_brief_for_article(normalized.model_dump(), parsed), adjustments
 
 
 def validate_editorial_brief_for_article(

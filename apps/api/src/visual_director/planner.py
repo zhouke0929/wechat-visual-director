@@ -202,7 +202,14 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
                 {item.id: item for item in blocks},
                 require_concept_semantics=True,
             )
-            if len(pairs) >= 2:
+            # Consecutive, parallel pairs give more evidence than an isolated
+            # short heading: at least one paragraph must actually discuss its
+            # named term or explicitly define it.
+            if len(pairs) >= 2 and any(
+                str(h.content).strip() in str(p.content)
+                or is_concept_pair(str(h.content), str(p.content), allow_implicit=False)
+                for h, p in pairs
+            ):
                 bindings: dict[str, str | list[str]] = {
                     "title": pairs[0][0].id,
                     "definition": pairs[0][1].id,
@@ -257,7 +264,7 @@ def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, An
                         recent_counts,
                     )
                 )
-            if concept_pair:
+            if concept_pair and is_concept_pair(heading, str(following.content), allow_implicit=False):
                 candidates.append(
                     _candidate(
                         "concept_explainer",
