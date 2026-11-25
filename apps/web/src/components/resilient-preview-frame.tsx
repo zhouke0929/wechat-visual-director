@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useRef, useState, type RefObject } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 
 import { ArticlePreviewModeContext } from "@/components/article-preview-viewport";
 import { PREVIEW_NORMALIZATION_CSS, PREVIEW_PROFILES } from "@/lib/preview-profiles";
@@ -11,6 +11,7 @@ import type {
 } from "@/lib/types";
 
 type Props = {
+  contentRevision?: number;
   editable?: boolean;
   editorDocument?: ContentEditorDocument | null;
   flushEditsRef?: RefObject<(() => Promise<void>) | null>;
@@ -142,7 +143,7 @@ function wrapMatchingInlineRun(root: HTMLElement, value: string): HTMLElement | 
       for (let end = start; end < children.length; end += 1) {
         const node = children[end];
         if (!isInlineEditableNode(node)) break;
-        combined += node.textContent ?? "";
+        combined += node.nodeName === "BR" ? "\n" : (node.textContent ?? "");
         const normalized = normalizedText(combined);
         if (normalized === expected) {
           const wrapper = createInlineFragment(parent);
@@ -164,7 +165,9 @@ function findTextElement(root: HTMLElement, value: string, used: Set<HTMLElement
   const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>("p,strong,h1,h2,h3,h4,h5,h6,li,td,th,blockquote,span"))]
     .filter((element) => !used.has(element) && allowed.has(element.tagName))
     .filter((element) => !element.closest("[data-theme-static]"))
-    .filter((element) => normalizedText(element.textContent ?? "") === expected)
+    .filter((element) => normalizedText(element.textContent ?? "") === expected
+      || (value.includes("\n") && element.querySelector("br") !== null
+        && renderedText(markdownFromNode(element)) === expected))
     .sort((left, right) => Number(right.hasAttribute("data-theme-field")) - Number(left.hasAttribute("data-theme-field")) || elementDepth(right, root) - elementDepth(left, root));
   return candidates[0] ?? wrapMatchingInlineRun(root, value);
 }
@@ -212,6 +215,62 @@ function labelForGroup(group: EditableGroup, index: number): string {
   return `直接编辑${labels[group.block.type]}${suffix}`;
 }
 
+function findIndexedEditorFields(wrapper: HTMLElement, block: ContentEditorBlock, count: number): HTMLElement[] | null {
+  const wrapperType = wrapper.dataset.editorBlockType;
+  if (wrapperType === "table" && block.type === "table" && Array.isArray(block.content)
+      && block.content.every(Array.isArray)) {
+    // Address native cells by row and column. Text search cannot distinguish
+    // repeated values, or find an intentionally empty first/last cell.
+    const table = wrapper.matches("table") ? wrapper as HTMLTableElement : wrapper.querySelector("table");
+    const values = block.content as string[][];
+    if (!table || table.rows.length !== values.length) return null;
+    const fields: HTMLElement[] = [];
+    for (const [i, row] of Array.from(table.rows).entries()) {
+      if (row.cells.length !== values[i].length) return null;
+      for (const [j, cell] of Array.from(row.cells).entries()) {
+        if (normalizedText(cell.textContent ?? "") !== renderedText(values[i][j])) return null;
+        fields.push(cell);
+      }
+    }
+    return fields;
+  }
+  const kind = wrapperType === "component:logic_path"
+    ? "step"
+    : wrapperType === block.type && (block.type === "ordered_list" || block.type === "unordered_list")
+      ? "list"
+      : null;
+  if (!kind) return null;
+  const refAttribute = `data-editor-${kind}-ref`;
+  const marked = wrapper.querySelectorAll<HTMLElement>(`[${refAttribute}]`);
+  if (!marked.length) return null; // Already saved previews keep the legacy discovery path.
+  const fields = new Map<string, HTMLElement>();
+  marked.forEach((element) => {
+    const key = element.getAttribute(refAttribute);
+    if (key && !fields.has(key)) fields.set(key, element);
+  });
+  const result: HTMLElement[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const key = typeof block.content === "string" ? block.block_id : `${block.block_id}:item:${index}`;
+    const element = fields.get(key);
+    if (!element) return []; // A partial list cannot round-trip the entire source block.
+    result.push(element);
+  }
+  if (kind === "list") return result;
+  return result.map((element) => {
+    const prefix = element.querySelector<HTMLElement>(":scope > [data-editor-step-prefix]");
+    if (!prefix) return element;
+    const tail = prefix.nextSibling;
+    if (tail === null) return element;
+    if (tail instanceof element.ownerDocument.defaultView!.HTMLElement && tail.hasAttribute("data-workbench-inline-fragment")) return tail;
+    // Some layouts place a fixed marker inside the text host. Keep that
+    // prefix out of the editable value, without changing delivery HTML.
+    const fragment = createInlineFragment(element);
+    prefix.after(fragment);
+    while (fragment.nextSibling) fragment.appendChild(fragment.nextSibling);
+    return fragment;
+  });
+}
+
 function discoverEditableGroups(document: Document, editorDocument: ContentEditorDocument): EditableGroup[] {
   const groups: EditableGroup[] = [];
   const title = document.querySelector<HTMLElement>("[data-editor-title='true']");
@@ -236,12 +295,15 @@ function discoverEditableGroups(document: Document, editorDocument: ContentEdito
       : block.type === "table" && block.content.every(Array.isArray)
         ? (block.content as string[][]).flat()
         : block.content as string[];
-    const elements: HTMLElement[] = [];
-    for (const value of values) {
-      const element = findTextElement(wrapper, value, used);
-      if (!element) return;
-      used.add(element);
-      elements.push(element);
+    const stableFields = findIndexedEditorFields(wrapper, block, values.length);
+    const elements: HTMLElement[] = stableFields ?? [];
+    if (stableFields === null) {
+      for (const value of values) {
+        const element = findTextElement(wrapper, value, used);
+        if (!element) return;
+        used.add(element);
+        elements.push(element);
+      }
     }
     if (elements.length === values.length) {
       groups.push({
@@ -298,7 +360,8 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const pending = new Map<string, { group: EditableGroup; value: EditableContentValue }>();
   const saveFailures = new Map<string, { group: EditableGroup; value: EditableContentValue; message: string }>();
   let sequence = Promise.resolve();
-  let savedIndicator = 0;
+  let saving = 0;
+  let focusGeneration = 0;
   let disposed = false;
 
   const report = (state: InlineSaveState, message?: string) => {
@@ -307,20 +370,25 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
 
   const runSave = (group: EditableGroup, value: EditableContentValue) => {
     pending.delete(group.key);
+    saving += 1;
     report("saving");
     sequence = sequence
       .catch(() => undefined)
       .then(() => callbacks.onSave?.(group.target, value))
       .then(() => {
         saveFailures.delete(group.key);
-        report("saved");
-        window.clearTimeout(savedIndicator);
-        savedIndicator = window.setTimeout(() => report("editing"), 1400);
       })
       .catch((reason: Error) => {
         const message = reason.message || "自动保存失败";
         saveFailures.set(group.key, { group, value, message });
-        report("error", message);
+      })
+      .finally(() => {
+        saving -= 1;
+        const failure = saveFailures.values().next().value?.message;
+        if (saving) report("saving");
+        else if (pending.size) report("editing");
+        else if (failure) report("error", failure);
+        else report("saved");
       });
   };
 
@@ -372,18 +440,21 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
   const onFocusIn = (event: Event) => {
     const target = (event.target as Element | null)?.closest?.("[data-workbench-inline-editor]") as HTMLElement | null;
     if (!target) return;
+    focusGeneration += 1;
     callbacks.onEditingChange?.(true);
-    report("editing");
   };
   const onFocusOut = () => {
+    const generation = ++focusGeneration;
     window.setTimeout(async () => {
-      if ((document.activeElement as Element | null)?.closest?.("[data-workbench-inline-editor]")) return;
+      const stillLeaving = () => !disposed && generation === focusGeneration
+        && !(document.hasFocus() && document.activeElement?.closest("[data-workbench-inline-editor]"));
+      if (!stillLeaving()) return;
       await flushPending();
+      if (!stillLeaving()) return;
       const failure = saveFailures.values().next().value?.message;
       if (failure) report("error", failure);
       else {
         callbacks.onEditingChange?.(false);
-        report("idle");
       }
     }, 0);
   };
@@ -440,7 +511,6 @@ function installInlineEditor(document: Document, editorDocument: ContentEditorDo
     document.removeEventListener("paste", onPaste);
     document.removeEventListener("click", onClick);
     document.removeEventListener("keydown", onKeyDown);
-    window.clearTimeout(savedIndicator);
     groups.forEach((group) => group.elements.forEach((element) => {
       element.removeAttribute("contenteditable");
       element.removeAttribute("data-workbench-inline-editor");
@@ -528,6 +598,7 @@ function applyWorkbenchPreviewProfile(
 }
 
 export function ResilientPreviewFrame({
+  contentRevision,
   editable = false,
   editorDocument,
   flushEditsRef,
@@ -538,6 +609,12 @@ export function ResilientPreviewFrame({
   title,
 }: Props) {
   const previewMode = useContext(ArticlePreviewModeContext);
+  const currentMode = useRef(previewMode);
+  currentMode.current = previewMode;
+  const [navigationSrc, setNavigationSrc] = useState(src);
+  const previousRequest = useRef({ src, contentRevision });
+  const editingRef = useRef(false);
+  const readyProof = useRef<(() => void) | null>(null);
   const [retry, setRetry] = useState(0);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -553,28 +630,87 @@ export function ResilientPreviewFrame({
   editorDocumentRef.current = editorDocument;
   callbacksRef.current = {
     onEditingChange: (editing) => {
+      editingRef.current = editing;
       if (!editing) captureFrameScroll();
       onEditingChange?.(editing);
+      if (!editing) queueMicrotask(() => readyProof.current?.());
     },
     onSave,
     onSaveStateChange,
   };
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    const previous = previousRequest.current;
+    previousRequest.current = { src, contentRevision };
+    if (previous.src === src) return;
+    const frame = frameRef.current;
+    const doc = frame?.contentDocument;
+    const target = new URL(src, window.location.href);
+    // Only a text edit in this same proof is eligible. Theme changes, image
+    // actions, retries and explicit anchor navigation retain the native loader.
+    if (!frame || !doc?.documentElement.dataset.workbenchPreviewMode || !editable
+      || !contentRevision || contentRevision === previous.contentRevision
+      || previewHash(src) !== previewHash(previous.src)
+      || target.origin !== window.location.origin
+      || !/^\/api\/v1\/render-artifacts\/[^/]+\/content$/.test(target.pathname)) {
+      setNavigationSrc(src);
+      return;
+    }
+    const abort = new AbortController();
+    function whenIdle(commit: () => void) {
+      if (abort.signal.aborted) return;
+      readyProof.current = () => {
+        if (editingRef.current || abort.signal.aborted) return;
+        readyProof.current = null;
+        // An older response may arrive while the next edit is being saved.
+        if (frame?.contentDocument === doc && editorDocumentRef.current?.revision === contentRevision) commit();
+      };
+      readyProof.current();
+    }
+    void fetch(target, { signal: abort.signal, mode: "same-origin", redirect: "error" })
+      .then(async (response) => {
+        if (!response.ok || !response.headers.get("content-type")?.includes("text/html")) throw Error();
+        const next = new DOMParser().parseFromString(await response.text(), "text/html");
+        whenIdle(() => {
+          const scroll = readFrameScrollTop(frame);
+          inlineEditorCleanups.get(doc)?.();
+          inlineEditorCleanups.delete(doc);
+          const body = doc.importNode(next.body, true);
+          // Keep decoded original images (and their intrinsic layout sizes)
+          // when a text-only edit replaces surrounding article markup.
+          const images = Array.from(doc.images);
+          body.querySelectorAll("img").forEach((image) => {
+            const i = images.findIndex(old => old.isEqualNode(image));
+            if (i !== -1) image.replaceWith(images.splice(i, 1)[0]);
+          });
+          doc.body.replaceWith(body);
+          doc.title = next.title;
+          applyWorkbenchPreviewProfile(frame, currentMode.current, editable, editorDocumentRef.current, callbacksRef.current);
+          restoreFrameScroll(frame, scroll);
+        });
+      })
+      .catch(() => whenIdle(() => setNavigationSrc(src)));
+    return () => {
+      abort.abort();
+      readyProof.current = null;
+    };
+  }, [src, contentRevision, editable]);
+
+  useLayoutEffect(() => {
     const previousSrc = previousSrcRef.current;
-    if (previousSrc !== src) {
+    if (previousSrc !== navigationSrc) {
       const previousHash = previewHash(previousSrc);
-      const nextHash = previewHash(src);
+      const nextHash = previewHash(navigationSrc);
       const intentionalAnchorNavigation = Boolean(nextHash && nextHash !== previousHash);
       restoreScrollTopRef.current = intentionalAnchorNavigation ? null : lastScrollTopRef.current;
-      previousSrcRef.current = src;
+      previousSrcRef.current = navigationSrc;
     }
     loadVersionRef.current += 1;
     retryRef.current = 0;
     setRetry(0);
     setLoading(true);
     setFailed(false);
-  }, [src]);
+  }, [navigationSrc]);
 
   useEffect(() => () => {
     scrollCleanupRef.current?.();
@@ -636,17 +772,15 @@ export function ResilientPreviewFrame({
     scrollCleanupRef.current = () => view.removeEventListener("scroll", track);
   }
 
-  function scheduleScrollRestore(frame: HTMLIFrameElement, scrollTop: number | null) {
+  function restoreFrameScroll(frame: HTMLIFrameElement, scrollTop: number | null) {
     if (scrollTop === null) return;
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      if (frameRef.current !== frame) return;
-      try {
-        frame.contentWindow?.scrollTo(0, scrollTop);
-        lastScrollTopRef.current = readFrameScrollTop(frame);
-      } catch {
-        // Cross-origin previews cannot be restored; current previews are same-origin.
-      }
-    }));
+    // The article enables smooth anchor scrolling. Restoration is not an
+    // anchor click: apply it before revealing this document, without animating.
+    try {
+      frame.contentWindow?.scrollTo({ top: scrollTop, behavior: "instant" });
+    } catch {
+      // Cross-origin previews cannot be restored; current previews are same-origin.
+    }
   }
 
   function retryOrFail(loadVersion: number) {
@@ -668,8 +802,8 @@ export function ResilientPreviewFrame({
     const scrollTopToRestore = restoreScrollTopRef.current;
     restoreScrollTopRef.current = null;
     applyWorkbenchPreviewProfile(frame, previewMode, editable, editorDocumentRef.current, callbacksRef.current);
+    restoreFrameScroll(frame, scrollTopToRestore);
     bindFrameScrollTracking(frame);
-    scheduleScrollRestore(frame, scrollTopToRestore);
     const loadVersion = loadVersionRef.current;
     let images: HTMLImageElement[];
     try {
@@ -691,7 +825,6 @@ export function ResilientPreviewFrame({
         return;
       }
       if (images.every((image) => image.complete && image.naturalWidth > 0)) {
-        scheduleScrollRestore(frame, scrollTopToRestore);
         setLoading(false);
         setFailed(false);
       }
@@ -719,7 +852,7 @@ export function ResilientPreviewFrame({
         onLoad={handleLoad}
         ref={frameRef}
         scrolling="yes"
-        src={withRetryToken(src, retry)}
+        src={withRetryToken(navigationSrc, retry)}
         title={title}
       />
       {loading ? (

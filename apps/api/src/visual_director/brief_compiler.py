@@ -19,23 +19,20 @@ from .component_catalog import (
 from .editorial_brief import (
     EditorialBrief,
     SectionBrief,
-    adjacent_concept_pairs,
+    selected_concept_pairs,
     adjacent_comparison_pair,
-    surrounding_parallel_concept_series,
     validate_editorial_brief_for_article,
 )
 from .parser import ContentBlock, ParsedArticle
-from .image_intent import build_visual_intent
+from .official_component_recipes import capture_component_recipes
+from .reading_rules import capture_reading_overrides
+from .image_intent import build_visual_intent, readable_node_copy, source_bound_label
+from .infographic_limits import supports_node_count
+from .plan_envelope import article_strong_limit, plan_envelope
 from .plan_schema import validate_plan_for_article
 from .visual_dna import resolve_article_image_direction
 from .theme_extensions import EXTENDED_THEME_KITS
 from .theme_packs import theme_pack
-from .planner import (
-    component_diversity_target,
-    component_opportunity_diagnostics,
-    generate_plans,
-    supplement_component_coverage,
-)
 
 
 class EditorialBriefCompileError(ValueError):
@@ -199,14 +196,13 @@ def _compile_bindings(
         return {"items": _item_refs(lists[0], 5)}
     if component == "evidence_callout" and evidence:
         return {"evidence": evidence[0].id}
-    if component == "before_after_timeline" and lists and len(lists[0].content) >= 2:
+    if component == "before_after_timeline" and lists and len(lists[0].content) == 2:
         refs = _item_refs(lists[0], 2)
         return {"before": refs[0], "after": refs[1]}
     if component == "concept_explainer":
-        pairs = adjacent_concept_pairs(
+        pairs = selected_concept_pairs(
             section.source_block_ids,
             {block.id: block for block in parsed.blocks},
-            require_concept_semantics=True,
         )
         if pairs:
             bindings: dict[str, str | list[str]] = {
@@ -240,7 +236,7 @@ def _compile_bindings(
         return {"items": _item_refs(lists[0])}
     if component == "section_summary" and lists:
         return {"items": _item_refs(lists[0], 6)}
-    if component == "comparison_card" and lists and len(lists[0].content) >= 2:
+    if component == "comparison_card" and lists and len(lists[0].content) == 2:
         refs = _item_refs(lists[0], 2)
         return {"left": refs[0], "right": refs[1]}
     if component == "comparison_card":
@@ -276,14 +272,6 @@ def _compile_slots(
     consumed: set[str] = set()
     positions = {block.id: index for index, block in enumerate(parsed.blocks)}
     consumed_positions: set[int] = set()
-    selected_type_counts: Counter[str] = Counter()
-    selected_family_counts: Counter[str] = Counter()
-    semantic_family = {
-        "question_hook": "question",
-        "faq_card": "question",
-        "before_after_timeline": "comparison",
-        "comparison_card": "comparison",
-    }
     for section in brief.sections:
         if section.component_intent == "plain":
             continue
@@ -321,40 +309,6 @@ def _compile_slots(
                     "component": section.component_intent,
                     "source_block_ids": ",".join(section.source_block_ids),
                     "reason": "相邻强组件之间没有普通正文缓冲，已保留为普通排版。",
-                }
-            )
-            continue
-        family = semantic_family.get(section.component_intent, section.component_intent)
-        parallel_series_repeat = False
-        if section.component_intent == "concept_explainer":
-            series = surrounding_parallel_concept_series(
-                section.source_block_ids,
-                {block.id: block for block in parsed.blocks},
-            )
-            series_ids = {block.id for pair in series for block in pair}
-            existing_concepts = [
-                slot for slot in slots
-                if slot["component_type"] == "concept_explainer"
-            ]
-            parallel_series_repeat = bool(
-                len(series) >= 3
-                and existing_concepts
-                and all(
-                    set(slot["consume_block_ids"]).issubset(series_ids)
-                    for slot in existing_concepts
-                )
-                and selected_type_counts[section.component_intent] < len(series)
-            )
-        if (
-            selected_type_counts[section.component_intent] >= 2
-            or selected_family_counts[family] >= 2
-        ) and not parallel_series_repeat:
-            adjustments.append(
-                {
-                    "code": "repeated_component_lowered_to_plain",
-                    "component": section.component_intent,
-                    "source_block_ids": ",".join(section.source_block_ids),
-                    "reason": "同类强组件单篇最多出现两次，已保留为普通排版。",
                 }
             )
             continue
@@ -396,8 +350,6 @@ def _compile_slots(
         )
         consumed.update(consume_block_ids)
         consumed_positions.update(candidate_positions)
-        selected_type_counts[section.component_intent] += 1
-        selected_family_counts[family] += 1
     return slots, adjustments
 
 
@@ -409,20 +361,43 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
         fact_anchors: list[str] = []
         heading_text: str | None = None
         if intent.purpose == "structured_infographic":
-            list_block = next(
-                (block for block in blocks if block.type in {"ordered_list", "unordered_list"} and len(block.content) >= 2),
-                None,
-            )
-            if list_block is None:
-                raise EditorialBriefCompileError("结构信息图必须引用至少包含两个条目的原文列表")
+            lists = [
+                b for b in blocks if b.type in {"ordered_list", "unordered_list"} and supports_node_count(len(b.content))
+            ]
+            if not lists:
+                raise EditorialBriefCompileError("结构信息图必须引用包含 2–5 项的完整原文列表")
+            if len(intent.display_labels) == 5:
+                # The anchor is the insertion point; only the labels identify the source facts.
+                matches = [b for b in lists if len(b.content) == 5 and all(
+                    source_bound_label(label, str(item)) for label, item in zip(intent.display_labels, b.content)
+                )]
+                if len(matches) != 1:
+                    continue
+                list_block = matches[0]
+            else:
+                if any(b.id == intent.anchor_block_id and len(b.content) == 5 for b in lists):
+                    continue  # Incomplete five-node copy must not bind to a different list.
+                list_block = next((b for b in lists if len(b.content) < 5), None)
+                if list_block is None:
+                    continue
             heading = next((block for block in blocks if block.type == "heading"), None)
             heading_text = str(heading.content) if heading else intent.visual_metaphor
-            fact_anchors = [str(item) for item in list_block.content[:4]]
+            fact_anchors = [str(item) for item in list_block.content]
             fact_bindings = {
                 "title_ref": heading.id if heading else None,
-                "item_refs": _item_refs(list_block, 4),
+                "item_refs": _item_refs(list_block),
                 "facts_locked": True,
             }
+        visual_intent = build_visual_intent(
+            purpose=intent.purpose, subject=intent.visual_metaphor, article_type=brief.article.article_type,
+            title=heading_text, fact_anchors=fact_anchors, style_family=brief.art_direction.style_family,
+            palette_roles=list(brief.art_direction.palette_roles), tone=list(brief.art_direction.tone),
+            negative_space="lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
+            requested_visual_role=intent.visual_role, requested_learning_objective=intent.learning_objective,
+            requested_layout_family=intent.layout_family, suggested_labels=intent.display_labels,
+        )
+        if fact_anchors and not readable_node_copy(visual_intent["visual_grammar"]["display_labels"]):
+            continue  # Optional illustration: leave the source list in the article.
         result.append(
             {
                 "image_slot_id": f"image-slot-{len(result) + 1:03d}",
@@ -433,20 +408,7 @@ def _compile_images(brief: EditorialBrief, parsed: ParsedArticle) -> list[dict[s
                 "required": False,
                 "reason": f"{intent.necessity}：{intent.visual_metaphor}",
                 "aspect_ratio": intent.aspect_ratio,
-                "visual_intent": build_visual_intent(
-                    purpose=intent.purpose,
-                    subject=intent.visual_metaphor,
-                    article_type=brief.article.article_type,
-                    title=heading_text,
-                    fact_anchors=fact_anchors,
-                    style_family=brief.art_direction.style_family,
-                    palette_roles=list(brief.art_direction.palette_roles),
-                    tone=list(brief.art_direction.tone),
-                    negative_space="lower_right" if intent.aspect_ratio == "4:3" else "lower_third",
-                    requested_visual_role=intent.visual_role,
-                    requested_learning_objective=intent.learning_objective,
-                    requested_layout_family=intent.layout_family,
-                ),
+                "visual_intent": visual_intent,
                 "fact_bindings": fact_bindings,
                 "history_evidence": {
                     "recent_use_count": 0,
@@ -466,16 +428,8 @@ def compile_editorial_brief(
 ) -> dict[str, Any]:
     recent = recent_summaries or []
     contract = validate_editorial_brief_for_article(brief, parsed)
-    baseline = generate_plans(parsed, contract.article.article_type, history_window, recent)[0]
     palette_profile, art_configuration = _art_direction_profile(contract)
     slots, compiler_adjustments = _compile_slots(contract, parsed, recent)
-    slots, coverage_adjustments, coverage_target = supplement_component_coverage(
-        parsed,
-        slots,
-        recent,
-    )
-    compiler_adjustments.extend(coverage_adjustments)
-    opportunity_diagnostics = component_opportunity_diagnostics(parsed, recent)
     selected_component_types = [slot["component_type"] for slot in slots]
     selected_type_counts = Counter(selected_component_types)
     block_positions = {block.id: index for index, block in enumerate(parsed.blocks)}
@@ -489,9 +443,14 @@ def compile_editorial_brief(
             for slot in slots
         }
     )
-    diversity_target = component_diversity_target(parsed, coverage_target)
     compiled = {
-        **baseline,
+        **plan_envelope(
+            parsed, article_type=contract.article.article_type, history_window=history_window,
+            slots=slots, strong_limit=article_strong_limit(parsed),
+        ),
+        "plan_index": 1,
+        "difference_from_recent": [],
+        "structural_differences": [],
         "plan_name": "智能规划 · Editorial Brief",
         "recommendation": "experimental",
         "style_mode": palette_profile,
@@ -512,7 +471,6 @@ def compile_editorial_brief(
             "compiler_adjustments": compiler_adjustments,
         },
         "component_diagnostics": {
-            **opportunity_diagnostics,
             "requested_component_count": sum(
                 1
                 for section in contract.sections
@@ -527,22 +485,10 @@ def compile_editorial_brief(
                 if count > 1
             ),
             "occupied_article_thirds": occupied_article_thirds,
-            "rhythm_target_distinct_types": diversity_target,
-            "rhythm_status": (
-                "pass"
-                if len(selected_type_counts) >= diversity_target
-                else "limited_by_source_candidates"
-            ),
-            "coverage_target": coverage_target,
-            "coverage_added_count": len(coverage_adjustments),
+            # Kept for readers of historical plans; current compilation never adds slots.
+            "coverage_added_count": 0,
             "compiler_adjustments": compiler_adjustments,
         },
-    }
-    strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
-    compiled["quality_constraints"] = {
-        **compiled["quality_constraints"],
-        "max_strong_components_per_article": strong_limit,
-        "facts_locked": True,
     }
     return validate_plan_for_article(compiled, parsed)
 
@@ -597,9 +543,24 @@ def visual_system_variant(component_type: str, visual_system: str) -> str:
 
 
 def visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    """The selected theme's configuration; an old plan keeps the resulting snapshot."""
+    config = base_visual_system_configuration(visual_system)
+    if visual_system in VISUAL_SYSTEM_ORDER:
+        reading = capture_reading_overrides(visual_system)
+        if reading:
+            config["reading_overrides"] = reading
+            config["reading_overrides_version"] = 1
+        snapshot = capture_component_recipes(visual_system, visual_system_variant)
+        if snapshot is not None:
+            config["component_recipes"] = snapshot
+    return config
+
+
+def base_visual_system_configuration(visual_system: str) -> dict[str, Any]:
+    """Inheritable v1 theme configuration, excluding private official recipe choices."""
     custom_pack = theme_pack(visual_system)
     if custom_pack:
-        configuration = visual_system_configuration(str(custom_pack["base_theme"]))
+        configuration = base_visual_system_configuration(str(custom_pack["base_theme"]))
         configuration["palette"] = copy.deepcopy(custom_pack["palette"])
         configuration["accent"] = custom_pack["palette"]["primary"]
         configuration["visual_system"] = visual_system

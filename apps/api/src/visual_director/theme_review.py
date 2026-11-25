@@ -123,6 +123,12 @@ def build_theme_review(file: Path, output: Path, image: Path, references: list[P
                 if role in {"before_after_timeline", "comparison_card"}:
                     left, right = review_pair(role, long=length == "long")
                     role_payload = {**payload, "left": left, "right": right}
+                elif role == "logic_path" and length == "long":
+                    role_payload = {**payload, "items": [
+                        f"**{title}。**\n{item}" for title, item in zip(
+                            ("先了解条件", "再留出余量", "最后核对记录"), payload["items"], strict=True,
+                        )
+                    ]}
                 markup = render_layout(role, role_payload, config)
                 # Only this known fixture asset is inlined. Theme-supplied media
                 # remains prohibited by render_layout; no remote fetching.

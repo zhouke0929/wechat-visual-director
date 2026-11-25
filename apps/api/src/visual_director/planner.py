@@ -1,3 +1,4 @@
+"""Historical rules-only planning baseline, used by internal comparisons."""
 from __future__ import annotations
 
 import re
@@ -5,23 +6,11 @@ import copy
 from collections import Counter
 from typing import Any
 
-from .component_catalog import (
-    COMPONENT_CATALOG,
-    COMPONENT_LIBRARY_VERSION,
-    PLAN_SCHEMA_VERSION,
-    RENDERER_VERSION,
-    automatic_variants,
-)
-from .parser import ContentBlock, ParsedArticle
+from .component_opportunities import _build_candidates, _list_refs, component_opportunity_diagnostics
+from .parser import ParsedArticle
+from .plan_envelope import article_strong_limit, plan_envelope, structural_difference_count
 from .plan_schema import validate_plan_for_article
-from .editorial_brief import (
-    adjacent_comparison_pair,
-    adjacent_concept_pairs,
-    is_concept_pair,
-    is_parallel_analysis_heading,
-    is_reader_question_heading,
-)
-from .image_intent import build_visual_intent
+from .image_intent import build_visual_intent, extract_display_label, readable_node_copy
 
 
 STYLE_LABELS = {
@@ -91,469 +80,8 @@ SEMANTIC_FAMILIES = {
     "comparison_card": "comparison",
 }
 
-WARNING_SIGNAL_RE = re.compile(
-    r"风险|警惕|避免|不要|不可|谨防|请注意|需要注意|注意事项|务必"
-)
-
-
-def _base_usage(parsed: ParsedArticle) -> Counter[str]:
-    usage: Counter[str] = Counter()
-    usage["section_heading"] = sum(1 for block in parsed.blocks if block.type == "heading" and block.level != 1)
-    usage["quote"] = sum(1 for block in parsed.blocks if block.type == "quote")
-    usage["data_table"] = sum(1 for block in parsed.blocks if block.type == "table")
-    usage["steps"] = sum(1 for block in parsed.blocks if block.type in {"ordered_list", "unordered_list"})
-    usage["source"] = sum(1 for block in parsed.blocks if block.type == "source")
-    return usage
-
-
-def _list_refs(block: ContentBlock) -> list[str]:
-    return [f"{block.id}:item:{index}" for index in range(len(block.content))]
-
-
-def _candidate(
-    component_type: str,
-    consume: list[ContentBlock],
-    bindings: dict[str, str | list[str]],
-    reason: str,
-    recent_counts: tuple[Counter[str], Counter[tuple[str, str]]],
-) -> dict[str, Any]:
-    definition = COMPONENT_CATALOG[component_type]
-    component_counts, variant_counts = recent_counts
-    variants = automatic_variants(component_type)
-    selected_variant = min(
-        variants,
-        key=lambda value: (variant_counts[(component_type, value)], variants.index(value)),
-    )
-    default_variant = variants[0]
-    avoided_variant = default_variant if selected_variant != default_variant else None
-    return {
-        "anchor_block_id": consume[0].id,
-        "consume_block_ids": [block.id for block in consume],
-        "semantic_role": component_type,
-        "component_type": component_type,
-        "variant": selected_variant,
-        "fallback_variant": definition["fallback_variant"],
-        "emphasis": "primary" if component_type in {"question_hook", "logic_path", "before_after_timeline"} else "secondary",
-        "content_bindings": bindings,
-        "selection_reason": reason,
-        "history_evidence": {
-            "recent_use_count": variant_counts[(component_type, selected_variant)],
-            "component_use_count": component_counts[component_type],
-            "selected_variant": selected_variant,
-            "avoided_variant": avoided_variant,
-            "penalty_applied": avoided_variant is not None,
-        },
-        "facts_locked": True,
-    }
-
-
-def _recent_counts(
-    recent_summaries: list[dict[str, Any]],
-) -> tuple[Counter[str], Counter[tuple[str, str]]]:
-    component_counts: Counter[str] = Counter()
-    variant_counts: Counter[tuple[str, str]] = Counter()
-    for summary in recent_summaries:
-        for component in summary.get("components", []):
-            component_type = component.get("component_type") if isinstance(component, dict) else str(component)
-            if component_type:
-                component_counts[component_type] += 1
-                if isinstance(component, dict) and component.get("variant"):
-                    variant_counts[(component_type, str(component["variant"]))] += 1
-    return component_counts, variant_counts
-
-
-def _build_candidates(parsed: ParsedArticle, recent_summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    blocks = parsed.blocks
-    recent_counts = _recent_counts(recent_summaries)
-
-    for index, block in enumerate(blocks):
-        previous = blocks[index - 1] if index > 0 else None
-        following = blocks[index + 1] if index + 1 < len(blocks) else None
-
-        if block.type == "heading" and (block.level or 0) == 2:
-            section_blocks = [block]
-            for following_block in blocks[index + 1 :]:
-                if following_block.type == "heading" and (following_block.level or 0) <= 2:
-                    break
-                section_blocks.append(following_block)
-            pairs = adjacent_concept_pairs(
-                [item.id for item in section_blocks],
-                {item.id: item for item in blocks},
-                require_concept_semantics=True,
-            )
-            if len(pairs) >= 2:
-                bindings: dict[str, str | list[str]] = {
-                    "title": pairs[0][0].id,
-                    "definition": pairs[0][1].id,
-                    "related_titles": [pair[0].id for pair in pairs[1:]],
-                    "related_definitions": [pair[1].id for pair in pairs[1:]],
-                }
-                candidates.append(
-                    _candidate(
-                        "concept_explainer",
-                        [item for pair in pairs for item in pair],
-                        bindings,
-                        f"同一主章节包含 {len(pairs)} 个连续且原文锁定的概念词条。",
-                        recent_counts,
-                    )
-                )
-
-        if block.type == "heading" and (block.level or 0) >= 3:
-            heading = str(block.content)
-            concept_pair = bool(
-                following
-                and following.type == "paragraph"
-                and is_concept_pair(heading, str(following.content))
-            )
-            if (
-                is_reader_question_heading(heading)
-                and not concept_pair
-                and not is_parallel_analysis_heading(
-                    block.id,
-                    {item.id: item for item in blocks},
-                )
-            ):
-                candidates.append(
-                    _candidate("question_hook", [block], {"title": block.id}, "章节标题明确提出读者核心问题。", recent_counts)
-                )
-                if following and following.type == "paragraph":
-                    candidates.append(
-                        _candidate(
-                            "faq_card",
-                            [block, following],
-                            {"question": block.id, "answer": following.id},
-                            "问句子标题与紧随答案构成可独立阅读的问答单元。",
-                            recent_counts,
-                        )
-                    )
-            if following and following.type == "paragraph" and re.search(r"案例|故事|实践|实录|样本", heading):
-                candidates.append(
-                    _candidate(
-                        "case_card",
-                        [block, following],
-                        {"title": block.id, "body": following.id},
-                        "案例子标题与紧随正文构成原文锁定的故事单元。",
-                        recent_counts,
-                    )
-                )
-            if concept_pair:
-                candidates.append(
-                    _candidate(
-                        "concept_explainer",
-                        [block, following],
-                        {"title": block.id, "definition": following.id},
-                        "标题与紧随正文构成明确的概念及解释。",
-                        recent_counts,
-                    )
-                )
-            if following and following.type in {"ordered_list", "unordered_list"} and len(following.content) >= 2 and re.search(
-                r"前后|对比|不同|变化|改革|传统|新旧|之前|之后", heading
-            ):
-                candidates.append(
-                    _candidate(
-                        "before_after_timeline",
-                        [block, following],
-                        {"before": f"{following.id}:item:0", "after": f"{following.id}:item:1"},
-                        "章节包含明确的前后或旧新对照。",
-                        recent_counts,
-                    )
-                )
-
-        if block.type == "heading" and re.search(r"对比|区别|差异|两种|前后|新旧|风险与收益|利弊", str(block.content)):
-            section_blocks = [block]
-            for following_block in blocks[index + 1 :]:
-                if (
-                    following_block.type == "heading"
-                    and (following_block.level or 0) <= (block.level or 0)
-                ):
-                    break
-                section_blocks.append(following_block)
-            pair = adjacent_comparison_pair(
-                [item.id for item in section_blocks],
-                {item.id: item for item in blocks},
-            )
-            if pair:
-                candidates.append(
-                    _candidate(
-                        "comparison_card",
-                        [pair[0], pair[1]],
-                        {"left": pair[0].id, "right": pair[1].id},
-                        "章节包含两段相邻且原文明确成对的对照内容。",
-                        recent_counts,
-                    )
-                )
-
-        # Quotation formatting alone is not evidence. Keep personal remarks and
-        # pull quotes in the ordinary quote renderer; the host may still select
-        # evidence explicitly when the surrounding argument supports it.
-        if block.type == "quote" and re.search(
-            r"(?:数据|统计|调查|研究|报告|公告|年报|条例|规定)[^。！？\n]{0,24}"
-            r"(?:显示|表明|发现|指出|规定|要求|披露|明确)",
-            str(block.content),
-        ):
-            candidates.append(
-                _candidate("evidence_callout", [block], {"evidence": block.id}, "引用含明确的数据、研究或规则归因线索；仍需宿主核对证据语义，不代表来源真实性已经验证。", recent_counts)
-            )
-
-        if block.type in {"paragraph", "quote"} and WARNING_SIGNAL_RE.search(str(block.content)):
-            candidates.append(
-                _candidate("warning_note", [block], {"body": block.id}, "原文明示风险或注意事项。", recent_counts)
-            )
-
-        if block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 10:
-            # Lists commonly have one explanatory paragraph between the H2/H3
-            # and the list. Use the nearest preceding heading inside the current
-            # section instead of requiring immediate adjacency.
-            heading_context = ""
-            for context_block in reversed(blocks[:index]):
-                if context_block.type == "heading":
-                    heading_context = str(context_block.content)
-                    break
-            if re.search(r"清单|检查|准备|核对", heading_context):
-                candidates.append(
-                    _candidate("action_checklist", [block], {"items": _list_refs(block)}, "列表由清单或核对语义标题引导。", recent_counts)
-                )
-            if re.search(r"对比|区别|差异|优缺点|两种", heading_context) and len(block.content) >= 2:
-                refs = _list_refs(block)
-                candidates.append(
-                    _candidate("comparison_card", [block], {"left": refs[0], "right": refs[1]}, "列表由明确对比语义标题引导。", recent_counts)
-                )
-            if re.search(r"小结|总结|结论|要点|回顾", heading_context):
-                candidates.append(
-                    _candidate("section_summary", [block], {"items": _list_refs(block)}, "列表用于阶段收束而非新增论述。", recent_counts)
-                )
-            if len(block.content) <= 5:
-                candidates.append(
-                    _candidate("numbered_insight", [block], {"items": _list_refs(block)}, "原文存在 2–5 个并列观点。", recent_counts)
-                )
-            if block.type == "ordered_list" and 3 <= len(block.content) <= 5:
-                consume = [block]
-                bindings: dict[str, str | list[str]] = {"items": _list_refs(block)}
-                if previous and previous.type == "heading" and (previous.level or 0) >= 3:
-                    consume = [previous, block]
-                candidates.append(
-                    _candidate("logic_path", consume, bindings, "原文存在 3–5 个有序步骤。", recent_counts)
-                )
-
-    return candidates
-
-
-def component_opportunity_diagnostics(
-    parsed: ParsedArticle,
-    recent_summaries: list[dict[str, Any]] | None = None,
-) -> dict[str, Any]:
-    candidates = _build_candidates(parsed, recent_summaries or [])
-    type_counts = Counter(item["component_type"] for item in candidates)
-    block_type_counts = Counter(block.type for block in parsed.blocks)
-    return {
-        "source_block_count": len(parsed.blocks),
-        "source_block_types": dict(sorted(block_type_counts.items())),
-        "eligible_candidate_count": len(candidates),
-        "eligible_component_types": sorted(type_counts),
-        "eligible_component_type_counts": dict(sorted(type_counts.items())),
-        "candidate_anchors": [
-            {
-                "component_type": item["component_type"],
-                "anchor_block_id": item["anchor_block_id"],
-                "consume_block_ids": item["consume_block_ids"],
-            }
-            for item in candidates
-        ],
-    }
-
-
 def _block_number(block_id: str) -> int:
     return int(block_id.rsplit("-", 1)[-1])
-
-
-def _article_text_length(parsed: ParsedArticle) -> int:
-    length = 0
-    for block in parsed.blocks:
-        if isinstance(block.content, list):
-            for item in block.content:
-                if isinstance(item, list):
-                    length += sum(len(str(cell)) for cell in item)
-                else:
-                    length += len(str(item))
-        else:
-            length += len(str(block.content))
-    return length
-
-
-def component_coverage_target(
-    parsed: ParsedArticle,
-    recent_summaries: list[dict[str, Any]] | None = None,
-) -> int:
-    """Return a safe component floor bounded by real, non-overlapping candidates."""
-    candidates = _build_candidates(parsed, recent_summaries or [])
-    feasible = _select_candidates(
-        candidates,
-        COMPONENT_COVERAGE_PRIORITIES,
-        6,
-    )
-    if not feasible:
-        return 0
-
-    text_length = _article_text_length(parsed)
-    block_count = len(parsed.blocks)
-    if text_length >= 4200 or block_count >= 45:
-        desired = 6
-    elif text_length >= 3200 or block_count >= 32:
-        desired = 5
-    elif text_length >= 1800 or block_count >= 22:
-        desired = 4
-    elif text_length >= 900 or block_count >= 12:
-        desired = 3
-    else:
-        desired = 2
-    return min(desired, len(feasible), 6)
-
-
-def component_diversity_target(parsed: ParsedArticle, coverage_target: int) -> int:
-    """Return the minimum number of distinct component morphologies.
-
-    A long article with five cards but only two or three visual forms still
-    feels templated. The target is bounded by the coverage target and never
-    forces decorative components into a short article.
-    """
-    if coverage_target <= 1:
-        return coverage_target
-    if _article_text_length(parsed) >= 1800 or len(parsed.blocks) >= 22:
-        return min(4, coverage_target)
-    return min(3, coverage_target)
-
-
-def _article_third(parsed: ParsedArticle, block_id: str) -> int:
-    position = next(
-        (index for index, block in enumerate(parsed.blocks) if block.id == block_id),
-        0,
-    )
-    return min(2, (position * 3) // max(1, len(parsed.blocks)))
-
-
-def supplement_component_coverage(
-    parsed: ParsedArticle,
-    selected_slots: list[dict[str, Any]],
-    recent_summaries: list[dict[str, Any]] | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
-    """Fill weak-model gaps using only deterministic, fact-bound candidates.
-
-    Existing model choices are preserved. Candidates that overlap, sit directly
-    beside a strong component, or over-repeat a semantic family are skipped.
-    Missing morphologies and uncovered article thirds are preferred so a long
-    article does not merely satisfy a numeric card quota.
-    """
-    recent = recent_summaries or []
-    target = component_coverage_target(parsed, recent)
-    diversity_target = component_diversity_target(parsed, target)
-    selected_types = {slot["component_type"] for slot in selected_slots}
-    if len(selected_slots) >= target and len(selected_types) >= diversity_target:
-        return copy.deepcopy(selected_slots), [], target
-
-    candidates = _build_candidates(parsed, recent)
-    priority = {
-        component_type: index
-        for index, component_type in enumerate(COMPONENT_COVERAGE_PRIORITIES)
-    }
-    ordered = sorted(
-        candidates,
-        key=lambda item: (
-            priority.get(item["component_type"], len(priority)),
-            item["anchor_block_id"],
-        ),
-    )
-    selected = copy.deepcopy(selected_slots)
-    consumed = {
-        block_id
-        for slot in selected
-        for block_id in slot["consume_block_ids"]
-    }
-    consumed_numbers = {
-        _block_number(block_id)
-        for block_id in consumed
-    }
-    type_counts: Counter[str] = Counter(
-        slot["component_type"] for slot in selected
-    )
-    family_counts: Counter[str] = Counter(
-        SEMANTIC_FAMILIES.get(slot["component_type"], slot["component_type"])
-        for slot in selected
-    )
-    adjustments: list[dict[str, str]] = []
-    occupied_thirds = {
-        _article_third(parsed, slot["anchor_block_id"])
-        for slot in selected
-    }
-
-    for allow_repeat in (False, True):
-        # Re-rank for current state: first introduce a new morphology, then
-        # cover an unused part of the article, finally apply semantic priority.
-        ranked = sorted(
-            ordered,
-            key=lambda item: (
-                type_counts[item["component_type"]] > 0,
-                _article_third(parsed, item["anchor_block_id"]) in occupied_thirds,
-                priority.get(item["component_type"], len(priority)),
-                item["anchor_block_id"],
-            ),
-        )
-        for item in ranked:
-            component_type = item["component_type"]
-            family = SEMANTIC_FAMILIES.get(component_type, component_type)
-            if not allow_repeat and type_counts[component_type] > 0:
-                continue
-            if type_counts[component_type] >= 2 or family_counts[family] >= 2:
-                continue
-            if consumed.intersection(item["consume_block_ids"]):
-                continue
-            numbers = {
-                _block_number(block_id)
-                for block_id in item["consume_block_ids"]
-            }
-            if any(
-                abs(number - existing) <= 1
-                for number in numbers
-                for existing in consumed_numbers
-            ):
-                continue
-
-            candidate = copy.deepcopy(item)
-            candidate["selection_reason"] = (
-                f"组件覆盖兜底：{candidate['selection_reason']}"
-            )
-            selected.append(candidate)
-            consumed.update(candidate["consume_block_ids"])
-            consumed_numbers.update(numbers)
-            type_counts[component_type] += 1
-            family_counts[family] += 1
-            occupied_thirds.add(_article_third(parsed, candidate["anchor_block_id"]))
-            adjustment_code = (
-                "component_rhythm_candidate_added"
-                if len(selected_slots) >= target
-                else "component_coverage_candidate_added"
-            )
-            adjustments.append(
-                {
-                    "code": adjustment_code,
-                    "component": component_type,
-                    "source_block_ids": ",".join(candidate["consume_block_ids"]),
-                    "reason": (
-                        "整篇组件形态不足，使用原稿真实候选补充视觉节奏。"
-                        if adjustment_code == "component_rhythm_candidate_added"
-                        else "宿主选择低于当前文章的安全覆盖目标，使用原稿真实候选补齐。"
-                    ),
-                }
-            )
-            if len(selected) >= target and len(type_counts) >= diversity_target:
-                break
-        if len(selected) >= target and len(type_counts) >= diversity_target:
-            break
-
-    selected.sort(key=lambda item: item["anchor_block_id"])
-    for index, item in enumerate(selected, 1):
-        item["slot_id"] = f"slot-{index:03d}"
-    return selected, adjustments, target
 
 
 def _select_candidates(candidates: list[dict[str, Any]], priorities: tuple[str, ...], limit: int) -> list[dict[str, Any]]:
@@ -599,7 +127,8 @@ def _image_candidates(parsed: ParsedArticle) -> list[dict[str, Any]]:
     blocks = parsed.blocks
     for index, block in enumerate(blocks):
         previous = blocks[index - 1] if index > 0 else None
-        if block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4:
+        if (block.type in {"ordered_list", "unordered_list"} and 2 <= len(block.content) <= 4
+                and readable_node_copy([extract_display_label(str(item)) for item in block.content])):
             source = [block]
             title_ref: str | None = None
             subject = "并列关系或步骤路径"
@@ -776,15 +305,13 @@ def _plan(
     style: str,
     recommendation: str,
     parsed: ParsedArticle,
+    article_type: str,
     history_window: int,
     slots: list[dict[str, Any]],
     image_slots: list[dict[str, Any]],
     configuration: dict[str, Any],
     recent_summaries: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    usage = _base_usage(parsed)
-    for slot in slots:
-        usage[slot["component_type"]] += 1
     recent_message = (
         f"已读取最近 {min(len(recent_summaries), history_window)} 篇确认记录，并优先选择近期使用更少的具体变体。"
         if recent_summaries
@@ -792,14 +319,10 @@ def _plan(
     )
     rich = index == 1
     payload: dict[str, Any] = {
-        "schema_version": PLAN_SCHEMA_VERSION,
-        "revision": 1,
-        "undo_stack": [],
-        "task_id": None,
-        "article_type": None,
-        "component_library_version": COMPONENT_LIBRARY_VERSION,
-        "renderer_version": RENDERER_VERSION,
-        "history_window": history_window,
+        **plan_envelope(
+            parsed, article_type=article_type, history_window=history_window, slots=slots,
+            strong_limit=article_strong_limit(parsed) if rich else max(2, article_strong_limit(parsed) - 1),
+        ),
         "plan_index": index,
         "plan_name": f"{STYLE_LABELS[style]} · {'语义导航' if rich else '留白长读'}",
         "recommendation": recommendation,
@@ -811,16 +334,9 @@ def _plan(
             "强组件密度和出现位置不同",
             "列表在逻辑路径与编号观点之间按语义选择",
         ],
-        "component_usage": dict(usage),
         "configuration": configuration,
         "slots": slots,
         "image_slots": image_slots,
-        "quality_constraints": {
-            "max_strong_components_in_a_row": 1,
-            "max_strong_components_per_article": 3 if rich else 2,
-            "avoid_recent_component_sequence": True,
-            "facts_locked": True,
-        },
     }
     return payload
 
@@ -846,7 +362,7 @@ def generate_plans(
     image_candidates = _image_candidates(parsed)
     first_palette = STYLE_PALETTES[styles[0]]
     second_palette = STYLE_PALETTES[styles[1]]
-    strong_limit = min(6, max(3, 2 + len(parsed.blocks) // 8))
+    strong_limit = article_strong_limit(parsed)
     first_slots = _select_candidates(candidates, COMPONENT_COVERAGE_PRIORITIES, strong_limit)
     second_slots = _select_candidates(
         candidates,
@@ -883,6 +399,7 @@ def generate_plans(
             style=styles[0],
             recommendation="recommended",
             parsed=parsed,
+            article_type=article_type,
             history_window=history_window,
             slots=first_slots,
             image_slots=first_image_slots,
@@ -903,6 +420,7 @@ def generate_plans(
             style=styles[1],
             recommendation="alternative",
             parsed=parsed,
+            article_type=article_type,
             history_window=history_window,
             slots=second_slots,
             image_slots=second_image_slots,
@@ -919,7 +437,6 @@ def generate_plans(
         ),
     ]
     for plan in plans:
-        plan["article_type"] = article_type
         plan["component_diagnostics"] = {
             **opportunity_diagnostics,
             "requested_component_count": None,
@@ -929,21 +446,5 @@ def generate_plans(
             ],
             "compiler_adjustments": [],
         }
-        plan["quality_constraints"]["max_strong_components_per_article"] = (
-            strong_limit if plan["plan_index"] == 1 else max(2, strong_limit - 1)
-        )
         validate_plan_for_article(plan, parsed)
     return plans
-
-
-def structural_difference_count(plans: list[dict[str, Any]]) -> int:
-    if len(plans) != 2:
-        return 0
-    keys = ("heading_variant", "key_point_variant", "quote_variant", "list_variant", "table_variant")
-    left, right = plans[0]["configuration"], plans[1]["configuration"]
-    config_differences = sum(left[key] != right[key] for key in keys)
-    left_slots = {(slot["anchor_block_id"], slot["component_type"]) for slot in plans[0].get("slots", [])}
-    right_slots = {(slot["anchor_block_id"], slot["component_type"]) for slot in plans[1].get("slots", [])}
-    left_images = {(slot["anchor_block_id"], slot["purpose"]) for slot in plans[0].get("image_slots", [])}
-    right_images = {(slot["anchor_block_id"], slot["purpose"]) for slot in plans[1].get("image_slots", [])}
-    return config_differences + len(left_slots.symmetric_difference(right_slots)) + len(left_images.symmetric_difference(right_images))

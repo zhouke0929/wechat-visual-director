@@ -86,12 +86,12 @@ def normalize_source_copy(value: str) -> str:
     """Normalize Markdown display syntax without rewriting source wording."""
     plain = re.sub(r"\*\*|__|`", "", str(value or ""))
     plain = re.sub(r"^\s*(?:[-*+]\s+|\d+[.、]\s*)", "", plain)
-    return _clean(plain, limit=160)
+    return " ".join(plain.split())
 
 
 def strip_structural_title_prefix(value: str) -> str:
     """Remove authoring scaffolds while preserving the semantic source suffix."""
-    source = normalize_source_copy(value)
+    source = normalize_source_copy(value)[:160]
     cleaned = _STRUCTURAL_TITLE_PREFIX_RE.sub("", source, count=1).strip()
     return cleaned or source
 
@@ -215,11 +215,19 @@ def evaluate_theme_compatibility(
     }
 
 
+MAX_NODE_COPY = 32  # Whole phrases only; never slice text to fit the canvas.
+
+
+def source_bound_label(label: str, item: str) -> bool:
+    label = label.strip()
+    return 0 < len(label) <= MAX_NODE_COPY and label in normalize_source_copy(item)
+
+
 def extract_display_label(value: str, *, budget: int = 14) -> str:
     """Return a short, exact source substring suitable for an image label.
 
     The function never summarizes. It first honors an author-written bold lead,
-    then a phrase before Chinese punctuation, and finally an exact prefix.
+    then a phrase before Chinese punctuation, and finally a whole sentence.
     """
     source = normalize_source_copy(value)
     if not source:
@@ -232,9 +240,32 @@ def extract_display_label(value: str, *, budget: int = 14) -> str:
         candidate = normalize_source_copy(candidate)
         if 2 <= len(candidate) <= budget and candidate in source:
             return candidate
-    if len(source) <= budget:
-        return source
-    return source[:budget].rstrip("，。；：、 ")
+    return re.split(r"(?<=[。！？；])", source, maxsplit=1)[0]
+
+
+def readable_node_copy(labels: list[str]) -> bool:
+    return bool(labels) and all(0 < len(label) <= MAX_NODE_COPY for label in labels)
+
+
+def rebind_visual_grammar(intent: dict[str, Any], anchors: list[str]) -> None:
+    """Only a change to the bound item invalidates its selected copy."""
+    anchors = [" ".join(value.split()) for value in anchors]
+    previous = intent.get("fact_anchors") or []
+    if previous == anchors:
+        return
+    stored = (intent.get("visual_grammar") or {}).get("display_labels") or []
+    # Historical slots stored 120-character excerpts, not full anchors. Retain
+    # their locked text when upgrading; candidate source hashes still use full items.
+    retained = [
+        stored[i] if i < min(len(stored), len(previous)) and previous[i] in (anchor, anchor[:120])
+        else "" for i, anchor in enumerate(anchors)
+    ]
+    intent["fact_anchors"] = anchors
+    intent["visual_grammar"] = build_visual_grammar(
+        layout_family=intent.get("layout_family") or "structural_breakdown",
+        fact_anchors=anchors, style_family=intent.get("style_family") or "editorial_paper_cut",
+        article_type=intent.get("article_type") or "viewpoint_trend", suggested_labels=retained,
+    )
 
 
 def _node_visual(label: str, article_type: str) -> str:
@@ -275,18 +306,20 @@ def build_visual_grammar(
     fact_anchors: list[str],
     style_family: str,
     article_type: str,
+    suggested_labels: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compile an illustration-first spatial script from source-bound facts."""
-    labels = [extract_display_label(value) for value in fact_anchors]
-    labels = [value for value in labels if value]
     full_copy = [normalize_source_copy(value) for value in fact_anchors]
-    text_mode = (
-        "verbatim_full_copy"
-        if full_copy and all(len(value) <= 16 for value in full_copy)
-        else "label_only"
-    )
-    if text_mode == "verbatim_full_copy":
-        labels = full_copy
+    compact = all(len(value) <= 16 for value in full_copy)
+    proposed = suggested_labels if suggested_labels and len(suggested_labels) == len(full_copy) else []
+    labels: list[str] = []
+    for index, (anchor, source) in enumerate(zip(fact_anchors, full_copy)):
+        label = proposed[index].strip() if proposed else ""
+        if source_bound_label(label, anchor):
+            labels.append(label)
+        else:
+            labels.append(source if compact else extract_display_label(anchor))
+    text_mode = "verbatim_full_copy" if labels == full_copy else "label_only"
 
     recipes = {
         "linear_progression": (
@@ -395,6 +428,7 @@ def build_visual_intent(
     requested_visual_role: str | None = None,
     requested_learning_objective: str | None = None,
     requested_layout_family: str | None = None,
+    suggested_labels: list[str] | None = None,
 ) -> dict[str, Any]:
     """Compile provider-neutral visual intent from article-bound evidence.
 
@@ -402,7 +436,7 @@ def build_visual_intent(
     values are accepted. Fact anchors always come from parsed article blocks.
     """
     clean_subject = _clean(subject) or "当前章节的核心关系"
-    anchors = [_clean(value, limit=120) for value in (fact_anchors or []) if _clean(value)]
+    anchors = [" ".join(value.split()) for value in (fact_anchors or []) if value.strip()]
     anchors = anchors[:6]
 
     if purpose == "structured_infographic":
@@ -442,6 +476,7 @@ def build_visual_intent(
             fact_anchors=anchors,
             style_family=style_family,
             article_type=article_type,
+            suggested_labels=suggested_labels,
         )
     else:
         layout_family = "semantic_scene"
@@ -509,7 +544,7 @@ def resolve_display_copy(
     if grammar.get("text_mode") == "verbatim_full_copy":
         labels = [normalize_source_copy(value) for value in items]
     else:
-        stored = [normalize_source_copy(value) for value in grammar.get("display_labels") or []]
+        stored = list(grammar.get("display_labels") or [])
         labels = stored if len(stored) == len(items) else [extract_display_label(value) for value in items]
     return strip_structural_title_prefix(title), labels
 

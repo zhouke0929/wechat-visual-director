@@ -19,12 +19,15 @@ def run(out: Path, repo: Path) -> None:
             del os.environ[key]
     os.environ.update({
         "VISUAL_DIRECTOR_PROJECT_ROOT": str(repo),
+        "VISUAL_DIRECTOR_HOME": str(out / "runtime"),
         "VISUAL_DIRECTOR_DB": str(out / "test.db"),
         "VISUAL_DIRECTOR_ENV_FILE": str(out / "empty.env"),
         "VISUAL_DIRECTOR_THEME_PACK_DIR": str(out / "theme-packs"),
         "VISUAL_DIRECTOR_IMAGE_PROVIDER": "manual",
     })
     sys.path.insert(0, str(repo / "apps/api/src"))
+    sys.path.insert(0, str(repo / "apps/api/tests"))
+    from host_fixture import submit_fixture
     from visual_director.main import app
 
     with TestClient(app) as client:
@@ -33,8 +36,8 @@ def run(out: Path, repo: Path) -> None:
         assert response.status_code == 201, response.text
         task = response.json()["task"]
         api = f"/api/v1/article-tasks/{task['id']}"
-        result = client.post(f"{api}/generate-plans", json={"mode": "start", "expected_task_version": task["version"]})
-        assert result.status_code in (200, 202), result.text
+        result = submit_fixture(client, api, task["version"])
+        assert result.status_code == 202, result.text
         assert client.get(f"{api}/content-editor").status_code == 200
         specimens = client.get("/api/v1/theme-card-specimens").json()["specimens"]
         options = client.get(f"{api}/plans").json()["plans"][0]["visual_system_metadata"]["available_visual_systems"]

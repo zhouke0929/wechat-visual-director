@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .infographic_limits import supports_node_count
 from .parser import ParsedArticle
 
 
@@ -34,6 +35,6 @@ def resolve_overlay_copy(parsed: ParsedArticle, fact_bindings: dict[str, Any]) -
                 title = str(block.content)
                 break
     title = title or "关键步骤"
-    if not 2 <= len(items) <= 4:
-        raise InfographicOverlayError("结构信息图必须绑定 2–4 个原文节点")
+    if not supports_node_count(len(items)):
+        raise InfographicOverlayError("结构信息图必须绑定 2–5 个原文节点")
     return title, items

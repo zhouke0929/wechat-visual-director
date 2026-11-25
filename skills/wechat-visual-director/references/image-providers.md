@@ -111,7 +111,7 @@ Seedream 是图片模型；Seedance 是视频模型，不应出现在图片 Prov
 | `visual_grammar.spatial_zones` | 标题、核心场景和节点在画布中的空间区域 |
 | `visual_grammar.node_visuals` | 每个原文标签对应的具象物体或人物动作，只承担象征作用 |
 | `visual_grammar.connector_language` | 道路、桥、时间带或引导线等统一连接方式 |
-| `visual_grammar.display_labels` | 逐字截取自事实锚点的短标签，不由模型自由总结 |
+| `visual_grammar.display_labels` | 首轮排版从对应原文选出的上图标签，缺省时本地提取。图片 API 和宿主生图均使用已绑定的文案，不再总结 |
 | `visual_grammar.text_mode` | 长节点使用 `label_only`，全部较短时使用 `verbatim_full_copy` |
 | `visual_grammar.title_mode` | 结构信息图只保留原文语义标题，移除“第二层 / PART 02”等规划脚手架；氛围图不排标题 |
 | `visual_grammar.content_occupancy` | 核心内容占画布 70%–85%，避免把防裁切安全区误做成大面积留白 |

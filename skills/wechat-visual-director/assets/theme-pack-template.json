@@ -68,7 +68,7 @@
       "logic_path": {"type": "repeat", "bind": "items", "style": {"padding": [12, 0, 12, 0], "border_bottom": {"width": 1, "color": "secondary", "style": "solid"}}, "children": [
         {"type": "marker_row", "marker_width": 12, "gap": 4, "children": [
         {"type": "field", "bind": "index", "style": {"size": "body", "color": "accent"}},
-        {"type": "field", "bind": "item"}
+        {"type": "field", "bind": "item", "format": "step_hierarchy"}
       ]}]},
       "concept_explainer": {"type": "repeat", "bind": "entries", "style": {"padding": [12, 0, 12, 0]}, "children": [
         {"type": "field", "bind": "title", "style": {"size": "subheading", "margin": [0, 0, 10, 0]}},

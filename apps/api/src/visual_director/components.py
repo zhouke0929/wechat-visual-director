@@ -4,45 +4,24 @@ import html
 import re
 from typing import Any
 
+from .component_catalog import VISUAL_SYSTEM_ORDER
+from .component_presentation import resolve_component_recipe
 from .parser import ParsedArticle
-from .generated_theme import render_generated_component
-from .theme_extensions import render_extended_component
+from .generated_theme import render_generated_semantic
+from .logic_path_renderer import render_logic_path
+from .reading_rules import resolve_reading_profile
+from .render_pilot import current_theme_styles_enabled, logic_path_pilot_enabled, renderer_pilot_enabled
+from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
+from .theme_extensions import render_extended_semantic
+from .timeline_recipe import render_timeline
 
 
-REF_RE = re.compile(r"^(block-\d{3})(?::item:(\d+))?$")
-
-
-def _inline(value: str) -> str:
+def _inline(value: str | SemanticField) -> str:
+    if isinstance(value, SemanticField):
+        return value.render(_inline)
     escaped = html.escape(value)
     escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
     return escaped.replace("\n", "<br>")
-
-
-def _resolve(parsed: ParsedArticle, reference: str) -> str:
-    match = REF_RE.fullmatch(reference)
-    if not match:
-        raise ValueError(f"无法解析内容绑定：{reference}")
-    block_id, item_index = match.groups()
-    block = next((item for item in parsed.blocks if item.id == block_id), None)
-    if block is None:
-        raise ValueError(f"内容块不存在：{block_id}")
-    if item_index is None:
-        return str(block.content)
-    return str(block.content[int(item_index)])
-
-
-def _one(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> str:
-    reference = bindings[role]
-    if not isinstance(reference, str):
-        raise ValueError(f"{role} 应为单个内容引用")
-    return _resolve(parsed, reference)
-
-
-def _many(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> list[str]:
-    references = bindings[role]
-    if not isinstance(references, list):
-        raise ValueError(f"{role} 应为内容引用数组")
-    return [_resolve(parsed, reference) for reference in references]
 
 
 DEFAULT_PALETTE = {
@@ -59,7 +38,7 @@ DEFAULT_PALETTE = {
 }
 
 
-def _plain_list(items: list[str], accent: str) -> str:
+def _plain_list(items: tuple[SemanticField, ...], accent: str) -> str:
     rows = []
     for index, item in enumerate(items, 1):
         rows.append(
@@ -67,22 +46,6 @@ def _plain_list(items: list[str], accent: str) -> str:
             f'<strong style="color:{accent};">{index:02d}.</strong> {_inline(item)}</p>'
         )
     return '<section style="margin:24px 0;">' + "".join(rows) + "</section>"
-
-
-def _concept_entries(
-    parsed: ParsedArticle,
-    bindings: dict[str, Any],
-) -> list[tuple[str, str]]:
-    titles = [_one(parsed, bindings, "title")]
-    definitions = [_one(parsed, bindings, "definition")]
-    if "related_titles" in bindings or "related_definitions" in bindings:
-        if "related_titles" not in bindings or "related_definitions" not in bindings:
-            raise ValueError("连续概念词条必须同时提供标题与解释")
-        titles.extend(_many(parsed, bindings, "related_titles"))
-        definitions.extend(_many(parsed, bindings, "related_definitions"))
-    if len(titles) != len(definitions) or not 1 <= len(titles) <= 4:
-        raise ValueError("连续概念词条必须包含 1–4 组标题与解释")
-    return [(_inline(title), _inline(definition)) for title, definition in zip(titles, definitions, strict=True)]
 
 
 def _render_concept_group(
@@ -222,11 +185,52 @@ def render_component(
     parsed: ParsedArticle,
     palette: dict[str, str] | None = None,
     config: dict[str, Any] | None = None,
+    *,
+    visual_system: str | None = None,
 ) -> str:
-    component_type = slot["component_type"]
-    variant = slot["variant"]
-    bindings = slot["content_bindings"]
+    selected = visual_system or (config or {}).get("visual_system")
+    reading = resolve_reading_profile(config or {}, official=selected in VISUAL_SYSTEM_ORDER, theme_id=selected)
+    return render_bound_component(bind_semantic_content(slot, parsed, reading=reading), slot["variant"],
+                                  palette, config, visual_system=selected)
+
+
+def render_bound_component(
+    content: BoundSemanticContent, variant: str, palette: dict[str, str] | None,
+    config: dict[str, Any] | None, *, visual_system: str | None,
+) -> str:
+    component_type = content.component
     colors = {**DEFAULT_PALETTE, **(palette or {})}
+    quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
+    recipe = resolve_component_recipe(config or {}, component_type) if component_type == "before_after_timeline" else None
+    if recipe and recipe.layout and recipe.default_variant == variant:
+        # A snapshotted default is a theme choice, not a veto on a later slot
+        # variant selection. Do not look up today's catalog to interpret it.
+        theme_colors = {**DEFAULT_PALETTE, **(config or {}).get("palette", {}), **(palette or {})}
+        return render_timeline(content, recipe.layout, theme_colors, _inline, recipe)
+    if component_type == "logic_path":
+        return render_logic_path(
+            content.step_fields(editable=logic_path_pilot_enabled()), variant, config or {}, colors,
+            quiet_folio=quiet_folio, inline=_inline,
+        )
+    generated = render_generated_semantic(content, config or {})
+    if generated is not None:
+        return generated
+    extended = render_extended_semantic(
+        content, variant, colors, quiet_folio=quiet_folio, recipe=recipe,
+    )
+    if extended is not None:
+        return extended
+
+    if component_type == "before_after_timeline":
+        return render_timeline(content, variant, colors, _inline, recipe)
+    return _render_native_semantic(content, variant, colors, config or {})
+
+
+def _render_native_semantic(
+    content: BoundSemanticContent, variant: str, colors: dict[str, str], config: dict[str, Any],
+) -> str:
+    component_type = content.component
+    quiet_signal = config.get("theme_kit") == "future_science_editorial_v1"
     primary = colors["primary"]
     secondary = colors["secondary"]
     accent = colors["accent"]
@@ -238,17 +242,8 @@ def render_component(
     surface = colors["surface"]
     ink = colors["ink"]
 
-    generated = render_generated_component(slot, parsed, config or {})
-    if generated is not None:
-        return generated
-    quiet_signal = (config or {}).get("theme_kit") == "future_science_editorial_v1"
-    quiet_folio = (config or {}).get("theme_id") == "oriental_archive"
-    extended = render_extended_component(slot, parsed, colors, quiet_folio=quiet_folio)
-    if extended is not None:
-        return extended
-
     if component_type == "question_hook":
-        title = _inline(_one(parsed, bindings, "title"))
+        title = _inline(content.one("title"))
         if variant == "plain_question":
             return f'<p style="margin:28px 0 20px;color:{primary};font-size:20px;font-weight:750;line-height:1.6;text-align:center;">{title}</p>'
         if variant == "warm_letter_prompt" and (config or {}).get("theme_kit") == "warm_storybook_v1":
@@ -313,7 +308,7 @@ def render_component(
         )
 
     if component_type == "numbered_insight":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_numbered_list":
             return _plain_list(items, primary)
         if variant == "leaf_index_ribbon":
@@ -455,7 +450,7 @@ def render_component(
         )
 
     if component_type == "evidence_callout":
-        evidence = _inline(_one(parsed, bindings, "evidence"))
+        evidence = _inline(content.one("evidence"))
         if variant == "plain_evidence_note":
             return f'<blockquote style="margin:25px 0;padding:4px 0 4px 16px;border-left:3px solid {primary};color:#3F4A47;font-size:16px;line-height:1.8;">{evidence}</blockquote>'
         if variant == "floating_quote_note":
@@ -467,9 +462,10 @@ def render_component(
                 f'</section>'
             )
         if variant == "evidence_margin":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:29px 0;padding:4px 0;border-top:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;white-space:normal;">'
-                f'<span style="display:inline-block;width:23%;padding:17px 10px 13px 0;color:{primary};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;vertical-align:top;">EVIDENCE<br><strong style="display:block;margin-top:8px;color:{accent};font-size:23px;letter-spacing:0;">↳</strong></span>'
+                f'<span style="{sizing}display:inline-block;width:23%;padding:17px 10px 13px 0;color:{primary};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.14em;vertical-align:top;">EVIDENCE<br><strong style="display:block;margin-top:8px;color:{accent};font-size:23px;letter-spacing:0;">↳</strong></span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:77%;margin:0;padding:16px 0 15px 16px;border-left:4px solid {primary};color:{ink};font-size:16px;font-weight:700;line-height:1.82;vertical-align:top;">{evidence}</p>'
                 f'</section>'
             )
@@ -483,10 +479,18 @@ def render_component(
                 f'</section>'
             )
         if variant == "megaphone_quote":
+            if not renderer_pilot_enabled():  # Keep the explicit v1 rollback layout.
+                return (
+                    f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
+                    f'<span style="box-sizing:border-box;display:inline-block;width:66px;margin-left:4px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
+                    f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
+                    f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
+                )
             return (
-                f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};white-space:normal;">'
-                f'<span style="box-sizing:border-box;display:inline-block;width:66px;margin-left:4px;padding:14px 5px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;text-align:center;transform:rotate(-3deg);vertical-align:top;">CAMPUS<br>RADIO</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:79%;margin-left:3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};vertical-align:top;">'
+                f'<section style="margin:31px 0;padding:7px 0 17px;border-bottom:2px dashed {sky};">'
+                f'<section style="margin:0 0 0 3%;font-size:10px;line-height:1;">'
+                f'<span data-theme-static="true" style="display:inline-block;padding:4px 9px;background-color:{accent};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.12em;line-height:1.2;white-space:nowrap;transform:rotate(-2deg);vertical-align:top;">CAMPUS RADIO</span></section>'
+                f'<section style="margin:0 6px 0 3%;padding:15px 16px;background-color:{secondary_pale};box-shadow:6px 6px 0 {sky_pale};">'
                 f'<p style="margin:0;color:{ink};font-size:16px;font-weight:700;line-height:1.85;">{evidence}</p></section></section>'
             )
         if variant == "pulse_quote":
@@ -527,299 +531,8 @@ def render_component(
             f'<p style="margin:0;color:{ink};font-size:16px;font-weight:650;line-height:1.8;">{evidence}</p></section>'
         )
 
-    if component_type == "before_after_timeline":
-        before = _inline(_one(parsed, bindings, "before"))
-        after = _inline(_one(parsed, bindings, "after"))
-        if variant == "stacked_before_after":
-            return (
-                '<section style="margin:25px 0;">'
-                f'<p style="margin:0 0 10px;padding:14px;border-left:4px solid {accent};background-color:{accent_pale};line-height:1.7;"><strong>之前：</strong>{before}</p>'
-                f'<p style="margin:0;padding:14px;border-left:4px solid {primary};background-color:{pale};line-height:1.7;"><strong>之后：</strong>{after}</p></section>'
-            )
-        if variant == "paired_current":
-            return (
-                f'<section style="margin:30px 0;padding:2px 0;white-space:normal;">'
-                f'<section style="width:88%;padding:0 0 15px;border-bottom:1px solid {accent};">'
-                f'<span style="display:inline-block;width:28px;height:28px;border-radius:50% 50% 50% 5px;background-color:{accent};color:#FFFFFF;font-size:11px;font-weight:800;line-height:28px;text-align:center;vertical-align:top;">前</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:1px 0 0 13px;color:{ink};font-size:14px;line-height:1.78;vertical-align:top;">{before}</p></section>'
-                f'<p style="width:12%;height:24px;margin:0 0 0 44%;border-right:2px dotted {sky};"></p>'
-                f'<section style="width:88%;margin-left:12%;padding:0 0 15px;border-bottom:1px solid {primary};">'
-                f'<p style="box-sizing:border-box;display:inline-block;width:86%;margin:0;padding:1px 13px 0 0;color:{ink};font-size:14px;line-height:1.78;text-align:right;vertical-align:top;">{after}</p>'
-                f'<span style="display:inline-block;width:28px;height:28px;border-radius:50% 5px 50% 50%;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;line-height:28px;text-align:center;vertical-align:top;">后</span></section>'
-                f'</section>'
-            )
-        if variant == "shift_axis":
-            return (
-                f'<section style="margin:30px 0;padding-left:19px;border-left:2px solid {primary};">'
-                f'<section style="margin:0 0 20px;white-space:normal;">'
-                f'<span style="display:inline-block;width:62px;margin-left:-16px;padding:6px 5px;background-color:{accent};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">基线</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:74%;margin:0;padding:0 0 13px 15px;border-bottom:1px solid #BCC6C1;color:{ink};font-size:14px;line-height:1.76;vertical-align:top;">{before}</p></section>'
-                f'<section style="margin:0 0 0 31px;white-space:normal;">'
-                f'<span style="display:inline-block;width:62px;margin-left:-16px;padding:6px 5px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;vertical-align:top;">变化</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:0 0 13px 15px;border-bottom:4px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.76;vertical-align:top;">{after}</p></section>'
-                f'</section>'
-            )
-        if variant == "split_page_flip":
-            return (
-                f'<section style="margin:31px 0;padding:10px 8px 16px;background-color:{sky_pale};white-space:normal;">'
-                f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border:1px dashed {accent};background-color:{surface};transform:rotate(-1deg);vertical-align:top;">'
-                f'<span style="display:block;margin-bottom:10px;color:{accent};font-size:10px;font-weight:800;letter-spacing:.14em;">BEFORE PAGE</span>'
-                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.77;">{before}</p></section>'
-                f'<span style="display:inline-block;width:6%;padding-top:53px;color:{primary};font-size:18px;text-align:center;vertical-align:top;">›</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:15px;padding:15px 13px;border-bottom:5px solid {primary};background-color:{secondary_pale};transform:rotate(1deg);vertical-align:top;">'
-                f'<span style="display:block;margin-bottom:10px;color:{primary};font-size:10px;font-weight:800;letter-spacing:.14em;">NEXT PAGE</span>'
-                f'<p style="margin:0;color:{ink};font-size:14px;font-weight:650;line-height:1.77;">{after}</p></section></section>'
-            )
-        if variant == "airy_before_after":
-            return (
-                f'<section style="margin:28px 0;padding:9px 0;border-top:1px solid {sky};border-bottom:1px solid {sky};white-space:normal;">'
-                f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 14px;border-radius:18px 18px 5px 18px;background-color:{accent_pale};vertical-align:top;">'
-                f'<span style="display:inline-block;width:22px;height:4px;margin-bottom:10px;background-color:{accent};"></span>'
-                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.75;">{before}</p></section>'
-                f'<span style="display:inline-block;width:6%;padding-top:42px;color:{primary};font-size:18px;text-align:center;vertical-align:top;">→</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 14px;border-radius:18px 18px 18px 5px;background-color:{pale};vertical-align:top;">'
-                f'<span style="display:inline-block;width:22px;height:4px;margin-bottom:10px;background-color:{primary};"></span>'
-                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.75;">{after}</p></section></section>'
-            )
-        if variant == "stitched_before_after":
-            return (
-                f'<section style="margin:31px 0;padding:4px 0 2px 18px;border-left:1px dashed #D7B995;">'
-                f'<section style="width:88%;padding:0 0 14px;border-bottom:1px solid #E1CDB2;white-space:normal;">'
-                f'<span style="display:inline-block;width:48px;margin-left:-14px;padding:5px 7px;background-color:{accent_pale};color:{accent};font-size:11px;font-weight:800;text-align:center;transform:rotate(-3deg);vertical-align:top;">从前</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:1px 0 0 13px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:14px;line-height:1.82;vertical-align:top;">{before}</p></section>'
-                f'<p style="height:27px;margin:0 0 0 47%;border-left:2px dotted {secondary};"></p>'
-                f'<section style="width:88%;margin-left:8%;padding:0 0 14px;border-bottom:4px solid {primary};white-space:normal;">'
-                f'<span style="display:inline-block;width:48px;margin-left:-14px;padding:5px 7px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:800;text-align:center;transform:rotate(2deg);vertical-align:top;">后来</span>'
-                f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:1px 0 0 13px;color:{ink};font-family:Georgia,\'Noto Serif SC\',serif;font-size:14px;font-weight:650;line-height:1.82;vertical-align:top;">{after}</p></section></section>'
-            )
-        if variant == "editorial_before_after":
-            return (
-                f'<section style="margin:31px 0;border-top:10px solid {ink};border-bottom:2px solid {ink};white-space:normal;">'
-                f'<section style="box-sizing:border-box;display:inline-block;width:43%;min-height:158px;padding:17px 13px 20px 0;border-right:6px solid {accent};vertical-align:top;">'
-                f'<span style="display:block;margin-bottom:15px;color:{accent};font-family:Georgia,serif;font-size:14px;font-weight:800;letter-spacing:.08em;">BEFORE</span>'
-                f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.78;">{before}</p></section>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:57%;min-height:158px;margin-top:18px;padding:16px 0 19px 17px;background-color:{pale};vertical-align:top;">'
-                f'<span style="display:block;margin-bottom:13px;color:{primary};font-family:Georgia,serif;font-size:27px;font-weight:800;line-height:1;">AFTER</span>'
-                f'<p style="margin:0;color:{ink};font-size:15px;font-weight:700;line-height:1.78;">{after}</p></section></section>'
-            )
-        if variant == "vector_shift":
-            return (
-                f'<section style="margin:34px 0;padding:4px 0 8px;">'
-                f'<section style="width:80%;padding:15px 17px;border-radius:4px 28px 28px 18px;background-color:{accent_pale};"><span style="color:{accent};font-size:10px;font-weight:800;">变化前</span><p style="margin:7px 0 0;color:{ink};font-size:14px;line-height:1.77;">{before}</p></section>'
-                f'<p style="height:29px;margin:0 0 0 47%;border-left:2px dotted {secondary};"><span style="display:inline-block;width:8px;height:8px;margin:20px 0 0 -5px;border-radius:50%;background-color:{secondary};"></span></p>'
-                f'<section style="width:80%;margin-left:12%;padding:15px 17px;border-radius:28px 4px 18px 28px;background:linear-gradient(135deg,{secondary_pale},{pale});box-shadow:5px 5px 0 {sky_pale};"><span style="color:{primary};font-size:10px;font-weight:800;">变化后</span><p style="margin:7px 0 0;color:{ink};font-size:14px;font-weight:650;line-height:1.77;">{after}</p></section>'
-                f'</section>'
-            )
-        if variant == "change_register":
-            return (
-                f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
-                f'<section style="height:8px;background-color:{primary};"><span style="display:inline-block;width:24%;height:8px;background-color:{secondary};"></span></section>'
-                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="display:inline-block;width:48px;padding:16px 8px;color:{accent};font-size:12px;font-weight:750;vertical-align:top;">之前</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding:15px 13px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;line-height:1.75;vertical-align:top;">{before}</p></section>'
-                f'<section style="white-space:normal;"><span style="display:inline-block;width:48px;padding:16px 8px;color:{primary};font-size:12px;font-weight:750;vertical-align:top;">之后</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding:15px 13px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;line-height:1.75;vertical-align:top;">{after}</p></section></section>'
-            )
-        return (
-            f'<section style="margin:28px 0;padding:3px 0 3px 13px;border-left:2px dotted {sky};">'
-            '<section style="margin:0 0 20px;padding-left:13px;">'
-            f'<span style="display:inline-block;margin:0 0 8px;padding:5px 11px;border-radius:4px 12px 12px 12px;background-color:{accent};color:#FFFFFF;font-size:11px;font-weight:750;">改革前</span>'
-            f'<p style="margin:0;padding:12px 14px;border-radius:4px 14px 14px 14px;background-color:{accent_pale};color:{ink};font-size:15px;line-height:1.75;">{before}</p></section>'
-            '<section style="padding-left:13px;">'
-            f'<span style="display:inline-block;margin:0 0 8px;padding:5px 11px;border-radius:4px 12px 12px 12px;background-color:{primary};color:#FFFFFF;font-size:11px;font-weight:750;">改革后</span>'
-            f'<p style="margin:0;padding:12px 14px;border-radius:4px 14px 14px 14px;background-color:{pale};color:{ink};font-size:15px;line-height:1.75;">{after}</p></section></section>'
-        )
-
-    if component_type == "logic_path":
-        items = _many(parsed, bindings, "items")
-        if variant == "plain_steps":
-            return _plain_list(items, primary)
-        if variant == "warm_route_nodes" and (config or {}).get("theme_kit") == "warm_storybook_v1":
-            rows = []
-            for index, item in enumerate(items, 1):
-                last = index == len(items)
-                tab_color = secondary_pale if last else accent_pale
-                tab_edge = secondary if last else accent
-                seam = "0" if last else "1px dotted #D7B995"
-                rows.append(
-                    f'<section style="box-sizing:border-box;padding:8px 9px 8px 8px;border-bottom:{seam};white-space:normal;">'
-                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:31px;margin:1px 8px 0 -39px;padding:3px 0 2px;border-left:2px solid {tab_edge};border-radius:1px 8px 8px 1px;background-color:{tab_color};color:{primary};font:700 12px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:550;line-height:1.76;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
-                )
-            return (
-                f'<section data-theme-grammar="warm-stitched-notebook" style="margin:28px 0;padding:0 3px 3px 26px;border-bottom:1px solid #D7B995;">'
-                f'<section data-theme-decoration="warm-route-tape" aria-hidden="true" style="box-sizing:border-box;height:8px;margin:0 8px -3px 0;text-align:right;font-size:1px;line-height:1px;">'
-                f'<span style="display:inline-block;width:39px;height:7px;background-color:{secondary};opacity:.7;vertical-align:top;transform:rotate(-4deg);">&#160;</span></section>'
-                f'<section data-theme-route-steps="true" style="padding:4px 0 2px 7px;border-top:1px solid #D7B995;border-left:1px dashed #D7B995;border-radius:0 13px 0 0;background-color:{surface};">{"".join(rows)}</section></section>'
-            )
-        if variant == "airy_route" and (config or {}).get("theme_kit") == "airy_organic_v1":
-            rows = []
-            for index, item in enumerate(items, 1):
-                last = index == len(items)
-                # Let the stem grow with wrapped text; keep the leaf shapes in the gutter.
-                leaf_end = last and index > 1
-                rail_color = "transparent" if last else sky
-                node_border = secondary if leaf_end else sky
-                node_shape = "20px 4px 20px 5px" if leaf_end else "50%"
-                node_background = secondary_pale if leaf_end else surface
-                rows.append(
-                    f'<section style="padding:0 0 {0 if last else 13}px 26px;border-left:1px solid {rail_color};white-space:normal;">'
-                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:32px;height:30px;margin:0 10px 0 -42px;border:1px solid {node_border};border-radius:{node_shape};background-color:{node_background};color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:700;line-height:28px;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;padding:2px 0 0;color:{ink};font-size:15px;font-weight:500;line-height:1.75;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p>'
-                    '</section>'
-                )
-            sprout = (
-                f'<section data-theme-decoration="airy-route-sprout" aria-hidden="true" style="box-sizing:border-box;height:17px;border-left:1px solid {sky};">'
-                f'<span style="box-sizing:border-box;display:inline-block;width:17px;height:9px;margin:0 0 0 -1px;border-radius:14px 2px 14px 3px;background-color:{primary};font-size:1px;line-height:1px;vertical-align:top;transform:rotate(-19deg);">&#160;</span>'
-                f'<span style="display:inline-block;width:4px;height:4px;margin:1px 0 0 6px;border-radius:50%;background-color:{accent};font-size:1px;line-height:1px;vertical-align:top;">&#160;</span>'
-                '</section>'
-            )
-            return f'<section data-theme-grammar="airy-connected-route" style="margin:27px 0;padding:2px 0 2px 16px;">{sprout}<section data-theme-route-steps="true">{"".join(rows)}</section></section>'
-        if variant == "airy_route":
-            rows = []
-            for index, item in enumerate(items, 1):
-                rows.append(
-                    f'<section style="margin:0 0 11px;white-space:normal;">'
-                    f'<span style="display:inline-block;width:34px;height:34px;border:2px solid {sky};border-radius:50%;background-color:{surface};color:{primary};font-family:Georgia,serif;font-size:11px;font-weight:750;line-height:34px;text-align:center;vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:82%;margin:0 0 0 10px;padding:10px 13px;border-radius:15px 15px 15px 3px;background-color:{sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:middle;">{_inline(item)}</p>'
-                    f'</section>'
-                )
-            return (
-                f'<section style="margin:27px 0;padding:16px 13px 8px;border-top:1px solid {sky};border-bottom:1px solid {sky};">'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "club_route_map":
-            rows = []
-            for index, item in enumerate(items, 1):
-                node_color = (primary, accent, sky, secondary)[(index - 1) % 4]
-                rows.append(
-                    f'<section style="margin:0 0 11px;white-space:normal;">'
-                    f'<span style="display:inline-block;width:20%;padding:10px 5px;background-color:{node_color};color:#FFFFFF;font-size:10px;font-weight:800;letter-spacing:.08em;text-align:center;transform:rotate({-2 if index % 2 else 2}deg);vertical-align:middle;">STOP {index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:76%;margin:0 0 0 4%;padding:10px 12px;border-bottom:2px dashed {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p></section>'
-                )
-            return (
-                f'<section style="margin:29px 0;padding:17px 14px 8px;background-color:{surface};box-shadow:7px 7px 0 {sky_pale};">'
-                f'<p style="margin:-25px 0 18px;"><span style="display:inline-block;padding:4px 11px;background-color:{secondary};color:{ink};font-size:9px;font-weight:800;letter-spacing:.14em;">CLUB ROUTE MAP</span></p>'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "campus_badge_route":
-            rows = []
-            for index, item in enumerate(items, 1):
-                node_color = (primary, accent, sky, secondary)[(index - 1) % 4]
-                text_color = ink if node_color == secondary else "#FFFFFF"
-                rows.append(
-                    f'<section style="margin:0 0 12px;white-space:normal;">'
-                    f'<span style="display:inline-block;width:38px;height:38px;border:3px solid {surface};border-radius:12px 12px 4px 12px;background-color:{node_color};box-shadow:3px 3px 0 {secondary_pale};color:{text_color};font-family:Georgia,serif;font-size:11px;font-weight:800;line-height:38px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:81%;margin:0 0 0 11px;padding:11px 14px;border-bottom:2px solid {node_color};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:middle;">{_inline(item)}</p>'
-                    f'</section>'
-                )
-            return (
-                f'<section style="margin:28px 0;padding:16px 13px 8px;border:2px dashed {sky};border-radius:19px 6px 19px 19px;background-color:{surface};">'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "process_register":
-            rows = []
-            for index, item in enumerate(items, 1):
-                rows.append(
-                    f'<section style="border-top:1px solid #B7C5C0;white-space:normal;">'
-                    f'<span style="display:inline-block;width:52px;padding:13px 7px;color:{primary};font-family:Georgia,serif;font-size:13px;font-weight:750;vertical-align:top;">P-{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:69%;margin:0;padding:12px 10px;border-left:1px solid #B7C5C0;color:{ink};font-size:14px;font-weight:650;line-height:1.68;vertical-align:top;">{_inline(item)}</p>'
-                    f'<span style="box-sizing:border-box;display:inline-block;width:14%;padding:15px 5px;color:{accent};font-size:13px;font-weight:800;text-align:right;vertical-align:top;">→</span>'
-                    f'</section>'
-                )
-            return (
-                f'<section style="margin:27px 0;border:1px solid {primary};background-color:{surface};">'
-                f'<p style="height:8px;margin:0;background-color:{primary};"><span style="display:inline-block;width:24%;height:8px;background-color:{secondary};"></span></p>'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "orbit_route":
-            rows = []
-            for index, item in enumerate(items, 1):
-                item_color = (primary, secondary, accent, sky)[(index - 1) % 4]
-                item_pale = (pale, secondary_pale, accent_pale, sky_pale)[(index - 1) % 4]
-                offset = 0 if index % 2 else 7
-                radius = "4px 24px 24px 16px" if index % 2 else "24px 4px 16px 24px"
-                rows.append(
-                    f'<section style="margin:0 0 13px;padding-left:{offset}%;white-space:normal;">'
-                    f'<span style="display:inline-block;width:43px;color:{item_color};font-family:Georgia,serif;font-size:28px;font-weight:750;line-height:1.15;opacity:.82;vertical-align:middle;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:78%;margin:0;padding:12px 15px;border-radius:{radius};background:linear-gradient(135deg,{item_pale} 0%,{surface} 100%);box-shadow:4px 5px 0 {sky_pale};color:{ink};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{_inline(item)}</p></section>'
-                )
-            caption = "" if quiet_signal else f'<p style="margin:0 0 16px;color:{primary};font-size:11px;font-weight:800;letter-spacing:.12em;">进程路径' f'<span style="display:inline-block;width:48px;height:8px;margin-left:10px;border-radius:14px 3px 14px 3px;background-color:{secondary};transform:rotate(-5deg);vertical-align:middle;"></span></p>'
-            return (
-                f'<section style="margin:31px 0;padding:8px 0 3px;">'
-                f'{caption}'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "signal_route":
-            rows = []
-            for index, item in enumerate(items, 1):
-                rows.append(
-                    f'<section style="border-top:1px solid #B9D8D2;white-space:normal;">'
-                    f'<span style="display:inline-block;width:50px;padding:13px 7px;color:{accent};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">S{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:12px 10px;border-left:2px solid {secondary};color:{ink};font-size:14px;font-weight:650;line-height:1.7;vertical-align:top;">{_inline(item)}</p>'
-                    f'<span style="display:inline-block;width:13%;padding:14px 5px;color:{primary};font-size:14px;font-weight:800;text-align:right;vertical-align:top;">●</span>'
-                    f'</section>'
-                )
-            return (
-                f'<section style="margin:28px 0;border:1px solid {primary};background-color:{surface};">'
-                f'<p style="height:6px;margin:0;background-color:{primary};"><span style="display:block;width:28%;height:6px;background-color:{secondary};"></span></p>'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "folded_stair" and (config or {}).get("theme_kit") == "independent_magazine_v1":
-            rows = []
-            for index, item in enumerate(items, 1):
-                inset = round(24 * (len(items) - index) / max(1, len(items) - 1))
-                tab_color = (accent, secondary, primary)[(index - 1) % 3]
-                tab_ink = ink if (index - 1) % 3 == 1 else "#FFFFFF"
-                rows.append(
-                    f'<section style="margin:0 0 7px {inset}px;padding:9px 10px 9px 49px;border-top:1px solid {primary};border-bottom:1px solid #DFDDD3;background-color:{surface};white-space:normal;">'
-                    f'<span data-theme-static="true" style="box-sizing:border-box;display:inline-block;width:37px;margin:0 12px 0 -49px;padding:2px 0 4px;background-color:{tab_color};border-radius:0 0 10px 0;color:{tab_ink};font:750 16px/20px Georgia,serif;text-align:center;vertical-align:top;">{index:02d}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:100%;margin:0;color:{ink};font-size:15px;font-weight:650;line-height:1.73;vertical-align:top;overflow-wrap:anywhere;">{_inline(item)}</p></section>'
-                )
-            return (
-                f'<section data-theme-grammar="editorial-step-folio" style="margin:28px 0;padding:4px 0 1px;border-bottom:3px solid {ink};">'
-                f'{"".join(rows)}</section>'
-            )
-        if variant == "folded_stair":
-            rows = []
-            stair_colors = (secondary, "#E98768", "#5FA99E", sky, primary)
-            count = max(1, len(items))
-            for index, item in enumerate(items, 1):
-                progress = 1 if count == 1 else (index - 1) / (count - 1)
-                width = round(68 + 32 * progress)
-                margin = 100 - width
-                background = stair_colors[(index - 1) % len(stair_colors)]
-                number_color = ink if index == 1 else "#FFFFFF"
-                rows.append(
-                    f'<section style="box-sizing:border-box;width:{width}%;min-height:58px;margin:0 0 8px {margin}%;padding:11px 12px;background-color:{background};white-space:normal;">'
-                    f'<span style="display:inline-block;width:36px;color:{number_color};font-family:Georgia,serif;font-size:16px;font-weight:750;line-height:1.5;opacity:.76;vertical-align:top;">{index:02d}</span>'
-                    f'<strong style="display:inline-block;width:78%;color:{ink};font-size:13px;line-height:1.6;vertical-align:top;">{_inline(item)}</strong>'
-                    f'</section>'
-                )
-            return (
-                f'<section style="margin:28px 0;padding:19px 16px 16px;border:1px solid #C9C4B9;background-color:#F7F0E3;">'
-                f'{"".join(rows)}</section>'
-            )
-        route_colors = (
-            (accent, accent_pale, "#FFFFFF"),
-            (secondary, secondary_pale, ink),
-            (primary, pale, "#FFFFFF"),
-            (sky, sky_pale, "#FFFFFF"),
-        )
-        rows = []
-        for index, item in enumerate(items, 1):
-            node_accent, node_pale, node_text = route_colors[(index - 1) % len(route_colors)]
-            rows.append(
-                '<section style="margin:0 0 12px;white-space:normal;">'
-                f'<span style="display:inline-block;width:40px;height:40px;border:2px solid {surface};border-radius:50%;background-color:{node_accent};box-shadow:0 0 0 2px {node_pale};color:{node_text};font-size:12px;font-weight:750;line-height:40px;text-align:center;vertical-align:middle;">{index:02d}</span>'
-                f'<section style="box-sizing:border-box;display:inline-block;width:80%;margin-left:10px;padding:13px 15px;border:1px solid {node_accent};border-radius:3px 15px 15px 15px;background-color:{node_pale};vertical-align:middle;">'
-                f'<p style="margin:0;color:{ink};font-size:15px;font-weight:700;line-height:1.65;">{_inline(item)}</p></section></section>'
-            )
-        return (
-            '<section style="margin:28px 0;">'
-            f'<p style="margin:0 0 13px;"><span style="display:inline-block;width:18px;height:3px;margin:0 7px 2px 0;background-color:{secondary};vertical-align:middle;"></span></p>'
-            f'{"".join(rows)}</section>'
-        )
-
     if component_type == "concept_explainer":
-        entries = _concept_entries(parsed, bindings)
+        entries = [(_inline(title), _inline(definition)) for title, definition in content.concepts()]
         if len(entries) > 1:
             return _render_concept_group(entries, variant, colors, quiet_signal=quiet_signal)
         title, definition = entries[0]
@@ -834,9 +547,10 @@ def render_component(
                 f'</section>'
             )
         if variant == "coordinate_definition":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:30px 0;padding:0;border-top:4px solid {primary};white-space:normal;">'
-                f'<span style="display:inline-block;width:25%;padding:14px 9px 12px 0;color:{accent};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;vertical-align:top;">TERM<small style="display:block;margin-top:8px;color:#71807A;font-size:8px;letter-spacing:.16em;">DEFINITION</small></span>'
+                f'<span style="{sizing}display:inline-block;width:25%;padding:14px 9px 12px 0;color:{accent};font-family:Georgia,serif;font-size:20px;font-weight:800;line-height:1;vertical-align:top;">TERM<small style="display:block;margin-top:8px;color:#71807A;font-size:8px;letter-spacing:.16em;">DEFINITION</small></span>'
                 f'<section style="box-sizing:border-box;display:inline-block;width:75%;padding:13px 0 14px 16px;border-left:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;vertical-align:top;">'
                 f'<strong style="display:block;margin-bottom:7px;color:{primary};font-size:17px;line-height:1.55;">{title}</strong>'
                 f'<p style="margin:0;color:{ink};font-size:14px;line-height:1.8;">{definition}</p></section>'
@@ -895,8 +609,8 @@ def render_component(
         )
 
     if component_type == "case_card":
-        title = _inline(_one(parsed, bindings, "title"))
-        body = _inline(_one(parsed, bindings, "body"))
+        title = _inline(content.one("title"))
+        body = _inline(content.one("body"))
         if variant == "plain_case":
             return f'<section style="margin:25px 0;padding:16px;border-left:4px solid {primary};background-color:{surface};"><strong style="color:{primary};">案例｜{title}</strong><p style="margin:8px 0 0;color:{ink};font-size:15px;line-height:1.8;">{body}</p></section>'
         if variant == "airy_story_note":
@@ -949,10 +663,11 @@ def render_component(
                 f'<p style="margin:0;padding:15px 2px 17px;color:{ink};font-size:15px;line-height:1.85;">{body}</p></section>'
             )
         if variant == "case_register":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:29px 0;border:1px solid {primary};background-color:{surface};">'
                 f'<p style="height:7px;margin:0;background-color:{primary};"><span style="display:block;width:27%;height:7px;background-color:{secondary};">&#160;</span></p>'
-                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="display:inline-block;width:25%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">CASE / 01</span>'
+                f'<section style="border-bottom:1px solid #B7C5C0;white-space:normal;"><span style="{sizing}display:inline-block;width:25%;padding:15px 8px;color:{accent};font-family:Georgia,serif;font-size:10px;font-weight:800;letter-spacing:.12em;vertical-align:top;">CASE / 01</span>'
                 f'<strong style="box-sizing:border-box;display:inline-block;width:75%;padding:13px 13px;border-left:1px solid #B7C5C0;color:{primary};font-size:17px;line-height:1.55;vertical-align:top;">{title}</strong></section>'
                 f'<p style="margin:0;padding:15px 16px 17px;color:{ink};font-size:15px;line-height:1.84;">{body}</p></section>'
             )
@@ -970,7 +685,7 @@ def render_component(
         )
 
     if component_type == "warning_note":
-        body = _inline(_one(parsed, bindings, "body"))
+        body = _inline(content.one("body"))
         if variant == "plain_warning":
             return f'<p style="margin:24px 0;padding:13px 15px;border-left:4px solid {accent};background-color:{accent_pale};color:{ink};font-size:15px;line-height:1.75;"><strong>注意：</strong>{body}</p>'
         if variant == "corner_flag":
@@ -981,9 +696,10 @@ def render_component(
                 f'</section>'
             )
         if variant == "risk_flag":
+            sizing = "box-sizing:border-box;" if current_theme_styles_enabled() else ""
             return (
                 f'<section style="margin:30px 0;border-top:1px solid #AEBBB5;border-bottom:1px solid #AEBBB5;white-space:normal;">'
-                f'<span style="display:inline-block;width:21%;padding:16px 6px;background-color:{accent};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-align:center;vertical-align:top;">RISK<br><strong style="font-size:24px;line-height:1.15;">!</strong></span>'
+                f'<span style="{sizing}display:inline-block;width:21%;padding:16px 6px;background-color:{accent};color:#FFFFFF;font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.1em;text-align:center;vertical-align:top;">RISK<br><strong style="font-size:24px;line-height:1.15;">!</strong></span>'
                 f'<p style="box-sizing:border-box;display:inline-block;width:79%;margin:0;padding:15px 0 15px 17px;color:{ink};font-size:15px;line-height:1.82;vertical-align:top;">{body}</p>'
                 f'</section>'
             )
@@ -1034,7 +750,7 @@ def render_component(
         )
 
     if component_type == "action_checklist":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_checklist":
             rows = [f'<p style="margin:0 0 10px;color:{ink};font-size:15px;line-height:1.75;">□ {_inline(item)}</p>' for item in items]
             return f'<section style="margin:24px 0;padding:15px;border-left:3px solid {primary};background-color:{pale};">{"".join(rows)}</section>'
@@ -1052,11 +768,12 @@ def render_component(
                 f'{"".join(rows)}</section>'
             )
         if variant == "audit_track":
+            sizing = "box-sizing:border-box;white-space:nowrap;" if current_theme_styles_enabled() else ""
             rows = []
             for index, item in enumerate(items, 1):
                 rows.append(
                     f'<section style="margin:0;border-bottom:1px solid #C7D0CC;white-space:normal;">'
-                    f'<span style="display:inline-block;width:18%;padding:12px 7px;color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">CHK-{index:02d}</span>'
+                    f'<span style="{sizing}display:inline-block;width:18%;padding:12px 7px;color:{primary};font-family:Georgia,serif;font-size:12px;font-weight:800;vertical-align:top;">CHK-{index:02d}</span>'
                     f'<p style="box-sizing:border-box;display:inline-block;width:70%;margin:0;padding:11px 10px;border-left:1px solid #C7D0CC;color:{ink};font-size:14px;line-height:1.7;vertical-align:top;">{_inline(item)}</p>'
                     f'<span style="display:inline-block;width:12%;padding:12px 0;color:{accent};font-size:15px;font-weight:800;text-align:right;vertical-align:top;">□</span></section>'
                 )
@@ -1155,8 +872,8 @@ def render_component(
         return f'<section style="margin:28px 0;padding:17px 17px 7px;border:1px solid {primary};background-color:{surface};">{"".join(rows)}</section>'
 
     if component_type == "faq_card":
-        question = _inline(_one(parsed, bindings, "question"))
-        answer = _inline(_one(parsed, bindings, "answer"))
+        question = _inline(content.one("question"))
+        answer = _inline(content.one("answer"))
         if variant == "plain_qa":
             return f'<section style="margin:25px 0;"><p style="margin:0 0 8px;color:{primary};font-size:17px;font-weight:750;">Q：{question}</p><p style="margin:0;color:{ink};font-size:15px;line-height:1.8;">A：{answer}</p></section>'
         if variant == "conversation_bubble":
@@ -1221,8 +938,8 @@ def render_component(
         )
 
     if component_type == "comparison_card":
-        left = _inline(_one(parsed, bindings, "left"))
-        right = _inline(_one(parsed, bindings, "right"))
+        left = _inline(content.one("left"))
+        right = _inline(content.one("right"))
         if variant == "plain_comparison":
             return f'<section style="margin:25px 0;"><p style="margin:0 0 9px;padding:12px;background-color:{accent_pale};line-height:1.75;"><strong>一：</strong>{left}</p><p style="margin:0;padding:12px;background-color:{pale};line-height:1.75;"><strong>二：</strong>{right}</p></section>'
         if variant == "orbit_comparison":
@@ -1302,7 +1019,7 @@ def render_component(
         )
 
     if component_type == "section_summary":
-        items = _many(parsed, bindings, "items")
+        items = content.many("items")
         if variant == "plain_summary":
             return _plain_list(items, primary)
         rows = []

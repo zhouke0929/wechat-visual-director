@@ -9,13 +9,15 @@ import re
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from fastapi import FastAPI, File, Form, Header, Query, Request, UploadFile
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .component_catalog import (
@@ -56,26 +58,17 @@ from .image_provider import (
     image_prompt_profile,
     resolve_images_api_adapter,
 )
-from .planner import generate_plans, structural_difference_count
+from .plan_envelope import structural_difference_count
 from .brief_compiler import (
-    EditorialBriefCompileError,
     apply_visual_system,
-    compile_editorial_brief,
     compile_editorial_brief_recommended,
-    compile_editorial_brief_variants,
 )
 from .editorial_brief import EDITORIAL_BRIEF_NORMALIZER_VERSION, EDITORIAL_BRIEF_SCHEMA_VERSION
 from .text_planner import (
     HOST_AGENT_PROMPT_VERSION,
-    TEXT_PLANNER_PROMPT_VERSION,
-    TextPlannerProvider,
     TextPlannerRequest,
-    TextPlannerResult,
     adopt_host_agent_editorial_brief,
     build_host_agent_planner_context,
-    build_rule_based_brief,
-    create_text_planner_provider_from_env,
-    generate_editorial_brief,
 )
 from .infographic_overlay import (
     InfographicOverlayError,
@@ -85,7 +78,8 @@ from .ocr_verifier import verify_locked_copy, verify_no_text
 from .image_intent import (
     apply_theme_to_image_slot,
     build_art_direction_snapshot,
-    build_visual_grammar,
+    readable_node_copy,
+    rebind_visual_grammar,
     evaluate_theme_compatibility,
     resolve_display_copy,
 )
@@ -139,15 +133,15 @@ from .delivery import (
     extract_delivery_body,
 )
 from .wechat_publisher import WechatDraftPublisher
-from .repository import NotFoundError, PublicationLockedError, Repository, VersionConflictError
-from .version import application_version, runtime_identity
+from .repository import NotFoundError, PlanAlreadyExistsError, PublicationLockedError, Repository, VersionConflictError
+from .version import TASK_WORKFLOW_CONTRACT_VERSION, application_version, runtime_identity
 
 
 class GeneratePlansRequest(BaseModel):
     mode: str = Field(pattern="^(start|retry)$")
     expected_task_version: int = Field(ge=1)
-    planner: str = Field(default="rule", pattern="^(rule|intelligent|host_agent)$")
-    editorial_brief: dict[str, Any] | None = None
+    planner: Literal["host_agent"] = "host_agent"
+    editorial_brief: dict[str, Any]
     host_model: str = Field(default="host_managed", max_length=120)
 
 
@@ -229,10 +223,6 @@ class CropCoverRequest(BaseModel):
 class ImageDecisionRequest(BaseModel):
     expected_image_revision: int = Field(ge=1)
     text_verified: bool = False
-
-
-class GenerateEditorialBriefRequest(BaseModel):
-    expected_task_version: int = Field(ge=1)
 
 
 class AcknowledgePreflightFindingRequest(BaseModel):
@@ -479,6 +469,12 @@ def _public_publication_revision(revision: dict[str, Any], *, suggested_draft_sl
     }
 
 
+def _brief_error(task_id: str, expected_version: int | None, issues: list[dict[str, str]]) -> JSONResponse:
+    return _error(422, "host_brief_invalid", "首轮规划未保存：请根据 issues 修订原规划并提交到同一任务。",
+                  details={"task_id": task_id, "expected_task_version": expected_version,
+                           "next_action": "revise_editorial_brief", "issues": issues})
+
+
 def _error(
     status: int,
     code: str,
@@ -520,7 +516,6 @@ def _local_settings_request(request: Request, intent: str | None) -> bool:
 def create_app(
     database_path: str | None = None,
     image_provider: ImageProvider | None = None,
-    text_planner_provider: TextPlannerProvider | None = None,
     blind_review_manifest_path: str | None = None,
     wechat_publisher: WechatDraftPublisher | None = None,
     wechat_connection_probe: WechatConnectionProbe | None = None,
@@ -577,7 +572,6 @@ def create_app(
             "工作台未连接图片模型，不能在这里生图。可回到 Agent 对话继续生成，或上传图片。",
             retryable=False,
         )
-    app.state.text_planner_provider = text_planner_provider or create_text_planner_provider_from_env(runtime_settings)
     configured_env_path = os.environ.get("VISUAL_DIRECTOR_ENV_FILE")
     app.state.runtime_env_path = runtime_env_path or (
         Path(configured_env_path).expanduser().resolve()
@@ -617,18 +611,12 @@ def create_app(
         reserved_ids=VISUAL_SYSTEM_ORDER,
         core_components=CORE_THEME_COMPONENTS,
     )
-    blind_manifest = Path(
-        blind_review_manifest_path
-        or os.environ.get(
-            "VISUAL_DIRECTOR_BLIND_REVIEW_MANIFEST",
-            str(root / "samples" / "evaluation" / "v0.6-public-blind-manifest.json"),
-        )
-    )
-    # Blind review is a development/evaluation fixture, not a runtime dependency.
-    # Portable releases intentionally omit the historical evaluation corpus.
+    manifest_setting = blind_review_manifest_path or os.environ.get("VISUAL_DIRECTOR_BLIND_REVIEW_MANIFEST")
+    blind_manifest = Path(manifest_setting) if manifest_setting else None
+    # Never run the historical rule planner merely because this is a source checkout.
     app.state.blind_review_dataset = (
         load_blind_review_dataset(str(root), str(blind_manifest))
-        if blind_manifest.is_file()
+        if blind_manifest is not None and blind_manifest.is_file()
         else None
     )
     app.add_middleware(
@@ -683,17 +671,21 @@ def create_app(
             if not anchors:
                 continue
             visual_intent = image_slot.setdefault("visual_intent", {})
-            visual_intent["fact_anchors"] = anchors
             title = resolve_reference(bindings.get("title_ref"))
             if title:
                 visual_intent["subject"] = title
-            visual_intent["visual_grammar"] = build_visual_grammar(
-                layout_family=str(visual_intent.get("layout_family") or "structural_breakdown"),
-                fact_anchors=anchors,
-                style_family=str(visual_intent.get("style_family") or "editorial_paper_cut"),
-                article_type=str(visual_intent.get("article_type") or "viewpoint_trend"),
-            )
+            rebind_visual_grammar(visual_intent, anchors)
         return rebound
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError) -> Response:
+        # Only the planning endpoint exposes a repair contract to the host.
+        if getattr(request.scope.get("route"), "name", "") == "start_plan_generation":
+            issues = [{"path": ".".join(str(part) for part in error["loc"] if part != "body"),
+                       "message": error["msg"]} for error in exc.errors()]
+            version = exc.body.get("expected_task_version") if isinstance(exc.body, dict) else None
+            return _brief_error(request.path_params["task_id"], version if type(version) is int else None, issues)
+        return await request_validation_exception_handler(request, exc)
 
     @app.exception_handler(NotFoundError)
     async def not_found_handler(_: Request, exc: NotFoundError) -> JSONResponse:
@@ -1651,22 +1643,23 @@ def create_app(
     def health() -> dict[str, Any]:
         runtime = {
             **app.state.runtime_identity,
-            "task_count": int(repository.list_tasks_page(page=1, page_size=1)["total"]),
+            "task_count": int(repository.list_tasks_page(page=1, page_size=1, include_unplanned=True)["total"]),
         }
         return {
             "status": "ok",
             "application": "wechat_visual_director_workbench",
             "application_version": application_version(),
+            "task_workflow_contract_version": TASK_WORKFLOW_CONTRACT_VERSION,
             "planner": "editorial_brief",
             "image_provider": app.state.image_provider.provider,
             "image_provider_configured": app.state.image_provider.configured,
             "image_provider_settings_schema_version": IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
             "capability_settings_schema_version": CAPABILITY_SETTINGS_SCHEMA_VERSION,
             "image_prompt_version": IMAGE_PROMPT_VERSION,
-            "text_planner_provider": app.state.text_planner_provider.provider,
-            "text_planner_model": app.state.text_planner_provider.model,
-            "text_planner_configured": app.state.text_planner_provider.configured,
-            "text_planner_prompt_version": TEXT_PLANNER_PROMPT_VERSION,
+            "text_planner_provider": "host_agent",
+            "text_planner_model": "host_managed",
+            "text_planner_configured": False,
+            "text_planner_prompt_version": HOST_AGENT_PROMPT_VERSION,
             "editorial_brief_schema_version": EDITORIAL_BRIEF_SCHEMA_VERSION,
             "editorial_brief_normalizer_version": EDITORIAL_BRIEF_NORMALIZER_VERSION,
             "preflight_schema_version": PREFLIGHT_SCHEMA_VERSION,
@@ -1771,14 +1764,16 @@ def create_app(
         page: int | None = Query(default=None, ge=1),
         page_size: int | None = Query(default=None, ge=1, le=50),
         q: str = Query(default="", max_length=200),
+        scope: Literal["ready", "all"] = "ready",
     ) -> dict[str, Any]:
-        # Calls without pagination parameters retain the original full-list response.
+        # Existing CLI discovery may explicitly request internal, unplanned tasks.
+        include_unplanned = scope == "all"
         if page is None and page_size is None and not q.strip():
-            items = [_public_task(task) for task in repository.list_tasks()]
+            items = [_public_task(task) for task in repository.list_tasks(include_unplanned=include_unplanned)]
             return {"items": items, "next_cursor": None}
         resolved_page = page or 1
         resolved_page_size = page_size or 8
-        result = repository.list_tasks_page(page=resolved_page, page_size=resolved_page_size, query=q)
+        result = repository.list_tasks_page(page=resolved_page, page_size=resolved_page_size, query=q, include_unplanned=include_unplanned)
         total = int(result["total"])
         total_pages = max(1, (total + resolved_page_size - 1) // resolved_page_size)
         return {
@@ -1966,13 +1961,6 @@ def create_app(
             {"code": finding.code, "message": finding.message}
             for finding in preflight.report.findings
         ]
-        if parsed.image_reference_count:
-            warnings.append(
-                {
-                    "code": "source_images_deferred",
-                    "message": f"识别到 {parsed.image_reference_count} 个原稿图片引用；V0.7 试点不加载来源图片，只评估系统规划的图片槽位置",
-                }
-            )
         input_summary = {
             "title_source": parsed.title_source if parsed.title_source != "override" else "frontmatter",
             "section_count": parsed.section_count,
@@ -2002,34 +1990,41 @@ def create_app(
         )
         return {
             "task": _public_task(task),
-            "input_summary": input_summary,
-            "review_path": f'/tasks/{task["id"]}',
+            "input_summary": task["input_summary"],
+            "review_path": task["review_path"],
             "idempotency_replayed": idempotency_replayed,
         }
 
     @app.get("/api/v1/article-tasks/{task_id}")
     def get_task(task_id: str) -> dict[str, Any]:
         task = ensure_preflight_report(task_id)
-        actions = {
-            "created": ["start_plan_generation"],
-            "analyzing": [],
-            "plans_ready": ["view_plans", "select_plan"],
-            "plan_selected": ["view_plans", "change_selection", "view_publication_readiness"],
-            "publication_frozen": ["view_frozen_revision", "create_mock_draft", "continue_editing"],
-            "mock_draft_created": ["view_mock_draft", "continue_editing"],
-            "mock_draft_failed": ["retry_mock_draft", "continue_editing"],
-            "mock_draft_unknown": ["resolve_mock_unknown"],
-            "wechat_draft_syncing": ["view_draft_operation"],
-            "wechat_draft_created": ["view_wechat_draft", "continue_editing"],
-            "wechat_draft_failed": ["view_draft_error", "continue_editing"],
-            "wechat_draft_unknown": ["verify_wechat_backend"],
-            "failed": ["retry_plan_generation"],
-        }[task["status"]]
+        if not task["review_path"]:
+            may_submit = task["input_summary"]["preflight_report"]["planning_allowed"]
+            actions = (
+                ["submit_host_brief" if may_submit else "fix_source"]
+                if task["status"] in {"created", "analyzing", "failed"} else []
+            )
+        else:
+            editorial_actions = (
+                ["view_plans", "change_selection", "view_publication_readiness"]
+                if task["selected_plan_id"] else ["view_plans", "select_plan"]
+            )
+            actions = {
+                "publication_frozen": ["view_frozen_revision", "create_mock_draft", "continue_editing"],
+                "mock_draft_created": ["view_mock_draft", "continue_editing"],
+                "mock_draft_failed": ["retry_mock_draft", "continue_editing"],
+                "mock_draft_unknown": ["resolve_mock_unknown"],
+                "wechat_draft_syncing": ["view_draft_operation"],
+                "wechat_draft_created": ["view_wechat_draft", "continue_editing"],
+                "wechat_draft_failed": ["view_draft_error", "continue_editing"],
+                "wechat_draft_unknown": ["verify_wechat_backend"],
+            }.get(task["status"], editorial_actions)
         return {
             "task": _public_task(task),
             "progress": task["progress"],
             "input_summary": task["input_summary"],
             "available_actions": actions,
+            "review_path": task["review_path"],
             "last_error": task["last_error"],
         }
 
@@ -2695,114 +2690,55 @@ def create_app(
 
     @app.post("/api/v1/article-tasks/{task_id}/generate-plans", status_code=202)
     def start_plan_generation(task_id: str, payload: GeneratePlansRequest) -> dict[str, Any]:
-        repository.assert_task_editable(task_id)
-        current = ensure_preflight_report(task_id)
-        preflight_report = current["input_summary"].get("preflight_report", {})
-        pending_planning_findings = [
-            finding
-            for finding in preflight_report.get("findings", [])
-            if finding.get("planning_blocking") and not finding.get("resolved_at")
-        ]
-        if preflight_report.get("status") == "BLOCK" or pending_planning_findings:
-            return _error(
-                409,
-                "preflight_confirmation_required",
-                "存在必须在生成方案前解决的 Markdown 结构问题",
-                details={"findings": pending_planning_findings},
-            )
-        analyzing = repository.start_generation(task_id, payload.expected_task_version)
-        parsed = parsed_task_article(analyzing)
-        recent_summaries = repository.list_recent_component_summaries(analyzing["account_id"], analyzing["history_window"])
-        brand_config = public_brand_profile(app.state.brand_profile)
+        current = repository.get_task(task_id)
+        if current["review_path"]:
+            return _error(409, "plan_already_exists", "已有可编辑方案，请继续当前成稿",
+                          details={"task_id": task_id, "review_path": current["review_path"]})
+        if current["version"] != payload.expected_task_version:
+            raise VersionConflictError("任务已被更新，请读取最新上下文后重试")
+        # Validation of a first brief must not advance task status or write to
+        # a legacy task. Compute a missing preflight report in memory only.
+        preflight_report = current["input_summary"].get("preflight_report") or run_preflight(
+            current["normalized_markdown"] or current["markdown"], title_override=current["title"],
+            requested_article_type=current["article_type"], promote_images=False,
+        ).report.to_dict()
+        pending = [f for f in preflight_report.get("findings", []) if f.get("planning_blocking") and not f.get("resolved_at")]
+        if preflight_report.get("status") == "BLOCK" or pending:
+            return _error(409, "preflight_confirmation_required", "存在必须在生成方案前解决的 Markdown 结构问题",
+                          details={"findings": pending})
+        parsed = parsed_task_article(current)
+        recent = repository.list_recent_component_summaries(current["account_id"], current["history_window"])
         request = TextPlannerRequest(
-            parsed=parsed,
-            article_type=analyzing["article_type"],
-            history_window=analyzing["history_window"],
-            recent_summaries=recent_summaries,
-            brand_config=brand_config,
+            parsed=parsed, article_type=current["article_type"], history_window=current["history_window"],
+            recent_summaries=recent, brand_config=public_brand_profile(app.state.brand_profile),
         )
-        planner_call_count = 0
-        if payload.planner in {"intelligent", "host_agent"}:
-            if payload.planner == "host_agent":
-                result = adopt_host_agent_editorial_brief(
-                    payload.editorial_brief,
-                    request,
-                    host_model=payload.host_model,
-                )
-                prompt_version = HOST_AGENT_PROMPT_VERSION
-            else:
-                result = generate_editorial_brief(app.state.text_planner_provider, request)
-                planner_call_count = 1
-                prompt_version = TEXT_PLANNER_PROMPT_VERSION
-            try:
-                plans = [compile_editorial_brief_recommended(
-                    parsed, result.brief, analyzing["history_window"], recent_summaries
-                )]
-            except EditorialBriefCompileError as exc:
-                fallback_brief = build_rule_based_brief(request)
-                plans = [compile_editorial_brief_recommended(
-                    parsed, fallback_brief, analyzing["history_window"], recent_summaries
-                )]
-                result = TextPlannerResult(
-                    brief=fallback_brief,
-                    provider=result.provider,
-                    model=result.model,
-                    latency_ms=result.latency_ms,
-                    repair_count=result.repair_count,
-                    fallback_used=True,
-                    fallback_reason=f"{type(exc).__name__}: {exc}",
-                    estimated_cost_yuan=result.estimated_cost_yuan,
-                    input_tokens=result.input_tokens,
-                    output_tokens=result.output_tokens,
-                    provider_error_code=result.provider_error_code,
-                    normalization_count=result.normalization_count,
-                    normalization_adjustments=result.normalization_adjustments,
-                    diagnostics=result.diagnostics,
-                )
-            planner_metadata = {
-                "mode": payload.planner,
-                "provider": result.provider,
-                "model": result.model,
-                "prompt_version": prompt_version,
-                "planner_call_count": planner_call_count,
-                "latency_ms": result.latency_ms,
-                "fallback_used": result.fallback_used,
-                "fallback_reason": result.fallback_reason,
-                "estimated_cost_yuan": result.estimated_cost_yuan,
-                "repair_count": result.repair_count,
-                "input_tokens": result.input_tokens,
-                "output_tokens": result.output_tokens,
-                "normalization_count": result.normalization_count,
-                "normalization_adjustments": result.normalization_adjustments or [],
-                "provider_error_code": result.provider_error_code,
-            }
-        else:
-            plans = [compile_editorial_brief_recommended(
-                parsed,
-                build_rule_based_brief(request),
-                analyzing["history_window"],
-                recent_summaries,
-            )]
-            planner_metadata = {
-                "mode": "rule",
-                "provider": "deterministic_baseline",
-                "model": "none",
-                "prompt_version": None,
-                "planner_call_count": 0,
-                "fallback_used": False,
-            }
-        for plan in plans:
-            plan["planner_metadata"] = planner_metadata
-        documents = [render_preview(parsed, plan, brand_profile=app.state.brand_profile) for plan in plans]
-        repository.save_plans(task_id, plans, documents)
+        try:
+            result = adopt_host_agent_editorial_brief(payload.editorial_brief, request, host_model=payload.host_model)
+            plan = compile_editorial_brief_recommended(parsed, result.brief, request.history_window, recent)
+        except (ValueError, TypeError, KeyError) as exc:
+            issues = [
+                {"path": ".".join(["editorial_brief", *map(str, item["loc"])]), "message": item["msg"]}
+                for item in exc.errors(include_input=False, include_url=False)
+            ] if isinstance(exc, ValidationError) else [{"path": "editorial_brief", "message": str(exc)}]
+            return _brief_error(task_id, current["version"], issues)
+        metadata = {
+            "mode": "host_agent", "provider": result.provider, "model": result.model,
+            "prompt_version": HOST_AGENT_PROMPT_VERSION, "planner_call_count": 0,
+            "latency_ms": result.latency_ms, "fallback_used": False, "fallback_reason": None,
+            "repair_count": 0, "estimated_cost_yuan": 0, "input_tokens": 0, "output_tokens": 0,
+            "provider_error_code": None, "normalization_count": result.normalization_count,
+            "normalization_adjustments": result.normalization_adjustments,
+        }
+        plan["planner_metadata"] = metadata
+        document = render_preview(parsed, plan, brand_profile=app.state.brand_profile)
+        try:
+            saved = repository.save_first_plan(task_id, payload.expected_task_version, plan, document)
+        except PlanAlreadyExistsError as exc:
+            return _error(409, "plan_already_exists", str(exc),
+                          details={"task_id": task_id, "review_path": f"/tasks/{task_id}"})
         return {
-            "task_id": task_id,
-            "status": "analyzing",
-            "planner": payload.planner,
-            "planner_call_count": planner_call_count,
-            "planner_metadata": planner_metadata,
-            "poll_after_ms": 500,
-            "version": analyzing["version"],
+            "task_id": task_id, "status": saved["status"], "planner": "host_agent", "planner_call_count": 0,
+            "planner_metadata": metadata, "version": saved["version"], "review_path": saved["review_path"],
         }
 
     @app.get("/api/v1/article-tasks/{task_id}/editorial-brief/context")
@@ -2826,94 +2762,6 @@ def create_app(
             "context": build_host_agent_planner_context(request),
         }
 
-    @app.post("/api/v1/article-tasks/{task_id}/editorial-brief/generate")
-    def create_editorial_brief(task_id: str, payload: GenerateEditorialBriefRequest) -> Any:
-        repository.assert_task_editable(task_id)
-        task = repository.get_task(task_id)
-        if task["version"] != payload.expected_task_version:
-            raise VersionConflictError("任务已被更新，请刷新后重试")
-        parsed = parsed_task_article(task)
-        recent_summaries = repository.list_recent_component_summaries(task["account_id"], task["history_window"])
-        brand_config = public_brand_profile(app.state.brand_profile)
-        request = TextPlannerRequest(
-            parsed=parsed,
-            article_type=task["article_type"],
-            history_window=task["history_window"],
-            recent_summaries=recent_summaries,
-            brand_config=brand_config,
-        )
-        result = generate_editorial_brief(app.state.text_planner_provider, request)
-        try:
-            experimental_plan = compile_editorial_brief(
-                parsed,
-                result.brief,
-                task["history_window"],
-                recent_summaries,
-            )
-            experimental_plans = compile_editorial_brief_variants(
-                parsed,
-                result.brief,
-                task["history_window"],
-                recent_summaries,
-            )
-        except EditorialBriefCompileError as exc:
-            fallback_brief = build_rule_based_brief(request)
-            experimental_plan = compile_editorial_brief(
-                parsed,
-                fallback_brief,
-                task["history_window"],
-                recent_summaries,
-            )
-            experimental_plans = compile_editorial_brief_variants(
-                parsed,
-                fallback_brief,
-                task["history_window"],
-                recent_summaries,
-            )
-            result = TextPlannerResult(
-                brief=fallback_brief,
-                provider=result.provider,
-                model=result.model,
-                latency_ms=result.latency_ms,
-                repair_count=result.repair_count,
-                fallback_used=True,
-                fallback_reason=f"{type(exc).__name__}: {exc}",
-                estimated_cost_yuan=result.estimated_cost_yuan,
-                input_tokens=result.input_tokens,
-                output_tokens=result.output_tokens,
-                provider_error_code=result.provider_error_code,
-                normalization_count=result.normalization_count,
-                normalization_adjustments=result.normalization_adjustments,
-                diagnostics=result.diagnostics,
-            )
-        baseline_plan = generate_plans(
-            parsed,
-            task["article_type"],
-            task["history_window"],
-            recent_summaries,
-        )[0]
-        return {
-            "task_id": task_id,
-            "brief": result.brief.model_dump(mode="json"),
-            "experimental_plan": experimental_plan,
-            "experimental_plans": experimental_plans,
-            "baseline_plan": baseline_plan,
-            "planner_run": {
-                "provider": result.provider,
-                "model": result.model,
-                "prompt_version": TEXT_PLANNER_PROMPT_VERSION,
-                "latency_ms": result.latency_ms,
-                "repair_count": result.repair_count,
-                "fallback_used": result.fallback_used,
-                "fallback_reason": result.fallback_reason,
-                "estimated_cost_yuan": result.estimated_cost_yuan,
-                "input_tokens": result.input_tokens,
-                "output_tokens": result.output_tokens,
-                "provider_error_code": result.provider_error_code,
-                "normalization_count": result.normalization_count,
-                "normalization_adjustments": result.normalization_adjustments,
-            },
-        }
 
     def plan_for_workbench(plan: dict[str, Any]) -> dict[str, Any]:
         slots = []
@@ -3292,6 +3140,11 @@ def create_app(
                         infographic_items,
                     )
                     locked_copy = [display_title, *display_items]
+                    if not readable_node_copy(display_items):
+                        blocked_targets.append({"asset_type": "body_image", "image_slot_id": image_slot["image_slot_id"],
+                                                "reason": "infographic_copy_too_long",
+                                                "message": "当前节点没有适合上图的短句，可重新规划此图、上传或跳过。"})
+                        continue
                 candidate_index = model_candidate_count + 1
                 prompt = build_provider_prompt(
                     generation_slot,

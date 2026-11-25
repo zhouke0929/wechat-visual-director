@@ -86,8 +86,8 @@ def validate_content_for_block(block: ContentBlock, value: Any) -> Any:
         if len(widths) != 1:
             raise ValueError("表格每一行必须保持相同列数")
         normalized_rows = [[cell.strip() for cell in row] for row in value]
-        if any(not cell or len(cell) > 600 for row in normalized_rows for cell in row):
-            raise ValueError("表格单元格不能为空，且每格不能超过 600 字")
+        if any(len(cell) > 600 for row in normalized_rows for cell in row):
+            raise ValueError("表格每格不能超过 600 字")
         return normalized_rows
     if not isinstance(value, str):
         raise ValueError("正文内容必须是文本")

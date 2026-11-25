@@ -25,6 +25,7 @@ def application_version() -> str:
 
 
 RUNTIME_IDENTITY_SCHEMA_VERSION = "runtime_identity.v0.1"
+TASK_WORKFLOW_CONTRACT_VERSION = "host_brief_only.v1"
 
 
 def _resolved_path(value: str | Path) -> Path:

@@ -25,7 +25,6 @@ import {
   cropCoverCandidate,
   createWechatDraft,
   freezePublication,
-  generatePlans,
   generateCoverCandidate,
   generateImageCandidate,
   getDraftOperations,
@@ -139,6 +138,7 @@ export default function TaskReviewPage() {
   const [contentSaveMessage, setContentSaveMessage] = useState("");
   const [contentPreviewRefreshToken, setContentPreviewRefreshToken] = useState(0);
   const previewInlineEditingRef = useRef(false);
+  const editFocusGeneration = useRef(0);
   const appliedContentRevisionRef = useRef(0);
   const [coverBusy, setCoverBusy] = useState("");
   const [imageBusy, setImageBusy] = useState<string[]>([]);
@@ -148,7 +148,6 @@ export default function TaskReviewPage() {
   const [focusSlotByPlan, setFocusSlotByPlan] = useState<Record<string, string>>({});
   const [preflightBusy, setPreflightBusy] = useState("");
   const [sourcePreflightOpen, setSourcePreflightOpen] = useState(false);
-  const [planningBusy, setPlanningBusy] = useState(false);
   const [publicationBusy, setPublicationBusy] = useState("");
   const [copyFallbackRevisionId, setCopyFallbackRevisionId] = useState<string | null>(null);
   const [publicationReadiness, setPublicationReadiness] = useState<PublicationReadiness | null>(null);
@@ -223,11 +222,11 @@ export default function TaskReviewPage() {
     await assertRuntimeCompatibility();
     const nextDetail = await getTask(taskId);
     setDetail(nextDetail);
-    if (["plans_ready", "plan_selected"].includes(nextDetail.task.status)) {
-      setPlanList(await getPlans(taskId));
-    } else {
+    if (!nextDetail.review_path) {
       setPlanList(null);
+      return;
     }
+    setPlanList(await getPlans(taskId));
     void loadSupplementalWorkspace(nextDetail);
   }, [loadSupplementalWorkspace, taskId]);
 
@@ -614,22 +613,6 @@ export default function TaskReviewPage() {
     }
   }
 
-  async function handleGeneratePlans() {
-    if (!detail) return;
-    setPlanningBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      await generatePlans(detail.task);
-      await load();
-      setNotice("预检门禁已通过，推荐稿已生成并自动选中。");
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "生成视觉方案失败");
-    } finally {
-      setPlanningBusy(false);
-    }
-  }
-
   async function handlePublicationAutosave(metadata: PublicationMetadata) {
     await savePublicationDraft(taskId, metadata);
   }
@@ -669,8 +652,22 @@ export default function TaskReviewPage() {
   }
 
   function handleInlineEditingChange(editing: boolean) {
+    if (editing) editFocusGeneration.current++;
     previewInlineEditingRef.current = editing;
     if (!editing && !themeChangeBusyRef.current && contentEditorRef.current) applyContentPreview(contentEditorRef.current);
+  }
+
+  async function flushBeforeMobilePreview() {
+    const focus = editFocusGeneration.current;
+    try {
+      await flushInlineEditsRef.current?.();
+      // Do not switch away if the user started editing again during a slow save.
+      return focus === editFocusGeneration.current;
+    } catch (reason) {
+      setContentSaveState("error");
+      setContentSaveMessage(reason instanceof Error ? reason.message : "正文保存失败，请重试");
+      return false;
+    }
   }
 
   async function handleFreezePublication(metadata: PublicationMetadata) {
@@ -923,6 +920,9 @@ export default function TaskReviewPage() {
   }
 
   if (!detail) return null;
+  if (!detail.review_path) {
+    return <main className="review-loading"><p>这个任务还没有可审核的稿件。</p><Link href="/tasks">返回最近任务</Link></main>;
+  }
 
   const activePlan = planList?.plans.find((item) => item.id === detail.task.selected_plan_id)
     ?? planList?.plans[0]
@@ -954,7 +954,7 @@ export default function TaskReviewPage() {
   const showPreflight = Boolean(
     preflightReport
     && !activeRevision
-    && (!activePlan || unresolvedManualPreflightCount > 0 || sourcePreflightOpen),
+    && (unresolvedManualPreflightCount > 0 || sourcePreflightOpen),
   );
 
   return (
@@ -1016,20 +1016,12 @@ export default function TaskReviewPage() {
           hasPreview={Boolean(activePlan)}
           imageReferenceCount={detail.input_summary.image_reference_count}
           onAcknowledge={handlePreflightAcknowledge}
-          onGeneratePlans={handleGeneratePlans}
           onLocate={handleFindingLocate}
           onReplaceAsset={handlePreflightAssetReplace}
-          planningBusy={planningBusy}
           report={preflightReport}
           sectionCount={detail.input_summary.section_count}
-          taskStatus={detail.task.status}
           titleSource={detail.input_summary.title_source}
         />
-      ) : detail.task.status === "created" ? (
-        <section className="not-ready-state legacy-preflight-state">
-          <p>这个旧任务创建于 Preflight 上线之前，没有可审计的预检报告。</p>
-          <Link href="/">回到首页，将原稿交给 Agent 整理并创建新任务</Link>
-        </section>
       ) : null}
 
       {planList && !activeRevision ? (
@@ -1136,11 +1128,13 @@ export default function TaskReviewPage() {
 
               <section className="preview-workspace" id={`preview-${activePlan.id}`} inert={Boolean(switchingTheme || restoring)}>
                 <ArticlePreviewViewport
+                  beforeMobilePreview={activePlanSelected && contentEditor ? flushBeforeMobilePreview : undefined}
                   editingEnabled={Boolean(activePlanSelected && contentEditor)}
                   editingMessage={contentSaveMessage}
                   editingState={contentSaveState}
                 >
                   <ResilientPreviewFrame
+                    contentRevision={contentPreviewRefreshToken}
                     editable={Boolean(activePlanSelected && contentEditor)}
                     editorDocument={contentEditor}
                     flushEditsRef={flushInlineEditsRef}
@@ -1158,11 +1152,6 @@ export default function TaskReviewPage() {
             </section>
           ) : null}
         </>
-      ) : !activeRevision && !["created", "plan_selected"].includes(detail.task.status) ? (
-        <section className="not-ready-state">
-          <p>方案还没有准备好。</p>
-          <button type="button" onClick={() => load()}>刷新状态</button>
-        </section>
       ) : null}
 
       {activeRevision ? (

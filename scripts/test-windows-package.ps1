@@ -85,12 +85,17 @@ try {
     }
 
     $Sample = Join-Path $PackageRoot "samples\skill-alpha\canonical-article.md"
-    $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --no-plan --api-base $ApiBase --web-base $WebBase --json
+    $TaskRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task create --file $Sample --open --api-base $ApiBase --web-base $WebBase --json
     $Task = (@($TaskRaw) -join [Environment]::NewLine) | ConvertFrom-Json
     if (-not $Task.ok -or [string]::IsNullOrWhiteSpace([string]$Task.task_id)) { throw "Sample task creation failed." }
-    $ListRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task list --api-base $ApiBase --web-base $WebBase --json
+    if ($Task.opened -ne $false -or $null -ne $Task.review_url) { throw "Raw sample was offered as a reviewable draft." }
+    $ReadyRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task list --api-base $ApiBase --web-base $WebBase --json
+    $Ready = (@($ReadyRaw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if (-not $Ready.ok -or $Ready.total -ne 0) { throw "Unplanned sample leaked into recent tasks." }
+    $ListRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task list --include-unplanned --api-base $ApiBase --web-base $WebBase --json
     $TaskList = (@($ListRaw) -join [Environment]::NewLine) | ConvertFrom-Json
-    if (-not $TaskList.ok -or $TaskList.total -ne 1 -or $TaskList.items[0].id -ne $Task.task_id) {
+    if (-not $TaskList.ok -or $TaskList.total -ne 1 -or $TaskList.items[0].id -ne $Task.task_id -or
+        $null -ne $TaskList.items[0].review_url) {
         throw "Packaged CLI could not find the existing sample task."
     }
 
@@ -100,6 +105,11 @@ try {
     if (-not $Upgrade.ok -or -not $Upgrade.data_continuity.preserved -or
         $Upgrade.data_continuity.before_task_count -ne 1 -or $Upgrade.installation.running_task_count -ne 1) {
         throw "Reinstall did not preserve the sample task."
+    }
+    $RestoredRaw = & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher task status $Task.task_id --api-base $ApiBase --web-base $WebBase --json
+    $Restored = (@($RestoredRaw) -join [Environment]::NewLine) | ConvertFrom-Json
+    if (-not $Restored.ok -or $Restored.task_id -ne $Task.task_id -or $null -ne $Restored.review_url) {
+        throw "The original unplanned task is no longer recoverable after reinstall."
     }
 
     & powershell -NoProfile -ExecutionPolicy Bypass -File $Launcher stop --json | Out-Null

@@ -12,10 +12,12 @@ from typing import Any
 from PIL import Image
 
 from .brief_compiler import apply_visual_system
+from .image_caption_render import stored_caption_profile
 from .parser import parse_markdown
-from .planner import generate_plans
-from .publication import _materialized_image_markup, _placeholder_metadata
-from .renderer import _opening_highlight, render_preview
+from .theme_fixture_plan import fixture_plan, sample_article_plan
+from .publication import _materialized_image_markup, _placeholder_metadata, strip_workbench_editor_attributes
+from .foundation_content import _opening_highlight
+from .renderer import render_preview
 
 ARTICLE = """# 给好内容留一点呼吸的空间
 
@@ -105,8 +107,9 @@ class _Nodes(HTMLParser):
         self.nodes.append((tag, attrs, self.document[start:end]))
 
 
-def _specimen_plan(parsed, visual_system: str, theme_config: dict[str, Any] | None = None) -> dict[str, Any]:
-    plan = apply_visual_system(generate_plans(parsed, "tutorial_steps", 5)[0], visual_system, recent_summaries=[])
+def _specimen_plan(parsed, visual_system: str, theme_config: dict[str, Any] | None = None, *, hero_only: bool = False) -> dict[str, Any]:
+    base = fixture_plan(parsed) if hero_only else sample_article_plan(parsed)
+    plan = apply_visual_system(base, visual_system, recent_summaries=[])
     if theme_config is not None:
         plan["configuration"] = {**plan["configuration"], **theme_config}
     plan["image_slots"] = []
@@ -129,7 +132,7 @@ def build_theme_card_specimens() -> dict[str, str]:
     cards = {}
     for theme_id in registered_visual_system_order():
         try:
-            plan = _specimen_plan(parsed, theme_id)
+            plan = _specimen_plan(parsed, theme_id, hero_only=True)
             cards[theme_id] = _specimen_hero(render_preview(parsed, {**plan, "slots": []}, brand_profile=BRAND))
         except (ValueError, KeyError, TypeError, OSError, RuntimeError):
             # A thumbnail failure must not hide the other themes or block selection.
@@ -148,7 +151,8 @@ def build_production_specimens(
     configuration = plan["configuration"]
     # The library exposes unconsumed Markdown primitives, unlike semantic cards.
     plain_plan = {**plan, "slots": []}
-    document = render_preview(parsed, plain_plan, brand_profile=BRAND)
+    document = strip_workbench_editor_attributes(render_preview(parsed, plain_plan, brand_profile=BRAND),
+                                                field_anchors_only=True)
     image_block = next(block for block in parsed.blocks if block.type == "image_reference")
     placeholder = next(markup for _, attrs, markup in _Nodes(document).nodes if attrs.get("id") == image_block.id)
     frame, caption = _placeholder_metadata(placeholder)
@@ -163,6 +167,7 @@ def build_production_specimens(
         element_id=image_block.id, anchor_class="source-image-anchor", content_url="/api/v1/theme-assets/atlas-leaf.png",
         width=width, height=height, alt="公开植物插画 · 图框演示", frame_variant=frame,
         caption_html=html.escape(html.unescape(caption)), theme_config=configuration,
+        reading=stored_caption_profile(placeholder),
     )
     # Keep the theme compiler's controlled-asset boundary; embed only after rendering.
     picture = picture.replace('src="/api/v1/theme-assets/atlas-leaf.png"', f'src="{uri}"')
@@ -199,7 +204,8 @@ def build_production_specimens(
     ]
     specimens = [{"role": role, "label": label, "production_trigger": trigger,
                   "production_status": "production", "html": markup} for role, label, trigger, markup in samples]
-    article = render_preview(parsed, plan, brand_profile=BRAND).replace(placeholder, picture)
+    article = strip_workbench_editor_attributes(render_preview(parsed, plan, brand_profile=BRAND),
+                                               field_anchors_only=True).replace(placeholder, picture)
     # Return only body content for embedding; retain the body's production padding.
     content = re.search(r'<body[^>]*>(.*)</body>', article, re.DOTALL).group(1)
     style = re.search(r'<body style="([^"]*)"', article).group(1)

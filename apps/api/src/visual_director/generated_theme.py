@@ -2,12 +2,21 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from .parser import ParsedArticle
+from .component_presentation import resolve_component_recipe
+from .timeline_recipe import timeline_field
 from .heading_numbers import has_explicit_heading_number
+from .logic_path_content import LogicPathField, step_field_attributes, step_field_css, step_field_text
 from .official_theme_tables import render_official_theme_table
-from .theme_extensions import _palette, _payload
+from .ordinary_list_content import ListValue, list_field_reading, ordinary_list_marker, ordinary_list_rows
+from .reading_rules import LIST_BODY, apply_reading_css
+from .reading_rules import (ARTICLE_TITLE, BODY, LABEL, LEAD, MARKER, QUOTE, SECTION_TITLE, SUBHEADING,
+                            TABLE_BODY, TABLE_HEADER, ReadingProfile, authored_emphasis, authored_host_css, render_authored_text)
+from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content, field_inline
+from .theme_extensions import _palette
 from .theme_layouts import render_layout, text_style
 
 
@@ -26,22 +35,43 @@ def _metrics(config: dict[str, Any]) -> tuple[dict[str, Any], dict[str, str]]:
     return _design(config) or {}, _palette(config.get("palette", {}))
 
 
-def _body_metrics(document: str, config: dict[str, Any]) -> str:
-    """Apply typography to legacy token layouts as well as declarative layouts."""
-    scale = config["generated_design_system"]["typography"]["body_scale"]
-    spacing = {"tight": "-.02em", "normal": "0", "relaxed": ".04em"}[config["generated_design_system"]["typography"]["letter_spacing"]]
-    return re.sub(r"font-size:(\d+(?:\.\d+)?)px;", lambda match: f"font-size:{float(match[1]) * scale:g}px;letter-spacing:{spacing};", document)
+class _GeneratedTypeScale:
+    """Scale legacy decoration CSS before inserting escaped author fields.
+
+    Authored text can literally mention 'font-size:12px;' and an explicit
+    reading role uses an absolute size. Neither is a theme decoration token.
+    """
+    def __init__(self, config: dict[str, Any]):
+        typography = config["generated_design_system"]["typography"]
+        self.scale = typography["body_scale"]
+        self.spacing = {"tight": "-.02em", "normal": "0", "relaxed": ".04em"}[typography["letter_spacing"]]
+        self.fields: list[str] = []
+
+    def field(self, markup: str) -> str:
+        self.fields.append(markup)
+        # Cannot collide with source: author HTML is escaped, and this marker
+        # is private to the token layout (not accepted by declarative layouts).
+        return f"<!--wvd-type-field:{len(self.fields)-1}-->"
+
+    def scale_css(self, css: str) -> str:
+        return re.sub(r"font-size:(\d+(?:\.\d+)?)px;",
+                      lambda m: f"font-size:{float(m[1]) * self.scale:g}px;letter-spacing:{self.spacing};", css)
+
+    def finish(self, template: str) -> str:
+        scaled = re.sub(r"<[a-zA-Z][^>]*>", lambda tag: self.scale_css(tag[0]), template)
+        return re.sub(r"<!--wvd-type-field:(\d+)-->", lambda m: self.fields[int(m[1])], scaled)
 
 
-def render_generated_paragraph(content: str, config: dict[str, Any], *, lead: bool = False) -> str:
-    custom = render_layout("lead", {"body": content}, config) if lead else None
+def render_generated_paragraph(content: str, config: dict[str, Any], *, lead: bool = False, reading: ReadingProfile | None = None) -> str:
+    custom = render_layout("lead", {"body": content}, config, field_roles={"body": LEAD}, reading=reading) if lead else None
     if custom is not None:
         return custom
     design, palette = _metrics(config)
     density = {"airy": 1.2, "balanced": 1, "compact": .85}[design["rhythm"]["density"]]
     margin = round(18 * density)
     inline = _inline(content).replace("<strong>", f'<strong data-content-role="inline-emphasis" style="{generated_inline_emphasis_style(config)}">')
-    return f'<p style="margin:0 0 {margin}px;{text_style(config)}text-align:justify;overflow-wrap:anywhere;">{inline}</p>'
+    style = authored_host_css(f"margin:0 0 {margin}px;{text_style(config)}text-align:justify;overflow-wrap:anywhere;", LEAD if lead else BODY, reading)
+    return f'<p style="{style}">{authored_emphasis(inline, reading)}</p>'
 
 
 def _motif(config: dict[str, Any], *, compact: bool = False) -> str:
@@ -156,45 +186,45 @@ def generated_image_placeholder_style(config: dict[str, Any]) -> str | None:
     return f'scroll-margin-top:18px;margin:{gap}px 0;{_frame_style(config)}background-color:{_surface(config)}text-align:center;'
 
 
-def render_generated_hero(title: str, kicker: str, config: dict[str, Any]) -> str | None:
+def render_generated_hero(title: str, kicker: str, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
-    custom = render_layout("hero", {"title": title, "kicker": kicker}, config)
+    custom = render_layout("hero", {"title": title, "kicker": kicker}, config, field_roles={"title": ARTICLE_TITLE, "kicker": LABEL}, reading=reading)
     if custom is not None:
         return custom
     composition = design["composition"]
     scale = float(design["typography"]["heading_scale"])
     size = round(29 * scale, 1)
     weight = int(design["typography"]["heading_weight"])
-    title_html = _inline(title)
+    title_html = render_authored_text(_inline(title), ARTICLE_TITLE, reading)
     motif = _motif(config)
     common = f'data-generated-theme="{html.escape(str(config.get("visual_system", "custom")))}" data-theme-grammar="generated-{composition}"'
     if composition == "arched_editorial":
-        return f'<header {common} style="margin:30px 0 38px;{_frame_style(config)}background-color:{_surface(config)}text-align:center;"><p style="margin:-4px 0 18px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.2em;">{html.escape(kicker)}</p><p style="margin:0 0 15px;">{motif}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:17px 0 -5px;">{_motif(config, compact=True)}</p></header>'
+        return f'<header {common} style="margin:30px 0 38px;{_frame_style(config)}background-color:{_surface(config)}text-align:center;"><p style="margin:-4px 0 18px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.2em;">{render_authored_text(html.escape(kicker), LABEL, reading)}</p><p style="margin:0 0 15px;">{motif}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:17px 0 -5px;">{_motif(config, compact=True)}</p></header>'
     if composition == "offset_journal":
-        return f'<header {common} style="margin:31px 7px 38px;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:-25px 0 17px;text-align:right;"><span style="display:inline-block;padding:5px 11px;background-color:{p["accent"]};color:#FFFFFF;font:800 9px Georgia;letter-spacing:.16em;transform:rotate(2deg);">{html.escape(kicker)}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1><p style="margin:17px 0 -3px;">{motif}</p></header>'
+        return f'<header {common} style="margin:31px 7px 38px;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:-25px 0 17px;text-align:right;"><span style="display:inline-block;padding:5px 11px;background-color:{p["accent"]};color:#FFFFFF;font:800 9px Georgia;letter-spacing:.16em;transform:rotate(2deg);">{render_authored_text(html.escape(kicker), LABEL, reading)}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1><p style="margin:17px 0 -3px;">{motif}</p></header>'
     if composition == "modular_exhibit":
-        return f'<header {common} style="margin:30px 0 38px;border-top:7px solid {p["primary"]};border-bottom:1px solid {p["primary"]};white-space:normal;"><section style="display:inline-block;width:24%;padding:20px 8px 18px 0;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.16em;vertical-align:top;">{html.escape(kicker)}<p style="margin:15px 0 0;">{motif}</p></section><section style="box-sizing:border-box;display:inline-block;width:76%;padding:19px 0 21px 19px;border-left:1px solid {p["secondary"]};vertical-align:top;"><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1></section></header>'
+        return f'<header {common} style="margin:30px 0 38px;border-top:7px solid {p["primary"]};border-bottom:1px solid {p["primary"]};white-space:normal;"><section style="display:inline-block;width:24%;padding:20px 8px 18px 0;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.16em;vertical-align:top;">{render_authored_text(html.escape(kicker), LABEL, reading)}<p style="margin:15px 0 0;">{motif}</p></section><section style="box-sizing:border-box;display:inline-block;width:76%;padding:19px 0 21px 19px;border-left:1px solid {p["secondary"]};vertical-align:top;"><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1></section></header>'
     if composition == "ribbon_story":
-        return f'<header {common} style="margin:31px 0 38px;padding:0 0 22px;border-bottom:4px solid {p["primary"]};"><p style="margin:0 0 16px;"><span style="display:inline-block;padding:6px 17px;background-color:{p["secondary"]};color:{p["ink"]};font:800 9px Georgia;letter-spacing:.17em;transform:rotate(-2deg);">{html.escape(kicker)}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1><p style="margin:16px 0 -29px;text-align:right;">{motif}</p></header>'
+        return f'<header {common} style="margin:31px 0 38px;padding:0 0 22px;border-bottom:4px solid {p["primary"]};"><p style="margin:0 0 16px;"><span style="display:inline-block;padding:6px 17px;background-color:{p["secondary"]};color:{p["ink"]};font:800 9px Georgia;letter-spacing:.17em;transform:rotate(-2deg);">{render_authored_text(html.escape(kicker), LABEL, reading)}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.4;">{title_html}</h1><p style="margin:16px 0 -29px;text-align:right;">{motif}</p></header>'
     if composition == "woven_catalog":
-        return f'<header {common} style="margin:31px 0 38px;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:0 0 15px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.19em;">WOVEN EDITION · {html.escape(kicker)}</p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:17px 0 0;border-top:1px dashed {p["secondary"]};padding-top:11px;text-align:right;">{motif}</p></header>'
-    return f'<header {common} style="margin:31px 0 38px;padding:25px 17px 22px;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};background-color:{_surface(config)}text-align:center;"><p style="margin:-39px 0 17px;"><span style="display:inline-block;width:62px;height:62px;border:2px solid {p["primary"]};border-radius:50%;background-color:{p["surface"]};color:{p["accent"]};font:800 9px/62px Georgia;letter-spacing:.12em;">{html.escape(kicker[:8])}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:16px 0 0;">{motif}</p></header>'
+        return f'<header {common} style="margin:31px 0 38px;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:0 0 15px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.19em;">WOVEN EDITION · {render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:17px 0 0;border-top:1px dashed {p["secondary"]};padding-top:11px;text-align:right;">{motif}</p></header>'
+    return f'<header {common} style="margin:31px 0 38px;padding:25px 17px 22px;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};background-color:{_surface(config)}text-align:center;"><p style="margin:-39px 0 17px;"><span style="display:inline-block;width:62px;height:62px;border:2px solid {p["primary"]};border-radius:50%;background-color:{p["surface"]};color:{p["accent"]};font:800 9px/62px Georgia;letter-spacing:.12em;">{render_authored_text(html.escape(kicker[:8]), LABEL, reading)}</span></p><h1 style="margin:0;color:{p["ink"]};font-size:{size}px;font-weight:{weight};line-height:1.42;">{title_html}</h1><p style="margin:16px 0 0;">{motif}</p></header>'
 
 
-def render_generated_heading(content: str, level: int, section_index: int, config: dict[str, Any]) -> str | None:
+def render_generated_heading(content: str, level: int, section_index: int, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
     index = "" if has_explicit_heading_number(content) else f"{section_index:02d}"
-    custom = render_layout("heading" if level == 2 else "subheading", {"title": content, "index": index}, config)
+    custom = render_layout("heading" if level == 2 else "subheading", {"title": content, "index": index}, config, field_roles={"title": SECTION_TITLE if level == 2 else SUBHEADING, "index": MARKER}, reading=reading)
     if custom is not None:
         return f'<section data-heading-level="{level}">{custom}</section>'
     gap = int(design["rhythm"]["section_gap"])
     size = round((22 if level == 2 else 18 if level == 3 else 16) * float(design["typography"]["heading_scale"]), 1)
     weight = int(design["typography"]["heading_weight"])
-    text = _inline(content)
+    text = render_authored_text(_inline(content), SECTION_TITLE if level == 2 else SUBHEADING, reading)
     motif = _motif(config, compact=True)
     grammar = f'generated-{design["composition"]}-{design["frame"]}'
     if level == 2:
@@ -355,7 +385,7 @@ _OFFICIAL_ORDERED_LIST_LAYOUTS = {
 }
 
 
-def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
+def render_generated_list(items: Sequence[ListValue], ordered: bool, config: dict[str, Any], semantic_role: str) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
@@ -364,37 +394,46 @@ def render_generated_list(items: list[str], ordered: bool, config: dict[str, Any
         design = {**design, "layouts": {**design.get("layouts", {}), "list": ordered_layout}}
         config = {**config, "generated_design_system": design}
     layout = design.get("layouts", {}).get("list")
+    profile = list_field_reading(items)
     if ordered and layout and not _has_list_index(layout):
         # An authored bullet list must not erase the sequence of an ordered
         # Markdown list. Keep its paragraph typography and explicit, copyable
         # numbers without introducing another layout role or a semantic card.
+        item_style = apply_reading_css(
+            "display:inline-block;width:90%;vertical-align:top;margin:0;overflow-wrap:anywhere;", LIST_BODY, profile,
+        )
         rows = "".join(
             '<section style="padding:5px 0;">'
             f'<span data-theme-static="true" data-theme-list-index="true" style="display:inline-block;'
             f'width:10%;vertical-align:top;color:{p["primary"]};font-weight:700;">{index:02d}</span>'
-            f'<p data-theme-field="item" style="display:inline-block;width:90%;vertical-align:top;margin:0;overflow-wrap:anywhere;">'
-            f'{_inline(item)}</p></section>'
-            for index, item in enumerate(items, 1)
+            f'<p data-theme-field="item"{field_attrs} style="{item_style}">'
+            f'{item}</p></section>'
+            for index, field_attrs, item in ordinary_list_rows(items)
         )
         return f'<section data-theme-list-fallback="numbering" style="margin:{design["rhythm"]["component_gap"]}px 0;{text_style(config)}">{rows}</section>'
     custom = render_layout("list", {"items": items, "ordered": ordered}, config)
     if custom is not None:
         return custom
     rows = []
-    for index, item in enumerate(items, 1):
-        value = f"{index:02d}" if ordered else ("✓" if semantic_role == "action_checklist" else chr(64 + index) if semantic_role == "case_points" and index <= 26 else "·")
+    item_style = apply_reading_css(
+        f'box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;',
+        LIST_BODY, profile,
+    )
+    for index, field_attrs, item in ordinary_list_rows(items):
+        value = ordinary_list_marker(index, ordered=ordered, semantic_role=semantic_role, neutral_marker="·")
         index_attr = ' data-theme-list-index="true"' if ordered else ''
-        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span{index_attr} style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p style="box-sizing:border-box;display:inline-block;width:85%;margin:0;padding:2px 0 2px 11px;color:{p["ink"]};font-size:{round(16 * float(design["typography"]["body_scale"]), 1)}px;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
+        rows.append(f'<section style="padding:11px 0;border-bottom:1px solid {p["secondary_pale"]};white-space:normal;"><span{index_attr} style="display:inline-block;width:15%;vertical-align:top;">{_marker(config, value)}</span><p{field_attrs} style="{item_style}">{item}</p></section>')
     return f'<section data-theme-grammar="generated-{design["marker"]}-list" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:-5px 0 9px;text-align:right;">{_motif(config, compact=True)}</p>{"".join(rows)}</section>'
 
 
-def render_generated_table(rows: list[list[str]], config: dict[str, Any]) -> str | None:
+def render_generated_table(rows: list[list[str]], config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     design, p = _metrics(config)
     if not design or not rows:
         return None
-    official = render_official_theme_table(config.get("theme_id"), rows, p, design["rhythm"]["component_gap"], _inline)
+    scale = _GeneratedTypeScale(config)
+    official = render_official_theme_table(config.get("theme_id"), rows, p, design["rhythm"]["component_gap"], _inline, reading=reading, project_text=scale.field)
     if official is not None:
-        return _body_metrics(official, config)
+        return scale.finish(official)
     header, *body = rows
     # Give the table a palette accent on the header itself. Do not rely on a
     # paragraph between an outer rule and the table to carry the decoration.
@@ -403,43 +442,72 @@ def render_generated_table(rows: list[list[str]], config: dict[str, Any]) -> str
         f'<th style="padding:10px 8px;border:1px solid {p["primary"]};'
         f'border-top:{top_width}px solid {p["accent"] if i == 0 else p["primary"]};'
         f'background-color:{p["pale"]};color:{p["ink"]};font-size:12px;line-height:1.45;text-align:left;">'
-        f'{_inline(cell)}</th>'
+        f'{scale.field(render_authored_text(_inline(cell), TABLE_HEADER, reading))}</th>'
         for i, cell in enumerate(header)
     )
     trs = []
     for row_index, row in enumerate(body):
-        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {p["secondary"]};background-color:{_surface(config, row_index)};color:{p["ink"]};font-size:13px;line-height:1.58;vertical-align:top;">{_inline(cell)}</td>' for cell in row)
+        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {p["secondary"]};background-color:{_surface(config, row_index)};color:{p["ink"]};font-size:13px;line-height:1.58;vertical-align:top;">{scale.field(render_authored_text(_inline(cell), TABLE_BODY, reading))}</td>' for cell in row)
         trs.append(f'<tr>{cells}</tr>')
     motif = _motif(config, compact=True)
     ornament = (
         f'<section aria-hidden="true" style="margin:0 0 4px;text-align:right;'
         f'font-size:0;line-height:0;">{motif}</section>' if motif else ""
     )
-    return _body_metrics(
+    return scale.finish(
         f'<section data-theme-grammar="generated-{design["frame"]}-table" '
         f'style="margin:{design["rhythm"]["component_gap"]}px 0;overflow-wrap:anywhere;">'
         f'{ornament}<table style="width:100%;border-collapse:collapse;table-layout:fixed;">'
         f'<thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>',
-        config,
+
     )
 
 
-def render_generated_quote(content: str, config: dict[str, Any]) -> str | None:
+def render_generated_quote(content: str, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
-    custom = render_layout("quote", {"body": content}, config)
+    custom = render_layout("quote", {"body": content}, config, field_roles={"body": QUOTE}, reading=reading)
     if custom is not None:
         return custom
-    return _body_metrics(f'<blockquote data-theme-grammar="generated-{design["composition"]}-quote" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:0 0 12px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.16em;">EVIDENCE · {_motif(config, compact=True)}</p><p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:650;line-height:1.85;">{_inline(content)}</p></blockquote>', config)
+    scale = _GeneratedTypeScale(config)
+    return scale.finish(f'<blockquote data-theme-grammar="generated-{design["composition"]}-quote" style="margin:{design["rhythm"]["component_gap"]}px 0;{_frame_style(config)}background-color:{_surface(config)}"><p style="margin:0 0 12px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.16em;">EVIDENCE · {_motif(config, compact=True)}</p><p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:17px;font-weight:650;line-height:1.85;">{scale.field(render_authored_text(_inline(content), QUOTE, reading))}</p></blockquote>')
 
 
-def render_generated_component(slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any]) -> str | None:
+def render_generated_component(
+    slot: dict[str, Any], parsed: ParsedArticle, config: dict[str, Any],
+) -> str | None:
     design, p = _metrics(config)
     if not design:
         return None
-    component_type = str(slot["component_type"])
-    payload = _payload(slot, parsed)
+    content = bind_semantic_content(slot, parsed)
+    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p)
+
+
+def render_generated_semantic(
+    content: BoundSemanticContent, config: dict[str, Any],
+) -> str | None:
+    design, p = _metrics(config)
+    if not design:
+        return None
+    return _render_generated_component_payload(content.component, content.layout_payload(), config, design, p)
+
+
+def render_generated_logic_path(
+    items: list[LogicPathField], config: dict[str, Any],
+) -> str | None:
+    design, palette = _metrics(config)
+    if not design:
+        return None
+    return _render_generated_component_payload(
+        "logic_path", {"kind": "list", "items": items}, config, design, palette,
+    )
+
+
+def _render_generated_component_payload(
+    component_type: str, payload: dict[str, Any], config: dict[str, Any],
+    design: dict[str, Any], p: dict[str, str],
+) -> str:
     layout_payload = payload
     if component_type == "concept_explainer" and payload["kind"] == "title_body":
         layout_payload = {"entries": [{"title": payload["title"], "body": payload["body"]}]}
@@ -473,30 +541,44 @@ def render_generated_component(slot: dict[str, Any], parsed: ParsedArticle, conf
         "case_card": "CASE FILE", "warning_note": "NOTICE", "action_checklist": "CHECKLIST",
         "faq_card": "Q / A", "comparison_card": "COMPARISON", "section_summary": "SUMMARY",
     }.get(component_type, component_type.upper())
+    recipe = resolve_component_recipe(config, component_type)
+    scale = _GeneratedTypeScale(config)
+
+    def render_field(value: str | SemanticField, name: str = "") -> str:
+        return scale.field(timeline_field(value, name, recipe, _inline) if name else field_inline(value, _inline))
+
     head = f'<p style="margin:-5px 0 14px;color:{p["accent"]};font:800 9px Georgia;letter-spacing:.17em;">{label}<span style="float:right;">{_motif(config, compact=True)}</span></p>'
     kind = payload["kind"]
     if kind == "list":
         rows = []
+        legacy_style = f'box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;'
         for index, item in enumerate(payload["items"], 1):
-            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:8px;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.75;vertical-align:top;">{_inline(item)}</p></section>')
+            if isinstance(item, LogicPathField):
+                # Scale this legacy host first, then apply its absolute role
+                # metrics. Its title/detail and original strong are already projected.
+                style = step_field_css(scale.scale_css(legacy_style), item)
+                cell = scale.field(f'<p{step_field_attributes(item)} style="{style}">{step_field_text(item, _inline)}</p>')
+            else:
+                cell = f'<p style="{legacy_style}">{render_field(item)}</p>'
+            rows.append(f'<section style="padding:10px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span>{cell}</section>')
         content = "".join(rows)
     elif kind == "pair":
-        content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["left"])}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{_inline(payload["right"])}</p></section></section>'
+        content = f'<section style="white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:14px;border-top:4px solid {p["accent"]};background-color:{p["accent_pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["left"], "left")}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:17px 0 0 4%;padding:14px;border-bottom:4px solid {p["primary"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{render_field(payload["right"], "right")}</p></section></section>'
     elif kind == "concept_group":
         entries = []
         for index, entry in enumerate(payload["entries"], 1):
-            entries.append(f'<section style="padding:12px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><section style="box-sizing:border-box;display:inline-block;width:84%;padding-left:9px;vertical-align:top;"><strong style="display:block;color:{p["primary"]};font-size:17px;line-height:1.58;">{_inline(entry["title"])}</strong><p style="margin:7px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{_inline(entry["body"])}</p></section></section>')
+            entries.append(f'<section style="padding:12px 0;border-top:1px solid {p["secondary_pale"]};white-space:normal;"><span style="display:inline-block;width:16%;vertical-align:top;">{_marker(config, f"{index:02d}")}</span><section style="box-sizing:border-box;display:inline-block;width:84%;padding-left:9px;vertical-align:top;"><strong style="display:block;color:{p["primary"]};font-size:17px;line-height:1.58;">{render_field(entry["title"])}</strong><p style="margin:7px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{render_field(entry["body"])}</p></section></section>')
         content = "".join(entries)
     elif kind == "title_body":
-        title = _inline(payload["title"])
-        body = _inline(payload["body"])
+        title = render_field(payload["title"])
+        body = render_field(payload["body"])
         if component_type == "question_hook":
             content = f'<section style="text-align:center;"><p style="margin:0 0 12px;">{_marker(config, "?")}</p><strong style="display:block;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:20px;line-height:1.65;">{title}</strong></section>'
         else:
             content = f'<strong style="display:block;color:{p["primary"]};font-size:18px;line-height:1.6;">{title}</strong><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>'
     else:
-        content = f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:16px;font-weight:650;line-height:1.85;">{_inline(payload["body"])}</p>'
-    return _body_metrics(f'<section data-generated-theme="{html.escape(str(config.get("visual_system", "custom")))}" data-theme-grammar="{grammar}" data-component-type="{component_type}" style="margin:{gap}px 0;{frame}background-color:{component_surface}">{head}{content}</section>', config)
+        content = f'<p style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:16px;font-weight:650;line-height:1.85;">{render_field(payload["body"])}</p>'
+    return scale.finish(f'<section data-generated-theme="{html.escape(str(config.get("visual_system", "custom")))}" data-theme-grammar="{grammar}" data-component-type="{component_type}" style="{recipe.margin_css(gap)}{frame}background-color:{component_surface}">{head}{content}</section>')
 
 
 def generated_rhythm_primitives(config: dict[str, Any]) -> list[dict[str, str]]:

@@ -11,13 +11,20 @@ import pytest
 from visual_director import cli
 
 
-def test_task_list_is_read_only_and_returns_summary_links(monkeypatch, capsys) -> None:
+@pytest.fixture
+def current_task_service(monkeypatch):
+    monkeypatch.setattr(cli, "_probe_json", lambda *args, **kwargs: {
+        "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
+    })
+
+
+def test_task_list_is_read_only_and_returns_summary_links(monkeypatch, capsys, current_task_service) -> None:
     from urllib.parse import parse_qs, urlsplit
     calls = []
     def request(method, url, **kwargs):
         calls.append((method, url, kwargs))
         return {"items": [{"id": "existing", "title": "街区 100%", "status": "images_review",
-                           "updated_at": "2026-10-20", "source_markdown": "private article"}],
+                           "updated_at": "2026-10-20", "source_markdown": "private article", "review_path": "/tasks/existing"}],
                 "page": 2, "total": 9, "total_pages": 2}
     monkeypatch.setattr(cli, "_request_json", request)
     monkeypatch.setattr(cli.webbrowser, "open", lambda *a, **kw: pytest.fail("must not open or mutate"))
@@ -67,6 +74,7 @@ def test_web_probe_requires_current_workbench_identity(monkeypatch) -> None:
         lambda url, **_kwargs: {
             "application": cli.WORKBENCH_ID,
             "application_version": cli.application_version(),
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
         }
         if url.endswith("/api/health")
         else None,
@@ -356,6 +364,7 @@ def test_serve_reports_missing_static_workbench_build(
             "status": "ok",
             "application_version": cli.application_version(),
             "image_provider_settings_schema_version": cli.IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
         },
     )
     monkeypatch.setattr(cli, "_probe_http", lambda *_args, **_kwargs: False)
@@ -394,6 +403,7 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
             "application_version": "0.1.0-alpha.5",
             "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "image_provider": "mock",
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
             "image_provider_configured": True,
         },
     )
@@ -409,15 +419,16 @@ def test_doctor_does_not_report_mock_images_as_real_generation(monkeypatch, caps
     assert payload["warnings"] == ["image_generation_mock_only"]
 
 
-def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys) -> None:
+def test_doctor_advertises_only_host_agent_planning(monkeypatch, capsys) -> None:
     def fake_probe(url: str, **_kwargs):
         if url.endswith("/health"):
             return {
                 "status": "ok",
                 "image_provider": "mock",
                 "image_provider_configured": True,
-                "text_planner_provider": "rule_text_planner",
-                "text_planner_model": "deterministic_editorial_brief",
+                "text_planner_provider": "host_agent",
+                "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
+                "text_planner_model": "host_managed",
                 "text_planner_configured": False,
             }
         return {"ready": False}
@@ -428,10 +439,11 @@ def test_doctor_distinguishes_ai_planning_from_rule_fallback(monkeypatch, capsys
 
     assert cli.run(["doctor", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["capabilities"]["ai_text_planning"] is False
-    assert payload["capabilities"]["rule_text_planning"] is True
-    assert payload["planners"]["text"]["provider"] == "rule_text_planner"
-    assert "text_planning_rule_fallback" in payload["warnings"]
+    assert "ai_text_planning" not in payload["capabilities"]
+    assert "rule_text_planning" not in payload["capabilities"]
+    assert payload["capabilities"]["host_agent_text_planning"] is True
+    assert payload["planners"]["text"]["provider"] == "host_agent"
+    assert "text_planning_rule_fallback" not in payload["warnings"]
 
 
 def test_doctor_reports_registered_host_skill(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -448,6 +460,7 @@ def test_doctor_reports_registered_host_skill(tmp_path: Path, monkeypatch, capsy
         lambda *_args, **_kwargs: {
             "status": "ok",
             "image_provider": "manual",
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
             "image_provider_configured": True,
         },
     )
@@ -487,6 +500,7 @@ def test_doctor_reports_persistent_install_paths(tmp_path: Path, monkeypatch, ca
             "image_provider_settings_schema_version": "image_provider_settings.v0.3",
             "image_provider": "mock",
             "image_provider_configured": True,
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
             "runtime_identity": {
                 **cli._expected_runtime_identity(),
                 "task_count": 0,
@@ -717,6 +731,7 @@ def test_serve_reports_reachable_but_incompatible_workbench(monkeypatch, capsys)
             "status": "ok",
             "application_version": cli.application_version(),
             "image_provider_settings_schema_version": cli.IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+            "task_workflow_contract_version": cli.TASK_WORKFLOW_CONTRACT_VERSION,
         }
         if url.endswith("/health")
         else None,
@@ -769,14 +784,9 @@ article_type: tutorial_steps
                         "draft_creation_allowed": False,
                     }
                 },
-                "review_path": "/tasks/task-123",
+                "review_path": None,
                 "idempotency_replayed": False,
             }
-        if method == "POST" and url.endswith("/article-tasks/task-123/generate-plans"):
-            assert json.loads(kwargs["body"])["planner"] == "rule"
-            return {"task_id": "task-123", "status": "analyzing"}
-        if method == "GET" and url.endswith("/article-tasks/task-123"):
-            return {"task": {"id": "task-123", "status": "plans_ready", "version": 3}}
         raise AssertionError((method, url))
 
     monkeypatch.setattr(cli, "_ensure_services", fake_services)
@@ -801,19 +811,17 @@ article_type: tutorial_steps
     assert service_calls
     assert payload == {
         "ok": True,
-        "schema_version": "task_create_result.v0.2",
+        "schema_version": "task_create_result.v0.3",
         "task_id": "task-123",
-        "status": "plans_ready",
+        "status": "created",
         "preflight_status": "REVIEW",
         "planning_allowed": True,
         "draft_creation_allowed": False,
         "findings": [],
         "idempotency_replayed": False,
-        "plans_generated": True,
-        "planner": "rule",
-        "review_url": "http://127.0.0.1:8000/tasks/task-123",
-        "opened": True,
-        "next_action": "human_review",
+        "review_url": None,
+        "opened": False,
+        "next_action": "generate_editorial_brief",
         "command_completed": True,
         "background_service": True,
     }
@@ -833,7 +841,7 @@ def test_default_task_key_is_stable_until_source_changes(tmp_path: Path) -> None
     assert first != changed
 
 
-def test_task_context_returns_host_agent_contract(monkeypatch, capsys) -> None:
+def test_task_context_returns_host_agent_contract(monkeypatch, capsys, current_task_service) -> None:
     monkeypatch.setattr(
         cli,
         "_request_json",
@@ -857,10 +865,12 @@ def test_task_context_returns_host_agent_contract(monkeypatch, capsys) -> None:
     assert payload["context"]["schema_version"] == "host_agent_planner_context.v0.1"
 
 
+@pytest.mark.parametrize("fallback_metadata", [{"fallback_used": False}, {"fallback_used": True}, {}])
 def test_task_plan_submits_host_brief_and_reports_normalization(
     tmp_path: Path,
     monkeypatch,
     capsys,
+    fallback_metadata,
 ) -> None:
     brief_path = tmp_path / "editorial-brief.json"
     brief_path.write_text(json.dumps({"schema_version": "editorial_brief.v0.1"}), encoding="utf-8")
@@ -877,16 +887,16 @@ def test_task_plan_submits_host_brief_and_reports_normalization(
             assert request["editorial_brief"]["schema_version"] == "editorial_brief.v0.1"
             assert request["host_model"] == "opencode-host"
             return {
+                "status": "plan_selected",
+                "review_path": "/tasks/task-host",
                 "planner_metadata": {
                     "provider": "host_agent",
                     "model": "opencode-host",
-                    "fallback_used": False,
+                    **fallback_metadata,
                     "normalization_count": 2,
                     "normalization_adjustments": [{"code": "safe_adjustment"}],
                 }
             }
-        if method == "GET" and url.endswith("/article-tasks/task-host"):
-            return {"task": {"id": "task-host", "status": "plans_ready", "version": 4}}
         raise AssertionError((method, url))
 
     monkeypatch.setattr(cli, "_request_json", fake_request)
@@ -906,9 +916,14 @@ def test_task_plan_submits_host_brief_and_reports_normalization(
     )
 
     payload = json.loads(capsys.readouterr().out)
+    if fallback_metadata.get("fallback_used") is not False:
+        assert exit_code == 5
+        assert payload["error"]["code"] == "unexpected_planner"
+        return
     assert exit_code == 0
     assert payload["planner_provider"] == "host_agent"
     assert payload["fallback_used"] is False
+    assert payload["status"] == "plan_selected"
     assert payload["normalization_count"] == 2
     assert payload["next_action"] == "human_review"
 
@@ -942,12 +957,96 @@ def test_create_task_missing_file_is_stable_json_error(tmp_path: Path, capsys) -
     assert payload["error"]["details"]["path"] == str(missing.resolve())
 
 
-def test_task_status_maps_existing_api_response(monkeypatch, capsys) -> None:
+def test_create_reuses_ready_manuscript_without_planning(tmp_path, monkeypatch, capsys, current_task_service):
+    article = tmp_path / "replay.md"
+    article.write_text("# 已有稿\n\n正文。", encoding="utf-8")
+    def request(method, url, **kwargs):
+        assert method == "POST" and url.endswith("/article-tasks")
+        return {"task": {"id": "same", "status": "plan_selected"},
+                "input_summary": {}, "review_path": "/tasks/same", "idempotency_replayed": True}
+    monkeypatch.setattr(cli, "_request_json", request)
+    opened = []
+    monkeypatch.setattr(cli.webbrowser, "open", lambda url, **kw: opened.append(url) or True)
+    assert cli.run(["task", "create", "--no-start", "--file", str(article), "--open", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    assert result["next_action"] == "human_review"
+    assert result["idempotency_replayed"] and result["opened"] and opened == [result["review_url"]]
+
+
+@pytest.mark.parametrize("flag", [["--planner", "rule"], ["--no-plan"]])
+def test_create_rejects_removed_planner_switches(flag):
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["task", "create", "--file", "foo.md", *flag])
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("no_start", [True, False])
+@pytest.mark.parametrize("command", ["create", "plan"])
+def test_stale_same_version_core_rejected_before_first_write(no_start, command, tmp_path, monkeypatch, capsys):
+    markdown, brief = tmp_path / "input.md", tmp_path / "brief.json"
+    markdown.write_text("# 原稿", encoding="utf-8")
+    brief.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(cli, "_probe_json", lambda *_a, **_k: {
+        "application_version": cli.application_version(),
+        "image_provider_settings_schema_version": cli.IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION,
+    })
+    monkeypatch.setattr(cli, "_probe_http", lambda *_a, **_k: True)
+    monkeypatch.setattr(cli, "_probe_web", lambda *_a, **_k: True)
+    monkeypatch.setattr(cli, "_request_json", lambda *_a, **_k: pytest.fail("refuse before posting to old core"))
+    args = (["create", "--file", str(markdown)] if command == "create" else
+            ["plan", "test-id", "--expected-task-version", "1", "--brief", str(brief)])
+    assert cli.run(["task", *args, *(["--no-start"] if no_start else []), "--json"]) == 3
+    assert json.loads(capsys.readouterr().out)["error"]["code"] == "core_workflow_mismatch"
+    assert cli.run(["doctor", "--json"]) == 3
+    assert "core_workflow_mismatch" in json.loads(capsys.readouterr().out)["warnings"]
+
+
+def test_unplanned_task_is_recoverable_without_exposing_a_workbench_link(monkeypatch, capsys, current_task_service):
+    def request(method, url, **kwargs):
+        assert method == "GET"
+        if "scope=all" in url:
+            return {"items": [{"id": "bare", "status": "created", "review_path": None}],
+                    "page": 1, "total": 1, "total_pages": 1}
+        assert url.endswith("/article-tasks/bare")
+        return {"task": {"id": "bare", "status": "created"}, "review_path": None,
+                "input_summary": {"preflight_report": {"planning_allowed": True}}}
+    monkeypatch.setattr(cli, "_request_json", request)
+    monkeypatch.setattr(cli.webbrowser, "open", lambda *a, **k: pytest.fail("unplanned draft opened"))
+    assert cli.run(["task", "list", "--include-unplanned", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["items"][0]["review_url"] is None
+    assert cli.run(["task", "status", "bare", "--json"]) == 0
+    status = json.loads(capsys.readouterr().out)
+    assert status["review_url"] is None and status["next_action"] == "generate_editorial_brief"
+    assert cli.run(["task", "open", "bare", "--json"]) != 0
+    assert json.loads(capsys.readouterr().out)["error"]["code"] == "plan_not_ready"
+
+
+def test_invalid_plan_returns_actionable_details_and_never_opens_browser(tmp_path, monkeypatch, capsys, current_task_service):
+    doc = tmp_path / "brief.json"
+    doc.write_text("{}", encoding="utf-8")
+    args = ["task", "plan", "abc", "--brief", str(doc), "--expected-task-version", "2", "--open", "--no-start", "--json"]
+    details = {"task_id": "abc", "expected_task_version": 2, "next_action": "revise_editorial_brief",
+               "issues": [{"path": "sections[1]", "message": "引用不存在"}]}
+    def request(method, url, **kwargs):
+        assert method == "POST" and url.endswith("/generate-plans")
+        raise cli.CliError("host_brief_invalid", "请修订", exit_code=5, details=details)
+    monkeypatch.setattr(cli, "_request_json", request)
+    monkeypatch.setattr(cli.webbrowser, "open", lambda *a, **k: pytest.fail("invalid brief opened"))
+    assert cli.run(args) != 0
+    assert json.loads(capsys.readouterr().out)["error"]["details"] == details
+    doc.write_text("{", encoding="utf-8")
+    assert cli.run(args) != 0
+    err = json.loads(capsys.readouterr().out)["error"]
+    assert err["code"] == "invalid_brief_json" and err["details"]["next_action"] == "revise_editorial_brief"
+
+
+def test_task_status_maps_existing_api_response(monkeypatch, capsys, current_task_service) -> None:
     monkeypatch.setattr(
         cli,
         "_request_json",
         lambda *_args, **_kwargs: {
             "task": {"id": "task-456", "status": "plans_ready"},
+            "review_path": "/tasks/task-456",
             "input_summary": {
                 "preflight_report": {
                     "status": "REVIEW",
@@ -969,7 +1068,7 @@ def test_task_status_maps_existing_api_response(monkeypatch, capsys) -> None:
     assert payload["review_url"].endswith("/tasks/task-456")
 
 
-def test_http_preflight_error_uses_exit_code_four(monkeypatch, tmp_path: Path, capsys) -> None:
+def test_http_preflight_error_uses_exit_code_four(monkeypatch, tmp_path: Path, capsys, current_task_service) -> None:
     article = tmp_path / "blocked.md"
     article.write_text("# 标题\n\n正文", encoding="utf-8")
     monkeypatch.setattr(

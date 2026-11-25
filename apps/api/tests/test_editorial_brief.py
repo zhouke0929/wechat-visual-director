@@ -15,14 +15,15 @@ from visual_director.editorial_brief import (
     validate_editorial_brief_for_article,
 )
 from visual_director.main import create_app
+from visual_director.image_provider import MockImageProvider
 from visual_director.parser import classify_article, parse_markdown
-from visual_director.planner import component_opportunity_diagnostics
+from visual_director.planner import component_opportunity_diagnostics, generate_plans
 from visual_director.renderer import render_preview
+from visual_director.rule_baseline import MockTextPlannerProvider
 from visual_director.text_planner import (
-    MockTextPlannerProvider,
+    adopt_host_agent_editorial_brief,
     TextPlannerRequest,
     build_text_planner_payload,
-    generate_editorial_brief,
 )
 
 
@@ -331,6 +332,18 @@ def test_parallel_h3_series_keeps_all_members_in_place_and_drops_conflicting_war
     assert preview.index("补充说明二") < preview.index("低压力的短暂停留")
     assert preview.index("不被打扰的自主性") < preview.index("与周边服务产生连接")
 
+    # When all protocol slots are already used, retain the host's selected
+    # member instead of expanding its siblings and rejecting the whole brief.
+    full = copy.deepcopy(raw)
+    full["sections"].extend([
+        {**full["sections"][0], "source_block_ids": [block.id], "component_intent": "plain"}
+        for block in parsed.blocks if block.id not in {"block-003", "block-004", "block-010"}
+    ][:10])
+    kept, changes = normalize_editorial_brief_for_article(full, parsed)
+    assert len(kept.sections) == 12
+    assert kept.sections[0].component_intent == "concept_explainer"
+    assert not any(c["code"] == "parallel_concept_series_expanded" for c in changes)
+
 
 def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> None:
     request = _request(_dev_samples()[4])
@@ -344,18 +357,116 @@ def test_normalizer_handles_mechanical_model_output_issues_without_repair() -> N
         for block_id in raw["image_intents"][0]["source_block_ids"]
         if block_id != anchor
     ]
-    extra = copy.deepcopy(raw["sections"][0])
-    extra["visual_priority"] = "low"
-    raw["sections"].append(extra)
+    # Four duplicate claims are resolved locally before applying the cap.
+    valid = next(section for section in raw["sections"] if section["component_intent"] == "logic_path")
+    raw["sections"] = [
+        {**copy.deepcopy(valid), "visual_priority": "low" if index == 4 else "high"}
+        for index in range(5)
+    ]
 
     normalized, adjustments = normalize_editorial_brief_for_article(raw, request.parsed)
     codes = {item["code"] for item in adjustments}
     assert "visual_metaphor_truncated" in codes
     assert "image_anchor_added_to_sources" in codes
-    assert "excess_component_intent_lowered_to_plain" in codes
-    assert len([item for item in normalized.sections if item.component_intent != "plain"]) == 4
+    assert "excess_component_intent_lowered_to_plain" not in codes
+    assert sum(item["code"] == "component_intent_lowered_to_plain" for item in adjustments) == 4
+    assert len([item for item in normalized.sections if item.component_intent != "plain"]) == 1
     assert len(normalized.image_intents[0].visual_metaphor) == 160
     compile_editorial_brief(request.parsed, normalized, 5, [])
+
+
+def test_host_isolates_missing_references_and_duplicate_images_without_changing_good_choices() -> None:
+    req = _concept_request()
+    good = _concept_brief(req).model_dump(mode="json")
+    raw = copy.deepcopy(good)
+    section, image = raw["sections"][0], raw["image_intents"][0]
+    raw["sections"] += [
+        {**section, "source_block_ids": ["block-999"]},
+        {**section, "source_block_ids": ["block-005", "block-999"]},
+    ]
+    raw["image_intents"] = [dict(image, source_block_ids=["block-999"]), image,
+                            dict(image, visual_metaphor="不要替换第一张")]
+    saved = copy.deepcopy(raw)
+    result = adopt_host_agent_editorial_brief(raw, req)
+    assert not result.fallback_used and raw == saved
+    assert [(s.component_intent, s.source_block_ids) for s in result.brief.sections] == [
+        ("concept_explainer", section["source_block_ids"]), ("plain", ["block-005"])]
+    assert len(result.brief.image_intents) == 1
+    codes = [item["code"] for item in result.normalization_adjustments]
+    assert codes.count("section_invalid_reference_isolated") == 2
+    assert "image_invalid_reference_removed" in codes and "duplicate_image_anchor_removed" in codes
+    before = adopt_host_agent_editorial_brief(good, req)
+    assert render_preview(req.parsed, compile_editorial_brief(req.parsed, result.brief, 5)) == render_preview(
+        req.parsed, compile_editorial_brief(req.parsed, before.brief, 5))
+
+
+def test_budget_counts_only_bindable_unique_requests_and_keeps_priority_order() -> None:
+    parsed = parse_markdown("# 通知\n\n" + "\n\n".join(f"事项 {i} 的具体约束。" for i in range(9)))
+    base = _concept_brief(_concept_request()).model_dump(mode="json")
+    base["image_intents"] = []
+    def section(n, kind, priority):
+        return dict(source_block_ids=[f"block-{n:03d}"], semantic_role="warning",
+                    component_intent=kind, visual_priority=priority, reasoning="原稿说明。")
+    # The four high-priority invalid requests must not take the three seats.
+    base["sections"] = [section(n, "comparison_card", "high") for n in (3, 5, 7, 9)] + [
+        section(2, "warning_note", "low"), section(4, "warning_note", "medium"),
+        section(6, "warning_note", "high"), section(8, "warning_note", "medium"),
+    ]
+    result, adjustments = normalize_editorial_brief_for_article(base, parsed)
+    assert [s.source_block_ids[0] for s in result.sections if s.component_intent != "plain"] == [
+        "block-004", "block-006", "block-008"]
+    assert sum(x["code"] == "excess_component_intent_lowered_to_plain" for x in adjustments) == 1
+
+
+def test_short_story_titles_are_not_automatic_concepts_and_three_host_cases_survive() -> None:
+    parsed = parse_markdown("# 阅览室\n\n## 三次改动\n\n" + "\n\n".join(
+        f"### {place}的案例：来访者停了一下\n\n值班同事移了位置后，来访者不用再回头问，就能找到要去的地方。\n\n这是在{place}留下的一次记录。"
+        for place in ("门口", "窗边", "还书台")))
+    assert "concept_explainer" not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw.update(image_intents=[], sections=[dict(source_block_ids=[f"block-{n:03d}", f"block-{n+1:03d}"],
+        component_intent="case_card", semantic_role="case", visual_priority="high", reasoning="并列案例。")
+        for n in (3, 6, 9)])
+    contract, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, contract, 5)
+    assert [(s["component_type"], s["anchor_block_id"]) for s in plan["slots"]] == [
+        ("case_card", "block-003"), ("case_card", "block-006"), ("case_card", "block-009")]
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+
+
+def test_host_plain_scene_headings_stay_plain_in_the_finished_article() -> None:
+    parsed = parse_markdown(
+        "# 渡口下了一夜雨\n\n## 候船室\n\n"
+        "### 铜铃\n\n风从没有扣紧的小窗灌进来，柜上的铃铛便轻轻响一下。\n\n"
+        "### 白线\n\n我的前轮压在地上一道褪色的漆上，我把车子往后挪了半步。\n\n"
+        "### 末班船\n\n穿蓝雨衣的人从坡底上来，拎着两包湿漉漉的菜。"
+    )
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw.update(image_intents=[], sections=[dict(
+        component_intent="plain", semantic_role="plain_narrative", visual_priority="medium",
+        source_block_ids=[b.id for b in parsed.blocks[2:]], reasoning="短标题是三个叙事场景。",
+    )])
+    result = adopt_host_agent_editorial_brief(raw, TextPlannerRequest(parsed, "lively_growth", 5, [], {}))
+    assert not result.fallback_used
+    plan = compile_editorial_brief(parsed, result.brief, 5)
+    assert plan["slots"] == []
+    html = render_preview(parsed, plan)
+    positions = [html.index(b.content) for b in parsed.blocks[2:]]
+    assert positions == sorted(positions)
+
+
+def test_explicit_bilingual_terms_bind_even_without_keyword_or_length_match() -> None:
+    parsed = parse_markdown("# 课堂观察\n\n## 两个术语\n\n### 认识论框架 (Epistemic Frames)\n\n研究者借此描述群体怎样建立知识。\n\n### 科学认同 (Science Identity)\n\n讨论一个人是否将自己视为科学实践者。")
+    raw = _concept_brief(_concept_request()).model_dump(mode="json")
+    raw["image_intents"] = []
+    raw["sections"][0]["source_block_ids"] = [f"block-{i:03d}" for i in range(3, 7)]
+    contract, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, contract, 5)
+    first, = plan["slots"]
+    assert first["component_type"] == "concept_explainer"
+    assert first["consume_block_ids"] == raw["sections"][0]["source_block_ids"]
+    preview = render_preview(parsed, plan)
+    assert preview.index("Epistemic Frames") < preview.index("Science Identity")
 
 
 def test_normalizer_does_not_turn_article_h1_into_body_question_component() -> None:
@@ -378,7 +489,7 @@ def test_normalizer_does_not_turn_article_h1_into_body_question_component() -> N
     assert all("block-001" not in slot["consume_block_ids"] for slot in plan["slots"])
 
 
-def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> None:
+def test_grounded_candidates_do_not_impose_a_quota_on_the_brief() -> None:
     parsed = parse_markdown(
         """# 弱模型组件覆盖验收
 
@@ -446,20 +557,147 @@ def test_compiler_supplements_weak_model_brief_from_fact_bound_candidates() -> N
     diagnostics = plan["component_diagnostics"]
 
     assert diagnostics["requested_component_count"] == 0
-    assert diagnostics["coverage_target"] >= 4
-    assert diagnostics["coverage_added_count"] >= 4
-    assert diagnostics["selected_component_count"] >= 4
-    selected_types = set(diagnostics["selected_component_types"])
-    assert len(selected_types) >= 4
+    assert diagnostics["coverage_added_count"] == diagnostics["selected_component_count"] == 0
+    assert plan["slots"] == plan["image_slots"] == []
     assert {
         "warning_note",
         "action_checklist",
         "comparison_card",
-    }.issubset(selected_types)
-    assert all(
-        slot["selection_reason"].startswith("组件覆盖兜底：")
-        for slot in plan["slots"]
+    }.issubset(component_opportunity_diagnostics(parsed)["eligible_component_types"])
+    preview = render_preview(parsed, plan)
+    assert "相关项目仍需经过后续程序确认" in preview
+    assert "标记专业限制与个人条件" in preview
+    assert "同时核对位次和规则" in preview
+
+
+def _compile_with_sections(markdown: str, sections: list[dict]) -> tuple:
+    parsed = parse_markdown(markdown)
+    request = TextPlannerRequest(
+        parsed=parsed, article_type="viewpoint_trend", history_window=5,
+        recent_summaries=[], brand_config={},
     )
+    raw = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    raw.update(sections=sections, image_intents=[])
+    return parsed, compile_editorial_brief(parsed, raw, 5, [])
+
+
+def test_no_unrequested_components_for_ordinary_lists_quotes_and_personal_concerns() -> None:
+    markdown = """# 一次产品试用
+
+我在反复跑过几轮以后，开始担心自己的维护成本和风险会上升。
+
+> 请注意素材不要照搬品牌原图。这是一段交给设计工具的任务说明。
+
+第二天我只试了下面两个版本，没有给它们排名。
+
+- 桌面版本
+- 移动版本
+"""
+    # A long narrative should not turn into a component quota.
+    markdown += "\n\n".join(f"\n第 {index} 次回访时，我记录了当天的情况。" for index in range(45))
+    parsed, plan = _compile_with_sections(markdown, [])
+
+    assert "warning_note" not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    assert plan["slots"] == []
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+    preview = render_preview(parsed, plan)
+    assert "交给设计工具的任务说明" in preview
+    assert "桌面版本" in preview and "移动版本" in preview
+
+
+def test_requested_plain_and_unmentioned_warnings_both_remain_plain() -> None:
+    markdown = """# 样稿检查
+
+风险提示：这份初稿不适用对外发布。
+
+保留一段解释当时的背景。
+
+## 注意事项
+
+不要把临时账号用于正式报名。
+
+现在切换到后续维护事宜。
+
+请勿在归档时删除原始记录。
+"""
+    plain = {
+        "source_block_ids": ["block-002"], "semantic_role": "plain_narrative",
+        "visual_priority": "medium", "component_intent": "plain", "reasoning": "该段保留正文。",
+    }
+    parsed, plan = _compile_with_sections(markdown, [plain])
+    warnings = [slot for slot in plan["slots"] if slot["component_type"] == "warning_note"]
+    assert warnings == []
+    assert "warning_note" in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    preview = render_preview(parsed, plan)
+    assert "不适用对外发布" in preview and "删除原始记录" in preview
+
+
+def test_unrequested_sequence_and_comparison_keep_source_structure() -> None:
+    parsed, plan = _compile_with_sections("""# 办理流程
+
+## 操作步骤
+
+1. 下载申请表
+2. 填写并提交申请表
+3. 接收审核结果
+
+以上顺序以系统状态为准。
+
+## 两种办理方式对比
+
+- 线上办理不需要前往窗口。
+- 线下办理可以当面核对材料。
+""", [])
+    candidates = set(component_opportunity_diagnostics(parsed)["eligible_component_types"])
+    assert {"logic_path", "comparison_card"} <= candidates
+    assert plan["slots"] == []
+    assert plan["component_diagnostics"]["coverage_added_count"] == 0
+    assert [b.type for b in parsed.blocks if b.type.endswith("_list")] == ["ordered_list", "unordered_list"]
+    preview = render_preview(parsed, plan)
+    assert "接收审核结果" in preview and "当面核对材料" in preview
+
+
+@pytest.mark.parametrize("heading, component", [
+    ("三种方式对比", "comparison_card"),
+    ("改革前后变化", "before_after_timeline"),
+])
+def test_multi_option_list_is_not_consumed_by_a_two_sided_component(heading, component) -> None:
+    parsed, plan = _compile_with_sections(f"""# 选项说明
+
+## {heading}
+
+- 第一种：线上提交。
+- 第二种：现场办理。
+- 第三种：邮寄申请。
+""", [])
+    assert component not in component_opportunity_diagnostics(parsed)["eligible_component_types"]
+    source = next(block for block in parsed.blocks if block.type == "unordered_list")
+    raw = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="viewpoint_trend", history_window=5,
+        recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    raw.update(sections=[{
+        "source_block_ids": [source.id], "semantic_role": "comparison",
+        "visual_priority": "high", "component_intent": component, "reasoning": "对照。",
+    }], image_intents=[])
+    normalized, _ = normalize_editorial_brief_for_article(raw, parsed)
+    assert normalized.sections[0].component_intent == "plain"
+    for result in (plan, compile_editorial_brief(parsed, normalized, 5, [])):
+        preview = render_preview(parsed, result)
+        assert all(preview.count(text) == 1 for text in source.content)
+
+
+def test_before_after_under_chapter_keeps_chapter_and_binds_both_items() -> None:
+    parsed, plan = _compile_with_sections("# 教学记录\n\n## 改革前后变化\n\n- 传统方式以讲授为主。\n- 新方式以协作为主。", [{
+        "source_block_ids": ["block-003"], "semantic_role": "comparison", "visual_priority": "medium",
+        "component_intent": "before_after_timeline", "reasoning": "原文以两项直接对照改革前后。",
+    }])
+    chapter, source = parsed.blocks[-2:]
+    slot, = plan["slots"]
+    assert slot["component_type"] == "before_after_timeline"
+    assert slot["consume_block_ids"] == [source.id]
+    preview = render_preview(parsed, plan)
+    assert all(preview.count(text) == 1 for text in [chapter.content, *source.content])
 
 
 def test_compiler_consumes_only_bound_blocks_and_preserves_context_copy() -> None:
@@ -879,13 +1117,12 @@ def test_h2_concept_is_lowered_but_adjacent_h3_definition_is_allowed() -> None:
 @pytest.mark.parametrize("sample", _dev_samples(), ids=lambda item: item["id"])
 def test_mock_planner_compiles_all_seven_dev_samples(sample: dict) -> None:
     request = _request(sample)
-    result = generate_editorial_brief(MockTextPlannerProvider(), request)
-    assert not result.fallback_used
-    assert result.brief.article.article_type == sample["gold_article_type"]
-    assert len([item for item in result.brief.sections if item.component_intent != "plain"]) <= 6
-    assert len(result.brief.image_intents) <= 3
+    brief = MockTextPlannerProvider().generate(request)
+    assert brief.article.article_type == sample["gold_article_type"]
+    assert len([item for item in brief.sections if item.component_intent != "plain"]) <= 6
+    assert len(brief.image_intents) <= 3
 
-    plan = compile_editorial_brief(request.parsed, result.brief, 5, [])
+    plan = compile_editorial_brief(request.parsed, brief, 5, [])
     assert len(plan["slots"]) <= 6
     assert len(plan["image_slots"]) <= 3
     document = render_preview(request.parsed, plan)
@@ -896,10 +1133,9 @@ def test_mock_planner_compiles_all_seven_dev_samples(sample: dict) -> None:
 @pytest.mark.parametrize("sample", _visual_contrast_samples(), ids=lambda item: item["id"])
 def test_mock_planner_compiles_visual_contrast_samples(sample: dict) -> None:
     request = _request(sample)
-    result = generate_editorial_brief(MockTextPlannerProvider(), request)
-    plan = compile_editorial_brief(request.parsed, result.brief, 5, [])
+    brief = MockTextPlannerProvider().generate(request)
+    plan = compile_editorial_brief(request.parsed, brief, 5, [])
 
-    assert not result.fallback_used
     assert plan["style_mode"] in {
         "ink_navy_editorial",
         "warm_coral_editorial",
@@ -909,22 +1145,6 @@ def test_mock_planner_compiles_visual_contrast_samples(sample: dict) -> None:
     document = render_preview(request.parsed, plan)
     assert "width:100%" in document
     assert "width:390px" not in document
-
-
-def test_provider_error_falls_back_to_rule_brief() -> None:
-    class FailingProvider:
-        provider = "failing"
-        model = "failing-model"
-        configured = True
-
-        def generate(self, request: TextPlannerRequest):
-            raise TimeoutError("probe timeout")
-
-    request = _request(_dev_samples()[4])
-    result = generate_editorial_brief(FailingProvider(), request)
-    assert result.fallback_used
-    assert "TimeoutError" in (result.fallback_reason or "")
-    compile_editorial_brief(request.parsed, result.brief, 5, [])
 
 
 def test_provider_payload_excludes_secrets_and_full_history() -> None:
@@ -954,29 +1174,9 @@ def test_provider_payload_excludes_secrets_and_full_history() -> None:
     assert payload["component_opportunities"]["eligible_component_types"]
 
 
-def test_editorial_brief_api_returns_baseline_and_experimental_plan(tmp_path: Path) -> None:
-    app = create_app(str(tmp_path / "brief.db"), text_planner_provider=MockTextPlannerProvider())
-    markdown = (ROOT / _dev_samples()[4]["path"]).read_bytes()
-    with TestClient(app) as client:
-        created = client.post(
-            "/api/v1/article-tasks",
-            files={"markdown_file": ("sample.md", markdown, "text/markdown")},
-        ).json()["task"]
-        response = client.post(
-            f'/api/v1/article-tasks/{created["id"]}/editorial-brief/generate',
-            json={"expected_task_version": created["version"]},
-        )
-        assert response.status_code == 200
-        payload = response.json()
-        assert payload["brief"]["schema_version"] == "editorial_brief.v0.1"
-        assert payload["planner_run"]["provider"] == "rule_text_planner"
-        assert payload["experimental_plan"]["plan_name"] == "智能规划 · Editorial Brief"
-        diagnostics = payload["experimental_plan"]["component_diagnostics"]
-        assert diagnostics["eligible_candidate_count"] >= diagnostics["selected_component_count"]
-        assert diagnostics["selected_component_types"]
-        assert len(payload["experimental_plans"]) == 2
-        assert len({plan["structure_fingerprint"] for plan in payload["experimental_plans"]}) == 1
-        assert payload["baseline_plan"]["recommendation"] == "recommended"
+def test_experimental_planning_route_is_not_shipped(tmp_path: Path) -> None:
+    with TestClient(create_app(str(tmp_path / "api.db"))) as client:
+        assert not any(path.endswith("/editorial-brief/generate") for path in client.get("/openapi.json").json()["paths"])
 
 
 def test_host_agent_context_and_brief_use_no_second_provider_call(tmp_path: Path) -> None:
@@ -1043,7 +1243,188 @@ article_type: tutorial_steps
         assert all(plan["planner_metadata"]["provider"] == "host_agent" for plan in plans)
 
 
-def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Path) -> None:
+@pytest.mark.parametrize("count, proposed, expected", [
+    (2, ["开放入口", "确认出口"], ["开放入口", "确认出口"]),
+    (4, ["开放入口", "确认出口", "核对时间", "登记人数"], ["开放入口", "确认出口", "核对时间", "登记人数"]),
+    (2, ["确认出口", "杜撰节点"], ["请先开放入口。", "再确认出口。"]),
+    (2, ["开放入口", "杜撰节点"], ["开放入口", "再确认出口。"]),
+    (2, ["只有一项"], ["请先开放入口。", "再确认出口。"]),
+    (2, {"格式": "错误"}, ["请先开放入口。", "再确认出口。"]),
+    (2, None, ["请先开放入口。", "再确认出口。"]),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数"], None),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"], ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"]),
+    (5, ["确认出口", "开放入口", "核对时间", "登记人数", "补充地址"], None),
+    (5, ["开放入口", "确认出口", "核对时间", "登记人数", "另编地址"], None),
+    (5, None, None),
+    (6, ["开放入口", "确认出口", "核对时间", "登记人数", "补充地址"], None),
+])
+def test_agent_infographic_copy_is_source_bound_and_never_truncates_a_list(count, proposed, expected):
+    items = ["请先开放入口。", "再确认出口。", "接着核对时间。", "最后登记人数。", "补充地址。", "关闭入口。"][:count]
+    parsed = parse_markdown("# 核对流程\n\n## 现场安排\n\n" + "\n".join(f"{i}. {v}" for i, v in enumerate(items, 1)))
+    raw = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    block = next(block for block in parsed.blocks if block.type == "ordered_list")
+    raw["image_intents"] = [{
+        "anchor_block_id": block.id, "source_block_ids": [block.id], "purpose": "structured_infographic",
+        "necessity": "optional", "aspect_ratio": "4:3", "visual_metaphor": "现场检查路径",
+        "forbidden_elements": ["qr_code", "logo"],
+    }]
+    if proposed is not None:
+        raw["image_intents"][0]["display_labels"] = proposed
+    brief, _ = normalize_editorial_brief_for_article(raw, parsed)
+    plan = compile_editorial_brief(parsed, brief, 5)
+    if expected is None:
+        assert not any(img["purpose"] == "structured_infographic" for img in plan["image_slots"])
+        if count == 5:
+            assert not plan["image_slots"]
+        assert list(block.content) == items
+        return
+    image = plan["image_slots"][0]
+    assert image["purpose"] == "structured_infographic"
+    assert image["visual_intent"]["visual_grammar"]["display_labels"] == expected
+    assert image["fact_bindings"]["item_refs"] == [f"{block.id}:item:{i}" for i in range(count)]
+
+
+def test_five_steps_alone_trigger_neither_an_agent_nor_a_rule_infographic():
+    parsed = parse_markdown("# 植树\n\n## 五个动作\n\n1. 挖坑\n2. 放苗\n3. 填土\n4. 踩实\n5. 浇水")
+    brief = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    brief["image_intents"] = []
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    for plan in generate_plans(parsed, "tutorial_steps", 5, []):
+        assert not any(img["purpose"] == "structured_infographic" for img in plan["image_slots"])
+
+
+def test_five_labels_bind_to_the_matching_list_not_the_first_list_in_the_section():
+    parsed = parse_markdown("# 植树\n\n## 安排\n\n- 铁锹\n- 水桶\n\n现场操作：\n\n1. 挖坑\n2. 放苗\n3. 填土\n4. 踩实\n5. 浇水")
+    request = TextPlannerRequest(parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={})
+    brief = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    tools, steps = [b for b in parsed.blocks if b.type.endswith("_list")]
+    brief["image_intents"] = [{
+        "anchor_block_id": steps.id, "source_block_ids": [tools.id, steps.id],
+        "purpose": "structured_infographic", "necessity": "recommended", "aspect_ratio": "4:3",
+        "display_labels": list(steps.content), "visual_metaphor": "植树过程",
+        "forbidden_elements": ["qr_code", "logo", "text_in_model_image"],
+    }]
+    slot, = compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    assert slot["fact_bindings"]["item_refs"] == [f"{steps.id}:item:{i}" for i in range(5)]
+    brief["image_intents"][0]["display_labels"].pop()
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+
+
+def test_long_unlabelled_copy_skips_optional_image_but_accepts_label_beyond_old_anchor_limit():
+    items = ["先观察" * 45 + "路口的照明方向", "再核对可通行时段"]
+    parsed = parse_markdown("# 现场记录\n\n## 核查\n\n1. " + items[0] + "\n2. " + items[1])
+    request = TextPlannerRequest(parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={})
+    brief = MockTextPlannerProvider().generate(request).model_dump(mode="json")
+    block = next(block for block in parsed.blocks if block.type == "ordered_list")
+    brief["image_intents"] = [{
+        "anchor_block_id": block.id, "source_block_ids": [block.id], "purpose": "structured_infographic",
+        "necessity": "optional", "aspect_ratio": "4:3", "visual_metaphor": "沿路观察",
+        "forbidden_elements": ["qr_code", "logo", "text_in_model_image"],
+    }]
+    assert not compile_editorial_brief(parsed, brief, 5)["image_slots"]
+    brief["image_intents"][0]["display_labels"] = ["路口的照明方向", "可通行时段"]
+    intent = compile_editorial_brief(parsed, brief, 5)["image_slots"][0]["visual_intent"]
+    assert intent["fact_anchors"] == items
+    assert intent["visual_grammar"]["display_labels"] == brief["image_intents"][0]["display_labels"]
+
+
+@pytest.mark.parametrize("extra_items", [[], ["拍下指路牌。", "记录离场时间。"]], ids=["three", "five"])
+def test_first_pass_night_market_labels_survive_both_generation_routes_and_edits(tmp_path: Path, extra_items) -> None:
+    class CaptureProvider(MockImageProvider):
+        protocol = "ark"  # exercise the other prompt compiler without sending any HTTP requests
+        prompt = ""
+
+        def generate(self, *, prompt, aspect_ratio, candidate_index):
+            self.prompt = prompt
+            return super().generate(prompt=prompt, aspect_ratio=aspect_ratio, candidate_index=candidate_index)
+
+    markdown = """# 夜市动线
+
+先走一遍，再记录观察结果。
+
+## 沿途要观察什么
+
+1. 入口是否能在十秒内说明“这里为什么值得逛”；
+2. 中段是否有让人放慢脚步、产生交流的停留区；
+3. 尾段是否给出继续探索周边店铺或下次再来的线索。
+"""
+    markdown += "".join(f"{i}. {item}\n" for i, item in enumerate(extra_items, 4))
+    parsed = parse_markdown(markdown)
+    brief = MockTextPlannerProvider().generate(TextPlannerRequest(
+        parsed=parsed, article_type="tutorial_steps", history_window=5, recent_summaries=[], brand_config={},
+    )).model_dump(mode="json")
+    ordered = next(block for block in parsed.blocks if block.type == "ordered_list")
+    labels = ["这里为什么值得逛", "产生交流的停留区", "继续探索周边店铺或下次再来的线索"]
+    labels += [item.rstrip("。") for item in extra_items]
+    brief["image_intents"] = [{
+        "anchor_block_id": ordered.id, "source_block_ids": [ordered.id],
+        "purpose": "structured_infographic", "necessity": "recommended", "aspect_ratio": "4:3",
+        "visual_metaphor": "沿着夜市一路观察", "display_labels": labels,
+        "forbidden_elements": ["qr_code", "logo"],
+    }]
+    provider = CaptureProvider()
+    with TestClient(create_app(str(tmp_path / "night-market.db"), image_provider=provider)) as client:
+        task = client.post("/api/v1/article-tasks", files={
+            "markdown_file": ("night-market.md", markdown.encode(), "text/markdown"),
+        }).json()["task"]
+        url = f'/api/v1/article-tasks/{task["id"]}'
+        generation = client.post(f"{url}/generate-plans", json={
+            "mode": "start", "planner": "host_agent", "expected_task_version": task["version"],
+            "editorial_brief": brief,
+        }).json()
+        assert not generation["planner_metadata"]["fallback_used"]
+        plan = client.get(f"{url}/plans").json()["plans"][0]
+        plan_url = f'{url}/plans/{plan["id"]}'
+
+        def host():
+            return client.get(f"{plan_url}/host-image-context").json()["requests"][0]
+
+        def edit(block_id, content):
+            revision = client.get(f"{url}/content-editor").json()["revision"]
+            saved = client.patch(f"{url}/content-editor", json={
+                "expected_revision": revision, "target": "block", "block_id": block_id, "content": content,
+            })
+            assert saved.is_success, saved.text
+
+        assert host()["locked_copy"][1:] == labels
+        edit(next(b.id for b in parsed.blocks if b.type == "paragraph"), "这一段改了，图上文案不变。")
+        assert host()["locked_copy"][1:] == labels
+        theme = "pop_poster" if plan["visual_system"] != "pop_poster" else "future_tech"
+        switched = client.patch(f"{plan_url}/theme", json={
+            "visual_system": theme, "expected_plan_revision": plan["revision"],
+        })
+        assert switched.is_success, switched.text
+        req = host()
+        assert req["locked_copy"][1:] == labels
+        draw = client.post(f'{plan_url}/image-slots/{req["image_slot_id"]}/generate', json={
+            "mode": "start", "expected_image_revision": req["expected_image_revision"],
+        })
+        assert draw.is_success, draw.text
+        assert draw.json()["image_slot"]["candidates"][0]["machine_checks"]["locked_copy"] == req["locked_copy"]
+        for prompt in (req["prompt"], provider.prompt):
+            for index, label in enumerate(labels, 1):
+                assert f'{index}.“{label}”' in prompt
+        edit(ordered.id, [ordered.content[0], "中段新增休息点。", *ordered.content[2:]])
+        assert host()["locked_copy"][1:] == [labels[0], "中段新增休息点", *labels[2:]]
+        # A later edit can leave one node with no phone-readable excerpt.
+        # Both routes must stop before drawing, without blocking the text edit.
+        edit(ordered.id, [ordered.content[0], "在不遮挡通行空间的前提下" * 4 + "设置休息点。", *ordered.content[2:]])
+        ctx = client.get(f"{plan_url}/host-image-context").json()
+        assert not ctx["requests"]
+        assert ctx["blocked_targets"][0]["reason"] == "infographic_copy_too_long"
+        provider.prompt = ""
+        blocked = client.post(f'{plan_url}/image-slots/{req["image_slot_id"]}/generate', json={
+            "mode": "regenerate", "expected_image_revision": draw.json()["image_slot"]["image_revision"],
+        })
+        assert blocked.status_code == 422
+        assert not provider.prompt
+
+
+def test_invalid_host_agent_brief_returns_the_same_task_for_revision(tmp_path: Path) -> None:
     app = create_app(str(tmp_path / "host-agent-fallback.db"))
     markdown = """# 三步完成志愿核对
 
@@ -1068,10 +1449,6 @@ def test_invalid_host_agent_brief_falls_back_to_rules_transparently(tmp_path: Pa
                 "editorial_brief": {"unexpected": True},
             },
         )
-        assert generated.status_code == 202
-        metadata = generated.json()["planner_metadata"]
-        assert metadata["provider"] == "host_agent"
-        assert metadata["fallback_used"] is True
-        assert metadata["provider_error_code"] == "host_brief_invalid"
-        assert "ValidationError" in metadata["fallback_reason"]
-        assert len(client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"]) == 1
+        assert generated.status_code == 422
+        assert "host_brief_invalid" in generated.text
+        assert client.get(f'/api/v1/article-tasks/{task["id"]}/plans').json()["plans"] == []

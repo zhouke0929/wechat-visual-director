@@ -1,0 +1,31 @@
+{
+  "revision": "10e5661afbe39e9999c7e8a3b5ca943f67c12ba5",
+  "default": {
+    "indigo_cloth/action_checklist": "c7a9b25886c0c565dc57938a3b3d9ad3656840c781d5a98e893f5a63ebd3a4b1",
+    "indigo_cloth/comparison_card": "bddee16df3e1f4481ac8b87cac0be49a929b2a5abfb9598cab4cc0f85e095c9e",
+    "indigo_cloth/whole_article": "2298a1f79206e168b952378d15dce11702b8e56a2a2ec1967ef8f726208ab465",
+    "retro_window/faq_card": "11d6e6d5c4daa10fadd479ac9befd3136ebe7b043655b0a1d838e250436c396b",
+    "retro_window/whole_article": "bb0b3f22104a0d6be78fe3b529418bb070198210cce216a10e1207bf956a818f"
+  },
+  "legacy": {
+    "indigo_cloth/action_checklist": "c7a9b25886c0c565dc57938a3b3d9ad3656840c781d5a98e893f5a63ebd3a4b1",
+    "indigo_cloth/comparison_card": "bddee16df3e1f4481ac8b87cac0be49a929b2a5abfb9598cab4cc0f85e095c9e",
+    "indigo_cloth/whole_article": "2298a1f79206e168b952378d15dce11702b8e56a2a2ec1967ef8f726208ab465",
+    "retro_window/faq_card": "11d6e6d5c4daa10fadd479ac9befd3136ebe7b043655b0a1d838e250436c396b",
+    "retro_window/whole_article": "bb0b3f22104a0d6be78fe3b529418bb070198210cce216a10e1207bf956a818f"
+  },
+  "structure": {
+    "indigo_cloth/action_checklist": "c7a9b25886c0c565dc57938a3b3d9ad3656840c781d5a98e893f5a63ebd3a4b1",
+    "indigo_cloth/comparison_card": "bddee16df3e1f4481ac8b87cac0be49a929b2a5abfb9598cab4cc0f85e095c9e",
+    "indigo_cloth/whole_article": "2298a1f79206e168b952378d15dce11702b8e56a2a2ec1967ef8f726208ab465",
+    "retro_window/faq_card": "11d6e6d5c4daa10fadd479ac9befd3136ebe7b043655b0a1d838e250436c396b",
+    "retro_window/whole_article": "bb0b3f22104a0d6be78fe3b529418bb070198210cce216a10e1207bf956a818f"
+  },
+  "reading": {
+    "indigo_cloth/action_checklist": "c7a9b25886c0c565dc57938a3b3d9ad3656840c781d5a98e893f5a63ebd3a4b1",
+    "indigo_cloth/comparison_card": "bddee16df3e1f4481ac8b87cac0be49a929b2a5abfb9598cab4cc0f85e095c9e",
+    "indigo_cloth/whole_article": "2298a1f79206e168b952378d15dce11702b8e56a2a2ec1967ef8f726208ab465",
+    "retro_window/faq_card": "11d6e6d5c4daa10fadd479ac9befd3136ebe7b043655b0a1d838e250436c396b",
+    "retro_window/whole_article": "bb0b3f22104a0d6be78fe3b529418bb070198210cce216a10e1207bf956a818f"
+  }
+}

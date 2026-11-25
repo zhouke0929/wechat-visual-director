@@ -175,6 +175,50 @@ def test_fixed_labels_require_semantic_review_without_rejecting_valid_layouts():
     assert not any(f['code'] == 'fixed_label_review' for f in theme_delivery_report(manifest)['findings'])
 
 
+def test_logic_path_step_hierarchy_reuses_core_format_without_changing_old_packs():
+    from jsonschema import Draft202012Validator
+    from visual_director.brief_compiler import visual_system_variant
+    from visual_director.component_catalog import CORE_THEME_COMPONENTS, VISUAL_SYSTEM_ORDER
+    from visual_director.components import render_component
+    from visual_director.parser import parse_markdown
+    from visual_director.theme_layouts import validate_layouts
+    from visual_director.theme_packs import validate_theme_pack_bytes
+
+    root = Path(__file__).resolve().parents[3]
+    manifest = json.loads((root / 'skills/wechat-visual-director/assets/theme-pack-template.json').read_text(encoding='utf-8'))
+    schema = json.loads((root / 'contracts/theme-pack-v1.schema.json').read_text(encoding='utf-8'))
+    Draft202012Validator(schema).validate(manifest)
+    normalized = validate_theme_pack_bytes(json.dumps(manifest).encode(), 'sample.json',
+                                           reserved_ids=VISUAL_SYSTEM_ORDER, core_components=CORE_THEME_COMPONENTS)
+    assert normalized['design_system']['layouts']['logic_path'] == manifest['design_system']['layouts']['logic_path']
+    design = manifest['design_system']
+    layout = design['layouts']['logic_path']
+    assert not validate_layouts({'logic_path': layout})
+    assert validate_layouts({'list': layout})[0]['field'].endswith('.format')
+    assert validate_layouts({'logic_path': {'type': 'repeat', 'bind':'items', 'children':[
+        {'type':'field', 'bind':'item', 'format':'arbitrary-css'}]}})
+
+    old = copy.deepcopy(design)
+    old['layouts']['logic_path']['children'][0]['children'][1].pop('format')
+    parsed = parse_markdown('# 步骤\n\n1. **先做核对。**\\\n   保留 **原始 & 真实记录**。\n2. **结束。**\n3. **注意：** 普通短句。')
+    steps = next(block for block in parsed.blocks if block.type == 'ordered_list')
+    slot = {'component_type': 'logic_path', 'variant': visual_system_variant('logic_path', 'editorial_contrast'),
+            'content_bindings': {'items': [f'{steps.id}:item:{index}' for index in range(3)]}}
+
+    def fields(design_system):
+        config = {'palette': manifest['palette'], 'generated_design_system': design_system}
+        return BeautifulSoup(render_component(slot, parsed, config['palette'], config), 'html.parser').select('[data-theme-field="item"]')
+
+    new_fields, old_fields = fields(design), fields(old)
+    assert [row.get_text(strip=True) for row in new_fields] == [row.get_text(strip=True) for row in old_fields]
+    assert len(new_fields) == 3 and all(field.name == 'p' for field in new_fields)
+    assert new_fields[0].strong.get_text() == '先做核对。'
+    assert new_fields[0].strong['style'] == 'font-weight:750;'
+    assert new_fields[0].span.strong.get_text() == '原始 & 真实记录'
+    assert old_fields[0].decode_contents() == '<strong>先做核对。</strong><br/>保留 <strong>原始 &amp; 真实记录</strong>。'
+    assert [field.decode_contents() for field in new_fields[1:]] == [field.decode_contents() for field in old_fields[1:]]
+
+
 def test_custom_decoration_freeze_copy_export_and_publisher_share_bytes(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from test_api_workflow import _prepare_publication_ready_task, _freeze_publication

@@ -27,6 +27,40 @@ article_type: tutorial_steps
     assert classify_article(article) == "tutorial_steps"
 
 
+def test_explicit_step_break_keeps_title_and_detail_in_one_list_item() -> None:
+    from visual_director.preflight import run_preflight
+
+    result = run_preflight(
+        "# 测试文章\r\n\r\n"
+        "1. **核对标题**\\\r\n   字词和原稿一致。\r\n"
+        "2. **核对说明。**  \r\n   保留 **原有强调**。\r\n"
+        "3. **不用先删照片。** 先复制原件。\r\n"
+        "\r\n这是列表外原有的正文。"
+    )
+    assert [(block.type, block.content) for block in result.parsed.blocks[1:]] == [
+        ("ordered_list", ["**核对标题**\n字词和原稿一致。", "**核对说明。**\n保留 **原有强调**。", "**不用先删照片。** 先复制原件。"]),
+        ("paragraph", "这是列表外原有的正文。"),
+    ]
+
+
+def test_explicit_step_break_does_not_consume_heading_nested_list_or_unindented_text() -> None:
+    article = parse_markdown(
+        "# 测试文章\n\n"
+        "1. **这个没有说明**\\\n"
+        "2. **不要吞掉标题**\\\n   ## 标题\n"
+        "3. **不要吞掉子项**\\\n   - 子项\n"
+        "4. **不要吞掉正文**\\\n不在该编号项里的正文。\n"
+    )
+    assert [(block.type, block.content) for block in article.blocks[1:]] == [
+        ("ordered_list", ["**这个没有说明**\\", "**不要吞掉标题**\\"]),
+        ("heading", "标题"),
+        ("ordered_list", ["**不要吞掉子项**\\"]),
+        ("unordered_list", ["子项"]),
+        ("ordered_list", ["**不要吞掉正文**\\"]),
+        ("paragraph", "不在该编号项里的正文。"),
+    ]
+
+
 def test_horizontal_rules_become_thematic_breaks_and_images_are_structured() -> None:
     article = parse_markdown(
         """---

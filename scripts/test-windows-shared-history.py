@@ -91,7 +91,9 @@ def main() -> int:
         return request("/article-tasks", data=payload, content_type=mime)["task"]
 
     def check_ids(expected):
-        actual = {item["id"] for item in request("/article-tasks")["items"]}
+        # The fixtures are imported, not planned. The workbench's default
+        # ready-only list deliberately hides them; audit the complete history.
+        actual = {item["id"] for item in request("/article-tasks?scope=all")["items"]}
         assert actual == set(expected), (actual, expected)
 
     try:
@@ -112,7 +114,8 @@ def main() -> int:
         request(f'/article-tasks/{first["id"]}/preflight/findings/missing_cover/replace-asset', data=payload, content_type=mime)
         # Resolve the controlled image file from the portable dataset, not a guessed URL.
         original_images = {str(p.relative_to(a / "data")): sha(p) for p in (a / "data/image-assets").rglob("*") if p.is_file()}
-        template = json.loads((new / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
+        # Seed historical data using the old version's supported theme format.
+        template = json.loads((old / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
         template["id"], template["name"] = "shared_history_probe", "共享历史验收主题"
         payload, mime = multipart({}, {"theme_file": ("theme.json", "application/json", json.dumps(template, ensure_ascii=False).encode())})
         request("/theme-packs", data=payload, content_type=mime, intent=True)
@@ -139,8 +142,8 @@ def main() -> int:
         active = b / "visual-director.ps1"
         ps(new / "scripts/bootstrap.ps1", "-InstallRoot", b, "-UserDataHome", shared, *common, label="06-second-program-install")
         check_ids([first["id"], second["id"]])
-        via_old_entry = ps(a / "visual-director.ps1", "task", "list", "--json", label="07-old-entry-delegates")
-        assert {item["id"] for item in via_old_entry["items"]} == {first["id"], second["id"]}
+        via_old_entry = ps(a / "visual-director.ps1", "task", "list", "--include-unplanned", "--json", label="07-old-entry-delegates")
+        assert {item["id"] for item in via_old_entry["items"]} == {first["id"], second["id"]}, "Old launcher failed to return both stored task IDs"
         for view in ("codex-appdata-view", "other-agent-appdata-view"):
             fake_local = root / view
             fake_local.mkdir()

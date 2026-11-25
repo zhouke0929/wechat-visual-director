@@ -2,10 +2,18 @@ from __future__ import annotations
 
 import html
 import re
+from collections.abc import Callable, Sequence
 from typing import Any
 
 from .heading_numbers import has_explicit_heading_number
+from .logic_path_content import LogicPathField, marker_alignment_css, step_field_attributes, step_field_text
+from .ordinary_list_content import ListValue, OrdinaryListField, ordinary_list_row
+from .semantic_content import BoundSemanticContent, SemanticField, bind_semantic_content
+from .component_presentation import ComponentRecipe
+from .timeline_recipe import timeline_field, timeline_margin
 from .parser import ParsedArticle
+from .reading_rules import LIST_BODY, STEP_BODY, apply_reading_css
+from .reading_rules import (ARTICLE_TITLE, LABEL, LEAD, QUOTE, SECTION_TITLE, SUBHEADING, TABLE_BODY, TABLE_HEADER, ReadingProfile, render_authored_text)
 
 
 EXTENDED_THEME_KITS: dict[str, dict[str, Any]] = {
@@ -306,55 +314,8 @@ def _inline(value: str) -> str:
     return escaped.replace("\n", "<br>")
 
 
-def _resolve(parsed: ParsedArticle, reference: str) -> str:
-    block_id, _, item_index = reference.partition(":item:")
-    block = next(block for block in parsed.blocks if block.id == block_id)
-    if item_index:
-        return str(block.content[int(item_index)])
-    return str(block.content)
-
-
-def _one(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> str:
-    value = bindings[role]
-    if isinstance(value, list):
-        value = value[0]
-    return _resolve(parsed, str(value))
-
-
-def _many(parsed: ParsedArticle, bindings: dict[str, Any], role: str) -> list[str]:
-    value = bindings[role]
-    values = value if isinstance(value, list) else [value]
-    return [_resolve(parsed, str(item)) for item in values]
-
-
-def _payload(slot: dict[str, Any], parsed: ParsedArticle) -> dict[str, Any]:
-    component_type = str(slot["component_type"])
-    bindings = slot["content_bindings"]
-    if component_type in {"numbered_insight", "logic_path", "action_checklist", "section_summary"}:
-        return {"kind": "list", "items": _many(parsed, bindings, "items")}
-    if component_type in {"before_after_timeline", "comparison_card"}:
-        left_role, right_role = ("before", "after") if component_type == "before_after_timeline" else ("left", "right")
-        return {"kind": "pair", "left": _one(parsed, bindings, left_role), "right": _one(parsed, bindings, right_role)}
-    if component_type == "concept_explainer":
-        if "related_titles" in bindings and "related_definitions" in bindings:
-            titles = [_one(parsed, bindings, "title"), *_many(parsed, bindings, "related_titles")]
-            definitions = [_one(parsed, bindings, "definition"), *_many(parsed, bindings, "related_definitions")]
-            return {
-                "kind": "concept_group",
-                "entries": [
-                    {"title": title, "body": definition}
-                    for title, definition in zip(titles, definitions, strict=True)
-                ],
-            }
-        return {"kind": "title_body", "title": _one(parsed, bindings, "title"), "body": _one(parsed, bindings, "definition")}
-    if component_type == "case_card":
-        return {"kind": "title_body", "title": _one(parsed, bindings, "title"), "body": _one(parsed, bindings, "body")}
-    if component_type == "faq_card":
-        return {"kind": "title_body", "title": _one(parsed, bindings, "question"), "body": _one(parsed, bindings, "answer")}
-    if component_type == "question_hook":
-        return {"kind": "title_body", "title": _one(parsed, bindings, "title"), "body": ""}
-    role = "evidence" if component_type == "evidence_callout" else "body"
-    return {"kind": "single", "body": _one(parsed, bindings, role)}
+def _semantic_inline(value: str | SemanticField) -> str:
+    return value.render(_inline) if isinstance(value, SemanticField) else _inline(value)
 
 
 def _palette(palette: dict[str, str]) -> dict[str, str]:
@@ -456,8 +417,41 @@ def _folio_list_marker(component_type: str, index: int, ordered: bool, accent: s
     return f'<span style="display:inline-block;width:6px;height:6px;background-color:{accent};transform:rotate(45deg);"></span>'
 
 
+def _list_payload_rows(
+    values: Sequence[ListValue | LogicPathField | SemanticField], item_inline: Callable[[str], str],
+) -> list[tuple[int, str, str]]:
+    # Ordinary lists and semantic components share the existing visual
+    # projectors. Their field identities and inline policies stay separate.
+    return [
+        ordinary_list_row(item, index) if isinstance(item, OrdinaryListField)
+        else (index, "", item.render(item_inline)) if isinstance(item, SemanticField)
+        else (index, step_field_attributes(item), step_field_text(item, item_inline))
+        for index, item in enumerate(values, 1)
+    ]
+
+
+def _list_paragraph_renderer(
+    values: Sequence[ListValue | LogicPathField | SemanticField], component_type: str,
+) -> Callable[[str, str, str], str]:
+    # A single source list shares one profile. Its marker, label and enclosing
+    # geometry are unrelated to the reading style of its actual text field.
+    first = values[0] if values else None
+    role = STEP_BODY if component_type == "logic_path" else LIST_BODY
+    if isinstance(first, OrdinaryListField) or (component_type == "logic_path" and isinstance(first, LogicPathField)):
+        profile = first.reading
+    else:
+        profile = None
+
+    def paragraph(field_attrs: str, style: str, item: str) -> str:
+        return f'<p{field_attrs} style="{apply_reading_css(style, role, profile)}">{item}</p>'
+
+    return paragraph
+
+
 def _distinct_payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+    item_inline: Callable[[str], str] = _inline,
+    recipe: ComponentRecipe | None = None,
 ) -> str:
     """Render five materially different reading grammars without theme recolors."""
     kind = payload["kind"]
@@ -465,7 +459,7 @@ def _distinct_payload_html(
     if kind == "concept_group":
         if grammar == "cinema":
             entries = "".join(
-                f'<section style="margin:0 0 17px;white-space:normal;"><span style="display:inline-block;width:24%;padding:7px 10px 0 0;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;vertical-align:top;">CAST {index:02d}</span><section style="box-sizing:border-box;display:inline-block;width:76%;padding:5px 0 13px 17px;border-left:1px dashed {p["primary"]};border-bottom:2px solid {p["secondary"]};vertical-align:top;"><strong style="display:block;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:18px;line-height:1.55;">{_inline(entry["title"])}</strong><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{_inline(entry["body"])}</p></section></section>'
+                f'<section style="margin:0 0 17px;white-space:normal;"><span style="display:inline-block;width:24%;padding:7px 10px 0 0;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;vertical-align:top;">CAST {index:02d}</span><section style="box-sizing:border-box;display:inline-block;width:76%;padding:5px 0 13px 17px;border-left:1px dashed {p["primary"]};border-bottom:2px solid {p["secondary"]};vertical-align:top;"><strong style="display:block;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:18px;line-height:1.55;">{_semantic_inline(entry["title"])}</strong><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{_semantic_inline(entry["body"])}</p></section></section>'
                 for index, entry in enumerate(payload["entries"], 1)
             )
             return f'<section data-content-role="concept-glossary" data-theme-grammar="cast-dossier" style="margin:32px 0;padding:15px 0 2px;border-top:1px dashed {p["primary"]};border-bottom:1px dashed {p["primary"]};"><p style="margin:-24px 0 18px;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.24em;">CAST DOSSIER / 概念角色表</p>{entries}</section>'
@@ -489,7 +483,8 @@ def _distinct_payload_html(
         return f'<section data-content-role="concept-glossary" style="{wrappers[grammar]}">{entries}</section>'
 
     if kind == "list":
-        items = [_inline(item) for item in payload["items"]]
+        items = _list_payload_rows(payload["items"], item_inline)
+        paragraph = _list_paragraph_renderer(payload["items"], component_type)
         list_heading = _list_heading(grammar, component_type, label)
         if grammar == "oriental":
             if quiet_folio:
@@ -511,54 +506,67 @@ def _distinct_payload_html(
 
                 rows = "".join(
                     f'<section style="margin:{row_margin};white-space:normal;"><span style="display:inline-block;width:11%;padding-top:4px;color:{p["accent"]};font:700 12px/1.6 Georgia,serif;vertical-align:top;">{marker(index)}</span>'
-                    f'<p style="box-sizing:border-box;display:inline-block;width:89%;margin:0;padding:{text_padding};border-left:1px solid {p["secondary"]};border-bottom:1px solid #E6DAC4;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;">{item}</p></section>'
-                    for index, item in enumerate(items, 1)
+                    + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:89%;margin:0;padding:{text_padding};border-left:1px solid {p["secondary"]};border-bottom:1px solid #E6DAC4;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;', item)
+                    + '</section>'
+                    for index, field_attrs, item in items
                 )
                 return f'<section data-theme-grammar="bound-folio" data-list-role="{component_type}" style="margin:27px 0;{wrapper_style}">{rows}</section>'
             rows = "".join(
-                f'<section style="margin:0 0 16px;white-space:normal;"><span style="display:inline-block;width:17%;padding-top:2px;color:{p["accent"]};font-family:Georgia,serif;font-size:12px;letter-spacing:.12em;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:83%;margin:0;padding:0 0 13px 16px;border-left:1px solid {p["secondary"]};border-bottom:1px solid #E5DCCB;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 16px;white-space:normal;"><span style="display:inline-block;width:17%;padding-top:2px;color:{p["accent"]};font-family:Georgia,serif;font-size:12px;letter-spacing:.12em;vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:83%;margin:0;padding:0 0 13px 16px;border-left:1px solid {p["secondary"]};border-bottom:1px solid #E5DCCB;color:{p["ink"]};font-size:14px;line-height:1.82;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-theme-grammar="bound-folio" data-list-role="{component_type}" style="margin:31px 0;padding:19px 0 3px 24px;background-color:{p["surface"]};"><p style="margin:0 0 18px -24px;color:{p["primary"]};font-size:9px;letter-spacing:.28em;">— {list_heading}</p>{rows}</section>'
         if grammar == "press":
             rows = "".join(
-                f'<section style="margin:0 0 10px;padding:11px 12px;background-color:{p["surface"]};border:1px solid #C9BAA0;box-shadow:3px 3px 0 {p["secondary_pale"]};white-space:normal;transform:rotate({-0.35 if index % 2 else 0.35}deg);"><span style="display:inline-block;width:13%;color:{p["accent"]};font-family:Georgia,serif;font-size:19px;font-weight:900;vertical-align:top;">{index}</span><p style="box-sizing:border-box;display:inline-block;width:87%;margin:0;padding-left:12px;border-left:1px dashed #978B78;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.72;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 10px;padding:11px 12px;background-color:{p["surface"]};border:1px solid #C9BAA0;box-shadow:3px 3px 0 {p["secondary_pale"]};white-space:normal;transform:rotate({-0.35 if index % 2 else 0.35}deg);"><span style="display:inline-block;width:13%;color:{p["accent"]};font-family:Georgia,serif;font-size:19px;font-weight:900;vertical-align:top;">{index}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:87%;margin:0;padding-left:12px;border-left:1px dashed #978B78;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.72;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-theme-grammar="clipping-stack" data-list-role="{component_type}" style="margin:31px 0;padding:18px 13px 8px;background-color:{p["pale"]};border-top:1px dashed {p["accent"]};border-bottom:1px dashed {p["accent"]};"><p style="margin:-29px 0 15px;text-align:center;"><span style="display:inline-block;padding:4px 13px;background-color:{p["accent"]};color:#FFFFFF;font-size:8px;letter-spacing:.18em;transform:rotate(-2deg);">{list_heading}</span></p>{rows}</section>'
         if grammar == "atlas":
             rows = "".join(
-                f'<section style="margin:0 0 13px;white-space:normal;"><span style="display:inline-block;width:34px;height:34px;margin-left:-24px;border:1px solid {p["primary"]};border-radius:50%;background-color:{p["surface"]};color:{p["primary"]};font:700 10px/34px Georgia;text-align:center;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:87%;margin:0;padding:3px 0 12px 15px;border-bottom:1px solid #D8E0D4;color:{p["ink"]};font-size:14px;line-height:1.8;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 13px;white-space:normal;"><span style="display:inline-block;width:34px;height:34px;margin-left:-24px;border:1px solid {p["primary"]};border-radius:50%;background-color:{p["surface"]};color:{p["primary"]};font:700 10px/34px Georgia;text-align:center;vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:87%;margin:0;padding:3px 0 12px 15px;border-bottom:1px solid #D8E0D4;color:{p["ink"]};font-size:14px;line-height:1.8;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-theme-grammar="field-log" data-list-role="{component_type}" style="margin:31px 0;padding:18px 12px 5px 32px;border-left:2px dotted {p["sky"]};background:repeating-linear-gradient(0deg,{p["surface"]}, {p["surface"]} 31px, {p["sky_pale"]} 32px);"><p style="margin:-28px 0 18px;color:{p["primary"]};font:700 9px/1.2 Georgia;letter-spacing:.22em;">{list_heading}</p>{rows}</section>'
         if grammar == "business":
+            marker_align, body_align = marker_alignment_css(recipe.layout if recipe else None, 4)
             rows = "".join(
-                f'<section style="margin:0 0 13px;white-space:normal;transform:translateX({0 if index % 2 else 12}px);"><span style="display:inline-block;width:38px;height:38px;border-radius:50%;background-color:{p["secondary"] if index % 2 else p["accent"]};color:{p["primary"]};font:800 13px/38px Georgia;text-align:center;vertical-align:middle;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:78%;margin:0 0 0 10px;padding:10px 14px 11px;border-bottom:2px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:middle;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 13px;white-space:normal;transform:translateX({0 if index % 2 else 12}px);"><span style="display:inline-block;width:38px;height:38px;border-radius:50%;background-color:{p["secondary"] if index % 2 else p["accent"]};color:{p["primary"]};font:800 13px/38px Georgia;text-align:center;{marker_align}">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:78%;margin:0 0 0 10px;padding:10px 14px 11px;border-bottom:2px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;{body_align}', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-theme-grammar="signal-orbit" data-list-role="{component_type}" style="margin:31px 0;padding:9px 12px 2px 0;"><p style="margin:0 0 17px;color:{p["accent"]};font-size:8px;font-weight:800;letter-spacing:.22em;text-align:right;">{list_heading}</p>{rows}</section>'
         rows = "".join(
-            f'<section style="margin:0 0 11px;padding-left:{0 if index % 2 else 8}%;white-space:normal;"><span style="display:inline-block;width:20%;padding:11px 5px;color:{p["accent"]};font:700 9px/1.3 Georgia;letter-spacing:.12em;vertical-align:top;">{index:02d}:00</span><p style="box-sizing:border-box;display:inline-block;width:{80 if index % 2 else 72}%;margin:0;padding:10px 13px 11px;border-left:2px solid {p["accent"]};border-bottom:1px dashed {p["primary"]};color:{p["ink"]};font-size:14px;line-height:1.75;vertical-align:top;">{item}</p></section>'
-            for index, item in enumerate(items, 1)
+            f'<section style="margin:0 0 11px;padding-left:{0 if index % 2 else 8}%;white-space:normal;"><span style="display:inline-block;width:20%;padding:11px 5px;color:{p["accent"]};font:700 9px/1.3 Georgia;letter-spacing:.12em;vertical-align:top;">{index:02d}:00</span>'
+            + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:{80 if index % 2 else 72}%;margin:0;padding:10px 13px 11px;border-left:2px solid {p["accent"]};border-bottom:1px dashed {p["primary"]};color:{p["ink"]};font-size:14px;line-height:1.75;vertical-align:top;', item)
+            + '</section>'
+            for index, field_attrs, item in items
         )
         return f'<section data-theme-grammar="storyboard-track" data-list-role="{component_type}" style="margin:32px 0;padding:13px 0 3px;border-top:4px solid {p["primary"]};"><p style="margin:0 0 16px;color:{p["secondary"]};font:700 8px/1.2 Georgia;letter-spacing:.24em;">{list_heading}</p>{rows}</section>'
 
     if kind == "pair":
-        left, right = _inline(payload["left"]), _inline(payload["right"])
+        left = timeline_field(payload["left"], "left", recipe, _inline)
+        right = timeline_field(payload["right"], "right", recipe, _inline)
         if grammar == "oriental":
             first, second = ("前", "后") if quiet_folio and component_type == "before_after_timeline" else ("其一", "其二")
-            return f'<section data-theme-grammar="folding-page" style="margin:32px 0;padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">{first}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">{second}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="folding-page" style="{timeline_margin(recipe, 32)}padding:12px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:49%;padding:8px 22px 18px 6px;vertical-align:top;"><span style="color:{p["accent"]};font-size:9px;letter-spacing:.2em;">{first}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:49%;margin-top:28px;padding:8px 7px 18px 22px;border-left:1px solid #D9CCB5;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-size:9px;letter-spacing:.2em;">{second}</span><p style="margin:15px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{right}</p></section></section>'
         if grammar == "press":
-            return f'<section data-theme-grammar="two-column-clipping" style="margin:32px 0;padding:14px;background-color:{p["pale"]};border:1px dashed #A99A81;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:13px;background-color:{p["surface"]};border:1px solid #C9BAA0;transform:rotate(-1deg);vertical-align:top;"><b style="color:{p["accent"]};font:900 20px Georgia;">A</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:22px 0 0 4%;padding:13px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;transform:rotate(1deg);vertical-align:top;"><b style="color:{p["primary"]};font:900 20px Georgia;">B</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="two-column-clipping" style="{timeline_margin(recipe, 32)}padding:14px;background-color:{p["pale"]};border:1px dashed #A99A81;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:13px;background-color:{p["surface"]};border:1px solid #C9BAA0;transform:rotate(-1deg);vertical-align:top;"><b style="color:{p["accent"]};font:900 20px Georgia;">A</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:22px 0 0 4%;padding:13px;background-color:{p["secondary_pale"]};border:1px solid #C9BAA0;transform:rotate(1deg);vertical-align:top;"><b style="color:{p["primary"]};font:900 20px Georgia;">B</b><p style="margin:9px 0 0;color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:14px;line-height:1.75;">{right}</p></section></section>'
         if grammar == "atlas":
-            return f'<section data-theme-grammar="specimen-comparison" style="margin:32px 0;padding:16px 11px 12px 27px;border-left:2px dotted {p["sky"]};background-color:{p["surface"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:15px 12px;border-bottom:2px solid {p["primary"]};vertical-align:top;"><span style="display:block;width:18px;height:18px;margin-bottom:12px;border:1px solid {p["primary"]};border-radius:50%;"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:46%;margin:26px 0 0 8%;padding:15px 12px;border-top:2px solid {p["accent"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0 0 12px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:26px;height:13px;margin-left:auto;border-radius:80% 0 80% 0;background-color:{p["accent"]};transform:rotate(-14deg);"></span></section></section>'
+            return f'<section data-theme-grammar="specimen-comparison" style="{timeline_margin(recipe, 32)}padding:16px 11px 12px 27px;border-left:2px dotted {p["sky"]};background-color:{p["surface"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:15px 12px;border-bottom:2px solid {p["primary"]};vertical-align:top;"><span style="display:block;width:18px;height:18px;margin-bottom:12px;border:1px solid {p["primary"]};border-radius:50%;"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:46%;margin:26px 0 0 8%;padding:15px 12px;border-top:2px solid {p["accent"]};background-color:{p["pale"]};vertical-align:top;"><p style="margin:0 0 12px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:26px;height:13px;margin-left:auto;border-radius:80% 0 80% 0;background-color:{p["accent"]};transform:rotate(-14deg);"></span></section></section>'
         if grammar == "business":
-            return f'<section data-theme-grammar="decision-spread" style="margin:34px 0;padding:7px 0 16px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:45%;padding:15px 17px 19px;border-radius:42px 42px 8px 42px;background-color:{p["secondary_pale"]};vertical-align:top;transform:rotate(-1deg);"><span style="display:block;color:{p["secondary"]};font:800 24px Georgia;">A</span><p style="margin:8px 0 0;color:{p["ink"]};font-size:13px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:51%;margin:34px 0 0 4%;padding:17px 17px 16px;border-radius:8px 42px 42px 42px;background-color:{p["sky_pale"]};vertical-align:top;transform:rotate(1deg);"><span style="color:{p["accent"]};font-size:8px;letter-spacing:.2em;">ALTERNATIVE B</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.78;">{right}</p></section></section>'
-        return f'<section data-theme-grammar="shot-reverse-shot" style="margin:34px 0;padding:8px 0 15px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:58%;padding:16px 15px 18px;border:1px solid {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:6px 6px 0 {p["secondary_pale"]};vertical-align:top;transform:rotate(-.7deg);"><span style="color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;">SHOT A / WIDE</span><p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:38%;margin:43px 0 0 4%;padding:15px 13px;border-radius:22px 3px 22px 3px;background-color:{p["accent_pale"]};color:{p["primary"]};vertical-align:top;transform:rotate(1deg);"><span style="font:700 8px Georgia;letter-spacing:.18em;">REVERSE / CLOSE</span><p style="margin:12px 0 0;font-size:13px;line-height:1.75;">{right}</p></section></section>'
+            return f'<section data-theme-grammar="decision-spread" style="{timeline_margin(recipe, 34)}padding:7px 0 16px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:45%;padding:15px 17px 19px;border-radius:42px 42px 8px 42px;background-color:{p["secondary_pale"]};vertical-align:top;transform:rotate(-1deg);"><span style="display:block;color:{p["secondary"]};font:800 24px Georgia;">A</span><p style="margin:8px 0 0;color:{p["ink"]};font-size:13px;line-height:1.75;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:51%;margin:34px 0 0 4%;padding:17px 17px 16px;border-radius:8px 42px 42px 42px;background-color:{p["sky_pale"]};vertical-align:top;transform:rotate(1deg);"><span style="color:{p["accent"]};font-size:8px;letter-spacing:.2em;">ALTERNATIVE B</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:15px;font-weight:650;line-height:1.78;">{right}</p></section></section>'
+        return f'<section data-theme-grammar="shot-reverse-shot" style="{timeline_margin(recipe, 34)}padding:8px 0 15px;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:58%;padding:16px 15px 18px;border:1px solid {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:6px 6px 0 {p["secondary_pale"]};vertical-align:top;transform:rotate(-.7deg);"><span style="color:{p["accent"]};font:700 8px Georgia;letter-spacing:.18em;">SHOT A / WIDE</span><p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:38%;margin:43px 0 0 4%;padding:15px 13px;border-radius:22px 3px 22px 3px;background-color:{p["accent_pale"]};color:{p["primary"]};vertical-align:top;transform:rotate(1deg);"><span style="font:700 8px Georgia;letter-spacing:.18em;">REVERSE / CLOSE</span><p style="margin:12px 0 0;font-size:13px;line-height:1.75;">{right}</p></section></section>'
 
     if kind == "title_body":
-        title, body = _inline(payload["title"]), _inline(payload["body"])
+        title, body = _semantic_inline(payload["title"]), _semantic_inline(payload["body"])
         body_html = f'<p style="margin:12px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>' if body else ""
         if grammar == "oriental":
             if quiet_folio and component_type == "faq_card":
@@ -582,7 +590,7 @@ def _distinct_payload_html(
             return f'<section data-theme-grammar="executive-brief" style="margin:33px 0;padding:4px 0 9px;white-space:normal;"><span style="display:inline-block;width:72px;height:72px;margin:0 -18px 0 0;border:12px solid {p["secondary_pale"]};border-radius:50%;color:{p["accent"]};font-size:8px;font-weight:800;letter-spacing:.12em;line-height:48px;text-align:center;vertical-align:top;">{label}</span><section style="box-sizing:border-box;display:inline-block;width:78%;padding:13px 0 16px 22px;border-bottom:3px solid {p["primary"]};vertical-align:top;"><strong style="display:block;color:{p["primary"]};font-size:19px;line-height:1.52;">{title}</strong>{body_html}</section></section>'
         return f'<section data-theme-grammar="screenplay-cue" style="margin:33px 0;padding:4px 0 12px 24%;border-bottom:1px dashed {p["primary"]};"><p style="margin:0 0 11px -31%;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.22em;text-align:center;">SCENE / {label}</p><strong style="display:block;color:{p["primary"]};font-family:Georgia,Noto Serif SC,serif;font-size:19px;line-height:1.52;">{title}</strong>{body_html}<p style="margin:13px 0 -5px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.18em;text-align:right;">CUT TO →</p></section>'
 
-    body = _inline(payload["body"])
+    body = _semantic_inline(payload["body"])
     if grammar == "oriental":
         if quiet_folio:
             if component_type == "warning_note":
@@ -610,6 +618,8 @@ def _distinct_payload_html(
 
 def _payload_html(
     grammar: str, component_type: str, payload: dict[str, Any], p: dict[str, str], *, quiet_folio: bool = False,
+    item_inline: Callable[[str], str] = _inline,
+    recipe: ComponentRecipe | None = None,
 ) -> str:
     kind = payload["kind"]
     label = COMPONENT_LABELS.get(component_type, component_type)
@@ -617,7 +627,7 @@ def _payload_html(
         return _decorate_payload(
             grammar,
             component_type,
-            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio),
+            _distinct_payload_html(grammar, component_type, payload, p, quiet_folio=quiet_folio, item_inline=item_inline, recipe=recipe),
             p,
         )
     if kind == "concept_group":
@@ -632,60 +642,74 @@ def _payload_html(
         )
         return f'<section data-content-role="concept-glossary" style="margin:30px 0;">{entries}</section>'
     if kind == "list":
-        items = [_inline(item) for item in payload["items"]]
+        items = _list_payload_rows(payload["items"], item_inline)
+        paragraph = _list_paragraph_renderer(payload["items"], component_type)
         list_heading = _list_heading(grammar, component_type, label)
         if grammar == "oriental":
             rows = "".join(
-                f'<section style="padding:12px 0;border-top:1px solid #D9CCB5;white-space:normal;"><span style="display:inline-block;width:16%;color:{p["accent"]};font-family:Georgia,serif;font-size:13px;font-weight:800;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:13px;border-left:2px solid {p["secondary"]};color:{p["ink"]};font-size:14px;line-height:1.78;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="padding:12px 0;border-top:1px solid #D9CCB5;white-space:normal;"><span style="display:inline-block;width:16%;color:{p["accent"]};font-family:Georgia,serif;font-size:13px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:84%;margin:0;padding-left:13px;border-left:2px solid {p["secondary"]};color:{p["ink"]};font-size:14px;line-height:1.78;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-list-role="{component_type}" style="margin:29px 0;padding:7px 18px 13px;border-left:5px solid {p["primary"]};border-bottom:1px solid {p["secondary"]};background-color:{p["surface"]};"><p style="margin:0 0 8px;color:{p["primary"]};font-size:10px;font-weight:800;letter-spacing:.2em;">{list_heading}</p>{rows}</section>'
         if grammar == "press":
             rows = "".join(
-                f'<section style="border-top:1px solid {p["ink"]};white-space:normal;"><span style="display:inline-block;width:18%;padding:12px 0;color:{p["accent"]};font-family:Georgia,serif;font-size:22px;font-weight:900;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:12px 0 13px 14px;border-left:5px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="border-top:1px solid {p["ink"]};white-space:normal;"><span style="display:inline-block;width:18%;padding:12px 0;color:{p["accent"]};font-family:Georgia,serif;font-size:22px;font-weight:900;vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:82%;margin:0;padding:12px 0 13px 14px;border-left:5px solid {p["primary"]};color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-list-role="{component_type}" style="margin:29px 0;border-top:12px solid {p["primary"]};border-bottom:3px solid {p["primary"]};"><p style="margin:0;padding:7px 0;color:{p["accent"]};font-size:9px;font-weight:900;letter-spacing:.18em;">{list_heading}</p>{rows}</section>'
         if grammar == "pop":
             colors = (p["secondary_pale"], p["accent_pale"], p["sky_pale"])
             rows = "".join(
-                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:12px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.68;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 11px;white-space:normal;transform:translateX({5 if index % 2 else 0}px);"><span style="display:inline-block;width:36px;height:29px;background-color:{p["accent"] if index % 2 else p["primary"]};color:#FFFFFF;font-family:Georgia,serif;font-size:12px;font-weight:900;line-height:29px;text-align:center;transform:rotate({-3 if index % 2 else 3}deg);vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:84%;margin:0 0 0 8px;padding:8px 12px 10px;border-bottom:5px solid {p["secondary"]};background-color:{colors[(index-1)%3]};color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.68;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-list-role="{component_type}" style="margin:30px 0;padding:18px 13px 7px;border:3px solid {p["primary"]};box-shadow:7px 7px 0 {p["secondary"]};"><p style="margin:-31px 0 16px;"><span style="display:inline-block;padding:5px 12px;background-color:{p["accent"]};color:#FFFFFF;font-size:9px;font-weight:900;letter-spacing:.14em;transform:rotate(-2deg);">{list_heading}</span></p>{rows}</section>'
         if grammar == "atlas":
             rows = "".join(
-                f'<section style="margin:0 0 13px;white-space:normal;"><span style="display:inline-block;width:30px;height:30px;margin-left:-17px;border:1px solid {p["primary"]};border-radius:50% 50% 8px 50%;background-color:{p["surface"]};color:{p["primary"]};font-family:Georgia,serif;font-size:10px;font-weight:800;line-height:30px;text-align:center;transform:rotate(-8deg);vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:87%;margin:0;padding:4px 0 11px 13px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:14px;line-height:1.76;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="margin:0 0 13px;white-space:normal;"><span style="display:inline-block;width:30px;height:30px;margin-left:-17px;border:1px solid {p["primary"]};border-radius:50% 50% 8px 50%;background-color:{p["surface"]};color:{p["primary"]};font-family:Georgia,serif;font-size:10px;font-weight:800;line-height:30px;text-align:center;transform:rotate(-8deg);vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:87%;margin:0;padding:4px 0 11px 13px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:14px;line-height:1.76;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-list-role="{component_type}" style="margin:29px 0;padding:16px 13px 6px 21px;border-left:3px dotted {p["sky"]};background-color:{p["pale"]};border-radius:3px 24px 3px 24px;"><p style="margin:-25px 0 15px;color:{p["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">{list_heading}</p>{rows}</section>'
         if grammar == "business":
             rows = "".join(
-                f'<section style="border-top:1px solid #B8C0C1;white-space:normal;"><span style="display:inline-block;width:20%;padding:12px 7px 11px 0;color:{p["secondary"]};font-family:Georgia,serif;font-size:17px;font-weight:800;vertical-align:top;">{index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:80%;margin:0;padding:11px 0 12px 14px;border-left:1px solid #B8C0C1;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;">{item}</p></section>'
-                for index, item in enumerate(items, 1)
+                f'<section style="border-top:1px solid #B8C0C1;white-space:normal;"><span style="display:inline-block;width:20%;padding:12px 7px 11px 0;color:{p["secondary"]};font-family:Georgia,serif;font-size:17px;font-weight:800;vertical-align:top;">{index:02d}</span>'
+                + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:80%;margin:0;padding:11px 0 12px 14px;border-left:1px solid #B8C0C1;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.72;vertical-align:top;', item)
+                + '</section>'
+                for index, field_attrs, item in items
             )
             return f'<section data-list-role="{component_type}" style="margin:29px 0;border-top:8px solid {p["primary"]};border-bottom:2px solid {p["primary"]};"><p style="margin:0;padding:8px 0;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.18em;text-align:right;">{list_heading}</p>{rows}</section>'
         rows = "".join(
-            f'<section style="padding:11px 0;border-top:1px solid #C9C5BC;white-space:normal;"><span style="display:inline-block;width:24%;color:{p["secondary"]};font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.08em;vertical-align:top;">SCENE {index:02d}</span><p style="box-sizing:border-box;display:inline-block;width:76%;margin:0;padding-left:14px;border-left:5px solid {p["accent"]};color:{p["ink"]};font-size:14px;line-height:1.75;vertical-align:top;">{item}</p></section>'
-            for index, item in enumerate(items, 1)
+            f'<section style="padding:11px 0;border-top:1px solid #C9C5BC;white-space:normal;"><span style="display:inline-block;width:24%;color:{p["secondary"]};font-family:Georgia,serif;font-size:11px;font-weight:800;letter-spacing:.08em;vertical-align:top;">SCENE {index:02d}</span>'
+            + paragraph(field_attrs, f'box-sizing:border-box;display:inline-block;width:76%;margin:0;padding-left:14px;border-left:5px solid {p["accent"]};color:{p["ink"]};font-size:14px;line-height:1.75;vertical-align:top;', item)
+            + '</section>'
+            for index, field_attrs, item in items
         )
         return f'<section data-list-role="{component_type}" style="margin:30px 0;padding:8px 16px 13px;border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};background-color:{p["surface"]};"><p style="margin:0 0 7px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.2em;">{list_heading}</p>{rows}</section>'
 
     if kind == "pair":
-        left, right = _inline(payload["left"]), _inline(payload["right"])
+        left = timeline_field(payload["left"], "left", recipe, _inline)
+        right = timeline_field(payload["right"], "right", recipe, _inline)
         if grammar == "oriental":
-            return f'<section style="margin:30px 0;padding:16px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:12px 13px;border-right:1px solid #D9CCB5;vertical-align:top;"><span style="color:{p["accent"]};font-family:Georgia,serif;font-size:22px;">壹</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><span style="display:inline-block;width:8%;padding-top:55px;color:{p["secondary"]};text-align:center;vertical-align:top;">◆</span><section style="box-sizing:border-box;display:inline-block;width:46%;margin-top:17px;padding:12px 13px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-family:Georgia,serif;font-size:22px;">贰</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}padding:16px 0;border-top:1px solid {p["secondary"]};border-bottom:1px solid {p["secondary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:46%;padding:12px 13px;border-right:1px solid #D9CCB5;vertical-align:top;"><span style="color:{p["accent"]};font-family:Georgia,serif;font-size:22px;">壹</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><span style="display:inline-block;width:8%;padding-top:55px;color:{p["secondary"]};text-align:center;vertical-align:top;">◆</span><section style="box-sizing:border-box;display:inline-block;width:46%;margin-top:17px;padding:12px 13px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["primary"]};font-family:Georgia,serif;font-size:22px;">贰</span><p style="margin:9px 0 0;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p></section></section>'
         if grammar in {"press", "business"}:
             top = 11 if grammar == "press" else 7
-            return f'<section style="margin:30px 0;border-top:{top}px solid {p["primary"]};border-bottom:2px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:44%;min-width:0;min-height:145px;padding:15px 13px;border-right:5px solid {p["accent"]};overflow-wrap:anywhere;vertical-align:top;"><span style="color:{p["secondary"]};font-family:Georgia,serif;font-size:20px;font-weight:900;">A</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:56%;min-width:0;min-height:145px;margin-top:17px;padding:15px;background-color:{p["pale"]};overflow-wrap:anywhere;vertical-align:top;"><span style="display:block;max-width:100%;color:{p["primary"]};font-family:Georgia,serif;font-size:14px;font-weight:900;overflow-wrap:anywhere;">B / 对照观点</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.76;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}border-top:{top}px solid {p["primary"]};border-bottom:2px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:44%;min-width:0;min-height:145px;padding:15px 13px;border-right:5px solid {p["accent"]};overflow-wrap:anywhere;vertical-align:top;"><span style="color:{p["secondary"]};font-family:Georgia,serif;font-size:20px;font-weight:900;">A</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:56%;min-width:0;min-height:145px;margin-top:17px;padding:15px;background-color:{p["pale"]};overflow-wrap:anywhere;vertical-align:top;"><span style="display:block;max-width:100%;color:{p["primary"]};font-family:Georgia,serif;font-size:14px;font-weight:900;overflow-wrap:anywhere;">B / 对照观点</span><p style="margin:10px 0 0;color:{p["ink"]};font-size:14px;font-weight:650;line-height:1.76;">{right}</p></section></section>'
         if grammar == "pop":
-            return f'<section style="margin:31px 0;padding:13px;border:3px solid {p["primary"]};background-color:{p["secondary_pale"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border-top:8px solid {p["accent"]};background-color:{p["surface"]};transform:rotate(-1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{left}</p></section><span style="display:inline-block;width:6%;padding-top:48px;color:{p["primary"]};font-weight:900;text-align:center;vertical-align:top;">×</span><section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:19px;padding:15px 13px;border-bottom:8px solid {p["primary"]};background-color:{p["sky_pale"]};transform:rotate(1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 31)}padding:13px;border:3px solid {p["primary"]};background-color:{p["secondary_pale"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:47%;padding:15px 13px;border-top:8px solid {p["accent"]};background-color:{p["surface"]};transform:rotate(-1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{left}</p></section><span style="display:inline-block;width:6%;padding-top:48px;color:{p["primary"]};font-weight:900;text-align:center;vertical-align:top;">×</span><section style="box-sizing:border-box;display:inline-block;width:47%;margin-top:19px;padding:15px 13px;border-bottom:8px solid {p["primary"]};background-color:{p["sky_pale"]};transform:rotate(1deg);vertical-align:top;"><p style="margin:0;color:{p["ink"]};font-size:14px;font-weight:700;line-height:1.75;">{right}</p></section></section>'
         if grammar == "atlas":
-            return f'<section style="margin:30px 0;white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:17px 14px;border:1px solid {p["sky"]};border-radius:25px 4px 25px 4px;background-color:{p["sky_pale"]};vertical-align:top;"><span style="display:block;width:25px;height:15px;margin-bottom:10px;border-radius:18px 3px 18px 3px;background-color:{p["primary"]};transform:rotate(-10deg);"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:20px 0 0 4%;padding:17px 14px;border:1px solid {p["secondary"]};border-radius:4px 25px 4px 25px;background-color:{p["secondary_pale"]};vertical-align:top;"><p style="margin:0 0 10px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:25px;height:15px;margin-left:auto;border-radius:18px 3px 18px 3px;background-color:{p["accent"]};transform:rotate(9deg);"></span></section></section>'
-        return f'<section style="margin:31px 0;border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;border-right:2px solid {p["accent"]};vertical-align:top;"><span style="color:{p["secondary"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT A</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["accent"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT B</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{right}</p></section></section>'
+            return f'<section style="{timeline_margin(recipe, 30)}white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:48%;padding:17px 14px;border:1px solid {p["sky"]};border-radius:25px 4px 25px 4px;background-color:{p["sky_pale"]};vertical-align:top;"><span style="display:block;width:25px;height:15px;margin-bottom:10px;border-radius:18px 3px 18px 3px;background-color:{p["primary"]};transform:rotate(-10deg);"></span><p style="margin:0;color:{p["ink"]};font-size:14px;line-height:1.78;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:48%;margin:20px 0 0 4%;padding:17px 14px;border:1px solid {p["secondary"]};border-radius:4px 25px 4px 25px;background-color:{p["secondary_pale"]};vertical-align:top;"><p style="margin:0 0 10px;color:{p["ink"]};font-size:14px;line-height:1.78;">{right}</p><span style="display:block;width:25px;height:15px;margin-left:auto;border-radius:18px 3px 18px 3px;background-color:{p["accent"]};transform:rotate(9deg);"></span></section></section>'
+        return f'<section style="{timeline_margin(recipe, 31)}border-top:12px solid {p["primary"]};border-bottom:12px solid {p["primary"]};white-space:normal;"><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;border-right:2px solid {p["accent"]};vertical-align:top;"><span style="color:{p["secondary"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT A</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{left}</p></section><section style="box-sizing:border-box;display:inline-block;width:50%;padding:16px 14px;background-color:{p["pale"]};vertical-align:top;"><span style="color:{p["accent"]};font-size:10px;font-weight:800;letter-spacing:.15em;">SHOT B</span><p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.76;">{right}</p></section></section>'
 
     if kind == "title_body":
-        title, body = _inline(payload["title"]), _inline(payload["body"])
+        title, body = _semantic_inline(payload["title"]), _semantic_inline(payload["body"])
         if grammar == "oriental":
             body_html = f'<p style="margin:11px 0 0;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>' if body else ""
             return f'<section style="margin:30px 0;padding:18px 18px 17px;border-left:5px solid {p["primary"]};border-bottom:1px solid {p["secondary"]};background-color:{p["surface"]};"><p style="margin:-27px 0 15px;"><span style="display:inline-block;padding:5px 12px;background-color:{p["accent_pale"]};color:{p["primary"]};font-size:10px;font-weight:800;letter-spacing:.16em;">{label}</span></p><strong style="display:block;color:{p["primary"]};font-family:Georgia,serif;font-size:18px;line-height:1.58;">{title}</strong>{body_html}<p style="margin:13px 0 -20px;text-align:right;"><span style="display:inline-block;width:16px;height:16px;border:2px solid {p["accent"]};color:{p["accent"]};font-size:8px;line-height:13px;text-align:center;">印</span></p></section>'
@@ -704,7 +728,7 @@ def _payload_html(
         body_html = f'<p style="margin:12px 0 0;padding-top:11px;border-top:1px solid #C9C5BC;color:{p["ink"]};font-size:14px;line-height:1.82;">{body}</p>' if body else ""
         return f'<section style="margin:31px 0;padding:0 15px 17px;border-top:13px solid {p["primary"]};border-bottom:13px solid {p["primary"]};background-color:{p["surface"]};"><p style="margin:0 -15px 15px;padding:6px 12px;background-color:{p["accent"]};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.18em;">SCENE CARD / {label}</p><strong style="display:block;color:{p["ink"]};font-family:Georgia,serif;font-size:19px;line-height:1.55;">{title}</strong>{body_html}</section>'
 
-    body = _inline(payload["body"])
+    body = _semantic_inline(payload["body"])
     if grammar == "oriental":
         return f'<blockquote style="margin:31px 0;padding:14px 17px;border-left:5px solid {p["accent"]};border-bottom:1px solid {p["secondary"]};background-color:{p["secondary_pale"]};color:{p["ink"]};font-family:Georgia,serif;font-size:17px;line-height:1.85;"><span style="display:block;margin-bottom:7px;color:{p["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">{label}</span>{body}</blockquote>'
     if grammar == "press":
@@ -724,18 +748,54 @@ def render_extended_component(
     palette: dict[str, str],
     *,
     quiet_folio: bool = False,
+    visual_system: str | None = None,
 ) -> str | None:
-    theme_id = extended_variant_theme(str(slot.get("variant", "")))
+    variant = str(slot.get("variant", ""))
+    if extended_variant_theme(variant) is None:
+        return None
+    return render_extended_semantic(bind_semantic_content(slot, parsed), variant, palette,
+                                    quiet_folio=quiet_folio)
+
+
+def render_extended_semantic(
+    content: BoundSemanticContent, variant: str, palette: dict[str, str], *,
+    quiet_folio: bool,
+    recipe: ComponentRecipe | None = None,
+) -> str | None:
+    theme_id = extended_variant_theme(variant)
     if theme_id is None:
         return None
-    component_type = str(slot["component_type"])
+    return _render_extended_component_payload(
+        theme_id, content.component, content.layout_payload(), palette,
+        quiet_folio=quiet_folio, recipe=recipe,
+    )
+
+
+def render_extended_logic_path(
+    variant: str, items: list[LogicPathField], palette: dict[str, str], *,
+    quiet_folio: bool, recipe: ComponentRecipe | None = None,
+) -> str | None:
+    theme_id = extended_variant_theme(variant)
+    if theme_id is None:
+        return None
+    return _render_extended_component_payload(
+        theme_id, "logic_path", {"kind": "list", "items": items}, palette,
+        quiet_folio=quiet_folio, recipe=recipe,
+    )
+
+
+def _render_extended_component_payload(
+    theme_id: str, component_type: str, payload: dict[str, Any], palette: dict[str, str], *,
+    quiet_folio: bool,
+    recipe: ComponentRecipe | None = None,
+) -> str:
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
     component_markup = _payload_html(
         grammar,
         component_type,
-        _payload(slot, parsed),
+        payload,
         _palette(palette),
-        quiet_folio=quiet_folio,
+        quiet_folio=quiet_folio, recipe=recipe,
     )
     if grammar == "pop":
         asset = "pop-arrow.png" if component_type in {"numbered_insight", "action_checklist", "logic_path"} else "pop-star.png"
@@ -765,14 +825,14 @@ def _theme_id(config: dict[str, Any], role: str | None = None) -> str | None:
     return base_theme if base_theme in EXTENDED_THEME_KITS else None
 
 
-def render_extended_lead(content: str, label: str, config: dict[str, Any]) -> str | None:
+def render_extended_lead(content: str, label: str, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     """Quiet opening treatments belonging to each extended theme, not a shared card."""
     theme_id = _theme_id(config, "heading")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    text, label = _inline(content), html.escape(label)
+    text, label = render_authored_text(_inline(content), LEAD, reading), html.escape(label)
     common = f'data-content-role="lead" data-lead-kind="{label}" data-theme-grammar="{grammar}-lead"'
     if grammar == "oriental":
         caption = (
@@ -824,11 +884,11 @@ def extended_inline_emphasis_style(config: dict[str, Any]) -> str | None:
 
 
 def _distinct_heading(
-    content: str, level: int, section_index: int, grammar: str, p: dict[str, str], *, quiet_folio: bool = False,
+    content: str, level: int, section_index: int, grammar: str, p: dict[str, str], *, quiet_folio: bool = False, reading: ReadingProfile | None = None,
 ) -> str | None:
     if grammar not in REDESIGNED_GRAMMARS:
         return None
-    text = _inline(content)
+    text = render_authored_text(_inline(content), SECTION_TITLE if level == 2 else SUBHEADING, reading)
     if level == 2:
         if grammar == "oriental":
             explicit = quiet_folio and has_explicit_heading_number(content)
@@ -857,13 +917,13 @@ def _distinct_heading(
     return f'<p data-heading-level="4" style="margin:23px 0 10px;color:{p["primary"]};font-size:16px;font-weight:800;line-height:1.58;">{text}</p>'
 
 
-def render_extended_heading(content: str, level: int, section_index: int, config: dict[str, Any]) -> str | None:
+def render_extended_heading(content: str, level: int, section_index: int, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     theme_id = _theme_id(config, "heading")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    distinct = _distinct_heading(content, level, section_index, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
+    distinct = _distinct_heading(content, level, section_index, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive", reading=reading)
     if distinct is not None:
         if grammar == "cinema":
             distinct = distinct.replace(
@@ -885,7 +945,7 @@ def render_extended_heading(content: str, level: int, section_index: int, config
                 f'{distinct}</section>'
             )
         return distinct
-    text = _inline(content)
+    text = render_authored_text(_inline(content), SECTION_TITLE if level == 2 else SUBHEADING, reading)
     explicit = bool(re.match(r"^(?:第[一二三四五六七八九十百0-9]+[章节部分篇]|(?:PART|SECTION|CHAPTER)\s*[0-9IVX]+)", content, re.I))
     if level == 2:
         if grammar == "oriental":
@@ -959,7 +1019,7 @@ def render_extended_break(config: dict[str, Any]) -> str | None:
 
 
 def render_extended_list(
-    items: list[str],
+    items: Sequence[ListValue],
     ordered: bool,
     config: dict[str, Any],
     semantic_role: str = "key_points",
@@ -972,55 +1032,55 @@ def render_extended_list(
     return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], component_type, payload, _palette(config["palette"]), quiet_folio=config.get("theme_id") == "oriental_archive")
 
 
-def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str], *, quiet_folio: bool = False) -> str | None:
+def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str], *, quiet_folio: bool = False, reading: ReadingProfile | None = None) -> str | None:
     if grammar not in REDESIGNED_GRAMMARS or not rows:
         return None
     header, *body = rows
     if grammar == "oriental":
-        ths = ''.join(f'<th style="padding:9px 7px;border-bottom:1px solid {p["accent"]};color:{p["primary"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:9px 7px;border-bottom:1px solid {p["accent"]};color:{p["primary"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for row in body:
-            cells = ''.join(f'<td style="padding:11px 7px;border-bottom:1px solid #DDD1BA;color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:11px 7px;border-bottom:1px solid #DDD1BA;color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         caption = "" if quiet_folio else f'<p style="margin:0 0 7px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.22em;">ARCHIVE LEDGER</p>'
         return f'<section data-theme-grammar="archive-ledger" style="margin:27px 0;padding:8px 16px 13px;border-left:5px solid {p["accent"]};background-color:{p["surface"]};">{caption}<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "press":
-        ths = ''.join(f'<th style="padding:8px 6px;border-right:1px solid {p["ink"]};border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:8px 6px;border-right:1px solid {p["ink"]};border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for row in body:
-            cells = ''.join(f'<td style="padding:9px 6px;border-right:1px solid #A69A84;border-bottom:1px dotted #A69A84;color:{p["ink"]};font-size:12px;line-height:1.5;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:9px 6px;border-right:1px solid #A69A84;border-bottom:1px dotted #A69A84;color:{p["ink"]};font-size:12px;line-height:1.5;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         return f'<section data-theme-grammar="newspaper-columns" style="margin:27px 0;padding:8px 0;border-top:7px solid {p["ink"]};border-bottom:3px double {p["ink"]};"><p style="margin:0 0 8px;color:{p["accent"]};font:900 8px Georgia;letter-spacing:.22em;text-align:right;">DATA DESK / SPECIAL EDITION</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "atlas":
-        ths = ''.join(f'<th style="padding:8px 7px;border-bottom:1px solid {p["primary"]};color:{p["primary"]};font-size:11px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:8px 7px;border-bottom:1px solid {p["primary"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for index, row in enumerate(body, start=1):
-            cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr data-specimen="{index:02d}">{cells}</tr>')
         return f'<section data-theme-grammar="specimen-register" style="margin:27px 0;padding:14px 13px 12px;border:1px solid {p["sky"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};"><p style="margin:-24px 0 10px;"><span style="display:inline-block;padding:4px 10px;border-radius:12px 2px 12px 2px;background-color:{p["primary"]};color:#FFF;font:700 8px Georgia;letter-spacing:.2em;">SPECIMEN REGISTER</span></p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "business":
-        ths = ''.join(f'<th style="padding:9px 8px;border-left:1px solid #B9C2C4;background-color:{p["primary"]};color:#FFF;font-size:11px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:9px 8px;border-left:1px solid #B9C2C4;background-color:{p["primary"]};color:#FFF;font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for index, row in enumerate(body):
             bg = p["surface"] if index % 2 else p["sky_pale"]
-            cells = ''.join(f'<td style="padding:10px 8px;border-left:1px solid #C8D0D2;border-bottom:1px solid #C8D0D2;background-color:{bg};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:10px 8px;border-left:1px solid #C8D0D2;border-bottom:1px solid #C8D0D2;background-color:{bg};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         return f'<section data-theme-grammar="executive-dashboard" style="margin:27px 0;border-top:8px solid {p["secondary"]};"><p style="margin:0;padding:7px 0;color:{p["accent"]};font:800 8px Georgia;letter-spacing:.2em;text-align:right;">DECISION MATRIX</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
-    ths = ''.join(f'<th style="padding:9px 7px;border-bottom:2px solid {p["accent"]};background-color:{p["secondary_pale"]};color:{p["primary"]};font-size:11px;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+    ths = ''.join(f'<th style="padding:9px 7px;border-bottom:2px solid {p["accent"]};background-color:{p["secondary_pale"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
     trs = []
     for row in body:
-        cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dashed #C9B9B8;background-color:{p["surface"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+        cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dashed #C9B9B8;background-color:{p["surface"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
         trs.append(f'<tr>{cells}</tr>')
     return f'<section data-theme-grammar="festival-program-table" style="margin:27px 0;padding:14px 12px 15px;border:1px dashed {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:7px 7px 0 {p["accent_pale"]};"><p style="margin:0 0 10px;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.23em;">FESTIVAL PROGRAM / DATA TAKE</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
 
 
-def render_extended_table(rows: list[list[str]], config: dict[str, Any]) -> str | None:
+def render_extended_table(rows: list[list[str]], config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     theme_id = _theme_id(config, "table")
     if theme_id is None or not rows:
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    distinct = _distinct_table(rows, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
+    distinct = _distinct_table(rows, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive", reading=reading)
     if distinct is not None:
         return distinct
     header, *body = rows
@@ -1028,17 +1088,17 @@ def render_extended_table(rows: list[list[str]], config: dict[str, Any]) -> str 
     border = p["primary"] if strong else p["sky"]
     header_bg = p["primary"] if strong else p["pale"]
     header_color = "#FFFFFF" if strong else p["primary"]
-    ths = "".join(f'<th style="padding:10px 8px;border:1px solid {border};background-color:{header_bg};color:{header_color};font-size:12px;line-height:1.4;text-align:left;">{_inline(cell)}</th>' for cell in header[:4])
+    ths = "".join(f'<th style="padding:10px 8px;border:1px solid {border};background-color:{header_bg};color:{header_color};font-size:12px;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
     trs = []
     for row_index, row in enumerate(body):
         background = p["surface"] if row_index % 2 else p["secondary_pale"]
-        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {border};background-color:{background};color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{_inline(cell)}</td>' for cell in row[:4])
+        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {border};background-color:{background};color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
         trs.append(f"<tr>{cells}</tr>")
     top = "10px" if grammar in {"press", "cinema"} else "4px"
     return f'<section style="margin:24px 0;border-top:{top} solid {p["primary"]};overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
 
 
-def render_extended_quote(content: str, config: dict[str, Any]) -> str | None:
+def render_extended_quote(content: str, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     theme_id = _theme_id(config, "quote")
     if theme_id is None:
         return None
@@ -1046,9 +1106,9 @@ def render_extended_quote(content: str, config: dict[str, Any]) -> str | None:
         p = _palette(config["palette"])
         return (
             f'<blockquote data-theme-grammar="folio-quotation" style="margin:29px 0;padding:9px 8px 9px 16px;border-left:1px solid {p["secondary"]};color:{p["ink"]};font-family:Georgia,Noto Serif SC,serif;font-size:17px;line-height:1.85;">'
-            f'<span style="margin-right:6px;color:{p["accent"]};font:700 28px/1 Georgia,serif;vertical-align:middle;">“</span>{_inline(content)}</blockquote>'
+            f'<span style="margin-right:6px;color:{p["accent"]};font:700 28px/1 Georgia,serif;vertical-align:middle;">“</span>{render_authored_text(_inline(content), QUOTE, reading)}</blockquote>'
         )
-    return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], "evidence_callout", {"kind": "single", "body": content}, _palette(config["palette"]))
+    return _payload_html(EXTENDED_THEME_KITS[theme_id]["grammar"], "evidence_callout", {"kind": "single", "body": SemanticField("", content, QUOTE, reading) if reading else content}, _palette(config["palette"]))
 
 
 def extended_image_frame_variant(config: dict[str, Any]) -> str | None:
@@ -1092,8 +1152,8 @@ def extended_image_placeholder_style(config: dict[str, Any]) -> str | None:
     return f"scroll-margin-top:18px;margin:30px 0;padding:14px 17px;border-left:5px solid {p['primary']};border-bottom:1px solid {p['secondary']};background-color:{p['surface']};"
 
 
-def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str], *, quiet_folio: bool = False) -> str | None:
-    escaped_kicker = html.escape(kicker)
+def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str], *, quiet_folio: bool = False, reading: ReadingProfile | None = None) -> str | None:
+    escaped_kicker = render_authored_text(html.escape(kicker), LABEL, reading)
     if grammar == "oriental":
         caption = "" if quiet_folio else f'<p style="margin:0 0 16px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.24em;">ORIENTAL FOLIO / 典藏页</p>'
         return f'<header data-content-role="article-metadata-preview" data-theme-grammar="bound-folio-cover" style="margin:30px 0 32px;padding:0;border-top:1px solid #D9C9AC;border-bottom:1px solid #D9C9AC;white-space:normal;"><section style="display:inline-block;width:17%;padding:26px 0 22px;color:{p["accent"]};font:700 10px Georgia;letter-spacing:.18em;vertical-align:top;writing-mode:vertical-rl;">卷首 · {escaped_kicker}</section><section style="box-sizing:border-box;display:inline-block;width:83%;padding:25px 18px 25px 22px;border-left:1px solid {p["secondary"]};vertical-align:top;">{caption}<h1 style="margin:0;color:{p["ink"]};font-family:Georgia,\'Noto Serif SC\',serif;font-size:30px;font-weight:650;line-height:1.45;">{title_html}</h1><span style="display:block;width:22px;height:22px;margin:17px 0 0 auto;border:2px solid {p["accent"]};background-color:{p["accent_pale"]};"></span></section></header>'
@@ -1111,17 +1171,17 @@ def _distinct_hero(title_html: str, kicker: str, grammar: str, p: dict[str, str]
     return None
 
 
-def render_extended_hero(title: str, plan_name: str, component_version: str, kicker: str, config: dict[str, Any]) -> str | None:
+def render_extended_hero(title: str, plan_name: str, component_version: str, kicker: str, config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str | None:
     theme_id = _theme_id(config, "hero")
     if theme_id is None:
         return None
     p = _palette(config["palette"])
     grammar = EXTENDED_THEME_KITS[theme_id]["grammar"]
-    title_html = _inline(title)
+    title_html = render_authored_text(_inline(title), ARTICLE_TITLE, reading)
     # plan_name and component_version remain part of the structured plan for
     # diagnostics, but must never leak into reader-facing article HTML.
     _ = (plan_name, component_version)
-    distinct = _distinct_hero(title_html, kicker, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive")
+    distinct = _distinct_hero(title_html, kicker, grammar, p, quiet_folio=config.get("theme_id") == "oriental_archive", reading=reading)
     if distinct is not None:
         hero_assets = {
             "oriental": ("oriental-branch.png", "47%"),
@@ -1143,16 +1203,16 @@ def render_extended_hero(title: str, plan_name: str, component_version: str, kic
             f'{distinct}</section>'
         )
     if grammar == "oriental":
-        return f'<header data-content-role="article-metadata-preview" style="padding:35px 0 25px;border-left:6px solid {p["primary"]};border-bottom:1px solid {p["secondary"]};"><p style="margin:0 0 13px -7px;"><span style="display:inline-block;padding:5px 12px;background-color:{p["accent_pale"]};color:{p["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">雅集 · {html.escape(kicker)}</span></p><section style="padding-left:18px;"><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.4;font-weight:750;">{title_html}</h1></section><p style="margin:13px 0 -32px;text-align:right;"><span style="display:inline-block;width:20px;height:20px;border:2px solid {p["accent"]};color:{p["accent"]};font-size:8px;line-height:17px;text-align:center;">印</span></p></header>'
+        return f'<header data-content-role="article-metadata-preview" style="padding:35px 0 25px;border-left:6px solid {p["primary"]};border-bottom:1px solid {p["secondary"]};"><p style="margin:0 0 13px -7px;"><span style="display:inline-block;padding:5px 12px;background-color:{p["accent_pale"]};color:{p["primary"]};font-size:9px;font-weight:800;letter-spacing:.18em;">雅集 · {render_authored_text(html.escape(kicker), LABEL, reading)}</span></p><section style="padding-left:18px;"><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.4;font-weight:750;">{title_html}</h1></section><p style="margin:13px 0 -32px;text-align:right;"><span style="display:inline-block;width:20px;height:20px;border:2px solid {p["accent"]};color:{p["accent"]};font-size:8px;line-height:17px;text-align:center;">印</span></p></header>'
     if grammar == "press":
-        return f'<header data-content-role="article-metadata-preview" style="padding:12px 0 21px;border-top:16px solid {p["primary"]};border-bottom:5px solid {p["primary"]};"><p style="margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid {p["primary"]};color:{p["accent"]};font-size:9px;font-weight:900;letter-spacing:.2em;">SPECIAL EDITION　·　{html.escape(kicker)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:31px;line-height:1.34;font-weight:900;letter-spacing:-.02em;">{title_html}</h1></header>'
+        return f'<header data-content-role="article-metadata-preview" style="padding:12px 0 21px;border-top:16px solid {p["primary"]};border-bottom:5px solid {p["primary"]};"><p style="margin:0 0 8px;padding-bottom:7px;border-bottom:1px solid {p["primary"]};color:{p["accent"]};font-size:9px;font-weight:900;letter-spacing:.2em;">SPECIAL EDITION　·　{render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:31px;line-height:1.34;font-weight:900;letter-spacing:-.02em;">{title_html}</h1></header>'
     if grammar == "pop":
-        return f'<header data-content-role="article-metadata-preview" style="margin:33px 6px 29px;padding:22px 18px 19px;border:4px solid {p["primary"]};background-color:{p["secondary_pale"]};box-shadow:10px 10px 0 {p["accent"]};"><p style="margin:-34px 0 16px;"><span style="display:inline-block;padding:6px 13px;background-color:{p["primary"]};color:#FFFFFF;font-size:9px;font-weight:900;letter-spacing:.18em;transform:rotate(-2deg);">POP EDITION</span></p><p style="margin:0 0 10px;color:{p["accent"]};font-size:10px;font-weight:900;letter-spacing:.12em;">{html.escape(kicker)}</p><h1 style="margin:0;color:{p["primary"]};font-size:30px;line-height:1.36;font-weight:900;letter-spacing:-.03em;">{title_html}</h1><p style="height:5px;margin:16px 0 0;background-color:{p["secondary"]};"></p></header>'
+        return f'<header data-content-role="article-metadata-preview" style="margin:33px 6px 29px;padding:22px 18px 19px;border:4px solid {p["primary"]};background-color:{p["secondary_pale"]};box-shadow:10px 10px 0 {p["accent"]};"><p style="margin:-34px 0 16px;"><span style="display:inline-block;padding:6px 13px;background-color:{p["primary"]};color:#FFFFFF;font-size:9px;font-weight:900;letter-spacing:.18em;transform:rotate(-2deg);">POP EDITION</span></p><p style="margin:0 0 10px;color:{p["accent"]};font-size:10px;font-weight:900;letter-spacing:.12em;">{render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["primary"]};font-size:30px;line-height:1.36;font-weight:900;letter-spacing:-.03em;">{title_html}</h1><p style="height:5px;margin:16px 0 0;background-color:{p["secondary"]};"></p></header>'
     if grammar == "atlas":
-        return f'<header data-content-role="article-metadata-preview" style="margin:32px 0 28px;padding:24px 19px 21px;border:1px solid {p["sky"]};border-radius:4px 35px 4px 35px;background-color:{p["surface"]};box-shadow:8px 8px 0 {p["pale"]};"><p style="margin:-33px 0 16px;"><span style="display:inline-block;padding:5px 13px;border-radius:16px 3px 16px 3px;background-color:{p["primary"]};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.18em;">NATURAL ATLAS</span></p><p style="margin:0 0 10px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.14em;">{html.escape(kicker)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.4;font-weight:750;">{title_html}</h1><p style="height:1px;margin:16px 0 0;background-color:{p["sky"]};"></p></header>'
+        return f'<header data-content-role="article-metadata-preview" style="margin:32px 0 28px;padding:24px 19px 21px;border:1px solid {p["sky"]};border-radius:4px 35px 4px 35px;background-color:{p["surface"]};box-shadow:8px 8px 0 {p["pale"]};"><p style="margin:-33px 0 16px;"><span style="display:inline-block;padding:5px 13px;border-radius:16px 3px 16px 3px;background-color:{p["primary"]};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.18em;">NATURAL ATLAS</span></p><p style="margin:0 0 10px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.14em;">{render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.4;font-weight:750;">{title_html}</h1><p style="height:1px;margin:16px 0 0;background-color:{p["sky"]};"></p></header>'
     if grammar == "business":
-        return f'<header data-content-role="article-metadata-preview" style="padding:18px 0 22px;border-top:13px solid {p["primary"]};border-bottom:3px solid {p["primary"]};"><section style="white-space:normal;"><span style="display:inline-block;width:25%;color:{p["secondary"]};font-size:9px;font-weight:800;letter-spacing:.16em;vertical-align:top;">BUSINESS<br>REVIEW</span><section style="box-sizing:border-box;display:inline-block;width:75%;padding-left:16px;border-left:1px solid #B8C0C1;vertical-align:top;"><p style="margin:0 0 10px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.13em;">{html.escape(kicker)}</p><h1 style="margin:0;color:{p["ink"]};font-size:29px;line-height:1.4;font-weight:820;">{title_html}</h1></section></section></header>'
-    return f'<header data-content-role="article-metadata-preview" style="margin:31px 0 29px;padding:0 18px 18px;border-top:17px solid {p["primary"]};border-bottom:17px solid {p["primary"]};background-color:{p["surface"]};"><p style="margin:0 -18px 16px;padding:7px 13px;background-color:{p["accent"]};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.2em;">OPENING SHOT　·　{html.escape(kicker)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.38;font-weight:780;">{title_html}</h1></header>'
+        return f'<header data-content-role="article-metadata-preview" style="padding:18px 0 22px;border-top:13px solid {p["primary"]};border-bottom:3px solid {p["primary"]};"><section style="white-space:normal;"><span style="display:inline-block;width:25%;color:{p["secondary"]};font-size:9px;font-weight:800;letter-spacing:.16em;vertical-align:top;">BUSINESS<br>REVIEW</span><section style="box-sizing:border-box;display:inline-block;width:75%;padding-left:16px;border-left:1px solid #B8C0C1;vertical-align:top;"><p style="margin:0 0 10px;color:{p["accent"]};font-size:9px;font-weight:800;letter-spacing:.13em;">{render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["ink"]};font-size:29px;line-height:1.4;font-weight:820;">{title_html}</h1></section></section></header>'
+    return f'<header data-content-role="article-metadata-preview" style="margin:31px 0 29px;padding:0 18px 18px;border-top:17px solid {p["primary"]};border-bottom:17px solid {p["primary"]};background-color:{p["surface"]};"><p style="margin:0 -18px 16px;padding:7px 13px;background-color:{p["accent"]};color:#FFFFFF;font-size:9px;font-weight:800;letter-spacing:.2em;">OPENING SHOT　·　{render_authored_text(html.escape(kicker), LABEL, reading)}</p><h1 style="margin:0;color:{p["ink"]};font-family:Georgia,serif;font-size:30px;line-height:1.38;font-weight:780;">{title_html}</h1></header>'
 
 
 def extended_rhythm_primitives(theme_id: str, palette: dict[str, str]) -> list[dict[str, str]]:

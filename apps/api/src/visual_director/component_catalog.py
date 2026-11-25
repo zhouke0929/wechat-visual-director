@@ -12,7 +12,7 @@ from .theme_packs import BUNDLED_THEME_IDS, installed_theme_packs, resolve_theme
 
 
 COMPONENT_LIBRARY_VERSION = "wechat_components.v0.13.0"
-RENDERER_VERSION = "preview_renderer.v0.21.8-bundled-themes"
+RENDERER_VERSION = "preview_renderer.v0.21.9-official-step-hierarchy"
 PLAN_SCHEMA_VERSION = "visual_plan.v0.5"
 
 

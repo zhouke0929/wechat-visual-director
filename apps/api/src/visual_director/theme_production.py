@@ -4,12 +4,13 @@ from __future__ import annotations
 from html.parser import HTMLParser
 from typing import Any
 
-from .brief_compiler import visual_system_configuration, visual_system_variant
+from .brief_compiler import base_visual_system_configuration, visual_system_variant
 from .component_catalog import COMPONENT_CATALOG, CORE_THEME_COMPONENTS
 from .parser import parse_markdown
-from .planner import generate_plans
+from .theme_fixture_plan import fixture_plan
 from .publication import _materialized_image_markup
-from .renderer import _opening_highlight, render_preview
+from .foundation_content import _opening_highlight
+from .renderer import render_preview
 from .theme_layouts import ROLE_FIELDS
 from .theme_pair_samples import review_pair
 
@@ -65,6 +66,8 @@ def _fixture(long: bool):
     phrase = "观察具体条件，再说明自己的判断，不补写不存在的事实。" * (5 if long else 1)
     before, after = review_pair("before_after_timeline", long=long)
     left, right = review_pair("comparison_card", long=long)
+    first_step = f"**先理解已有条件。**\\\n   {phrase}" if long else "先理解已有条件。"
+    next_step = f"**再确认下一步。**\\\n   {phrase}" if long else "再确认下一步。"
     return parse_markdown(f"""# 正式主题链路检查
 
 本文从阅读顺序、正文层级与图文关系出发，说明怎样保持完整而清楚的表达。{phrase}
@@ -80,8 +83,8 @@ def _fixture(long: bool):
 - 保存具体观察。{phrase}
 - 说明判断依据。{phrase}
 
-1. 先理解已有条件。{phrase}
-2. 再确认下一步。{phrase}
+1. {first_step}
+2. {next_step}
 
 ### 什么是阅读节奏
 
@@ -121,7 +124,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
     layouts = manifest.get("design_system", {}).get("layouts", {})
     if not layouts:
         return {"status": "not_applicable", "scope": "declared_production_entrypoints", "cases": [], "checked_roles": []}
-    config = visual_system_configuration(manifest["base_theme"])
+    config = base_visual_system_configuration(manifest["base_theme"])
     config.update(palette=manifest["palette"], accent=manifest["palette"]["primary"],
                   generated_design_system=manifest["design_system"], visual_system="production_probe", theme_id=manifest["id"])
     brand = {"standard_kicker": "阅读检查", "fixed_footer": {"enabled": True, "text": "保持完整表达。"}}
@@ -130,8 +133,7 @@ def check_theme_production(manifest: dict[str, Any]) -> dict[str, Any]:
     for long in (False, True):
         length = "long" if long else "short"
         parsed = _fixture(long)
-        plan = generate_plans(parsed, "tutorial_steps", 5)[0]
-        plan.update(configuration=config, slots=[], image_slots=[])
+        plan = {**fixture_plan(parsed), "configuration": config}
         paragraphs = [block for block in parsed.blocks if block.type == "paragraph"]
         headings = [block for block in parsed.blocks if block.type == "heading" and block.level == 3]
         heading = next(block for block in parsed.blocks if block.type == "heading" and block.level == 2)

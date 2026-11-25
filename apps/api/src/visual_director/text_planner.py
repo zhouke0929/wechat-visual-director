@@ -2,25 +2,15 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any
 
-from pydantic import ValidationError
-
-from .editorial_brief import (
-    ArtDirection,
-    ArticleAnalysis,
-    EditorialBrief,
-    ImageIntent,
-    SectionBrief,
-    normalize_editorial_brief_for_article,
-    validate_editorial_brief_for_article,
-)
+from .editorial_brief import EditorialBrief, normalize_editorial_brief_for_article
 from .parser import ParsedArticle
-from .planner import component_opportunity_diagnostics, generate_plans
+from .component_opportunities import component_opportunity_diagnostics
 
 
-TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.9-quote-evidence"
-HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.6-quote-evidence"
+TEXT_PLANNER_PROMPT_VERSION = "text_planner.v0.13-structure-advice"
+HOST_AGENT_PROMPT_VERSION = "host_agent_editorial_brief.v0.10-structure-advice"
 
 EDITORIAL_BRIEF_OUTPUT_RULES = [
     "输出必须是合法 JSON 对象，不要使用 Markdown 代码块。",
@@ -30,20 +20,21 @@ EDITORIAL_BRIEF_OUTPUT_RULES = [
     "不得输出 HTML、CSS、图片正文文字、凭据或模型密钥。",
     "H1/H2 是不可变的文章标题与主章节结构，任何组件都不得消费或替换它们。",
     "优先从 component_opportunities 提供的真实候选中选择不同语义角色；候选不足时保持 plain，不得补造结构。",
-    "中长分析稿若存在至少 3 种可绑定语义，应在不相邻、不重复消费内容的前提下使用 3–4 个不同角色，而不是只使用标题、引文或图片。",
-    "非 plain 组件预算随文章长度变化：短文最多 3 个、中长文最多 4 个、长文最多 5–6 个。",
+    "只在组件能明显帮助读者比较、定位、理解或行动时使用它；标题、段落、基本列表和原图已经足够时，保留普通排版，可以没有强组件。",
+    "非 plain 组件预算是上限，不是配额：短文最多 3 个、中长文最多 4 个、长文最多 5–6 个。",
     "视觉新鲜感不能破坏品牌一致性和正文可读性。",
     "question_hook 只能引用真正面向读者发问的 H3–H6 子标题：标题应以疑问词起句、冒号后的独立分句以疑问词起句，或以问号结尾；正文中间仅出现‘如何/是否’不构成提问。",
     "同一 H2 下以‘对象：分析维度’形式并列出现的 H3–H6 是同级分析骨架，应保持普通排版；不得只因其中一项含‘如何/是否’而把它单独改成 question_hook 或 faq_card。numbered_insight 必须引用含 2–5 项的列表。",
-    "logic_path 必须引用含 3–5 项的 ordered_list；before_after_timeline 必须引用至少 2 项的列表。",
+    "logic_path 必须引用含 3–5 项的 ordered_list；before_after_timeline 必须引用恰好两项且明确为前后的列表。",
     "concept_explainer 只能引用同一 H2 下 H3–H6 子标题及其各自紧随的解释段落；连续的 2–4 组会被编译为一个词条组。若同一 H2 下存在 3–4 个并列小节、但每项还有补充正文，则选择其中一项即代表整个并列系列，核心会让各项在原位使用一致组件并保留中间正文。",
-    "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 必须直接绑定含风险提示的原文。",
-    "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 可绑定原文列表，或绑定标题已明确表示对比且正文自身带有双方语义的两个相邻段落；不得把普通段落改写为列表或凭空制造对照。",
+    "case_card 与 faq_card 只能引用 H3–H6 子标题及其紧随段落；warning_note 只突出文章对读者明确提出的风险或适用限制，不因引用中含命令、否定词，或正文提到作者顾虑就使用。",
+    "action_checklist 与 section_summary 必须直接绑定原文列表；comparison_card 只绑定确有两方的两项列表，或标题明确表示对比且正文自身带有双方语义的两个相邻段落；不要把多方压成两方。",
     "数据来源、资料来源、规则来源、参考来源与来源说明都使用来源小字，不得用作强组件；即使来源只概括官网、公开账号或行业资料而没有具体链接，也仍属于来源说明。",
     "quote 块不自动等于 key_evidence。感受、原话和修辞摘句保持 plain，由渲染器使用普通引用样式；无需为它们增加强组件。只有内容确实为论点提供事实、数据或来源依据时才选择 evidence_callout，不能仅因使用了引用格式而升级为证据。",
     "任意两个强组件之间至少保留一个未被组件消费的正文块。",
     "图片意图只能为 optional 或 recommended；不得把品牌 CTA 送入图片生成。",
-    "structured_infographic 只能引用含 2–4 项的原文列表，不得从普通段落编造列表。",
+    "structured_infographic 只在图能帮助读者理解顺序或关系时推荐；绑定完整的 2–5 项原文列表，不截取子集，不得从普通段落编造列表。",
+    "为结构信息图在 display_labels 中按列表顺序逐项选连续原文短语。看图能读懂动作、对象及必要条件，不增删否定或数字；已有完整短句可原样用。优先简短，单项最多32字，无法忠实表达则不推荐该图。氛围图不用此字段。",
     "每个图片意图先说明 visual_role 与 learning_objective，再选择 layout_family；信息结构必须来自原文关系，不能为了好看虚构时间、对比或层级。",
     "atmosphere 使用 semantic_scene；结构信息图可使用 linear_progression、binary_comparison、comparison_matrix、hierarchical_layers、hub_spoke、structural_breakdown、timeline 或 pathway。",
     "若原文只有 OCR 长段落，保持 plain 或按需要选择 atmosphere；确有证据语义时才使用 evidence_callout，不要伪造列表结构或证据身份。",
@@ -91,6 +82,7 @@ def build_text_planner_payload(request: "TextPlannerRequest") -> dict[str, Any]:
                 "visual_system": summary.get("visual_system"),
             }
         )
+    opportunities = component_opportunity_diagnostics(request.parsed, request.recent_summaries)
     return {
         "prompt_version": TEXT_PLANNER_PROMPT_VERSION,
         "requested_article_type": request.article_type,
@@ -106,10 +98,8 @@ def build_text_planner_payload(request: "TextPlannerRequest") -> dict[str, Any]:
                 for block in request.parsed.blocks
             ],
         },
-        "component_opportunities": component_opportunity_diagnostics(
-            request.parsed,
-            request.recent_summaries,
-        ),
+        "component_opportunities": opportunities,
+        "structure_advice": _structure_advice(request, opportunities),
         "brand": safe_brand,
         "recent_history": safe_history,
         "output_contract": "editorial_brief.v0.1",
@@ -120,6 +110,23 @@ def build_text_planner_payload(request: "TextPlannerRequest") -> dict[str, Any]:
             "The fixed brand CTA is immutable and must not enter image generation.",
         ],
     }
+
+
+def _structure_advice(request: "TextPlannerRequest", opportunities: dict[str, Any]) -> list[dict[str, str]]:
+    parsed = request.parsed
+    if parsed.frontmatter.get("schema_version") != "wechat_article.v1" or request.article_type not in {
+        "data_policy", "viewpoint_trend", "tutorial_steps",
+    }:
+        return []
+    paragraphs = [b for b in parsed.blocks if b.type == "paragraph"]
+    prose_length = sum(len("".join(str(b.content).split())) for b in paragraphs)
+    grounded_roles = len(opportunities["eligible_component_types"]) + int(any(b.type == "table" for b in parsed.blocks))
+    if len(paragraphs) < 8 or prose_length < 900 or grounded_roles >= 2:
+        return []
+    return [{
+        "code": "source_structure_too_flat",
+        "message": "这篇长稿以连续正文为主，可直接保持叙事；仅在原文确有并列、顺序或对比关系时考虑组件，无需为凑结构改写或补造内容。",
+    }]
 
 
 def build_host_agent_planner_context(request: "TextPlannerRequest") -> dict[str, Any]:
@@ -166,245 +173,34 @@ class TextPlannerResult:
     diagnostics: dict[str, Any] | None = None
 
 
-class TextPlannerProvider(Protocol):
-    provider: str
-    model: str
-    configured: bool
-
-    def generate(
-        self,
-        request: TextPlannerRequest,
-    ) -> EditorialBrief | dict[str, Any]: ...
-
-
-ARTICLE_ANALYSIS: dict[str, dict[str, Any]] = {
-    "data_policy": {
-        "audience": ["需要核验信息的读者", "相关决策者"],
-        "reader_task": "核对公开数据、规则与依据，并形成谨慎判断",
-        "narrative": "从事实依据进入判断条件，再落到影响与行动",
-        "tone": ["可信", "清晰", "克制"],
-        "palette": ["muted_teal", "warm_ivory", "sunlit_yellow"],
-    },
-    "tutorial_steps": {
-        "audience": ["需要完成具体任务的读者", "一线执行者"],
-        "reader_task": "按顺序完成操作并避免关键遗漏",
-        "narrative": "从任务目标进入步骤路径，最后完成复核",
-        "tone": ["清晰", "有行动指引", "可信"],
-        "palette": ["muted_teal", "warm_ivory", "coral_accent"],
-    },
-    "viewpoint_trend": {
-        "audience": ["关注该议题的读者", "行业从业者"],
-        "reader_task": "理解核心观点、证据与现实影响",
-        "narrative": "从读者疑问进入观点解释，再回到现实选择",
-        "tone": ["理性", "有洞察", "克制"],
-        "palette": ["deep_navy", "warm_ivory", "coral_accent"],
-    },
-    "lively_growth": {
-        "audience": ["关注人物、品牌或真实案例的读者"],
-        "reader_task": "理解故事中的变化、经验与可迁移启发",
-        "narrative": "从真实场景进入关键转折，再提炼经验与启发",
-        "tone": ["亲和", "轻松", "有行动指引"],
-        "palette": ["soft_sky", "warm_ivory", "sunlit_yellow"],
-    },
-}
-
-
-SEMANTIC_ROLE = {
-    "question_hook": "reader_question",
-    "numbered_insight": "action_step",
-    "evidence_callout": "key_evidence",
-    "before_after_timeline": "comparison",
-    "logic_path": "logic_sequence",
-    "concept_explainer": "concept",
-    "case_card": "case",
-    "warning_note": "warning",
-    "action_checklist": "checklist",
-    "faq_card": "faq",
-    "comparison_card": "comparison",
-    "section_summary": "summary",
-}
-
-
-def _recent_patterns(recent_summaries: list[dict[str, Any]]) -> list[str]:
-    patterns: list[str] = []
-    for summary in recent_summaries[:5]:
-        components = summary.get("components", [])
-        values = [
-            f"{item.get('component_type')}:{item.get('variant')}"
-            for item in components
-            if isinstance(item, dict) and item.get("component_type")
-        ]
-        if values:
-            patterns.append(" + ".join(values[:3]))
-    return patterns[:5]
-
-
-def build_rule_based_brief(request: TextPlannerRequest) -> EditorialBrief:
-    """Build the safe baseline in the same semantic contract used by future LLMs."""
-    plan = generate_plans(
-        request.parsed,
-        request.article_type,
-        request.history_window,
-        request.recent_summaries,
-    )[0]
-    analysis = ARTICLE_ANALYSIS[request.article_type]
-    strong_limit = min(6, max(3, 2 + len(request.parsed.blocks) // 8))
-    sections = [
-        SectionBrief(
-            source_block_ids=slot["consume_block_ids"],
-            semantic_role=SEMANTIC_ROLE[slot["component_type"]],
-            visual_priority="high" if slot["emphasis"] == "primary" else "medium",
-            component_intent=slot["component_type"],
-            reasoning=slot["selection_reason"],
-        )
-        for slot in plan.get("slots", [])[:strong_limit]
-    ]
-    image_intents = [
-        ImageIntent(
-            anchor_block_id=slot["anchor_block_id"],
-            source_block_ids=slot["source_block_ids"],
-            purpose=slot["purpose"],
-            necessity="recommended" if index == 0 else "optional",
-            aspect_ratio=slot["aspect_ratio"],
-            visual_metaphor=slot["visual_intent"]["subject"],
-            visual_role=slot["visual_intent"].get("visual_role"),
-            learning_objective=slot["visual_intent"].get("learning_objective"),
-            layout_family=slot["visual_intent"].get("layout_family"),
-            forbidden_elements=["text_in_model_image", "qr_code", "logo", "fabricated_data", "brand_cta"],
-        )
-        for index, slot in enumerate(plan.get("image_slots", [])[:3])
-    ]
-    brief = EditorialBrief(
-        schema_version="editorial_brief.v0.1",
-        article=ArticleAnalysis(
-            article_type=request.article_type,
-            audience=analysis["audience"],
-            reader_task=analysis["reader_task"],
-            narrative=analysis["narrative"],
-        ),
-        sections=sections,
-        image_intents=image_intents,
-        art_direction=ArtDirection(
-            tone=analysis["tone"],
-            palette_roles=analysis["palette"],
-            style_family=(
-                "soft_flat_illustration" if request.article_type == "lively_growth" else "editorial_paper_cut"
-            ),
-            avoid_recent_patterns=_recent_patterns(request.recent_summaries),
-        ),
-        facts_locked=True,
-    )
-    return validate_editorial_brief_for_article(brief, request.parsed)
-
-
-class RuleTextPlannerProvider:
-    provider = "rule_text_planner"
-    model = "deterministic_editorial_brief"
-    configured = False
-
-    def generate(self, request: TextPlannerRequest) -> EditorialBrief:
-        return build_rule_based_brief(request)
-
-
-# Backward-compatible import name for older tests and integrations. Runtime
-# metadata uses ``rule_text_planner`` so hosts do not mistake the deterministic
-# fallback for a mocked external model.
-MockTextPlannerProvider = RuleTextPlannerProvider
-
-
 def adopt_host_agent_editorial_brief(
     raw_brief: dict[str, Any] | None,
     request: TextPlannerRequest,
     *,
     host_model: str = "host_managed",
 ) -> TextPlannerResult:
-    """Validate an external host-Agent brief and fall back without calling another model."""
+    """Accept the host's editorial choices or return validation errors to that host."""
     started = time.perf_counter()
-    try:
-        if not isinstance(raw_brief, dict):
-            raise ValueError("宿主 Agent 未提供 EditorialBrief JSON 对象")
-        normalized, adjustments = normalize_editorial_brief_for_article(raw_brief, request.parsed)
-        return TextPlannerResult(
-            brief=normalized,
-            provider="host_agent",
-            model=(host_model.strip() or "host_managed")[:120],
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            normalization_count=len(adjustments),
-            normalization_adjustments=adjustments,
-            diagnostics={"source": "external_editorial_brief"},
-        )
-    except (ValidationError, ValueError, TypeError, KeyError) as exc:
-        fallback = build_rule_based_brief(request)
-        return TextPlannerResult(
-            brief=fallback,
-            provider="host_agent",
-            model=(host_model.strip() or "host_managed")[:120],
-            latency_ms=int((time.perf_counter() - started) * 1000),
-            fallback_used=True,
-            fallback_reason=f"{type(exc).__name__}: {str(exc)[:500]}",
-            provider_error_code="host_brief_invalid",
-            normalization_adjustments=[],
-            diagnostics={
-                "source": "external_editorial_brief",
-                "validation_error_type": type(exc).__name__,
-            },
-        )
-
-
-def create_text_planner_provider_from_env(
-    environ: dict[str, str] | None = None,
-) -> TextPlannerProvider:
-    """Return the zero-configuration rule fallback.
-
-    ``environ`` remains accepted so older callers and private config files do
-    not break after the retired Qwen BYOK path is removed. No value in that
-    mapping triggers an external text-model request.
-    """
-    del environ
-    return RuleTextPlannerProvider()
-
-
-def generate_editorial_brief(
-    provider: TextPlannerProvider,
-    request: TextPlannerRequest,
-) -> TextPlannerResult:
-    started = time.perf_counter()
-    try:
-        raw = provider.generate(request)
-        brief = validate_editorial_brief_for_article(raw, request.parsed)
-        repair_count = 0
-        input_tokens = 0
-        output_tokens = 0
-        estimated_cost_yuan = 0.0
-        normalization_adjustments: list[dict[str, str]] = []
-        diagnostics: dict[str, Any] = {}
-        return TextPlannerResult(
-            brief=brief,
-            provider=provider.provider,
-            model=provider.model,
-            latency_ms=round((time.perf_counter() - started) * 1000),
-            repair_count=repair_count,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            estimated_cost_yuan=estimated_cost_yuan,
-            normalization_count=len(normalization_adjustments),
-            normalization_adjustments=normalization_adjustments,
-            diagnostics=diagnostics,
-        )
-    except Exception as exc:
-        fallback = build_rule_based_brief(request)
-        return TextPlannerResult(
-            brief=fallback,
-            provider=provider.provider,
-            model=provider.model,
-            latency_ms=round((time.perf_counter() - started) * 1000),
-            fallback_used=True,
-            fallback_reason=f"{type(exc).__name__}: {exc}",
-            repair_count=0,
-            estimated_cost_yuan=0.0,
-            input_tokens=0,
-            output_tokens=0,
-            provider_error_code=None,
-            normalization_adjustments=[],
-            diagnostics={},
-        )
+    if not isinstance(raw_brief, dict):
+        raise ValueError("请提交宿主 Agent 生成的 editorial_brief JSON 对象")
+    brief, adjustments = normalize_editorial_brief_for_article(raw_brief, request.parsed)
+    if not brief.sections and not brief.image_intents:
+        # An explicitly plain article is valid. A plan for another article is not:
+        # don't silently turn a completely ungrounded submission into that plain article.
+        refs: set[str] = set()
+        for pick in [*raw_brief["sections"], *raw_brief["image_intents"]]:
+            anchor, sources = pick.get("anchor_block_id"), pick.get("source_block_ids")
+            if isinstance(anchor, str):
+                refs.add(anchor)
+            if isinstance(sources, list):
+                refs.update(ref for ref in sources if isinstance(ref, str))
+        if refs and refs.isdisjoint(block.id for block in request.parsed.blocks):
+            raise ValueError("所有规划引用均不属于本篇原文；请重新读取本任务的 planner-context，使用其中的 block_id 修订 sections 或 image_intents 后重试。")
+    return TextPlannerResult(
+        brief=brief,
+        provider="host_agent",
+        model=(host_model.strip() or "host_managed")[:120],
+        latency_ms=round((time.perf_counter() - started) * 1000),
+        normalization_count=len(adjustments),
+        normalization_adjustments=adjustments,
+    )

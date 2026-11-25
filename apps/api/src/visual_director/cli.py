@@ -18,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request, urlopen
 
-from .version import application_version, runtime_identity
+from .version import TASK_WORKFLOW_CONTRACT_VERSION, application_version, runtime_identity
 from .image_provider import IMAGE_PROVIDER_SETTINGS_SCHEMA_VERSION
 from .onboarding import DEFAULT_PUBLIC_IP_ENDPOINTS, PublicIpProbe
 from .data_recovery import DataRecoveryError, recover_dataset, scan_datasets
@@ -370,7 +370,23 @@ def _probe_web(url: str, timeout: float = 1.5) -> bool:
         payload
         and payload.get("application") == WORKBENCH_ID
         and payload.get("application_version") == application_version()
+        and payload.get("task_workflow_contract_version") == TASK_WORKFLOW_CONTRACT_VERSION
     )
+
+
+def _require_workflow_contract(health: dict[str, Any] | None, api_base: str) -> None:
+    if health is None:
+        raise CliError("service_unavailable", "无法连接工作台，请先启动本地服务。", exit_code=3, retryable=True)
+    actual = health.get("task_workflow_contract_version")
+    if actual != TASK_WORKFLOW_CONTRACT_VERSION:
+        raise CliError("core_workflow_mismatch", "运行中的工作台不支持当前交稿协议，请更新并重启后重试。",
+                       exit_code=3, retryable=True, details={
+                           "api_base": api_base, "expected": TASK_WORKFLOW_CONTRACT_VERSION, "running": actual,
+                       })
+
+
+def _check_task_service(api_base: str) -> None:
+    _require_workflow_contract(_probe_json(f"{_api_origin(api_base)}/health", timeout=5), api_base)
 
 
 def _multipart_markdown(
@@ -702,6 +718,7 @@ def _ensure_services(api_base: str, web_base: str, *, timeout: float = 45) -> di
             },
         )
 
+    _require_workflow_contract(api_health, api_base)
     if not web_ready:
         raise CliError(
             "workbench_build_missing",
@@ -904,7 +921,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
     installation["running_data_root"] = (running_runtime or {}).get("data_root")
     installation["running_database_path"] = (running_runtime or {}).get("database_path")
     installation["running_task_count"] = (running_runtime or {}).get("task_count")
-    trusted_core = api_health is not None and version_match and runtime_match
+    workflow_match = (api_health or {}).get("task_workflow_contract_version") == TASK_WORKFLOW_CONTRACT_VERSION
+    trusted_core = api_health is not None and version_match and runtime_match and workflow_match
     host_skill = _host_skill_registration_summary()
     wechat_publisher_status = (
         _probe_json(f"{api_base.rstrip('/')}/publishers/wechat/status", timeout=10)
@@ -930,6 +948,8 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("core_api_not_running")
     elif installation["persistent"] and not runtime_match:
         warnings.append("core_runtime_mismatch")
+    if api_health is not None and not workflow_match:
+        warnings.append("core_workflow_mismatch")
     if api_health is not None and installation["persistent"] and not version_match:
         warnings.append("core_version_mismatch")
         if not contract_match:
@@ -947,11 +967,6 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
         warnings.append("image_generation_mock_only")
     elif image_provider == "manual":
         warnings.append("image_generation_manual_only")
-    rule_planners = {"mock_text_planner", "rule_text_planner"}
-    if text_planner_provider in rule_planners:
-        warnings.append("text_planning_rule_fallback")
-    elif text_planner_provider not in {"none", ""} and not text_planner_configured:
-        warnings.append("text_planning_not_configured")
     core_ready = trusted_core
     ok = core_ready and web_ready
     target_mode = str(setup_preferences.get("target_mode") or "typeset_only")
@@ -988,10 +1003,6 @@ def _doctor(api_base: str, web_base: str) -> tuple[dict[str, Any], int]:
             "mock_image_candidates": image_provider == "mock",
             "host_agent_text_planning": core_ready,
             "host_skill_registered": bool(host_skill["registered"]),
-            "ai_text_planning": bool(
-                text_planner_configured and text_planner_provider not in rule_planners
-            ),
-            "rule_text_planning": text_planner_provider in rule_planners,
             "wechat_draft": bool((wechat_publisher_status or {}).get("ready", False)),
             "rich_copy": core_ready,
             "bundle_export": core_ready,
@@ -1041,50 +1052,9 @@ def _default_task_idempotency_key(args: argparse.Namespace, markdown_path: Path)
     return f"cli-task-{digest.hexdigest()}"
 
 
-def _resolve_planner(requested: str, api_health: dict[str, Any]) -> str:
-    if requested in {"rule", "intelligent"}:
-        return requested
-    return "intelligent" if api_health.get("text_planner_configured") else "rule"
-
-
-def _get_task_payload(api_base: str, task_id: str) -> dict[str, Any]:
-    return _request_json(
-        "GET",
-        f"{api_base.rstrip('/')}/article-tasks/{task_id}",
-        timeout=10,
-    )
-
-
-def _wait_for_plans(api_base: str, task_id: str, *, timeout: float) -> dict[str, Any]:
-    deadline = time.monotonic() + timeout
-    last_status = "unknown"
-    while time.monotonic() < deadline:
-        payload = _get_task_payload(api_base, task_id)
-        task = payload.get("task") if isinstance(payload.get("task"), dict) else {}
-        last_status = str(task.get("status") or "unknown")
-        if last_status in {
-            "plans_ready",
-            "plan_selected",
-            "images_review",
-            "publication_frozen",
-            "mock_draft_created",
-        }:
-            return payload
-        if last_status == "failed":
-            raise CliError(
-                "plan_generation_failed",
-                "Visual plan generation failed",
-                exit_code=5,
-                details={"task_id": task_id, "last_error": payload.get("last_error")},
-            )
-        time.sleep(0.5)
-    raise CliError(
-        "plan_generation_timeout",
-        f"Visual plans were not ready within {int(timeout)} seconds",
-        exit_code=5,
-        retryable=True,
-        details={"task_id": task_id, "last_status": last_status},
-    )
+def _review_url(web_base: str, review_path: object, task_id: str) -> str | None:
+    """The API grants a review path only after an actual plan has been saved."""
+    return f"{web_base.rstrip('/')}{review_path}" if review_path == f"/tasks/{task_id}" else None
 
 
 def _create_task(args: argparse.Namespace) -> dict[str, Any]:
@@ -1102,10 +1072,9 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
         raise CliError("file_too_large", "Markdown 文件不能超过 2MB", exit_code=2)
 
     if not args.no_start:
-        services = _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
-        api_health = services.get("api_health", {})
+        _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
     else:
-        api_health = _probe_json(urljoin(f"{_api_origin(args.api_base)}/", "health")) or {}
+        _check_task_service(args.api_base)
 
     body, boundary = _multipart_markdown(
         markdown_path,
@@ -1129,53 +1098,14 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
     preflight = summary.get("preflight_report") if isinstance(summary.get("preflight_report"), dict) else {}
     planning_allowed = bool(preflight.get("planning_allowed", False))
     task_id = str(task.get("id") or "")
-    final_task = task
-    plans_generated = False
-    planner = None
-    auto_plan = bool(args.auto_plan and planning_allowed)
-    status = str(task.get("status") or "created")
-    if auto_plan and status == "created":
-        planner = _resolve_planner(args.planner, api_health)
-        generation_body = json.dumps(
-            {
-                "mode": "start",
-                "expected_task_version": task.get("version"),
-                "planner": planner,
-            }
-        ).encode("utf-8")
-        _request_json(
-            "POST",
-            f"{args.api_base.rstrip('/')}/article-tasks/{task_id}/generate-plans",
-            body=generation_body,
-            headers={"Content-Type": "application/json"},
-            timeout=args.plan_timeout,
-        )
-        plans_generated = True
-        detail = _wait_for_plans(args.api_base, task_id, timeout=args.plan_timeout)
-        final_task = detail.get("task") if isinstance(detail.get("task"), dict) else task
-    elif auto_plan and status == "analyzing":
-        planner = _resolve_planner(args.planner, api_health)
-        detail = _wait_for_plans(args.api_base, task_id, timeout=args.plan_timeout)
-        final_task = detail.get("task") if isinstance(detail.get("task"), dict) else task
-    elif auto_plan and status in {"plans_ready", "plan_selected", "images_review", "publication_frozen", "mock_draft_created"}:
-        planner = "existing"
-
-    review_path = str(payload.get("review_path") or f'/tasks/{task.get("id", "")}')
-    review_url = f"{args.web_base.rstrip('/')}/{review_path.lstrip('/')}"
-    opened = False
-    if args.open:
-        opened = bool(webbrowser.open(review_url, new=2))
-    if not planning_allowed:
-        next_action = "fix_source"
-    elif not auto_plan and str(final_task.get("status") or "") == "created":
-        next_action = "generate_editorial_brief"
-    else:
-        next_action = "human_review"
+    review_url = _review_url(args.web_base, payload.get("review_path"), task_id)
+    opened = bool(webbrowser.open(review_url, new=2)) if args.open and review_url else False
+    next_action = "human_review" if review_url else ("generate_editorial_brief" if planning_allowed else "fix_source")
     return {
         "ok": True,
-        "schema_version": "task_create_result.v0.2",
+        "schema_version": "task_create_result.v0.3",
         "task_id": task_id,
-        "status": final_task.get("status"),
+        "status": task.get("status"),
         "preflight_status": preflight.get("status"),
         "planning_allowed": planning_allowed,
         "draft_creation_allowed": bool(preflight.get("draft_creation_allowed", False)),
@@ -1193,8 +1123,6 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
             if isinstance(finding, dict) and not finding.get("resolved_at")
         ],
         "idempotency_replayed": bool(payload.get("idempotency_replayed", False)),
-        "plans_generated": plans_generated,
-        "planner": planner,
         "review_url": review_url,
         "opened": opened,
         "next_action": next_action,
@@ -1204,7 +1132,8 @@ def _create_task(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _task_list(args: argparse.Namespace) -> dict[str, Any]:
-    query = urlencode({"page": args.page, "page_size": args.page_size, "q": args.query})
+    query = urlencode({"page": args.page, "page_size": args.page_size, "q": args.query,
+                       **({"scope": "all"} if args.include_unplanned else {})})
     payload = _request_json("GET", f"{args.api_base.rstrip('/')}/article-tasks?{query}", timeout=15)
     if not isinstance(payload.get("items"), list) or "total" not in payload:
         raise CliError("task_search_unavailable", "当前服务不支持任务检索，请打开最近任务，或升级工作台。", exit_code=3)
@@ -1212,7 +1141,7 @@ def _task_list(args: argparse.Namespace) -> dict[str, Any]:
         "ok": True, "schema_version": "task_list_result.v0.1",
         "items": [{
             **{key: task.get(key) for key in ("id", "title", "status", "updated_at")},
-            "review_url": f"{args.web_base.rstrip('/')}/tasks/{task['id']}",
+            "review_url": _review_url(args.web_base, task.get("review_path"), task["id"]),
         } for task in payload["items"]],
         "page": payload["page"], "total": payload["total"],
         "total_pages": payload["total_pages"],
@@ -1267,9 +1196,16 @@ def _load_editorial_brief(path_value: str) -> tuple[Path, dict[str, Any]]:
 
 
 def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
-    if not args.no_start:
+    try:
+        _, brief = _load_editorial_brief(args.brief)
+    except CliError as exc:
+        exc.details.update(task_id=args.task_id, expected_task_version=args.expected_task_version,
+                           next_action="revise_editorial_brief")
+        raise
+    if args.no_start:
+        _check_task_service(args.api_base)
+    else:
         _ensure_services(args.api_base, args.web_base, timeout=args.start_timeout)
-    _, brief = _load_editorial_brief(args.brief)
     generation_body = json.dumps(
         {
             "mode": "start",
@@ -1287,25 +1223,26 @@ def _plan_task(args: argparse.Namespace) -> dict[str, Any]:
         headers={"Content-Type": "application/json"},
         timeout=args.plan_timeout,
     )
-    detail = _wait_for_plans(args.api_base, args.task_id, timeout=args.plan_timeout)
-    task = detail.get("task") if isinstance(detail.get("task"), dict) else {}
     metadata = (
         generation.get("planner_metadata")
         if isinstance(generation.get("planner_metadata"), dict)
         else {}
     )
-    review_url = f"{args.web_base.rstrip('/')}/tasks/{args.task_id}"
+    review_url = _review_url(args.web_base, generation.get("review_path"), args.task_id)
+    if not review_url or generation.get("status") not in {"plans_ready", "plan_selected"}:
+        raise CliError("plan_not_committed", "服务未确认 Agent 成稿已保存，请检查任务状态。", exit_code=5)
+    if metadata.get("provider") != "host_agent" or metadata.get("fallback_used") is not False:
+        raise CliError("unexpected_planner", "服务未按宿主规划交稿，请核对工作台版本。", exit_code=5)
     opened = bool(webbrowser.open(review_url, new=2)) if args.open else False
     return {
         "ok": True,
-        "schema_version": "task_plan_result.v0.1",
+        "schema_version": "task_plan_result.v0.2",
         "task_id": args.task_id,
-        "status": task.get("status"),
+        "status": generation["status"],
         "planner": "host_agent",
         "planner_provider": metadata.get("provider"),
+        "fallback_used": metadata["fallback_used"],
         "planner_model": metadata.get("model"),
-        "fallback_used": bool(metadata.get("fallback_used", False)),
-        "fallback_reason": metadata.get("fallback_reason"),
         "normalization_count": int(metadata.get("normalization_count") or 0),
         "normalization_adjustments": metadata.get("normalization_adjustments") or [],
         "review_url": review_url,
@@ -1446,14 +1383,11 @@ def _task_status(args: argparse.Namespace) -> dict[str, Any]:
     summary = payload.get("input_summary") if isinstance(payload.get("input_summary"), dict) else {}
     preflight = summary.get("preflight_report") if isinstance(summary.get("preflight_report"), dict) else {}
     status = str(task.get("status") or "unknown")
-    if preflight.get("status") == "BLOCK":
-        next_action = "fix_source"
-    elif status in {"publication_frozen", "mock_draft_created"}:
-        next_action = "mock_draft_created" if status == "mock_draft_created" else "ready_to_confirm"
-    elif status == "failed":
-        next_action = "failed"
+    review_url = _review_url(args.web_base, payload.get("review_path"), args.task_id)
+    if review_url:
+        next_action = {"mock_draft_created": "mock_draft_created", "publication_frozen": "ready_to_confirm"}.get(status, "human_review")
     else:
-        next_action = "human_review"
+        next_action = "generate_editorial_brief" if preflight.get("planning_allowed") else "fix_source"
     return {
         "ok": True,
         "schema_version": "task_status_result.v0.1",
@@ -1462,7 +1396,7 @@ def _task_status(args: argparse.Namespace) -> dict[str, Any]:
         "preflight_status": preflight.get("status"),
         "available_actions": payload.get("available_actions", []),
         "next_action": next_action,
-        "review_url": f"{args.web_base.rstrip('/')}/tasks/{args.task_id}",
+        "review_url": review_url,
         "last_error": payload.get("last_error"),
     }
 
@@ -1652,16 +1586,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--account-id", default="default")
     create.add_argument("--idempotency-key")
     create.add_argument("--new-task", action="store_true", help="Create another task even if the input is unchanged")
-    create.add_argument(
-        "--planner",
-        choices=["auto", "rule", "intelligent"],
-        default="auto",
-        help="Planner used before opening the workbench",
-    )
-    create.add_argument("--no-plan", action="store_false", dest="auto_plan")
-    create.set_defaults(auto_plan=True)
-    create.add_argument("--plan-timeout", type=float, default=120)
-    create.add_argument("--open", action="store_true")
+    create.add_argument("--open", action="store_true", help="仅在复用已有成稿时打开工作台")
     create.add_argument("--no-start", action="store_true")
     create.add_argument("--start-timeout", type=float, default=45)
     create.add_argument("--json", action="store_true", dest="json_output")
@@ -1669,6 +1594,7 @@ def build_parser() -> argparse.ArgumentParser:
     task_list = task_subparsers.add_parser("list", help="按标题查找已有任务，不读取文章正文")
     _add_connection_args(task_list)
     task_list.add_argument("--query", default="")
+    task_list.add_argument("--include-unplanned", action="store_true", help="同时查找尚未成稿的任务，以便 Agent 继续规划")
     task_list.add_argument("--page", type=int, default=1)
     task_list.add_argument("--page-size", type=int, default=8)
     task_list.add_argument("--json", action="store_true", dest="json_output")
@@ -1707,6 +1633,8 @@ def run(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
+        if args.command == "task" and args.task_command not in {"create", "plan"}:
+            _check_task_service(args.api_base)
         if args.command == "doctor":
             payload, exit_code = _doctor(args.api_base, args.web_base)
         elif args.command == "serve":
@@ -1762,7 +1690,11 @@ def run(argv: Sequence[str] | None = None) -> int:
         elif args.command == "task" and args.task_command == "plan":
             payload, exit_code = _plan_task(args), 0
         elif args.command == "task" and args.task_command == "open":
-            review_url = f"{args.web_base.rstrip('/')}/tasks/{args.task_id}"
+            state = _task_status(args)
+            review_url = state["review_url"]
+            if not review_url:
+                raise CliError("plan_not_ready", "任务还没有可供审核的成稿。", exit_code=5,
+                               details={"task_id": args.task_id, "next_action": state["next_action"]})
             opened = bool(webbrowser.open(review_url, new=2))
             payload = {
                 "ok": True,

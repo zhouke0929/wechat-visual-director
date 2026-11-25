@@ -8,17 +8,15 @@
 # 环境和服务状态
 & "{launcher}" doctor --json
 
-# 创建任务，自动规划并打开工作台
-& "{launcher}" task create --file C:\path\article.md --open --json
-
-# Skill 默认流程：创建任务后复用宿主 Agent 生成 Brief
-& "{launcher}" task create --file C:\path\article.md --no-plan --json
+# 创建只预检；宿主读上下文、提交规划后才打开评审
+& "{launcher}" task create --file C:\path\article.md --json
 & "{launcher}" task context <task-id> --json
 & "{launcher}" task plan <task-id> --brief C:\path\editorial-brief.json --expected-task-version <version> --host-model host_managed --open --json
 
 # 同一原稿显式另建任务
-& "{launcher}" task create --file C:\path\article.md --new-task --open --json
+& "{launcher}" task create --file C:\path\article.md --new-task --json
 
+# 默认只列成稿；找回未交稿的任务时可用 task list --include-unplanned --json
 # 查询和打开任务
 & "{launcher}" task list --query "<标题关键词>" --page 1 --json
 & "{launcher}" task status <task-id> --json
@@ -65,8 +63,8 @@
 
 - `command_completed=true`：当前 CLI 命令已经完成；后台服务是独立进程，不得继续等待其退出。
 - `background=true`、`process_mode=detached`：`serve`/`bootstrap` 已在无控制台后台模式启动或复用服务，宿主终端可以立即结束。
-- `status=plans_ready`：推荐稿已经生成，可以在工作台评审；新任务默认只展示一份自动选中的推荐稿。
-- `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题；`source_structure_too_flat` 只允许整理原稿已有关系。
+- `status=plan_selected` 或 `plans_ready`：推荐稿已经生成，可以在工作台评审；新任务默认只展示一份自动选中的推荐稿。
+- `next_action=fix_source`：读取同一 JSON 中未解决的 `findings`，只修复明确的 Markdown 问题，不编造事实。
 - `next_action=generate_editorial_brief`：读取 `task context`，由当前宿主 Agent 或可选子智能体生成 Brief。
 - `next_action=human_review`：把 `review_url` 交给用户，暂停 Agent 自主操作。
 - `next_action=generate_images_with_host`：仅当当前宿主暴露原生生图工具时，逐条执行 `requests[]` 并用 `image import` 回传；否则返回 `host_image_generation_unavailable`。
@@ -76,19 +74,18 @@
 - `host_image_request_stale`、`host_image_semantic_context_changed`、`host_image_revision_changed`：历史请求不存在、正文锚点/图片任务已改变，或请求发出后图片槽又发生变化；重新读取上下文，不要覆盖当前候选。
 - `host_cover_request_stale`、`host_cover_semantic_context_changed`、`host_cover_revision_changed`：封面历史请求不存在、文章封面语义已变化或候选列表已变化；重新读取封面上下文。
 - `planner_provider=host_agent`：本次使用了宿主提交的 Brief，核心没有再次调用文本模型。
-- `fallback_used=true`：宿主 Brief 无效或无法编译，方案已透明降级为规则规划。
+- `host_brief_invalid`：没有生成稿件。按返回的问题修正原 Brief，在同一任务重交一次；仍失败就停下来说明原因。
 - `normalization_count>0`：核心对 Brief 做了不改变事实的安全规范化。
 - `idempotency_replayed=true`：相同输入已存在，返回原任务。
-- `opened=false`：浏览器自动打开失败，但任务仍成功；直接提供 `review_url`。
-- `doctor.capabilities.ai_text_planning=true`：核心已配置真实文本规划模型。
+- `opened=false`：可能尚无成稿，也可能没有请求打开浏览器；仅在非空时提供 `review_url`。
 - `doctor.capabilities.host_agent_text_planning=true`：核心支持接收宿主 Agent Brief，不代表当前任务已成功采用。
 - `doctor.capabilities.host_skill_registered=true`：用户级 Skill 已注册；同时可从 `doctor.host_integrations.skill` 检查通用目录、OpenCode 目录与斜杠命令。
-- `doctor.capabilities.rule_text_planning=true`：当前使用确定性规则兜底；可以排版，但不得宣称调用了 AI 文本规划。
 - `doctor.capabilities.wechat_draft=true`：内置微信官方 API 发布器与公众号凭据已就绪，但仍需人工确认公网出口 IP 已加入白名单。
 - `doctor.capabilities.rich_copy=true`：工作台提供实验性富文本复制；粘贴后必须保存、重开并在手机端检查图片。
 - `doctor.capabilities.bundle_export=true`：冻结版本可以下载为本地交付包。
 - `doctor.installation.persistent=true`：当前使用固定安装目录；同时核对 `version`、`app_root` 和 `data_root`。
 - `doctor.installation.version_match=true`：当前 API 进程与已安装版本一致；`core_version_mismatch` 时不得继续创建任务，先停止旧服务并重新启动。
+- `core_workflow_mismatch`：CLI 和正在运行的工作台交稿协议不同，即使显示同一版本也不能混用。不要改走旧 API；先核对启动器与工作台实例，更新、重启匹配的核心后继续原任务。
 - `workbench_build_missing`：当前 FastAPI 版本没有匹配的静态工作台；重新运行安装器，不要另起前端开发服务器。
 - `target_has_tasks`：恢复目标已有任务，必须先人工核对扫描结果；需要切换时显式使用 `--activate --yes`，系统会先备份。
 

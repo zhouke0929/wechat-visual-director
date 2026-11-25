@@ -20,6 +20,48 @@ from visual_director.theme_packs import configure_theme_packs, validate_theme_pa
 ROOT = Path(__file__).resolve().parents[3]
 
 
+def test_structured_grid_gutters_stay_with_their_rows(monkeypatch):
+    """An orphaned marker increases row height without causing horizontal overflow."""
+    playwright = pytest.importorskip("playwright.sync_api")
+    monkeypatch.setenv("WVD_RENDERER_PILOT", "1")
+    theme = build_theme_gallery(theme_id="structured_grid")[0]
+    single_rows = {"lead", "section_heading", "warning_note", "quote", "evidence_callout", "concept_explainer", "case_card"}
+    wanted = single_rows | {"unordered_list", "ordered_list", "logic_path", "action_checklist"}
+    markup = {}
+    for item in theme["foundation_specimens"] + theme["components"]:
+        role = item.get("role") or item["component_type"]
+        if role in wanted:
+            markup[role] = item["html"]
+    assert markup.keys() == wanted
+    with playwright.sync_playwright() as p:
+        try:
+            browser = p.chromium.launch(headless=True)
+        except playwright.Error as exc:
+            pytest.skip(f"Local Chromium not available: {exc}")
+        try:
+            page = browser.new_page()
+            for width in (320, 368, 375, 390, 405, 648):
+                page.set_viewport_size({"width": width, "height": 800})
+                for role, fragment in markup.items():
+                    page.set_content('<body style="margin:0;padding:0 24px">' + fragment)
+                    rows = page.locator("section:has(>span + :is(p,strong,section)), blockquote:has(>span + span)").evaluate_all(
+                        """els => els.map(row => [...row.children].map(col => col.getBoundingClientRect().top))"""
+                    )
+                    assert len(rows) == (1 if role in single_rows else 3), role
+                    assert all(max(row) - min(row) < 2 for row in rows), (width, role, rows)
+                    if role == "logic_path" and width >= 368:
+                        markers = page.locator("section > span:first-child:has(+ p)").evaluate_all(
+                            """els => els.map(el => {
+                                const range = document.createRange();
+                                range.selectNodeContents(el);
+                                return [el.getBoundingClientRect().width, range.getClientRects().length];
+                            })"""
+                        )
+                        assert markers == [[52, 1]] * 3, (width, markers)
+        finally:
+            browser.close()
+
+
 def test_clipboard_checks_transformed_bounds_not_only_scroll_width():
     from visual_director.delivery import _clipboard_static_label_geometry
     playwright = pytest.importorskip("playwright.sync_api")
@@ -124,7 +166,7 @@ def test_custom_layout_inline_save_and_mobile_preview(tmp_path, monkeypatch, the
     from test_api_workflow import _prepare_publication_ready_task
     from visual_director.image_provider import ManualImageProvider
     from visual_director.main import create_app
-    from visual_director.text_planner import MockTextPlannerProvider
+
 
     playwright = pytest.importorskip("playwright.sync_api")
     if not (ROOT / "apps/web/dist/index.html").exists():
@@ -132,7 +174,7 @@ def test_custom_layout_inline_save_and_mobile_preview(tmp_path, monkeypatch, the
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(tmp_path / "private.env"))
     monkeypatch.setenv("VISUAL_DIRECTOR_THEME_PACK_DIR", str(tmp_path / "packs"))
     monkeypatch.setenv("VISUAL_DIRECTOR_WEB_DIST", str(ROOT / "apps/web/dist"))
-    app = create_app(str(tmp_path / "editor.db"), image_provider=ManualImageProvider(), text_planner_provider=MockTextPlannerProvider())
+    app = create_app(str(tmp_path / "editor.db"), image_provider=ManualImageProvider())
     with TestClient(app) as client:
         manifest = json.loads((ROOT / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
         manifest = theme_factory(manifest)

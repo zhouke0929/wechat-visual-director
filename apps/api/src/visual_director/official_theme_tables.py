@@ -2,6 +2,7 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .reading_rules import TABLE_HEADER, TABLE_BODY, ReadingProfile, render_authored_text
 from .theme_drawings import render_drawing
 
 
@@ -295,6 +296,7 @@ _STYLES: dict[str, tuple[str, _CellStyle]] = {
 
 def render_official_theme_table(
     theme_id: object, rows: list[list[str]], palette: _Palette, gap: int, inline: Callable[[str], str],
+    *, reading: ReadingProfile | None = None, project_text: Callable[[str], str] | None = None,
 ) -> str | None:
     """Use a reviewed style only for its own pack; never add a decorative row."""
     if not isinstance(theme_id, str) or theme_id not in _STYLES or not rows:
@@ -307,7 +309,8 @@ def render_official_theme_table(
         tag, scope = ('th', ' scope="col"') if head else ('td', '')
         cells = []
         for column, value in enumerate(row):
-            style, text = cell_style(_Cell(inline(value), column, columns, head, last, row_index), palette)
+            authored = render_authored_text(inline(value), TABLE_HEADER if head else TABLE_BODY, reading)
+            style, text = cell_style(_Cell(project_text(authored) if project_text else authored, column, columns, head, last, row_index), palette)
             cells.append(f'<{tag}{scope} style="{_CELL_BASE}{style}">{text}</{tag}>')
         return '<tr>' + ''.join(cells) + '</tr>'
 

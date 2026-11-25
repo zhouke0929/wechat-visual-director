@@ -14,7 +14,8 @@ from .component_catalog import (
 from .components import render_component
 from .generated_theme import generated_rhythm_primitives, render_generated_hero, render_generated_paragraph
 from .parser import ContentBlock, ParsedArticle, parse_markdown
-from .renderer import _render_heading
+from .publication import strip_workbench_editor_attributes
+from .foundation_structure import _render_heading
 from .theme_extensions import EXTENDED_THEME_IDS, extended_rhythm_primitives, render_extended_hero
 from .theme_pair_samples import COMPARISON, TIMELINE
 from .theme_packs import BUNDLED_THEME_IDS, bundled_theme_acceptance, check_theme_pack_delivery, theme_pack, theme_pack_load_errors
@@ -174,7 +175,7 @@ def _component_specimen(
         ),
         "purpose": purpose,
         "use_when": use_when,
-        "html": render_component(
+        "html": strip_workbench_editor_attributes(render_component(
             {
                 "component_type": component_type,
                 "variant": variant,
@@ -183,7 +184,8 @@ def _component_specimen(
             parsed,
             palette,
             configuration,
-        ),
+            visual_system=visual_system,
+        ), field_anchors_only=True),
     }
 
 

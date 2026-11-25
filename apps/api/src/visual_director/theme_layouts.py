@@ -9,8 +9,15 @@ import html
 import math
 import re
 from collections import Counter
+from collections.abc import Mapping
 from typing import Any
 
+from .component_presentation import resolve_component_recipe
+from .logic_path_content import step_field_attributes, step_field_css, step_field_text
+from .ordinary_list_content import OrdinaryListField, ordinary_list_attributes, ordinary_list_ordinal, ordinary_list_text
+from .reading_rules import LIST_BODY, ReadingProfile, apply_reading_css, authored_emphasis, authored_host_css
+from .semantic_content import SemanticField
+from .step_content import STEP_HIERARCHY_FORMAT
 from .theme_drawings import render_drawing, validate_drawing
 
 PALETTE_KEYS = {"primary", "secondary", "accent", "sky", "pale", "secondary_pale", "accent_pale", "sky_pale", "surface", "ink"}
@@ -117,7 +124,7 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
             keys = {"stack": {"children"}, "row": {"children", "widths"},
                     "marker_row": {"children", "marker_width", "gap"},
                     "ornament_rule": {"children", "slot_width", "line_color"}, "text": {"text"},
-                    "field": {"bind"}, "repeat": {"bind", "children"}, "rule": set(),
+                    "field": {"bind", "format"}, "repeat": {"bind", "children"}, "rule": set(),
                     "shape": {"width", "height"}, "media": set(),
                     "cutout": {"children", "fill", "radius", "pitch", "inset"},
                     "drawing": {"width", "height", "parts", "sizing"}}
@@ -153,6 +160,11 @@ def validate_layouts(value: Any) -> list[dict[str, str]]:
                     error(path, "固定标签须为 1–60 字符，不放文章正文")
             elif kind == "field":
                 bind = node.get("bind")
+                if "format" in node and not (
+                    node["format"] == STEP_HIERARCHY_FORMAT and role == "logic_path"
+                    and inside == "items" and bind == "item"
+                ):
+                    error(f"{path}.format", "step_hierarchy 仅用于逻辑路径重复项中的 item 字段")
                 allowed = ({"item", "index"} if inside == "items" else {"title", "body", "index"}) if inside else required | ({"index"} if role in {"heading", "subheading"} else set())
                 if not isinstance(bind, str) or bind not in allowed:
                     error(path, "字段不属于当前语义角色或重复项")
@@ -256,7 +268,11 @@ def _inline(value: Any) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped).replace("\n", "<br>")
 
 
-def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) -> str | None:
+def render_layout(
+    role: str, payload: dict[str, Any], config: dict[str, Any], *,
+    field_roles: Mapping[str, str] | None = None,
+    reading: ReadingProfile | None = None,
+) -> str | None:
     layouts = config.get("generated_design_system", {}).get("layouts", {})
     if role not in layouts:
         return None
@@ -264,6 +280,7 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
     errors = validate_layouts({role: layouts[role]})
     if errors:
         raise ValueError(f"Invalid theme layout: {errors[0]['field']}: {errors[0]['message']}")
+    recipe = resolve_component_recipe(config, role)
 
     def render(node: dict[str, Any], context: dict[str, Any]) -> str:
         kind = node["type"]
@@ -325,7 +342,26 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
                 else:
                     attr += ' data-theme-list-index="true"'
             tag = "h1" if role == "hero" and kind == "field" and node["bind"] == "title" else "p"
-            return f'<{tag} {attr} style="{css}">{_inline(value)}</{tag}>'
+            if role == "logic_path" and kind == "field" and node["bind"] == "item":
+                attr += step_field_attributes(value)
+                css = step_field_css(css, value)
+                content = step_field_text(value, _inline, hierarchy=node.get("format") == STEP_HIERARCHY_FORMAT)
+            elif role == "list" and kind == "field" and node["bind"] == "item" and isinstance(value, OrdinaryListField):
+                attr += ordinary_list_attributes(value)
+                css = apply_reading_css(css, LIST_BODY, value.reading)
+                content = ordinary_list_text(value)
+            elif kind == "field" and isinstance(value, SemanticField):
+                css = authored_host_css(css, value.role, value.reading)
+                content = authored_emphasis(_inline(value.text), value.reading)
+            else:
+                content = _inline(value)
+                field_role = (field_roles or {}).get(node["bind"]) if kind == "field" else None
+                if field_role and reading is not None:
+                    css = authored_host_css(css, field_role, reading)
+                    content = authored_emphasis(content, reading)
+            if kind == "field":
+                css = recipe.field_css(css, node["bind"])
+            return f'<{tag} {attr} style="{css}">{content}</{tag}>'
         if kind == "shape":
             return f'<span aria-hidden="true" style="display:inline-block;width:{node["width"]:g}px;height:{node["height"]:g}px;{css}">&#160;</span>'
         if kind == "rule":
@@ -338,7 +374,8 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
         if kind == "repeat":
             rows = []
             for index, item in enumerate(context[node["bind"]], 1):
-                child_context = {**(item if isinstance(item, dict) else {"item": item}), "index": f"{index:02d}"}
+                ordinal = ordinary_list_ordinal(item, index) if role == "list" else index
+                child_context = {**(item if isinstance(item, dict) else {"item": item}), "index": f"{ordinal:02d}"}
                 rows.append(f'<section style="{css}">' + "".join(render(c, child_context) for c in node["children"]) + "</section>")
             return "".join(rows)
         if kind == "row":
@@ -371,4 +408,4 @@ def render_layout(role: str, payload: dict[str, Any], config: dict[str, Any]) ->
     rhythm = config["generated_design_system"]["rhythm"]
     gap = rhythm["section_gap" if role == "heading" else "component_gap"]
     gap = round(gap * {"airy": 1.2, "balanced": 1, "compact": .85}[rhythm["density"]])
-    return f'<section data-theme-layout="{role}" style="margin:{gap}px 0;{text_style(config)}">{render(layouts[role], payload)}</section>'
+    return f'<section data-theme-layout="{role}" style="{recipe.margin_css(gap)}{text_style(config)}">{render(layouts[role], payload)}</section>'

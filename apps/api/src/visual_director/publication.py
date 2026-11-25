@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from .delivery_markup import DeliveryMarkup
+from .image_caption_render import stored_caption_profile
+from .reading_rules import CAPTION, ReadingProfile, authored_host_css
 from .theme_delivery import legacy_drawing_present
 
 
@@ -101,14 +103,14 @@ def replace_asset_urls(document: str, url_to_token: dict[str, str]) -> str:
     return DeliveryMarkup(document).rewrite_image_sources({source: f"asset://{token}" for source, token in url_to_token.items()})
 
 
-def strip_workbench_editor_attributes(document: str) -> str:
-    """Remove preview-only editing hooks before freezing publication HTML."""
-    return re.sub(
-        r'\sdata-editor-(?:title|block-ids|block-type)="[^"]*"',
-        "",
-        document,
-        flags=re.IGNORECASE,
-    )
+_FIELD_HOOKS = frozenset({"data-editor-step-ref", "data-editor-step-prefix", "data-editor-list-ref"})
+_EDITOR_HOOKS = _FIELD_HOOKS | {"data-editor-title", "data-editor-block-ids", "data-editor-block-type"}
+
+
+def strip_workbench_editor_attributes(document: str, *, field_anchors_only: bool = False) -> str:
+    """Public specimens retain their original block metadata; frozen articles retain no edit hooks."""
+    omitted = _FIELD_HOOKS if field_anchors_only else _EDITOR_HOOKS
+    return DeliveryMarkup(document, omit_attributes=omitted).without_omitted_attributes()
 
 
 def render_frozen_asset_urls(document: str, token_to_url: dict[str, str]) -> str:
@@ -135,13 +137,14 @@ def _materialized_image_markup(
     frame_variant: str,
     caption_html: str = "",
     theme_config: dict[str, Any] | None = None,
+    reading: ReadingProfile | None = None,
 ) -> str:
     if theme_config:
         from .theme_layouts import render_layout
 
         custom = render_layout("image_caption", {
             "caption": html.unescape(caption_html), "media": {"src": content_url, "alt": alt},
-        }, theme_config)
+        }, theme_config, field_roles={"caption": CAPTION}, reading=reading)
         if custom is not None:
             return (f'<section id="{html.escape(element_id, quote=True)}" class="{anchor_class}" '
                     f'data-image-frame="custom-layout" style="scroll-margin-top:18px;">{custom}</section>')
@@ -180,6 +183,7 @@ def _materialized_image_markup(
         wrapper_style = "scroll-margin-top:18px;margin:26px 0;"
         image_style = "border-radius:12px;"
         caption_style = "margin:8px 0 0;color:#75817C;font-size:11px;line-height:1.55;text-align:center;"
+    caption_style = authored_host_css(caption_style, CAPTION, reading)
     caption = (
         f'<p data-content-role="image-caption" style="{caption_style}">{caption_html}</p>'
         if caption_html
@@ -272,6 +276,7 @@ def materialize_preview_document(
                 frame_variant=frame_variant,
                 caption_html=caption_html,
                 theme_config=_custom_image_config(match.group(0)),
+                reading=stored_caption_profile(match.group(0)),
             )
 
         document = pattern.sub(replace_source, document)

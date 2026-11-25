@@ -19,9 +19,11 @@ _NO_BORDER = {"0", "0px", "none", "hidden", "initial", "unset", "transparent"}
 class DeliveryMarkup(HTMLParser):
     """Collect the actual tags, attributes and controlled media in an HTML fragment."""
 
-    def __init__(self, document: str):
+    def __init__(self, document: str, *, omit_attributes: frozenset[str] = frozenset()):
         super().__init__()
         self.document = document
+        self._omit_attributes = omit_attributes
+        self._attribute_edits: list[tuple[int, int, str]] = []
         self.has_script = False
         self.has_event_handler = False
         self.waiting_source = False
@@ -41,6 +43,11 @@ class DeliveryMarkup(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         self._pending = None
         attributes = dict(attrs)
+        if self._omit_attributes and not self._omit_attributes.isdisjoint(attributes):
+            offset = self._offset()
+            for match in _ATTRIBUTE.finditer(self.get_starttag_text(), len(tag) + 1):
+                if match[1].lower() in self._omit_attributes:
+                    self._attribute_edits.append((offset + match.start(), offset + match.end(), ""))
         self.has_script |= tag == "script"
         self.has_event_handler |= any(_EVENT_ATTRIBUTE.fullmatch(name) for name, _ in attrs)
         if tag == "section" and "data-image-caption" in attributes:
@@ -93,6 +100,9 @@ class DeliveryMarkup(HTMLParser):
             cursor = end
         pieces.append(self.document[cursor:])
         return "".join(pieces)
+
+    def without_omitted_attributes(self) -> str:
+        return self._rewrite(self._attribute_edits) if self._attribute_edits else self.document
 
     @property
     def has_empty_decoration(self) -> bool:

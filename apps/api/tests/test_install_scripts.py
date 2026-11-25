@@ -350,5 +350,8 @@ def test_lightweight_skill_is_not_the_repository_root() -> None:
     assert not SKILL_SOURCE.joinpath("apps").exists()
     assert not SKILL_SOURCE.joinpath("docs").exists()
     assert not SKILL_SOURCE.joinpath(".github").exists()
-    total_bytes = sum(path.stat().st_size for path in SKILL_SOURCE.rglob("*") if path.is_file())
+    # Test collection imports a skill helper and can leave local bytecode;
+    # neither installer nor either release packager ships that cache.
+    total_bytes = sum(path.stat().st_size for path in SKILL_SOURCE.rglob("*")
+                      if path.is_file() and "__pycache__" not in path.parts and path.suffix != ".pyc")
     assert total_bytes < 250_000

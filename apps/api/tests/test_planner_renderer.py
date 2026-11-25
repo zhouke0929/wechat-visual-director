@@ -33,6 +33,21 @@ from visual_director.theme_assets import referenced_theme_assets, theme_asset_me
 ROOT = Path(__file__).resolve().parents[3]
 
 
+@pytest.mark.parametrize("columns, body_rows", [(2, 0), (2, 1), (2, 2), (3, 3)])
+def test_grid_table_bottom_rule_is_not_an_extra_pasteable_row(columns, body_rows):
+    from bs4 import BeautifulSoup
+    from visual_director.foundation_structure import _render_table
+
+    config = visual_system_configuration("structured_grid")
+    values = [[f"{r}:{c}" for c in range(columns)] for r in range(body_rows + 1)]
+    table = BeautifulSoup(_render_table(values, config), "html.parser").table
+    rows = table.find_all("tr")
+    assert [[cell.get_text() for cell in row.find_all(["th", "td"])] for row in rows] == values
+    for index, row in enumerate(rows[1:], start=1):
+        border = f"3px solid {config['palette']['secondary']}" if index == body_rows else "1px solid #D1D8D4"
+        assert all(f"border-bottom:{border};" in cell["style"] for cell in row.find_all("td"))
+
+
 def test_two_plans_are_structurally_different_and_safe() -> None:
     assert all(component["status"] in {"wechat_verified", "wechat_candidate"} for component in COMPONENT_CATALOG.values())
     article = parse_markdown(
@@ -1179,6 +1194,44 @@ def test_editorial_contrast_logic_path_keeps_the_staircase_in_the_gutter() -> No
     assert markup.index("原稿") < markup.index("检查用词") < markup.index("再次核对")
     assert "editorial-step-folio" not in render_component(
         slot, parsed, config["palette"], {**config, "theme_kit": "user_pack:demo"},
+    )
+
+
+@pytest.mark.parametrize("theme", ["editorial_contrast", "warm_humanist"])
+def test_logic_path_preserves_original_step_emphasis_and_hard_break_in_clipboard(theme: str) -> None:
+    parsed = parse_markdown(
+        "# 步骤\n\n"
+        "1. **先记录 & 核对。**\\\n   用不同日期观察市场，保留 **原始记录**。\n"
+        "2. **先看营业时间。**\n"
+        "3. 这句话虽然很长，但原文没有步骤小标题，不应该擅自从中拆出一个标题。\n"
+        "4. **先核对** 单价和数量，再决定怎么整理结果。\n"
+        "5. **不用先删掉重复照片。** 先复制原件，再检查 **重复项**。\n"
+        "6. **注意：** 请保留原件。\n"
+    )
+    steps = next(block for block in parsed.blocks if block.type == "ordered_list")
+    slot = {
+        "component_type": "logic_path",
+        "variant": visual_system_variant("logic_path", theme),
+        "content_bindings": {"items": [f"{steps.id}:item:{index}" for index in range(len(steps.content))]},
+    }
+    config = visual_system_configuration(theme)
+    markup = render_component(slot, parsed, config["palette"], config, visual_system=theme)
+    detail_style = 'style="display:block;padding-top:2px;font-weight:400;"'
+    formatted = (
+        '<strong>先记录 &amp; 核对。</strong><br>用不同日期观察市场，保留 <strong>原始记录</strong>。'
+    )
+    assert detail_style not in markup
+    assert formatted in markup
+    assert "<strong>先看营业时间。</strong></p>" in markup
+    assert f">{steps.content[2]}</p>" in markup
+    assert "<strong>先核对</strong> 单价和数量，再决定怎么整理结果。" in markup
+    assert "<strong>不用先删掉重复照片。</strong> 先复制原件，再检查 <strong>重复项</strong>。" in markup
+    assert "<strong>注意：</strong> 请保留原件。" in markup
+    payload = build_clipboard_payload({"frozen_html": f"<main>{markup}</main>", "metadata": {"title": parsed.title}}, [], lambda _: "")
+    assert formatted in payload["html"]
+    assert "先记录 & 核对。 用不同日期观察市场，保留 原始记录。" in " ".join(payload["text"].split())
+    assert detail_style not in render_component(
+        slot, parsed, config["palette"], {**config, "theme_kit": "user_pack:demo"}, visual_system="demo"
     )
 
 

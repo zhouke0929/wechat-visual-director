@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from test_data_recovery import make_dataset
+from host_fixture import submit_fixture
 from visual_director.data_recovery import DataRecoveryError
 from visual_director.upgrade_data import capture_upgrade_data, dataset_snapshot, verify_upgrade_data
 from visual_director.user_profile import prepare_user_profile, profile_lock, read_user_profile, register_user_install
@@ -128,13 +129,12 @@ def test_real_workbench_api_reopens_history_and_uploaded_image_after_copy(tmp_pa
     from PIL import Image
     from visual_director.main import create_app
     from visual_director.image_provider import MockImageProvider
-    from visual_director.text_planner import MockTextPlannerProvider
 
     legacy, home = tmp_path / "program", tmp_path / "shared"
     (legacy / "config").mkdir(parents=True)
     (legacy / "config/.env.local").touch()
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(legacy / "config/.env.local"))
-    app = create_app(str(legacy / "data/visual-director.db"), image_provider=MockImageProvider(), text_planner_provider=MockTextPlannerProvider())
+    app = create_app(str(legacy / "data/visual-director.db"), image_provider=MockImageProvider())
     markdown = "# 历史文章\n\n保留这篇原文。\n\n## 行动\n\n1. 查看\n2. 记录\n3. 分享\n"
     image = BytesIO()
     Image.new("RGB", (640, 360), "#34796c").save(image, format="PNG")
@@ -146,6 +146,8 @@ def test_real_workbench_api_reopens_history_and_uploaded_image_after_copy(tmp_pa
                             data={"expected_task_version": task["version"]},
                             files={"image_file": ("cover.png", image.getvalue(), "image/png")})
         assert cover.status_code == 200
+        plan = submit_fixture(client, f'/api/v1/article-tasks/{task["id"]}', cover.json()["task"]["version"])
+        assert plan.status_code == 202, plan.text
         asset = app.state.repository.list_preflight_asset_replacements(task["id"])[0]
         original_image = client.get(asset["content_url"]).content
     app.state.repository.connection.close()
@@ -153,7 +155,7 @@ def test_real_workbench_api_reopens_history_and_uploaded_image_after_copy(tmp_pa
     # Old program files/data could disappear later; the migrated API cannot depend on them.
     shutil.move(str(legacy / "data"), str(tmp_path / "retained-legacy-backup"))
     monkeypatch.setenv("VISUAL_DIRECTOR_ENV_FILE", str(home / "config/.env.local"))
-    reopened = create_app(str(home / "data/visual-director.db"), image_provider=MockImageProvider(), text_planner_provider=MockTextPlannerProvider())
+    reopened = create_app(str(home / "data/visual-director.db"), image_provider=MockImageProvider())
     with TestClient(reopened) as client:
         items = client.get("/api/v1/article-tasks").json()["items"]
         assert any(item["id"] == task["id"] for item in items)

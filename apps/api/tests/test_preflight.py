@@ -97,7 +97,7 @@ def test_sensitive_credentials_are_hard_blocked_without_echoing_secret() -> None
     assert secret not in serialized
 
 
-def test_long_canonical_analysis_requires_grounded_semantic_structure() -> None:
+def test_long_canonical_prose_does_not_require_structure_edits_or_acknowledgement() -> None:
     paragraphs = "\n\n".join(
         [
             (
@@ -125,17 +125,9 @@ article_type: viewpoint_trend
         requested_article_type="viewpoint_trend",
     )
 
-    finding = next(
-        item
-        for item in result.report.findings
-        if item.code == "source_structure_too_flat"
-    )
-    assert result.report.planning_allowed is False
-    assert finding.resolution_policy == "EDIT_SOURCE"
-    assert finding.planning_blocking is True
-    assert finding.details is not None
-    assert finding.details["paragraph_count"] == 10
-    assert finding.details["semantic_structure_count"] == 0
+    assert result.report.planning_allowed is True
+    assert [item.code for item in result.report.findings] == ["missing_cover"]
+    assert result.report.quality_dimensions["semantic_risk"] == "pass"
 
 
 def test_long_analysis_with_two_grounded_structures_can_be_planned() -> None:

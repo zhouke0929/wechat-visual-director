@@ -11,9 +11,8 @@ from .brief_compiler import compile_editorial_brief
 from .component_catalog import COMPONENT_CATALOG
 from .editorial_brief import normalize_editorial_brief_for_article
 from .parser import ContentBlock, parse_markdown
-from .planner import generate_plans
 from .renderer import render_preview
-from .text_planner import TextPlannerRequest, build_rule_based_brief
+from .text_planner import TextPlannerRequest
 
 
 BLIND_REVIEW_SCHEMA_VERSION = "blind_review.v0.1"
@@ -43,6 +42,10 @@ class BlindReviewDataset:
     """Build a source-hidden R/L comparison set from a frozen certification report."""
 
     def __init__(self, root: Path, manifest_path: Path) -> None:
+        # This historical comparator is loaded only in an explicit evaluation run.
+        from .planner import generate_plans
+        from .rule_baseline import build_rule_based_brief
+
         self.root = root
         self.manifest_path = manifest_path
         self.manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

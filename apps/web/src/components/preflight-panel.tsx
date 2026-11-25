@@ -3,20 +3,17 @@
 import Link from "@/lib/router";
 import { CheckIcon } from "@/components/icons";
 import { absoluteApiUrl } from "@/lib/api";
-import type { PreflightFinding, PreflightReport, TaskStatus } from "@/lib/types";
+import type { PreflightFinding, PreflightReport } from "@/lib/types";
 
 type PreflightPanelProps = {
   report: PreflightReport;
-  taskStatus: TaskStatus;
   titleSource: string;
   sectionCount: number;
   imageReferenceCount: number;
   busyFinding: string;
-  planningBusy: boolean;
   hasPreview: boolean;
   forceOpenFindings?: boolean;
   onAcknowledge: (finding: PreflightFinding) => void;
-  onGeneratePlans: () => void;
   onLocate: (blockId: string) => void;
   onReplaceAsset: (finding: PreflightFinding, file: File) => void;
 };
@@ -39,7 +36,7 @@ function findingStage(finding: PreflightFinding): string {
   if (finding.resolution_policy === "HARD_BLOCK") return "停止处理";
   if (finding.planning_blocking) return "生成方案前";
   if (finding.draft_blocking) return "创建草稿前";
-  return "进入受限规划";
+  return "原稿提示";
 }
 
 function detailLine(finding: PreflightFinding): string | null {
@@ -65,16 +62,13 @@ function detailLine(finding: PreflightFinding): string | null {
 
 export function PreflightPanel({
   report,
-  taskStatus,
   titleSource,
   sectionCount,
   imageReferenceCount,
   busyFinding,
-  planningBusy,
   hasPreview,
   forceOpenFindings = false,
   onAcknowledge,
-  onGeneratePlans,
   onLocate,
   onReplaceAsset,
 }: PreflightPanelProps) {
@@ -82,8 +76,7 @@ export function PreflightPanel({
   const planningBlockers = unresolved.filter((finding) => finding.planning_blocking).length;
   const draftBlockers = unresolved.filter((finding) => finding.draft_blocking).length;
   const acknowledgements = unresolved.filter((finding) => finding.resolution_policy === "ACKNOWLEDGE").length;
-  const isTaskCreated = taskStatus === "created";
-  const shouldOpen = isTaskCreated || planningBlockers > 0 || forceOpenFindings;
+  const shouldOpen = planningBlockers > 0 || forceOpenFindings;
 
   return (
     <section className={`preflight-dossier preflight-${report.status.toLowerCase()} ${hasPreview ? "preflight-compact" : ""}`} aria-labelledby="preflight-title">
@@ -97,12 +90,12 @@ export function PreflightPanel({
           <span>INPUT CONTROL / MARKDOWN DOSSIER</span>
           <h2 id="preflight-title">
             {report.status === "PASS"
-              ? "结构清晰，可以进入视觉规划"
+              ? "原稿结构检查通过"
               : report.status === "BLOCK"
                 ? "输入已停止，需要修改原稿"
                 : planningBlockers
                   ? `发现 ${planningBlockers} 项生成前问题`
-                  : "可进入受限规划，草稿前仍需收尾"}
+                  : "原稿检查有提示"}
           </h2>
           <p>
             {report.status === "PASS"
@@ -121,7 +114,7 @@ export function PreflightPanel({
       <div className="preflight-ledger" aria-label="预检影响摘要">
         <div className={planningBlockers ? "ledger-alert" : "ledger-clear"}>
           <span>{String(planningBlockers).padStart(2, "0")}</span>
-          <p><strong>生成前处理</strong><small>{planningBlockers ? "必须修改后才能调用 Planner" : "Planner 入口已开放"}</small></p>
+          <p><strong>原稿结构</strong><small>{planningBlockers ? "需要修正原稿" : "没有阻断问题"}</small></p>
         </div>
         <div className={draftBlockers ? "ledger-warning" : "ledger-clear"}>
           <span>{String(draftBlockers).padStart(2, "0")}</span>
@@ -210,22 +203,6 @@ export function PreflightPanel({
         )}
       </details>
 
-      {isTaskCreated ? (
-        <footer className="preflight-gate">
-          <div>
-            <span>PLANNER GATE</span>
-            <strong>{report.planning_allowed ? "输入已具备规划条件" : "Planner 暂时锁定"}</strong>
-            <p>{report.planning_allowed ? "未确认提示可以随受限方案继续展示。" : "请修改原稿并创建新任务；当前任务不会静默修复。"}</p>
-          </div>
-          {report.planning_allowed ? (
-            <button disabled={planningBusy} onClick={onGeneratePlans} type="button">
-              {planningBusy ? "正在生成推荐稿…" : report.status === "PASS" ? "生成视觉推荐稿" : "进入受限规划"}
-            </button>
-          ) : (
-            <Link href="/">回到首页，交给 Agent 整理修改后的原稿</Link>
-          )}
-        </footer>
-      ) : null}
     </section>
   );
 }
