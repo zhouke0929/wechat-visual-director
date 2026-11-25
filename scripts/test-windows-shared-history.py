@@ -114,7 +114,8 @@ def main() -> int:
         request(f'/article-tasks/{first["id"]}/preflight/findings/missing_cover/replace-asset', data=payload, content_type=mime)
         # Resolve the controlled image file from the portable dataset, not a guessed URL.
         original_images = {str(p.relative_to(a / "data")): sha(p) for p in (a / "data/image-assets").rglob("*") if p.is_file()}
-        template = json.loads((new / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
+        # Seed historical data using the old version's supported theme format.
+        template = json.loads((old / "skills/wechat-visual-director/assets/theme-pack-template.json").read_text(encoding="utf-8"))
         template["id"], template["name"] = "shared_history_probe", "共享历史验收主题"
         payload, mime = multipart({}, {"theme_file": ("theme.json", "application/json", json.dumps(template, ensure_ascii=False).encode())})
         request("/theme-packs", data=payload, content_type=mime, intent=True)
