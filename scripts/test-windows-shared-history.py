@@ -142,8 +142,8 @@ def main() -> int:
         active = b / "visual-director.ps1"
         ps(new / "scripts/bootstrap.ps1", "-InstallRoot", b, "-UserDataHome", shared, *common, label="06-second-program-install")
         check_ids([first["id"], second["id"]])
-        via_old_entry = ps(a / "visual-director.ps1", "task", "list", "--json", label="07-old-entry-delegates")
-        assert {item["id"] for item in via_old_entry["items"]} == {first["id"], second["id"]}
+        via_old_entry = ps(a / "visual-director.ps1", "task", "list", "--include-unplanned", "--json", label="07-old-entry-delegates")
+        assert {item["id"] for item in via_old_entry["items"]} == {first["id"], second["id"]}, "Old launcher failed to return both stored task IDs"
         for view in ("codex-appdata-view", "other-agent-appdata-view"):
             fake_local = root / view
             fake_local.mkdir()
