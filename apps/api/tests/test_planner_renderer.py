@@ -33,6 +33,21 @@ from visual_director.theme_assets import referenced_theme_assets, theme_asset_me
 ROOT = Path(__file__).resolve().parents[3]
 
 
+@pytest.mark.parametrize("columns, body_rows", [(2, 0), (2, 1), (2, 2), (3, 3)])
+def test_grid_table_bottom_rule_is_not_an_extra_pasteable_row(columns, body_rows):
+    from bs4 import BeautifulSoup
+    from visual_director.foundation_structure import _render_table
+
+    config = visual_system_configuration("structured_grid")
+    values = [[f"{r}:{c}" for c in range(columns)] for r in range(body_rows + 1)]
+    table = BeautifulSoup(_render_table(values, config), "html.parser").table
+    rows = table.find_all("tr")
+    assert [[cell.get_text() for cell in row.find_all(["th", "td"])] for row in rows] == values
+    for index, row in enumerate(rows[1:], start=1):
+        border = f"3px solid {config['palette']['secondary']}" if index == body_rows else "1px solid #D1D8D4"
+        assert all(f"border-bottom:{border};" in cell["style"] for cell in row.find_all("td"))
+
+
 def test_two_plans_are_structurally_different_and_safe() -> None:
     assert all(component["status"] in {"wechat_verified", "wechat_candidate"} for component in COMPONENT_CATALOG.values())
     article = parse_markdown(

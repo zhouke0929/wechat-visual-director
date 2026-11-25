@@ -267,7 +267,8 @@ def parse_markdown(markdown: str, title_override: str | None = None) -> ParsedAr
                 candidate = lines[cursor].strip()
                 if not (candidate.startswith("|") and candidate.endswith("|")):
                     break
-                cells = [cell.strip() for cell in candidate.strip("|").split("|")]
+                # Remove the two outer delimiters, not a run of empty edge cells.
+                cells = [cell.strip() for cell in candidate[1:-1].split("|")]
                 if not all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
                     rows.append(cells)
                 cursor += 1

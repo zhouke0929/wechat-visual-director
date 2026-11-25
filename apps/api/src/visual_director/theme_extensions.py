@@ -1037,39 +1037,39 @@ def _distinct_table(rows: list[list[str]], grammar: str, p: dict[str, str], *, q
         return None
     header, *body = rows
     if grammar == "oriental":
-        ths = ''.join(f'<th style="padding:9px 7px;border-bottom:1px solid {p["accent"]};color:{p["primary"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:9px 7px;border-bottom:1px solid {p["accent"]};color:{p["primary"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for row in body:
-            cells = ''.join(f'<td style="padding:11px 7px;border-bottom:1px solid #DDD1BA;color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:11px 7px;border-bottom:1px solid #DDD1BA;color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         caption = "" if quiet_folio else f'<p style="margin:0 0 7px;color:{p["secondary"]};font:700 8px Georgia;letter-spacing:.22em;">ARCHIVE LEDGER</p>'
         return f'<section data-theme-grammar="archive-ledger" style="margin:27px 0;padding:8px 16px 13px;border-left:5px solid {p["accent"]};background-color:{p["surface"]};">{caption}<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "press":
-        ths = ''.join(f'<th style="padding:8px 6px;border-right:1px solid {p["ink"]};border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:8px 6px;border-right:1px solid {p["ink"]};border-bottom:3px double {p["ink"]};color:{p["ink"]};font-family:Georgia,serif;font-size:12px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for row in body:
-            cells = ''.join(f'<td style="padding:9px 6px;border-right:1px solid #A69A84;border-bottom:1px dotted #A69A84;color:{p["ink"]};font-size:12px;line-height:1.5;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:9px 6px;border-right:1px solid #A69A84;border-bottom:1px dotted #A69A84;color:{p["ink"]};font-size:12px;line-height:1.5;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         return f'<section data-theme-grammar="newspaper-columns" style="margin:27px 0;padding:8px 0;border-top:7px solid {p["ink"]};border-bottom:3px double {p["ink"]};"><p style="margin:0 0 8px;color:{p["accent"]};font:900 8px Georgia;letter-spacing:.22em;text-align:right;">DATA DESK / SPECIAL EDITION</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "atlas":
-        ths = ''.join(f'<th style="padding:8px 7px;border-bottom:1px solid {p["primary"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:8px 7px;border-bottom:1px solid {p["primary"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for index, row in enumerate(body, start=1):
-            cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dotted {p["sky"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr data-specimen="{index:02d}">{cells}</tr>')
         return f'<section data-theme-grammar="specimen-register" style="margin:27px 0;padding:14px 13px 12px;border:1px solid {p["sky"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};"><p style="margin:-24px 0 10px;"><span style="display:inline-block;padding:4px 10px;border-radius:12px 2px 12px 2px;background-color:{p["primary"]};color:#FFF;font:700 8px Georgia;letter-spacing:.2em;">SPECIMEN REGISTER</span></p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
     if grammar == "business":
-        ths = ''.join(f'<th style="padding:9px 8px;border-left:1px solid #B9C2C4;background-color:{p["primary"]};color:#FFF;font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+        ths = ''.join(f'<th style="padding:9px 8px;border-left:1px solid #B9C2C4;background-color:{p["primary"]};color:#FFF;font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
         trs = []
         for index, row in enumerate(body):
             bg = p["surface"] if index % 2 else p["sky_pale"]
-            cells = ''.join(f'<td style="padding:10px 8px;border-left:1px solid #C8D0D2;border-bottom:1px solid #C8D0D2;background-color:{bg};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+            cells = ''.join(f'<td style="padding:10px 8px;border-left:1px solid #C8D0D2;border-bottom:1px solid #C8D0D2;background-color:{bg};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
             trs.append(f'<tr>{cells}</tr>')
         return f'<section data-theme-grammar="executive-dashboard" style="margin:27px 0;border-top:8px solid {p["secondary"]};"><p style="margin:0;padding:7px 0;color:{p["accent"]};font:800 8px Georgia;letter-spacing:.2em;text-align:right;">DECISION MATRIX</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
-    ths = ''.join(f'<th style="padding:9px 7px;border-bottom:2px solid {p["accent"]};background-color:{p["secondary_pale"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+    ths = ''.join(f'<th style="padding:9px 7px;border-bottom:2px solid {p["accent"]};background-color:{p["secondary_pale"]};color:{p["primary"]};font-size:11px;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
     trs = []
     for row in body:
-        cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dashed #C9B9B8;background-color:{p["surface"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+        cells = ''.join(f'<td style="padding:10px 7px;border-bottom:1px dashed #C9B9B8;background-color:{p["surface"]};color:{p["ink"]};font-size:12px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
         trs.append(f'<tr>{cells}</tr>')
     return f'<section data-theme-grammar="festival-program-table" style="margin:27px 0;padding:14px 12px 15px;border:1px dashed {p["primary"]};border-radius:3px 24px 3px 24px;background-color:{p["surface"]};box-shadow:7px 7px 0 {p["accent_pale"]};"><p style="margin:0 0 10px;color:{p["accent"]};font:700 8px Georgia;letter-spacing:.23em;">FESTIVAL PROGRAM / DATA TAKE</p><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'
 
@@ -1088,11 +1088,11 @@ def render_extended_table(rows: list[list[str]], config: dict[str, Any], *, read
     border = p["primary"] if strong else p["sky"]
     header_bg = p["primary"] if strong else p["pale"]
     header_color = "#FFFFFF" if strong else p["primary"]
-    ths = "".join(f'<th style="padding:10px 8px;border:1px solid {border};background-color:{header_bg};color:{header_color};font-size:12px;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header[:4])
+    ths = "".join(f'<th style="padding:10px 8px;border:1px solid {border};background-color:{header_bg};color:{header_color};font-size:12px;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>' for cell in header)
     trs = []
     for row_index, row in enumerate(body):
         background = p["surface"] if row_index % 2 else p["secondary_pale"]
-        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {border};background-color:{background};color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row[:4])
+        cells = "".join(f'<td style="padding:10px 8px;border:1px solid {border};background-color:{background};color:{p["ink"]};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>' for cell in row)
         trs.append(f"<tr>{cells}</tr>")
     top = "10px" if grammar in {"press", "cinema"} else "4px"
     return f'<section style="margin:24px 0;border-top:{top} solid {p["primary"]};overflow-x:auto;"><table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table></section>'

@@ -217,6 +217,23 @@ function labelForGroup(group: EditableGroup, index: number): string {
 
 function findIndexedEditorFields(wrapper: HTMLElement, block: ContentEditorBlock, count: number): HTMLElement[] | null {
   const wrapperType = wrapper.dataset.editorBlockType;
+  if (wrapperType === "table" && block.type === "table" && Array.isArray(block.content)
+      && block.content.every(Array.isArray)) {
+    // Address native cells by row and column. Text search cannot distinguish
+    // repeated values, or find an intentionally empty first/last cell.
+    const table = wrapper.matches("table") ? wrapper as HTMLTableElement : wrapper.querySelector("table");
+    const values = block.content as string[][];
+    if (!table || table.rows.length !== values.length) return null;
+    const fields: HTMLElement[] = [];
+    for (const [i, row] of Array.from(table.rows).entries()) {
+      if (row.cells.length !== values[i].length) return null;
+      for (const [j, cell] of Array.from(row.cells).entries()) {
+        if (normalizedText(cell.textContent ?? "") !== renderedText(values[i][j])) return null;
+        fields.push(cell);
+      }
+    }
+    return fields;
+  }
   const kind = wrapperType === "component:logic_path"
     ? "step"
     : wrapperType === block.type && (block.type === "ordered_list" || block.type === "unordered_list")

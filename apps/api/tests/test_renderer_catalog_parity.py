@@ -66,7 +66,7 @@ GRID_REGISTER_SAMPLES = {
     "structured_grid/evidence_callout": "df6990d73d15daed3b5d03b1ff1fe5cb54ad54d7cc73a39f2b947c08352d4fdc",
     "structured_grid/concept_explainer": "e372945daf50b026f1efd3d8da074904dc00297b2c3db315f499e18f51538dde",
     "structured_grid/case_card": "61815b16e7238bfbeff2848ed9c65e8abf3423636939d4ddcfa71245aff7d6ca",
-    "structured_grid/whole_article": "bfc4f73e71f1034721637c14e416e1399d2cd7953c02486ebc07bd39f4073dcc",
+    "structured_grid/whole_article": "4f3f7b6bc9a94b1c9cfb1b85b1d81c98c23746619c401584daf6f11e0884ba21",
     "structured_grid/logic_path_stress": "39a2e0bb3ac17dfd689055288a00a0b413522ea00baf2b41e237f6389f2a15d4",
 }
 
@@ -167,6 +167,10 @@ def fixed_catalog(monkeypatch, tmp_path):
 @pytest.mark.parametrize("mode", MODES)
 def test_complete_catalog_matches_pinned_renderer(mode, fixed_catalog):
     expected = {**fixed_catalog["default"], **fixed_catalog.get(mode, {})}
+    # The WeChat-safe table border applies even with typography pilots off.
+    expected["structured_grid/table"] = "938403058398ae80660e677c43e7918af7948074fbffc6f2daa593f7684288e9"
+    if mode == "legacy":
+        expected["structured_grid/whole_article"] = "b83d96f42095b5aaafa43d6e8cbb506b3deb653ccc5290715a26b9c3df90cb24"
     if mode != "legacy":
         expected.update(APPROVED_POSTER_STEPS)
         expected.update(STEP_WEIGHT_SAMPLES)

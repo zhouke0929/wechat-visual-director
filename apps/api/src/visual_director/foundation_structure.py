@@ -277,6 +277,15 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
     generated = render_generated_table(rows, config, reading=reading)
     if generated is not None:
         return generated
+    markup = _render_classic_table(rows, config, reading=reading)
+    # Newly supported wide tables have little room per column on a phone.
+    # Wrap long IDs inside their own cells; do not elide or alter source text.
+    if any(len(row) > 4 for row in rows):
+        markup = markup.replace('<table style="', '<table style="overflow-wrap:anywhere;word-break:break-word;', 1)
+    return markup
+
+
+def _render_classic_table(rows: list[list[str]], config: dict[str, Any], *, reading: ReadingProfile | None = None) -> str:
     extended = render_extended_table(rows, config, reading=reading)
     if extended is not None:
         return extended
@@ -287,16 +296,17 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         secondary = palette.get("secondary", accent)
         ths = "".join(
             f'<th style="padding:10px 8px;border-top:4px solid {accent};border-bottom:1px solid #AEBBB5;background-color:#FFFFFF;color:{accent};font-size:12px;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-            for cell in header[:4]
+            for cell in header
         )
         trs = []
         for row_index, row in enumerate(body):
+            # WeChat can expand an empty decorative row to a full line on paste.
+            bottom = f"3px solid {secondary}" if row_index == len(body) - 1 else "1px solid #D1D8D4"
             cells = "".join(
-                f'<td style="padding:11px 8px;border-bottom:1px solid #D1D8D4;background-color:{"#F3F6F1" if cell_index == 0 else "#FFFFFF"};color:#34403E;font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-                for cell_index, cell in enumerate(row[:4])
+                f'<td style="padding:11px 8px;border-bottom:{bottom};background-color:{"#F3F6F1" if cell_index == 0 else "#FFFFFF"};color:#34403E;font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
+                for cell_index, cell in enumerate(row)
             )
-            marker = f'<tr><td colspan="{min(len(header), 4)}" style="height:3px;padding:0;background-color:{secondary};"></td></tr>' if row_index == len(body) - 1 else ""
-            trs.append(f"<tr>{cells}</tr>{marker}")
+            trs.append(f"<tr>{cells}</tr>")
         return (
             '<section style="margin:24px 0;overflow-x:auto;">'
             f'<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><thead><tr>{ths}</tr></thead><tbody>{"".join(trs)}</tbody></table>'
@@ -307,13 +317,13 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         secondary = palette.get("secondary", accent)
         ths = "".join(
             f'<th style="padding:10px 8px;border-bottom:2px solid {accent};background-color:#FFF8ED;color:{accent};font-family:Georgia,\'Noto Serif SC\',serif;font-size:12px;line-height:1.45;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-            for cell in header[:4]
+            for cell in header
         )
         trs = []
         for row_index, row in enumerate(body):
             cells = "".join(
                 f'<td style="padding:11px 8px;border-bottom:1px dashed #D7B995;background-color:{"#FFFCF7" if cell_index else "#FBF2D8"};color:#342B28;font-size:13px;line-height:1.58;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-                for cell_index, cell in enumerate(row[:4])
+                for cell_index, cell in enumerate(row)
             )
             trs.append(f"<tr>{cells}</tr>")
         return (
@@ -326,13 +336,13 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         editorial_accent = palette.get("accent", accent)
         ths = "".join(
             f'<th style="padding:10px 8px;border-top:10px solid #202B33;border-bottom:3px solid #202B33;background-color:#FFFFFF;color:#202B33;font-size:12px;font-weight:850;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-            for cell in header[:4]
+            for cell in header
         )
         trs = []
         for row_index, row in enumerate(body):
             cells = "".join(
                 f'<td style="padding:11px 8px;border-bottom:1px solid #202B33;border-left:{f"5px solid {editorial_accent}" if cell_index == 0 else "0"};background-color:{"#EEF2F3" if row_index % 2 == 0 else "#FFFFFF"};color:#202B33;font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-                for cell_index, cell in enumerate(row[:4])
+                for cell_index, cell in enumerate(row)
             )
             trs.append(f"<tr>{cells}</tr>")
         return (
@@ -346,13 +356,13 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         sky = palette.get("sky", accent)
         ths = "".join(
             f'<th style="padding:10px 8px;border-bottom:3px solid {accent};background-color:{palette.get("secondary_pale", "#FFF6D9")};color:{palette.get("ink", "#20304A")};font-size:12px;font-weight:800;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-            for cell in header[:4]
+            for cell in header
         )
         trs = []
         for row_index, row in enumerate(body):
             cells = "".join(
                 f'<td style="padding:11px 8px;border-bottom:1px dashed {sky};background-color:{"#EEF4FF" if row_index % 2 == 0 else "#FFFEFB"};color:{palette.get("ink", "#20304A")};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-                for cell in row[:4]
+                for cell in row
             )
             trs.append(f"<tr>{cells}</tr>")
         return (
@@ -365,13 +375,13 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         secondary = palette.get("secondary", accent)
         ths = "".join(
             f'<th style="padding:10px 8px;border-top:4px solid {accent};border-bottom:1px solid #B9D8D2;background-color:{palette.get("surface", "#FBFEFD")};color:{accent};font-size:12px;font-weight:800;line-height:1.4;text-align:left;">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-            for cell in header[:4]
+            for cell in header
         )
         trs = []
         for row_index, row in enumerate(body):
             cells = "".join(
                 f'<td style="padding:11px 8px;border-bottom:1px solid #CFE2DE;border-left:{f"3px solid {secondary}" if cell_index == 0 else "0"};background-color:{"#F1F4FF" if row_index % 2 == 0 else "#FBFEFD"};color:{palette.get("ink", "#17313D")};font-size:13px;line-height:1.55;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-                for cell_index, cell in enumerate(row[:4])
+                for cell_index, cell in enumerate(row)
             )
             trs.append(f"<tr>{cells}</tr>")
         return (
@@ -381,14 +391,14 @@ def _render_table(rows: list[list[str]], config: dict[str, Any], *, reading: Rea
         )
     ths = "".join(
         f'<th style="padding:10px 8px;background-color:{accent};color:#fff;font-size:13px;line-height:1.4;text-align:left;border:1px solid {accent};">{render_authored_text(_inline(cell), TABLE_HEADER, reading)}</th>'
-        for cell in header[:4]
+        for cell in header
     )
     trs = []
     for row_index, row in enumerate(body):
         background = "#F7F4EC" if row_index % 2 == 0 else "#FFFFFF"
         cells = "".join(
             f'<td style="padding:10px 8px;background-color:{background};color:#34403E;font-size:13px;line-height:1.5;border:1px solid #D9DED9;vertical-align:top;">{render_authored_text(_inline(cell), TABLE_BODY, reading)}</td>'
-            for cell in row[:4]
+            for cell in row
         )
         trs.append(f"<tr>{cells}</tr>")
     return (
