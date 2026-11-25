@@ -91,7 +91,9 @@ def main() -> int:
         return request("/article-tasks", data=payload, content_type=mime)["task"]
 
     def check_ids(expected):
-        actual = {item["id"] for item in request("/article-tasks")["items"]}
+        # The fixtures are imported, not planned. The workbench's default
+        # ready-only list deliberately hides them; audit the complete history.
+        actual = {item["id"] for item in request("/article-tasks?scope=all")["items"]}
         assert actual == set(expected), (actual, expected)
 
     try:
