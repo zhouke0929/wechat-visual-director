@@ -167,6 +167,10 @@ def fixed_catalog(monkeypatch, tmp_path):
 @pytest.mark.parametrize("mode", MODES)
 def test_complete_catalog_matches_pinned_renderer(mode, fixed_catalog):
     expected = {**fixed_catalog["default"], **fixed_catalog.get(mode, {})}
+    if sys.platform == "darwin":
+        overlay = json.loads(ORACLE.with_name("catalog-v1.0.0-darwin.json").read_text(encoding="utf-8"))
+        assert overlay["revision"] == REVISION
+        expected.update(overlay[mode])
     # The WeChat-safe table border applies even with typography pilots off.
     expected["structured_grid/table"] = "938403058398ae80660e677c43e7918af7948074fbffc6f2daa593f7684288e9"
     if mode == "legacy":
@@ -255,6 +259,26 @@ def _reproduce() -> None:
         ORACLE.write_text(generated, encoding="utf-8", newline="\n")
 
 
+def _reproduce_platform_overlay() -> None:
+    # Use only the archived release, never the candidate, to record platform
+    # differences. Keep exact pixel and HTML hashes; do not relax comparisons.
+    assert sys.platform == "darwin"
+    with _pinned_source_tree() as (root, env):
+        native = json.loads(subprocess.check_output(
+            [sys.executable, str(Path(__file__).resolve()), "--archived", str(root)],
+            cwd=root, env=env, encoding="utf-8"))
+    base = json.loads(ORACLE.read_text(encoding="utf-8"))
+    assert base["revision"] == native["revision"] == REVISION and base["fixed_plan"] == native["fixed_plan"]
+    overlay = {"revision": REVISION}
+    for mode in MODES:
+        win = {**base["default"], **base.get(mode, {})}
+        mac = {**native["default"], **native.get(mode, {})}
+        assert win.keys() == mac.keys()
+        overlay[mode] = {k: mac[k] for k in sorted(mac) if win[k] != mac[k]}
+    ORACLE.with_name("catalog-v1.0.0-darwin.json").write_text(
+        json.dumps(overlay, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
 def _diagnose_revision(revision: str) -> None:
     # Optional: reconstruct a pre-fix candidate even if the working tree has
     # moved. Both sides always receive the one plan archived with the release.
@@ -265,7 +289,9 @@ def _diagnose_revision(revision: str) -> None:
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--archived":
+    if sys.argv[1:] == ["--platform-overlay"]:
+        _reproduce_platform_overlay()
+    elif len(sys.argv) == 3 and sys.argv[1] == "--archived":
         _print_archived(Path(sys.argv[2]).resolve())
     elif len(sys.argv) == 3 and sys.argv[1] == "--diff-at":
         _diagnose_revision(sys.argv[2])

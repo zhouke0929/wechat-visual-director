@@ -36,6 +36,12 @@ jobs:
           name: gallery-diagnostic-${{ matrix.os }}
           path: gallery-ci-diagnostic.json
           retention-days: 3
+      - name: Reproduce native baseline from the pinned release
+        if: runner.os == 'macOS'
+        run: |
+          git fetch --depth=1 origin 10e5661afbe39e9999c7e8a3b5ca943f67c12ba5
+          python apps/api/tests/test_renderer_catalog_parity.py --platform-overlay
+          cat apps/api/tests/fixtures/catalog-v1.0.0-darwin.json
       - name: Run API tests
         run: python -m pytest apps/api/tests -q
       - name: Build static workbench
